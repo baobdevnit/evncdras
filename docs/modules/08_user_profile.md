@@ -1,0 +1,137 @@
+# MODULE 08: HỒ SƠ & THIẾT LẬP CỦA NGƯỜI DÙNG THÀNH VIÊN (USER PROFILE & PREFERENCES)
+
+## Đường dẫn tài liệu: `docs/modules/08_user_profile.md`
+
+## Ánh xạ giao diện mẫu: `templates/profile.html`, `templates/user-settings.html`, `templates/profile.css`, `templates/user-settings.css`
+
+---
+
+## 1. Mục tiêu & Nghiệp vụ (Business Overview)
+
+### 1.1. Bối cảnh nghiệp vụ
+
+Người dùng thành viên thuộc các đơn vị EVN có nhu cầu cá nhân hóa trải nghiệm làm việc và bảo vệ an toàn thông tin tài khoản:
+
+1. **Quản lý thông tin cá nhân**: Cập nhật họ tên hiển thị, số điện thoại liên lạc, ảnh đại diện (avatar). Các thông tin hành chính như Tên đăng nhập, Email EVN, Đơn vị tổ chức và Nhóm QLND do Quản trị viên chỉ định nên hiển thị ở chế độ Chỉ đọc (Read-only).
+2. **Bảo mật & Đổi mật khẩu**: Tự thay đổi mật khẩu định kỳ, tuân thủ chính sách mật khẩu mạnh của EVN (tối thiểu 10 ký tự, có ít nhất 3 trong 4 loại: chữ hoa, chữ thường, chữ số, ký tự đặc biệt; hết hạn sau 90 ngày, theo `docs/01_database_schema.md` mục 6.1).
+3. **Tùy chỉnh giao diện & Thiết lập cá nhân (Preferences)**:
+   - Giao diện Sáng / Tối (Light / Dark Mode).
+   - Trạng thái thanh Sidebar thu gọn hoặc mở rộng mặc định.
+   - Số lượng bản ghi hiển thị trên mỗi trang (`itemsPerPage`: 10, 20, 50).
+   - Bật/tắt nhận thông báo qua email và âm thanh chuông khi có sự cố mới.
+
+---
+
+## 2. Thiết kế Dữ liệu (Database Schema)
+
+Bảng MariaDB: `users` và `user_settings`.
+
+> DDL chuẩn của `user_settings` (mục 12) chỉ định nghĩa tại `docs/01_database_schema.md`. Module này không chép lại DDL để tránh lệch; khi sinh code, entity và migration lấy từ `01`.
+
+---
+
+## 3. Đặc tả API Contracts
+
+### 3.1. `GET /api/v1/profile`
+
+- **Guard**: `UserAuthGuard`
+- **Response**: Trả về chi tiết tài khoản user, thông tin nhóm QLND và đơn vị trực thuộc.
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "id": 10,
+    "username": "tran.b",
+    "email": "tran.b@71portal.vn",
+    "fullName": "Trần Thị B",
+    "jobTitle": "Trưởng nhóm Kỹ thuật Vận hành",
+    "phoneNumber": "0912345678",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Tran+B",
+    "isGroupAdmin": true,
+    "userGroup": {
+      "id": 1,
+      "name": "Khối Công nghệ Thông tin",
+      "code": "UMO-IT"
+    },
+    "organization": {
+      "id": 2,
+      "name": "Khối Công nghệ Thông tin",
+      "code": "IT-01"
+    },
+    "roleCode": "GROUP_ADMIN"
+  }
+}
+```
+
+### 3.2. `PUT /api/v1/profile`
+
+- **Body**: `{ "fullName": "Trần Thị Bích", "phoneNumber": "0912345679" }`
+- **Validation**: Không cho phép client gửi `email`, `username`, `isGroupAdmin` lên để can thiệp.
+
+### 3.3. `POST /api/v1/profile/avatar`
+
+- **Content-Type**: `multipart/form-data` (File ảnh `.png`, `.jpg`, dung lượng $\le 2\text{ MB}$).
+
+### 3.4. `PUT /api/v1/profile/change-password`
+
+- **Response thành công** `200`: `{ "accessToken": "...", "expiresIn": 900 }` (token đầy đủ, kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`), đặt cookie Refresh Token mới (phiên mới, hạn tuyệt đối 7 ngày), thu hồi mọi phiên khác (`PASSWORD_CHANGED`), cập nhật `password_changed_at = NOW()`, `must_change_password = 0`, ghi `audit_logs` `AUTH / PASSWORD_CHANGED`. Mật khẩu mới phải đạt chính sách và khác mật khẩu hiện tại (sai thì `400`).
+
+- **Body**:
+
+```json
+{
+  "currentPassword": "OldPassword123@",
+  "newPassword": "NewSecurePassword2026!@",
+  "confirmPassword": "NewSecurePassword2026!@"
+}
+```
+
+- **Validation**: Kiểm tra `currentPassword` khớp với hash trong DB; `newPassword` phải khác mật khẩu cũ; hash mật khẩu mới trước khi lưu.
+
+### 3.5. `GET /api/v1/profile/preferences` & `PUT /api/v1/profile/preferences`
+
+- Lấy và lưu thiết lập: `theme`, `isSidebarCollapsed`, `itemsPerPage`, `emailNotificationEnabled`, `soundAlertEnabled`.
+
+---
+
+## 4. Kiến trúc Backend NestJS (`backend/src/modules/user-profile/`)
+
+```
+user-profile/
+├── user-profile.module.ts
+├── user-profile.controller.ts
+├── user-profile.service.ts
+├── dto/
+│   ├── update-profile.dto.ts
+│   ├── change-password.dto.ts
+│   └── update-preferences.dto.ts
+└── entities/
+    └── user-setting.entity.ts
+```
+
+---
+
+## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/profile/UserProfileView.vue`)
+
+### 5.1. Bố cục Giao diện (Ánh xạ `templates/profile.html` & `user-settings.html`)
+
+- **Panel bên trái (`.profile-sidebar`)**:
+  - Avatar cỡ lớn (`.profile-avatar-large`) kèm nút tải ảnh đại diện `.btn-change-avatar`.
+  - Họ tên, nhãn vai trò `.role-badge`, email.
+  - Các nút chuyển Tab: "Thông tin chung", "Bảo mật & Mật khẩu", "Cài đặt & Giao diện".
+- **Panel bên phải (`.profile-content`)**:
+  - Tab 1: Form cập nhật họ tên, điện thoại, các trường readonly đơn vị và quyền hạn.
+  - Tab 2: Form đổi mật khẩu với nút bật/tắt mắt xem mật khẩu (`.eye-icon`).
+  - Tab 3: Công tắc chuyển đổi Dark Mode, thanh menu thu gọn, chọn số dòng hiển thị mỗi bảng.
+- **Tích hợp đồng bộ Theme**:
+  - Khi người dùng bật/tắt Dark Mode, cập nhật trực tiếp `document.documentElement.setAttribute('data-theme', theme)` và gọi API lưu cấu hình.
+
+---
+
+## 6. Kịch bản kiểm thử (Test Plan for Agent)
+
+1. **TC-UP-01**: Cập nhật họ tên mới, F5 trang kiểm tra họ tên trên Avatar góc phải Sidebar cập nhật tương ứng.
+2. **TC-UP-02**: Nhập sai mật khẩu hiện tại khi đổi mật khẩu, xác nhận hệ thống báo lỗi 400 "Mật khẩu hiện tại không chính xác".
+3. **TC-UP-03**: Bật Chế độ Tối (Dark Mode), đăng xuất rồi đăng nhập lại trên thiết bị khác, kiểm tra hệ thống vẫn giữ nguyên theme Dark Mode từ CSDL.

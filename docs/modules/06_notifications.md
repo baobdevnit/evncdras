@@ -1,0 +1,204 @@
+# MODULE 06: QUẢN LÝ THÔNG BÁO (NOTIFICATIONS: IN-APP & EMAIL)
+
+## Đường dẫn tài liệu: `docs/modules/06_notifications.md`
+
+## Ánh xạ giao diện mẫu: `templates/notifications.html`, `templates/notifications.css`, `templates/notifications.js`
+
+---
+
+## 1. Mục tiêu & Nghiệp vụ (Business Overview)
+
+### 1.1. Bối cảnh nghiệp vụ
+
+Hệ thống giám sát viễn thông EVN đòi hỏi khả năng cảnh báo sớm khi phát hiện các bất thường:
+
+1. **Sự cố Chất lượng thoại (`QOS_ALERT`)**: sinh **theo giờ** khi chỉ số của khung giờ vừa kết thúc (toàn hệ thống hoặc một nhóm) vượt ngưỡng trong `qos_threshold_configs` (MOS, mất gói, jitter, ASR), với khung giờ có ít nhất `qos_alert_min_calls` cuộc gọi. Không cảnh báo từng cuộc gọi. Ngưỡng, chống trùng và người nhận định nghĩa tại `docs/01_database_schema.md` mục 10.
+2. **Mất kết nối Tổng đài PABX (`PABX_OFFLINE`)**: không có bản ghi `cdr` mới trong `pabx_offline_minutes` (mặc định 60 phút); khi có dữ liệu trở lại thì tạo thông báo `INFO`.
+3. **Bảo trì hệ thống (Maintenance Notice)**: Thông báo lịch nâng cấp định kỳ do EVNICT phát động.
+
+### 1.2. Kênh phát thông báo
+
+- **In-App Realtime Notification**: Bắn tín hiệu tức thời qua WebSocket (Socket.IO). Cập nhật số đếm badge chưa đọc (`.notification-badge-global`) trên thanh Sidebar mà không cần F5 trình duyệt.
+- **Email Notification**: chỉ với thông báo `CRITICAL`, gửi qua SMTP cấu hình trong `system_settings` (`smtp_*`) tới người nhận đã bật `email_notification_enabled`. Gửi lỗi không chặn việc tạo thông báo.
+- **Người nhận**: luôn tạo một dòng `notification_recipients` cho mỗi tài khoản nhận (không có thông báo "global" không có người nhận). Admin soạn thông báo qua `POST /api/v1/admin/notifications` với `target` = `ALL_ADMINS` | `ALL_USERS` | `GROUP:{id}` | `EVERYONE`.
+
+---
+
+## 2. Thiết kế Dữ liệu (Database Schema)
+
+Bảng MariaDB: `notifications` và `notification_recipients` (Mô tả chi tiết tại `docs/01_database_schema.md`).
+
+---
+
+## 3. Đặc tả API Contracts
+
+### 3.1. Danh sách thông báo (`GET /api/v1/notifications`)
+
+- **Query params**: `filter=all` (`all`, `unread`, `read`), `page=1`, `limit=20`
+- **Response**:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": [
+    {
+      "id": 105,
+      "type": "QOS_ALERT",
+      "severity": "CRITICAL",
+      "title": "MOS khung 09:00–10:00 dưới ngưỡng nghiêm trọng",
+      "content": "Nhóm UMO-IT-01: MOS trung bình 2.85 (ngưỡng critical 3.0), 42 cuộc gọi",
+      "isRead": false,
+      "createdAt": "2026-10-12T09:30:00+07:00",
+      "timeAgo": "15 phút trước",
+      "metadata": {
+        "userGroupId": 1,
+        "metric": "MOS_G107",
+        "value": 2.85,
+        "threshold": 3.0,
+        "statDate": "2026-10-12",
+        "statHour": 9
+      }
+    }
+  ],
+  "unreadCount": 3
+}
+```
+
+### 3.2. Đánh dấu đã đọc 1 thông báo (`PUT /api/v1/notifications/:id/read`)
+
+- **Response**: Trả về `success: true` và `unreadCount` mới.
+
+### 3.3. Đánh dấu đã đọc tất cả (`PUT /api/v1/notifications/mark-all-read`)
+
+- Cập nhật toàn bộ bản ghi của người dùng hiện tại trong bảng `notification_recipients`: `is_read = 1, read_at = NOW()`.
+
+---
+
+## 4. Kiến trúc Backend NestJS (`backend/src/modules/notifications/`)
+
+```
+notifications/
+├── notifications.module.ts
+├── notifications.controller.ts
+├── notifications.service.ts
+├── notifications.gateway.ts        <-- WebSocket Gateway (Socket.IO)
+├── mailer/
+│   ├── mailer.service.ts           <-- Gửi Email qua Nodemailer
+│   └── templates/                  <-- Handlebars HTML template email
+└── entities/
+    ├── notification.entity.ts
+    └── notification-recipient.entity.ts
+```
+
+### 4.1. Implementation Gateway WebSocket (2 namespace theo portal)
+
+Theo quy tắc tách portal (`docs/02_api_contracts.md` mục 1.1 và 4): User và Admin dùng **hai namespace riêng**, mỗi namespace xác minh token bằng secret của portal đó. Token đi trong payload `auth` lúc handshake, không bao giờ trên query string. CORS chỉ cho domain frontend cấu hình trong `FRONTEND_ORIGIN`.
+
+```typescript
+abstract class BaseNotificationsGateway implements OnGatewayConnection {
+  @WebSocketServer() server: Server;
+  protected abstract readonly actorType: 'USER' | 'ADMIN';
+  protected abstract verify(token: string): Promise<{ id: number; userGroupId?: number }>;
+
+  async handleConnection(client: Socket) {
+    try {
+      const token = client.handshake.auth?.token as string;
+      const actor = await this.verify(token);           // sai secret / hết hạn / PASSWORD_CHANGE_ONLY -> ngắt kết nối
+      client.join(`${this.actorType.toLowerCase()}:${actor.id}`);   // room user:{id} hoặc admin:{id}
+      if (this.actorType === 'USER') client.join(`group:${actor.userGroupId}`);
+      else client.join('admins');
+    } catch {
+      client.disconnect(true);
+    }
+  }
+
+  sendToRecipient(recipientId: number, payload: NotificationPayload) {
+    this.server.to(`${this.actorType.toLowerCase()}:${recipientId}`).emit('notification:new', payload);
+  }
+}
+
+@WebSocketGateway({ namespace: '/notifications', cors: { origin: process.env.FRONTEND_ORIGIN } })
+export class UserNotificationsGateway extends BaseNotificationsGateway {
+  protected readonly actorType = 'USER';
+  constructor(private readonly userJwt: UserJwtService) { super(); }
+  protected verify(token: string) { return this.userJwt.verifyAccessToken(token); }      // JWT_USER_SECRET
+}
+
+@WebSocketGateway({ namespace: '/admin/notifications', cors: { origin: process.env.FRONTEND_ORIGIN } })
+export class AdminNotificationsGateway extends BaseNotificationsGateway {
+  protected readonly actorType = 'ADMIN';
+  constructor(private readonly adminJwt: AdminJwtService) { super(); }
+  protected verify(token: string) { return this.adminJwt.verifyAccessToken(token); }     // JWT_ADMIN_SECRET
+}
+```
+
+- Không có hàm broadcast toàn namespace: thông báo luôn được phát tới room của **từng người nhận** sau khi đã tạo dòng `notification_recipients`.
+
+### 4.2. Implementation `MailerService`
+
+Thông số SMTP đọc từ `system_settings` (`smtp_host`, `smtp_port`, `smtp_user`, `smtp_password`, `smtp_from`) **mỗi lần gửi**, không lấy từ biến môi trường, để Admin đổi cấu hình là có hiệu lực ngay. `smtp_host` rỗng thì bỏ qua gửi email (ghi log cảnh báo).
+
+```typescript
+@Injectable()
+export class MailerService {
+  constructor(private readonly settings: SystemSettingsService) {}
+
+  private createTransport() {
+    const host = this.settings.get('smtp_host');
+    if (!host) return null;
+    return nodemailer.createTransport({
+      host,
+      port: Number(this.settings.get('smtp_port')),
+      secure: false,
+      auth: { user: this.settings.get('smtp_user'), pass: this.settings.get('smtp_password') },
+    });
+  }
+
+  async sendCriticalAlertEmail(to: string, alertData: { title: string; content: string }) {
+    const transporter = this.createTransport();
+    if (!transporter) return;   // chưa cấu hình SMTP
+    await transporter.sendMail({
+      from: this.settings.get('smtp_from'),
+      to,
+      subject: `[CẢNH BÁO KHẨN CẤP] Sự cố chất lượng thoại tổng đài PABX EVN - ${alertData.title}`,
+      html: `<h3>${alertData.title}</h3><p>${alertData.content}</p><p>Thời gian: ${new Date().toLocaleString('vi-VN')}</p>`,
+    });
+  }
+}
+```
+
+---
+
+## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/notifications/NotificationsView.vue`)
+
+### 5.1. Bố cục Giao diện (Theo `templates/notifications.html`)
+
+- **Header**: Tiêu đề "Trung tâm thông báo", nút "Đánh dấu đã đọc tất cả" (`#markAllReadBtn`).
+- **Bộ Tabs lọc**:
+  - "Tất cả thông báo" (`data-filter="all"`).
+  - "Chưa đọc" (`data-filter="unread"`) kèm huy hiệu số lượng badge đỏ.
+  - "Đã đọc" (`data-filter="read"`).
+- **Danh sách (`.notifications-list`)**:
+  - Item chưa đọc (`.notification-item.unread`): Viền xanh nổi bật, nền sáng nhẹ, icon chuông/cảnh báo.
+  - Item đã đọc (`.notification-item.read`): Màu chữ mờ hơn, nền xám nhạt.
+  - Hiển thị thời gian tương đối (`timeAgo`): "Vừa xong", "15 phút trước", "2 giờ trước".
+- **Trạng thái rỗng (`.empty-state`)**: Hiển thị icon SVG hộp thư rỗng và dòng chữ "Không có thông báo nào" khi tab không có bản ghi.
+
+### 5.2. Quản lý trạng thái Pinia Store (`useNotificationStore`)
+
+- Kết nối WebSocket khi người dùng đăng nhập thành công.
+- Lắng nghe sự kiện `notification:new`:
+  - Phát âm thanh chuông thông báo (tùy chọn trong profile).
+  - Tăng `unreadCount += 1`.
+  - Hiển thị Pop-up Toast góc màn hình (`#toastContainer`).
+  - Chèn thông báo mới vào đầu mảng `notifications`.
+
+---
+
+## 6. Kịch bản kiểm thử (Test Plan for Agent)
+
+1. **TC-NOTIF-01**: Khi khung giờ vừa kết thúc của một nhóm có MOS trung bình dưới ngưỡng critical (và đủ số cuộc gọi tối thiểu), WebSocket gửi sự kiện `notification:new` tới trình duyệt, kiểm tra số badge trên Sidebar tự động tăng lên 1 đơn vị.
+2. **TC-NOTIF-02**: Nhấn vào tab "Chưa đọc", xác nhận danh sách chỉ chứa các mục có `isRead == false`.
+3. **TC-NOTIF-03**: Nhấn nút "Đánh dấu đã đọc tất cả", kiểm tra số badge trở về 0 và toàn bộ mục chuyển sang class `.read`.
+4. **TC-NOTIF-04**: Cấu hình `smtp_*` trong `system_settings` qua `PUT /api/v1/admin/settings/system`, tạo một cảnh báo `CRITICAL`: email được gửi tới người nhận có `email_notification_enabled = 1` và `notification_recipients.is_emailed = 1`. Để `smtp_host` rỗng: thông báo vẫn được tạo, không có email, `is_emailed = 0`.
