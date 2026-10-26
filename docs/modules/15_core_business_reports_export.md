@@ -27,7 +27,7 @@ Báo cáo định kỳ là căn cứ quan trọng để Lãnh đạo Tập đoà
   + Xuất báo cáo (Excel/PDF) toàn hệ thống hoặc theo nhóm phục vụ kiểm tra, nghiệm thu (`report:export`).
   + Bộ chọn Nhóm người dùng được mở toàn quyền (`-- Toàn bộ Tập đoàn EVN --` hoặc từng nhóm người dùng cụ thể). Cây tổ chức chỉ dùng để hiển thị tham chiếu ngữ cảnh nhóm.
 - **Phân hệ Người dùng đơn vị (User Scope - `GROUP_ADMIN`, `USER_RECORDING`, `REGULAR_USER`)**:
-  + **Quyền hạn đồng nhất và bình đẳng**: Cả 3 đối tượng người dùng đơn vị gồm Quản trị viên nhóm (`GROUP_ADMIN`), Thành viên có quyền ghi âm (`USER_RECORDING`) và Thành viên không có quyền ghi âm (`REGULAR_USER`) đều được trao quyền xem báo cáo (`report:view`) và xuất báo cáo (`report:export`).
+  + **Quyền hạn đồng nhất và bình đẳng**: Cả 3 đối tượng người dùng đơn vị gồm Quản trị viên nhóm (`GROUP_ADMIN`), Thành viên nghe ghi âm (`USER_RECORDING`) và Thành viên (`REGULAR_USER`) đều được trao quyền xem báo cáo (`report:view`) và xuất báo cáo (`report:export`).
   + **Cô lập dữ liệu báo cáo theo nhóm**: Khi người dùng đơn vị truy cập, backend tự động áp đặt bộ lọc `groupId = :userGroupId` từ token phiên đăng nhập. Bộ chọn nhóm trên giao diện tự động khóa cố định về nhóm của người dùng (kèm nhãn `🔒 Khóa theo phân quyền nhóm EVNICT Đà Nẵng`). Số liệu KPI, bảng xem trước và file xuất ra (Excel/PDF) hoàn toàn nằm trong ranh giới dữ liệu của nhóm mình (đọc trực tiếp từ `stats_daily`).
 
 ---

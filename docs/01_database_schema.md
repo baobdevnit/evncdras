@@ -28,10 +28,12 @@ erDiagram
 
     USER_GROUPS ||--o{ USERS : "contains"
 
-    USERS }o..|| ROLES : "derived_from_flags (no FK)"
-    ADMINS }o..|| ROLES : "derived_from_is_root (no FK)"
-    ROLES ||--o{ ROLE_PERMISSIONS : "has"
-    PERMISSIONS ||--o{ ROLE_PERMISSIONS : "belongs_to"
+    USERS ||--|| USER_ROLES : "has_exactly_one_role"
+    ADMINS ||--|| ADMIN_ROLES : "has_exactly_one_role"
+    ROLES ||--o{ USER_ROLES : "assigned_to_users (scope USER)"
+    ROLES ||--o{ ADMIN_ROLES : "assigned_to_admins (scope ADMIN)"
+    ROLES ||--o{ PERMISSION_ROLES : "has"
+    PERMISSIONS ||--o{ PERMISSION_ROLES : "belongs_to"
 
     CDR ||--|| CDR_ENRICHED : "syncs_and_enriches"
     USER_GROUPS ||..o{ CDR_ENRICHED : "caller_group (logical, no FK - partitioned)"
@@ -413,7 +415,6 @@ CREATE TABLE IF NOT EXISTS `admins` (
   `full_name` varchar(150) NOT NULL,
   `phone_number` varchar(30) DEFAULT NULL,
   `avatar_url` varchar(255) DEFAULT NULL,
-  `is_root` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1: Root Admin (có quyền tạo/xóa admin khác), 0: Normal Admin',
   `status` enum('ACTIVE','LOCKED','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
   `last_login_at` datetime DEFAULT NULL,
   `password_changed_at` datetime DEFAULT NULL COMMENT 'Lần đổi mật khẩu gần nhất; quá security_password_max_age_days thì bắt đổi khi đăng nhập',
@@ -436,7 +437,7 @@ CREATE TABLE IF NOT EXISTS `admins` (
 
 
 > [!NOTE]
-> **Root Admin đầu tiên** không tạo qua API. Lệnh seed của backend `npm run seed:root` đọc `ROOT_ADMIN_USERNAME`, `ROOT_ADMIN_EMAIL`, `ROOT_ADMIN_FULL_NAME`, `ROOT_ADMIN_INITIAL_PASSWORD` từ biến môi trường và tạo một dòng `admins` với `is_root = 1`, `must_change_password = 1`. Nếu đã có tài khoản `is_root = 1` thì lệnh không làm gì. Thứ tự seed khi cài mới: `roles` → `permissions` + `role_permissions` → `system_settings` → `qos_threshold_configs` → `cdr_enrichment_state` → kho số `phone_numbers` (90.000 dòng) → Root Admin.
+> **Root Admin đầu tiên** không tạo qua API. Lệnh seed của backend `npm run seed:root` đọc `ROOT_ADMIN_USERNAME`, `ROOT_ADMIN_EMAIL`, `ROOT_ADMIN_FULL_NAME`, `ROOT_ADMIN_INITIAL_PASSWORD` từ biến môi trường và tạo một dòng `admins` với `must_change_password = 1` cùng dòng `admin_roles` mang vai trò `ROOT_ADMIN`, trong một transaction. Nếu đã có tài khoản mang vai trò `ROOT_ADMIN` thì lệnh không làm gì. Vai trò của Admin không lưu trên bảng `admins` mà ở `admin_roles` (mục 7). Thứ tự seed khi cài mới: `roles` → `permissions` + `permission_roles` → `system_settings` → `qos_threshold_configs` → `cdr_enrichment_state` → kho số `phone_numbers` (90.000 dòng) → Root Admin.
 
 ---
 
@@ -500,8 +501,8 @@ CREATE TABLE IF NOT EXISTS `user_groups` (
   `code` varchar(50) NOT NULL COMMENT 'Mã nhóm QLND (ví dụ: UMO-IT-01)',
   `name` varchar(255) NOT NULL COMMENT 'Tên nhóm (ví dụ: Nhóm QLND Khối CNTT)',
   `description` text DEFAULT NULL,
-  `representative_user_id` int(11) unsigned DEFAULT NULL COMMENT 'ID user đại diện nhóm (phải là Quản trị viên nhóm)',
-  `allow_recording_access` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1: Quản trị viên hệ thống cấp quyền nghe/tải ghi âm cho nhóm, 0: Chưa cấp phép (Chốt chặn cấp 1)',
+  `representative_user_id` int(11) unsigned DEFAULT NULL COMMENT 'ID user đại diện nhóm (phải mang vai trò GROUP_ADMIN)',
+  `allow_recording_access` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1: Quản trị viên hệ thống cấp quyền nghe/tải ghi âm cho nhóm, 0: Chưa cấp phép (Chốt chặn Tầng 1; quyền cấp nhóm duy nhất, lưu trực tiếp trên nhóm)',
   `status` enum('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -518,7 +519,7 @@ CREATE TABLE IF NOT EXISTS `user_groups` (
 
 ## 6. Bảng Người dùng (Users - Thuộc User Group)
 
-Mỗi người dùng thuộc một `user_group`. Thuộc tính `is_group_admin = 1` đánh dấu Quản trị viên nhóm (mỗi nhóm có ít nhất 1 người làm quản trị viên). Cột `can_access_recording = 1` cho phép thành viên nghe/tải file ghi âm khi nhóm đã mở Tầng 1.
+Mỗi người dùng thuộc một `user_group`. Vai trò của người dùng (Quản trị viên nhóm, Thành viên nghe ghi âm, Thành viên) không lưu trên bảng này mà ở `user_roles` (mục 7). Mỗi nhóm có ít nhất 1 người dùng `ACTIVE` mang vai trò `GROUP_ADMIN`.
 
 ```sql
 CREATE TABLE IF NOT EXISTS `users` (
@@ -531,8 +532,6 @@ CREATE TABLE IF NOT EXISTS `users` (
   `job_title` varchar(150) DEFAULT NULL COMMENT 'Chức danh công việc (ví dụ: Trưởng nhóm Kỹ thuật, Kỹ sư Quản trị Hệ thống)',
   `phone_number` varchar(30) DEFAULT NULL COMMENT 'Số điện thoại di động / liên hệ cá nhân',
   `avatar_url` varchar(255) DEFAULT NULL,
-  `is_group_admin` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1: Quản trị viên của nhóm, 0: Thành viên thường',
-  `can_access_recording` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1: Được Quản trị viên nhóm bật quyền nghe và tải ghi âm cuộc gọi (.wav), 0: Không có quyền',
   `status` enum('ACTIVE','LOCKED','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
   `last_login_at` datetime DEFAULT NULL,
   `password_changed_at` datetime DEFAULT NULL COMMENT 'Lần đổi mật khẩu gần nhất; quá security_password_max_age_days thì bắt đổi khi đăng nhập',
@@ -549,7 +548,6 @@ CREATE TABLE IF NOT EXISTS `users` (
   KEY `idx_users_username` (`username`),
   KEY `idx_users_email` (`email`),
   KEY `idx_users_group` (`user_group_id`),
-  KEY `idx_users_group_admin` (`user_group_id`, `is_group_admin`),
   CONSTRAINT `fk_users_group` FOREIGN KEY (`user_group_id`) REFERENCES `user_groups` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -599,7 +597,7 @@ CREATE TABLE IF NOT EXISTS `auth_sessions` (
 
 ---
 
-## 7. Bảng Vai trò & Quyền hạn Ma trận (Fine-grained RBAC)
+## 7. Bảng Vai trò & Quyền hạn (RBAC)
 
 ```sql
 CREATE TABLE IF NOT EXISTS `roles` (
@@ -607,17 +605,18 @@ CREATE TABLE IF NOT EXISTS `roles` (
   `code` varchar(50) NOT NULL COMMENT 'Mã vai trò: ROOT_ADMIN, SYSTEM_ADMIN, GROUP_ADMIN, USER_RECORDING, REGULAR_USER',
   `name` varchar(150) NOT NULL,
   `description` text DEFAULT NULL,
-  `scope` enum('ADMIN','USER') NOT NULL COMMENT 'Dành cho Admin Portal hay User Portal',
-  `is_system` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'Luôn 1: chỉ có 5 vai trò hệ thống cố định, không tạo/xóa qua API',
+  `scope` enum('ADMIN','USER') NOT NULL COMMENT 'ADMIN: gán cho admins (cổng chứng thực Admin); USER: gán cho users (cổng chứng thực User)',
+  `is_system` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'Luôn 1: chỉ có 5 vai trò seed cố định, không tạo/sửa/xóa qua API',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_roles_code` (`code`)
+  UNIQUE KEY `uniq_roles_code` (`code`),
+  UNIQUE KEY `uniq_roles_id_scope` (`id`, `scope`) COMMENT 'Đích của khóa ngoại phạm vi từ admin_roles / user_roles'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `permissions` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `code` varchar(100) NOT NULL COMMENT 'Mã quyền theo catalog duy nhất tại docs/modules/10_permissions_and_roles.md (26 mã, ví dụ cdr:view, cdr:listen_audio, prefix:manage)',
+  `code` varchar(100) NOT NULL COMMENT 'Mã quyền theo catalog duy nhất tại docs/modules/10_permissions_and_roles.md (25 mã, ví dụ cdr:view, cdr:listen_audio, prefix:manage)',
   `name` varchar(150) NOT NULL,
   `category` varchar(50) NOT NULL COMMENT 'DATA, SPECIAL, QOS, USER_MGMT, ORG, SYSTEM',
   `scope` enum('ADMIN','USER','BOTH') NOT NULL DEFAULT 'BOTH',
@@ -627,33 +626,60 @@ CREATE TABLE IF NOT EXISTS `permissions` (
   UNIQUE KEY `uniq_permissions_code` (`code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `role_permissions` (
-  `role_id` int(11) unsigned NOT NULL,
+-- Quyền của từng vai trò (chỉ seed/migration ghi; không có API sửa)
+CREATE TABLE IF NOT EXISTS `permission_roles` (
   `permission_id` int(11) unsigned NOT NULL,
-  PRIMARY KEY (`role_id`,`permission_id`),
-  CONSTRAINT `fk_rp_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_rp_permission` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON DELETE CASCADE
+  `role_id` int(11) unsigned NOT NULL,
+  PRIMARY KEY (`permission_id`, `role_id`),
+  KEY `idx_pr_role` (`role_id`),
+  CONSTRAINT `fk_pr_permission` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_pr_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Seed cố định 5 vai trò hệ thống (không tạo/xóa qua API):
-INSERT INTO `roles` (`id`, `code`, `name`, `scope`, `is_system`) VALUES
-  (1, 'ROOT_ADMIN',     'Quản trị viên hệ thống cấp cao', 'ADMIN', 1),
-  (2, 'SYSTEM_ADMIN',   'Quản trị viên hệ thống',         'ADMIN', 1),
-  (3, 'GROUP_ADMIN',    'Quản trị viên nhóm',             'USER',  1),
-  (4, 'USER_RECORDING', 'Thành viên có quyền ghi âm',     'USER',  1),
-  (5, 'REGULAR_USER',   'Thành viên không có quyền ghi âm', 'USER', 1)
-ON DUPLICATE KEY UPDATE `code` = VALUES(`code`);
+-- Vai trò của Admin: mỗi admin đúng 1 vai trò thuộc scope ADMIN
+CREATE TABLE IF NOT EXISTS `admin_roles` (
+  `admin_id` int(11) unsigned NOT NULL,
+  `role_id` int(11) unsigned NOT NULL,
+  `role_scope` enum('ADMIN') NOT NULL DEFAULT 'ADMIN' COMMENT 'Hằng ADMIN; cùng role_id tạo khóa ngoại bảo đảm chỉ gán vai trò scope ADMIN',
+  `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`admin_id`) COMMENT 'Mỗi admin đúng 1 vai trò',
+  KEY `idx_ar_role` (`role_id`, `role_scope`),
+  CONSTRAINT `fk_ar_admin` FOREIGN KEY (`admin_id`) REFERENCES `admins` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_ar_role_scope` FOREIGN KEY (`role_id`, `role_scope`) REFERENCES `roles` (`id`, `scope`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Vai trò của người dùng: mỗi user đúng 1 vai trò thuộc scope USER
+CREATE TABLE IF NOT EXISTS `user_roles` (
+  `user_id` int(11) unsigned NOT NULL,
+  `role_id` int(11) unsigned NOT NULL,
+  `role_scope` enum('USER') NOT NULL DEFAULT 'USER' COMMENT 'Hằng USER; cùng role_id tạo khóa ngoại bảo đảm chỉ gán vai trò scope USER',
+  `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`) COMMENT 'Mỗi user đúng 1 vai trò',
+  KEY `idx_ur_role` (`role_id`, `role_scope`),
+  CONSTRAINT `fk_ur_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_ur_role_scope` FOREIGN KEY (`role_id`, `role_scope`) REFERENCES `roles` (`id`, `scope`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Seed cố định 5 vai trò hệ thống (không tạo/sửa/xóa qua API):
+INSERT INTO `roles` (`id`, `code`, `name`, `description`, `scope`, `is_system`) VALUES
+  (1, 'ROOT_ADMIN',     'Quản trị viên tối cao',  'Toàn quyền hệ thống, quản lý tài khoản quản trị viên',               'ADMIN', 1),
+  (2, 'SYSTEM_ADMIN',   'Quản trị viên hệ thống', 'Toàn quyền vận hành, không quản lý tài khoản quản trị viên',         'ADMIN', 1),
+  (3, 'GROUP_ADMIN',    'Quản trị viên nhóm',     'Quản lý thành viên và vai trò trong nhóm, nghe/tải ghi âm của nhóm', 'USER',  1),
+  (4, 'USER_RECORDING', 'Thành viên nghe ghi âm', 'Xem dữ liệu của nhóm, nghe/tải ghi âm khi nhóm được cấp phép',       'USER',  1),
+  (5, 'REGULAR_USER',   'Thành viên',             'Xem dữ liệu của nhóm, không nghe/tải ghi âm',                        'USER',  1)
+ON DUPLICATE KEY UPDATE `code` = VALUES(`code`), `name` = VALUES(`name`), `description` = VALUES(`description`), `scope` = VALUES(`scope`);
 ```
 
+Seed `permissions` và `permission_roles`: `docs/modules/10_permissions_and_roles.md` mục 2.1.
+
 > [!IMPORTANT]
-> **Vai trò được suy ra từ cờ, không gán qua bảng trung gian**:
-> - Hệ thống có **đúng 5 vai trò cố định** (seed ở trên, `is_system = 1`). Không có vai trò tùy biến. Bảng `admin_roles` và `user_roles` của thiết kế cũ **đã bị loại bỏ**.
-> - **Nguồn sự thật duy nhất là các cờ trên tài khoản**. Vai trò được suy ra mỗi lần cấp token, không lưu:
->   - **Admin**: `admins.is_root = 1` → `ROOT_ADMIN`; ngược lại → `SYSTEM_ADMIN`.
->   - **Người dùng**: `users.is_group_admin = 1` → `GROUP_ADMIN`; nếu không, `users.can_access_recording = 1` → `USER_RECORDING`; còn lại → `REGULAR_USER`.
-> - **Quyền của vai trò** lấy từ `role_permissions`. Admin có quyền `role:manage` chỉ được chỉnh ma trận quyền của 5 vai trò này, không tạo hay xóa vai trò.
-> - **Quyền nghe/tải ghi âm thực tế** được kiểm tra lúc gọi API, không dựa vào tên vai trò: `user_groups.allow_recording_access = 1 AND (users.is_group_admin = 1 OR users.can_access_recording = 1)`. Admin không qua cổng Tầng 1, chỉ cần có `cdr:listen_audio`/`cdr:download_audio` trong ma trận quyền. Một `USER_RECORDING` thuộc nhóm chưa mở Tầng 1 vẫn bị chặn 403.
-> - **Thời điểm có hiệu lực**: JWT mang `roleCode` và danh sách mã quyền. Khi cờ hoặc ma trận quyền thay đổi, quyền mới áp dụng từ lần cấp token tiếp theo (đăng nhập lại hoặc refresh).
+> **Mô hình vai trò – quyền**:
+> - Hệ thống có **đúng 5 vai trò cố định** (seed ở trên). `roles`, `permissions`, `permission_roles` chỉ đổi bằng migration/seed; không có API hay giao diện chỉnh sửa. Giao diện chỉ có màn hình xem danh sách vai trò kèm quyền.
+> - **Gán vai trò**: mỗi Admin có đúng 1 dòng `admin_roles`, mỗi User có đúng 1 dòng `user_roles` (PK là id tài khoản), tạo cùng transaction với tài khoản. Khóa ngoại `(role_id, role_scope) → roles(id, scope)` chặn ở mức CSDL việc gán vai trò User cho Admin và ngược lại.
+> - **Không lưu quyền trên tài khoản**: các cột `admins.is_root`, `users.is_group_admin`, `users.can_access_recording` của thiết kế cũ **đã bị loại bỏ**. Quyền cấp nhóm duy nhất là `user_groups.allow_recording_access`, lưu trực tiếp trên nhóm.
+> - **Kiểm tra quyền Admin**: chỉ xét vai trò trong `admin_roles` và quyền của vai trò đó trong `permission_roles`.
+> - **Kiểm tra quyền User**: xét quyền nhóm trước (nhóm `ACTIVE`; `cdr:listen_audio`/`cdr:download_audio` cần `allow_recording_access = 1`), sau đó xét vai trò trong `user_roles` và quyền của vai trò đó trong `permission_roles`. Thuật toán chi tiết: `docs/modules/10_permissions_and_roles.md` mục 2.3.
+> - **Thời điểm có hiệu lực**: Access Token mang `roleCode`. Đổi vai trò có hiệu lực từ lần cấp token kế tiếp (tối đa 15 phút); cờ nhóm có hiệu lực ngay vì đọc từ CSDL ở mỗi request.
 
 ---
 
@@ -945,7 +971,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   `actor_id` int(11) unsigned DEFAULT NULL COMMENT 'admins.id / users.id; NULL khi actor_type = SYSTEM hoặc đăng nhập thất bại với username không tồn tại',
   `actor_name` varchar(150) NOT NULL COMMENT 'Tên hiển thị; với đăng nhập thất bại là username đã nhập; với SYSTEM là tên job',
   `action` varchar(100) NOT NULL COMMENT 'Mã hành động theo danh mục cố định ở bảng dưới',
-  `resource_name` varchar(100) NOT NULL COMMENT 'AUTH, CDR, AUDIO, REPORT, USER, ADMIN, USER_GROUP, PREFIX, ORGANIZATION, ROLE, SYSTEM',
+  `resource_name` varchar(100) NOT NULL COMMENT 'AUTH, CDR, AUDIO, REPORT, USER, ADMIN, USER_GROUP, PREFIX, ORGANIZATION, SYSTEM',
   `resource_id` varchar(255) DEFAULT NULL,
   `ip_address` varchar(50) DEFAULT NULL,
   `user_agent` text DEFAULT NULL,
@@ -966,11 +992,10 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | `AUDIO` | `LISTEN_AUDIO`, `DOWNLOAD_AUDIO` |
 | `CDR` | `EXPORT_CDR`, `PURGE_CDR_PARTITION` (actor `SYSTEM`) |
 | `REPORT` | `EXPORT_REPORT` (`action_details.format`: `EXCEL`/`PDF`) |
-| `USER` / `ADMIN` | `CREATE`, `UPDATE`, `LOCK`, `UNLOCK`, `DEACTIVATE`, `GRANT_GROUP_ADMIN`, `REVOKE_GROUP_ADMIN`, `TOGGLE_RECORDING_ACCESS` |
+| `USER` / `ADMIN` | `CREATE`, `UPDATE`, `LOCK`, `UNLOCK`, `DEACTIVATE`, `CHANGE_ROLE` (chỉ `USER`; `action_details = { "from": "<roleCode>", "to": "<roleCode>" }`) |
 | `USER_GROUP` | `CREATE`, `UPDATE`, `DEACTIVATE`, `TOGGLE_GROUP_RECORDING` (`allow_recording_access`) |
 | `PREFIX` | `CREATE_PREFIX_GROUP`, `UPDATE_PREFIX_GROUP`, `DELETE_PREFIX_GROUP`, `ALLOCATE_RANGE`, `UPDATE_RANGE`, `REVOKE_RANGE`, `UPDATE_NUMBER` |
 | `ORGANIZATION` | `CREATE`, `UPDATE`, `DELETE` |
-| `ROLE` | `UPDATE_ROLE`, `UPDATE_ROLE_PERMISSIONS` |
 | `SYSTEM` | `UPDATE_SETTINGS` (kể cả nạp lại bộ nhớ đệm, `action_details.op = "RELOAD_CACHE"`) |
 | (mọi resource) | `ACCESS_DENIED`: thao tác bị chặn có ý nghĩa an ninh (vd. thử xóa Root Admin, gọi API ngoài phạm vi nhóm) |
 
@@ -984,13 +1009,13 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | Thực thể | Thao tác "xóa" của API | Điều kiện / Lỗi | Khóa ngoại liên quan |
 |---|---|---|---|
 | `user_groups` | **Xóa mềm**: `status = 'INACTIVE'`; thu hồi toàn bộ dải số của nhóm (quy tắc thu hồi mục 8). Giữ liên kết `phone_prefix_group_id`, CDR và stats để báo cáo lịch sử vẫn đúng | Chặn `409` nếu nhóm còn user `ACTIVE`/`LOCKED` | `stats_*.group_id`, `users.user_group_id`: RESTRICT; `cdr_enriched.*_group_id` là tham chiếu logic (bảng partition, không FK) |
-| `users` | **Xóa mềm**: `status = 'INACTIVE'`; nếu là `representative_user_id` của nhóm thì set NULL | Chặn `409` nếu là Quản trị viên nhóm cuối cùng còn hoạt động | `user_groups.representative_user_id`: SET NULL |
-| `admins` | **Xóa mềm**: `status = 'INACTIVE'` | Chặn nếu `is_root = 1` hoặc tự xóa chính mình | `*.performed_by_admin_id`, `admins.created_by_admin_id`: SET NULL (chỉ áp dụng nếu sau này có xóa cứng bằng tay) |
+| `users` | **Xóa mềm**: `status = 'INACTIVE'`; nếu là `representative_user_id` của nhóm thì set NULL | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm | `user_groups.representative_user_id`: SET NULL; `user_roles.user_id`: RESTRICT (giữ dòng vai trò) |
+| `admins` | **Xóa mềm**: `status = 'INACTIVE'` | Chặn nếu admin mang vai trò `ROOT_ADMIN` hoặc tự xóa chính mình | `*.performed_by_admin_id`, `admins.created_by_admin_id`: SET NULL (chỉ áp dụng nếu sau này có xóa cứng bằng tay); `admin_roles.admin_id`: RESTRICT (giữ dòng vai trò) |
 | `phone_prefix_groups` | **Xóa cứng** khi không có nhóm người dùng liên kết và không còn dải số. Muốn ngừng dùng mà vẫn giữ: `status = 'INACTIVE'` | `409` nếu còn liên kết hoặc còn dải | `user_groups.phone_prefix_group_id`, `phone_prefix_ranges.prefix_group_id`: RESTRICT |
 | `phone_prefix_ranges` | **Thu hồi**: dọn số theo quy tắc mục 8 → ghi `prefix_allocation_history` + `phone_number_range_history` → xóa dòng dải | — | `phone_numbers.range_id`: RESTRICT (bắt buộc dọn số trước) |
 | `organizations` | **Xóa cứng** khi không còn đơn vị con và không còn nhóm tham chiếu | `409` nếu còn con hoặc còn nhóm | `organizations.parent_id`, `user_groups.organization_id`: RESTRICT |
 | `notifications` | Xóa cứng được (dọn thông báo cũ) | — | `notification_recipients`: CASCADE |
-| `roles`, `permissions` | Không xóa (seed cố định) | — | `role_permissions`: CASCADE |
+| `roles`, `permissions` | Không xóa (seed cố định) | — | `permission_roles`: CASCADE; `admin_roles`/`user_roles`.`role_id`: RESTRICT |
 
 - Tài khoản `INACTIVE` không đăng nhập được và bị ẩn khỏi danh sách mặc định (có bộ lọc "Đã ngừng hoạt động"). `username`/`email` của tài khoản `INACTIVE` được phép dùng lại cho tài khoản mới (UNIQUE chỉ áp cho tài khoản chưa `INACTIVE`, qua cột ảo `username_active`/`email_active`), phục vụ chuyển công tác.
 - Nhóm `INACTIVE` không cho đăng nhập thành viên, không nhận cấp phát dải số mới, nhưng vẫn xuất hiện trong báo cáo lịch sử.

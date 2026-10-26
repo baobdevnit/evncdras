@@ -39,11 +39,11 @@ Dữ liệu lưu tại bảng `admins`, `user_settings` (`user_type = 'ADMIN'`) 
     "fullName": "Quản trị viên Tối cao EVNICT",
     "phoneNumber": "02422222222",
     "avatarUrl": "https://ui-avatars.com/api/?name=Root+Admin",
-    "isRoot": true,
     "status": "ACTIVE",
     "lastLoginAt": "2026-10-12T08:15:00+07:00",
     "roleCode": "ROOT_ADMIN",
-    "permissions": ["cdr:view", "cdr:listen_audio", "cdr:download_audio", "admin:manage", "system:manage", "role:manage"]
+    "roleName": "Quản trị viên tối cao",
+    "permissions": ["cdr:view", "cdr:listen_audio", "cdr:download_audio", "admin:manage", "system:manage", "role:view"]
   }
 }
 ```

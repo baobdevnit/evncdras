@@ -131,14 +131,14 @@ Toàn bộ endpoint của mục này thuộc portal **ADMIN**.
 | `GET` | `/api/v1/admin/profile/recent-activity` | `AdminAuthGuard` | 20 hành động gần nhất của chính Admin trong `audit_logs` |
 | `GET` | `/api/v1/admin/auth/sessions` | `AdminAuthGuard` | Danh sách phiên đăng nhập đang hoạt động của chính Admin (IP, thiết bị, lần dùng cuối) |
 | `DELETE` | `/api/v1/admin/auth/sessions/:id` | `AdminAuthGuard` | Thu hồi một phiên của chính mình (`REVOKED_BY_SELF`) |
-| `DELETE` | `/api/v1/admin/admins/:id/sessions` | `AdminAuthGuard` + `RootAdminOnly` | Thu hồi mọi phiên của một Admin khác (`REVOKED_BY_ADMIN`) |
-| `GET` | `/api/v1/admin/admins` | `AdminAuthGuard` + `RootAdminOnly` | Danh sách các quản trị viên hệ thống |
-| `POST` | `/api/v1/admin/admins` | `AdminAuthGuard` + `RootAdminOnly` | Tạo mới quản trị viên (Chỉ Root Admin) |
-| `PUT` | `/api/v1/admin/admins/:id/status` | `AdminAuthGuard` + `RootAdminOnly` | Khóa / Kích hoạt tài khoản Admin |
-| `PUT` | `/api/v1/admin/admins/:id` | `AdminAuthGuard` + `RootAdminOnly` | Sửa họ tên, email, số điện thoại của Admin khác (không đổi `is_root`) |
-| `PUT` | `/api/v1/admin/admins/:id/reset-password` | `AdminAuthGuard` + `RootAdminOnly` | Đặt lại mật khẩu Admin khác: `must_change_password = 1`, thu hồi mọi phiên, trả mật khẩu tạm một lần |
+| `DELETE` | `/api/v1/admin/admins/:id/sessions` | `admin:manage` | Thu hồi mọi phiên của một Admin khác (`REVOKED_BY_ADMIN`) |
+| `GET` | `/api/v1/admin/admins` | `admin:manage` | Danh sách các quản trị viên hệ thống, kèm `roleCode` |
+| `POST` | `/api/v1/admin/admins` | `admin:manage` | Tạo mới quản trị viên; luôn gán vai trò `SYSTEM_ADMIN` vào `admin_roles` (chỉ vai trò `ROOT_ADMIN` có `admin:manage`) |
+| `PUT` | `/api/v1/admin/admins/:id/status` | `admin:manage` | Khóa / Kích hoạt tài khoản Admin |
+| `PUT` | `/api/v1/admin/admins/:id` | `admin:manage` | Sửa họ tên, email, số điện thoại của Admin khác (không đổi vai trò; không có API đổi vai trò Admin) |
+| `PUT` | `/api/v1/admin/admins/:id/reset-password` | `admin:manage` | Đặt lại mật khẩu Admin khác: `must_change_password = 1`, thu hồi mọi phiên, trả mật khẩu tạm một lần |
 | `GET` | `/api/v1/admin/audit-logs` | `audit:view` | Tra cứu `audit_logs` (lọc `actorType`, `actorId`, `action`, `resourceName`, `fromDate`/`toDate` bắt buộc, phân trang) |
-| `DELETE` | `/api/v1/admin/admins/:id` | `AdminAuthGuard` + `RootAdminOnly` | Ngừng hoạt động tài khoản Admin (xóa mềm `status = INACTIVE`; chặn `is_root = 1` và tự xóa chính mình) |
+| `DELETE` | `/api/v1/admin/admins/:id` | `admin:manage` | Ngừng hoạt động tài khoản Admin (xóa mềm `status = INACTIVE`; chặn tài khoản mang vai trò `ROOT_ADMIN` và tự xóa chính mình) |
 
 ### 3.2. Phân hệ Xác thực & Hồ sơ Người dùng đơn vị (User Auth & Profile)
 
@@ -149,7 +149,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `POST` | `/api/v1/auth/login` | Public | Đăng nhập tài khoản Người dùng đơn vị EVN |
 | `POST` | `/api/v1/auth/refresh` | Public (cookie Refresh Token) | Xoay vòng Refresh Token và cấp Access Token mới |
 | `POST` | `/api/v1/auth/logout` | `UserAuthGuard` | Đăng xuất: thu hồi phiên hiện tại (`LOGOUT`), xóa cookie |
-| `GET` | `/api/v1/auth/me` | `UserAuthGuard` | Lấy thông tin User, vai trò, quyền hạn & tổ chức |
+| `GET` | `/api/v1/auth/me` | `UserAuthGuard` | Lấy thông tin User, nhóm, `roleCode` và `permissions` hiệu lực (quyền vai trò sau khi áp quyền nhóm, `docs/modules/10_permissions_and_roles.md` mục 2.3) |
 | `GET` | `/api/v1/profile` | `UserAuthGuard` | Xem chi tiết thông tin cá nhân |
 | `PUT` | `/api/v1/profile` | `UserAuthGuard` | Cập nhật thông tin cá nhân |
 | `PUT` | `/api/v1/profile/change-password` | `UserAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`) | Đổi mật khẩu cá nhân; cập nhật `password_changed_at`, `must_change_password = 0`, thu hồi các phiên khác |
@@ -180,7 +180,6 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `POST` | `/api/v1/admin/user-groups` | `user_group:manage` | Thiết lập nhóm QLND mới gắn vào nút tổ chức (kèm `allowRecordingAccess`) | ADMIN |
 | `PUT` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Cập nhật thông tin nhóm QLND (kèm quyền bật/tắt ghi âm nhóm `allowRecordingAccess`) | ADMIN |
 | `DELETE` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Ngừng hoạt động nhóm (xóa mềm `status = INACTIVE`, thu hồi dải số; `409` nếu còn thành viên đang hoạt động) | ADMIN |
-| `PATCH` | `/api/v1/user-groups/:id/members/:userId/recording-access` | `group:toggle_recording` | Bật/tắt quyền nghe & tải ghi âm (.wav) cho thành viên nhóm (Yêu cầu nhóm đã có `allowRecordingAccess = true`) | USER + ADMIN |
 
 ### 3.5. Phân hệ Quản lý Người dùng & Phân quyền (Users & Roles)
 
@@ -188,17 +187,14 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/v1/users` | `user:view` | Danh sách người dùng. Bản User chỉ trả user thuộc nhóm của người gọi; bản Admin trả toàn hệ thống, lọc tùy chọn `groupId`, `status` | USER + ADMIN |
 | `GET` | `/api/v1/users/:id` | `user:view` | Chi tiết thông tin người dùng | USER + ADMIN |
-| `POST` | `/api/v1/users` | `user:create` | Tạo mới tài khoản người dùng trong nhóm | USER + ADMIN |
+| `POST` | `/api/v1/users` | `user:create` | Tạo mới tài khoản người dùng trong nhóm, kèm `roleCode` (mặc định `REGULAR_USER`; gán `GROUP_ADMIN` cần thêm `group:manage_admin`, gán `USER_RECORDING` cần thêm `group:toggle_recording` và nhóm có `allowRecordingAccess = true`); tạo dòng `user_roles` cùng transaction | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id` | `user:edit` | Cập nhật thông tin tài khoản người dùng | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/status` | `user:edit` | Khóa / Mở khóa tài khoản | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/reset-password` | `user:edit` | Đặt lại mật khẩu người dùng: sinh mật khẩu tạm 16 ký tự trả **một lần** (`temporaryPassword`), đặt `must_change_password = 1`, thu hồi mọi phiên của user | USER + ADMIN |
-| `PUT` | `/api/v1/users/:id/group-admin` | `group:manage_admin` | Bổ nhiệm / hạ quyền Quản trị viên nhóm (`{ "isGroupAdmin": true \| false }`); chặn hạ quyền admin đang hoạt động cuối cùng (`409`) | USER + ADMIN |
+| `PUT` | `/api/v1/users/:id/role` | `group:manage_admin` hoặc `group:toggle_recording` | Đổi vai trò người dùng `{ "roleCode": "GROUP_ADMIN" \| "USER_RECORDING" \| "REGULAR_USER" }`: chuyển sang/khỏi `GROUP_ADMIN` cần `group:manage_admin` (chặn `409` hạ quyền Quản trị viên nhóm đang hoạt động cuối cùng); `REGULAR_USER` ↔ `USER_RECORDING` cần `group:toggle_recording` (sang `USER_RECORDING` cần nhóm có `allowRecordingAccess = true`, ngược lại `409`). Đặc tả `docs/modules/10_permissions_and_roles.md` mục 1.3, 3.2 | USER + ADMIN |
 | `DELETE` | `/api/v1/admin/users/:id/sessions` | `user:edit` | Thu hồi mọi phiên đăng nhập của một người dùng (`REVOKED_BY_ADMIN`) | ADMIN |
 | `DELETE` | `/api/v1/users/:id` | `user:delete` | Ngừng hoạt động tài khoản (xóa mềm `status = INACTIVE`; `409` nếu là Quản trị viên nhóm cuối cùng còn hoạt động; không xóa cứng) | USER + ADMIN |
-| `GET` | `/api/v1/admin/roles` | `role:view` | Danh sách 5 vai trò cố định (Admin / User), kèm số tài khoản hiện mang vai trò (đếm theo cờ) | ADMIN |
-| `PUT` | `/api/v1/admin/roles/:id` | `role:manage` | Cập nhật tên/mô tả hiển thị của vai trò (không đổi `code`, `scope`; không có API tạo/xóa vai trò vì hệ thống chỉ có 5 vai trò cố định) | ADMIN |
-| `GET` | `/api/v1/admin/permissions/matrix` | `role:view` | Ma trận vai trò × quyền theo `scope=ADMIN\|USER`: `roles[]`, `categories[].permissions[]`, mỗi quyền có `roleAssignments: { "<roleId>": true\|false }` (đặc tả tại `docs/modules/10_permissions_and_roles.md` mục 3.2) \|USER`: danh sách vai trò, catalog quyền theo category và `permissionIds` của từng vai trò | ADMIN |
-| `PUT` | `/api/v1/admin/permissions/matrix` | `role:manage` | Lưu toàn bộ ma trận của một `scope` (`assignments: [{ roleId, permissionIds }]`) trong một transaction, ghi `audit_logs` `UPDATE_ROLE_PERMISSIONS` | ADMIN |
+| `GET` | `/api/v1/admin/roles` | `role:view` | Danh sách 5 vai trò cố định (lọc tùy chọn `scope=ADMIN\|USER`), mỗi vai trò kèm danh sách quyền (`code`, `name`, `category`, `groupGated`) và số tài khoản đang mang vai trò (đếm `admin_roles`/`user_roles`). Chỉ đọc: không có API tạo/sửa/xóa vai trò hay sửa quyền của vai trò | ADMIN |
 
 ### 3.6. Phân hệ Quản lý Đầu số PABX, Dải số & Kho số máy lẻ (Prefixes & Phone Inventory)
 
@@ -226,16 +222,16 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 > Toàn bộ các API phân hệ CDR hoạt động trên bảng dữ liệu làm giàu `cdr_enriched` và áp dụng mô hình phân quyền **Group-Based Data Isolation** kết hợp **2-Tier Recording Access Gate**:
 > - User Portal tự động bị ràng buộc `WHERE (caller_group_id = :userGroupId OR called_group_id = :userGroupId)`.
 > - Admin Portal có quyền truy cập 100% bản ghi (kể cả bản ghi chưa gán nhóm) và hỗ trợ tham số `groupId`.
-> - **Chốt chặn Tầng 1 (Cấp nhóm)**: Nếu `user.group.allow_recording_access === false`, cột ghi âm bị ẩn trên bảng chính, API stream và download bị chặn triệt để (`403 Forbidden`).
-> - **Chốt chặn Tầng 2 (Cấp người dùng)**: Khi nhóm được cấp phép, Quản trị viên nhóm (`is_group_admin = 1`) mặc định có quyền nghe/tải; thành viên thường cần được cấp cờ `can_access_recording = true`.
+> - **Chốt chặn Tầng 1 (Quyền nhóm)**: Nếu `user_groups.allow_recording_access = 0`, cột ghi âm bị ẩn trên bảng chính, API stream và download bị chặn (`403 GROUP_RECORDING_DISABLED`).
+> - **Chốt chặn Tầng 2 (Vai trò)**: Khi nhóm được cấp phép, chỉ vai trò có `cdr:listen_audio`/`cdr:download_audio` (`GROUP_ADMIN`, `USER_RECORDING`) được nghe/tải; `REGULAR_USER` bị chặn `403 FORBIDDEN_PERMISSION`. Admin chỉ xét vai trò, không qua Tầng 1.
 
 | Method | Endpoint | Quyền / Guard | Mô tả | Portal |
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/v1/cdr` | `cdr:view` | Tra cứu lịch sử cuộc gọi từ `cdr_enriched` (luôn lọc theo `fromDate`/`toDate`; mặc định trong `retention_online_months`, Admin dùng `includeArchive=true` để xem dữ liệu lưu trữ; Cô lập dữ liệu nhóm; nếu nhóm chưa cấp quyền ghi âm thì ẩn cột và trả về hasAudio=false; Admin xem toàn bộ kèm badge nhóm và lọc `groupId`) | USER + ADMIN |
 | `GET` | `/api/v1/cdr/:id` | `cdr:view` | Xem chi tiết 87 tham số kỹ thuật + thông tin nhóm (Kiểm tra cô lập nhóm với User Portal; nếu nhóm chưa kích hoạt ghi âm thì thay player bằng thông báo) | USER + ADMIN |
 | `GET` | `/api/v1/cdr/export` | `cdr:export` | Xuất danh sách cuộc gọi (Excel / CSV) theo đúng bộ lọc của `GET /api/v1/cdr` (chỉ leg chính, cô lập nhóm; không kèm file ghi âm) | USER + ADMIN |
-| `GET` | `/api/v1/cdr/:id/audio/stream` | `cdr:listen_audio` | Stream phát âm thanh HTTP 206 (Kiểm tra cô lập nhóm + Chốt chặn Tầng 1 `allowRecordingAccess` + Chốt chặn Tầng 2 `is_group_admin` hoặc `can_access_recording`) | USER + ADMIN |
-| `GET` | `/api/v1/cdr/:id/audio/download` | `cdr:download_audio` | Tải về file ghi âm (.wav) (Kiểm tra cô lập nhóm + Chốt chặn Tầng 1 `allowRecordingAccess` + Chốt chặn Tầng 2 `is_group_admin` hoặc `can_access_recording`) | USER + ADMIN |
+| `GET` | `/api/v1/cdr/:id/audio/stream` | `cdr:listen_audio` | Stream phát âm thanh HTTP 206 (`PermissionsGuard`: quyền nhóm `allowRecordingAccess` rồi quyền vai trò; service kiểm tra cô lập nhóm) | USER + ADMIN |
+| `GET` | `/api/v1/cdr/:id/audio/download` | `cdr:download_audio` | Tải về file ghi âm (.wav) (`PermissionsGuard`: quyền nhóm `allowRecordingAccess` rồi quyền vai trò; service kiểm tra cô lập nhóm) | USER + ADMIN |
 
 ### 3.8. Phân hệ Phân tích Chất lượng thoại QoS (QoS Debug & Analytics)
 

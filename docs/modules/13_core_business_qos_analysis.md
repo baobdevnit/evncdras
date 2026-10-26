@@ -38,7 +38,7 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 - **Quản trị viên hệ thống (`ROOT_ADMIN` & `SYSTEM_ADMIN`)**:
   + Có toàn quyền xem chỉ số QoS toàn bộ mạng viễn thông EVN (`qos:view`).
 - **Phân hệ Người dùng đơn vị (User Scope - `GROUP_ADMIN`, `USER_RECORDING`, `REGULAR_USER`)**:
-  + **Quyền hạn đồng nhất và bình đẳng**: Cả 3 đối tượng người dùng đơn vị gồm Quản trị viên nhóm (`GROUP_ADMIN`), Thành viên có quyền ghi âm (`USER_RECORDING`) và Thành viên không có quyền ghi âm (`REGULAR_USER`) đều được cấp quyền xem dữ liệu phân tích QoS (`qos:view`).
+  + **Quyền hạn đồng nhất và bình đẳng**: Cả 3 đối tượng người dùng đơn vị gồm Quản trị viên nhóm (`GROUP_ADMIN`), Thành viên nghe ghi âm (`USER_RECORDING`) và Thành viên (`REGULAR_USER`) đều được cấp quyền xem dữ liệu phân tích QoS (`qos:view`).
   + **Cô lập dữ liệu theo nhóm (Group-Based Data Isolation)**: Dữ liệu phân tích QoS hiển thị cho 3 đối tượng này được tự động cô lập trong phạm vi các cuộc gọi có số gọi đi hoặc số nhận thuộc nhóm của mình (`caller_group_id = :ug_id OR called_group_id = :ug_id`).
 - **Ngoài phạm vi phiên bản này**: sơ đồ SIP Call Flow Ladder và mọi tính năng dựa trên file PCAP (dữ liệu PCAP có trong CDR nhưng chưa được khai thác).
 

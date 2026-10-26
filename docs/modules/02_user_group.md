@@ -14,27 +14,28 @@ Trong kiến trúc quản trị người dùng phân tán và phân định ph�
 
 - **Cây tổ chức (`organizations`)**: Phản ánh cơ cấu hành chính - điều hành chung của EVN (Tập đoàn -> Tổng công ty -> Khối/Ban/Công ty -> Điện lực/Phòng ban).
 - **Nhóm người dùng (User Group / Tổ chức Quản lý Người dùng - QLND)**: Là thực thể trung tâm quản lý tài khoản người dùng và là đơn vị sở hữu không gian dữ liệu cuộc gọi (Tenant Unit).
-- **3 Đối tượng người dùng chuẩn hóa trong Nhóm (User Scope)**:
+- **3 vai trò người dùng trong Nhóm (User Scope)**: mỗi người dùng mang đúng 1 vai trò, lưu ở `user_roles`; quyền của vai trò lấy từ `permission_roles` (`docs/modules/10_permissions_and_roles.md`). Quyền cấp nhóm duy nhất là `user_groups.allow_recording_access`, lưu trực tiếp trên nhóm.
   1. `GROUP_ADMIN` (Quản trị viên nhóm):
      - Bản chất là thành viên của nhóm được trao quyền quản trị nội bộ đơn vị.
      - Toàn quyền CRUD đối với thành viên nội bộ nhóm (`user:create`, `user:view`, `user:edit`, `user:delete`), không được chuyển nhóm thành viên.
-     - Cấp / thu hồi quyền Quản trị nhóm cho thành viên khác trong nhóm (`group:manage_admin`), bảo toàn tối thiểu 1 Group Admin đang hoạt động.
-     - Phân quyền nghe ghi âm Tầng 2 (`group:toggle_recording` / `can_access_recording = 1/0`) cho từng thành viên khi Tầng 1 mở.
+     - Bổ nhiệm / hạ quyền Quản trị nhóm cho thành viên khác trong nhóm (đổi vai trò sang/khỏi `GROUP_ADMIN`, cần `group:manage_admin`), bảo toàn tối thiểu 1 Group Admin đang hoạt động.
+     - Phân quyền nghe ghi âm Tầng 2: đổi vai trò thành viên giữa `REGULAR_USER` và `USER_RECORDING` (cần `group:toggle_recording`) khi Tầng 1 mở.
      - Mặc định tự động có quyền nghe trực tuyến & tải ghi âm thoại của nhóm khi nhóm được mở Tầng 1 (`allow_recording_access = 1`).
      - Toàn quyền xem log CDR (chi tiết 87 trường, bộ lọc nâng cao, xuất Excel), phân tích QoS và xem/xuất báo cáo thống kê trong phạm vi nhóm (`Group-Based Data Isolation`).
-  2. `USER_RECORDING` (Thành viên có quyền nghe ghi âm):
-     - Thành viên được Quản trị viên nhóm cấp quyền `can_access_recording = 1` khi nhóm đã được cấp phép Tầng 1.
+  2. `USER_RECORDING` (Thành viên nghe ghi âm):
+     - Thành viên được Quản trị viên nhóm gán vai trò `USER_RECORDING` khi nhóm đã được cấp phép Tầng 1.
      - Được quyền nghe trực tuyến (`cdr:listen_audio`) và tải file ghi âm (`cdr:download_audio`) của nhóm mình.
      - Có toàn bộ các quyền đối với dữ liệu CDR, phân tích QoS và xem/xuất báo cáo thống kê theo nhóm tương tự Quản trị viên nhóm.
-     - Không có thẩm quyền quản trị thành viên (không CRUD người dùng, không gán admin, không toggle ghi âm).
-  3. `REGULAR_USER` (Thành viên không có quyền nghe ghi âm):
-     - Thành viên thông thường có `can_access_recording = 0` (hoặc nhóm chưa mở Tầng 1).
+     - Không có thẩm quyền quản trị thành viên (không CRUD người dùng, không đổi vai trò người khác).
+     - Nếu nhóm bị tắt Tầng 1, vai trò được giữ nguyên nhưng mất quyền nghe/tải cho tới khi Tầng 1 bật lại.
+  3. `REGULAR_USER` (Thành viên):
+     - Vai trò mặc định khi tạo thành viên.
      - **Điểm khác biệt DUY NHẤT so với `USER_RECORDING`**: Bị khóa hoàn toàn quyền nghe và tải file ghi âm cuộc gọi (ẩn trên giao diện, chặn `403 Forbidden` tại API).
      - **Còn lại GIỐNG HỆT 100% `USER_RECORDING` và CÓ QUYỀN TƯƠNG TỰ Quản trị viên nhóm** đối với việc xem nhật ký CDR, xem chi tiết 87 trường, lọc nâng cao, xuất Excel, xem phân tích QoS và xem/xuất báo cáo thống kê trong phạm vi nhóm.
      - Không có thẩm quyền quản trị thành viên.
 - **4 Ràng buộc nghiệp vụ cốt lõi của Nhóm người dùng**:
   1. **Chứa nhiều người dùng thành viên (Quan hệ 1 - N) & Tính cố định nhóm**: Mỗi nhóm người dùng quản lý một tập hợp nhiều tài khoản người dùng thành viên (`users`). **Người dùng luôn luôn thuộc về một nhóm người dùng cố định ngay từ lúc tạo ra** (bản chất là người dùng thuộc đơn vị tổ chức), do đó **hoàn toàn không có khái niệm chuyển người dùng giữa các nhóm**. Thuộc tính `user_group_id` là bất biến (immutable) sau khi khởi tạo.
-  2. **Có ít nhất một người dùng Quản trị viên nhóm & Thẩm quyền tạo người dùng (Group Admin Rule)**: Mỗi nhóm người dùng bắt buộc phải có **tối thiểu một người dùng đóng vai trò Quản trị viên nhóm** (`is_group_admin = 1` (vai trò `GROUP_ADMIN` được suy ra từ cờ này)). Quản trị viên nhóm **cũng là một thành viên trong nhóm nhưng được trao quyền quản trị**. Tài khoản người dùng có thể được tạo ra bởi:
+  2. **Có ít nhất một người dùng Quản trị viên nhóm & Thẩm quyền tạo người dùng (Group Admin Rule)**: Mỗi nhóm người dùng bắt buộc phải có **tối thiểu một người dùng đóng vai trò Quản trị viên nhóm** (vai trò `GROUP_ADMIN` trong `user_roles`). Quản trị viên nhóm **cũng là một thành viên trong nhóm nhưng được trao quyền quản trị**. Tài khoản người dùng có thể được tạo ra bởi:
      - **Quản trị viên hệ thống (System Admin)**: Có toàn quyền tạo người dùng cho bất kỳ Nhóm người dùng nào trong toàn hệ thống.
      - **Quản trị viên nhóm (Group Admin)**: Có quyền tạo mới tài khoản thành viên nhưng **chỉ được phép tạo trong phạm vi nhóm của chính mình**.
   3. **Liên kết với một Nhóm đầu số điện thoại theo ràng buộc 1 - 1 (1-to-1 Phone Prefix Group Binding)**: Mỗi nhóm người dùng liên kết độc quyền với **duy nhất một nhóm đầu số điện thoại** (`phone_prefix_groups`). Toàn bộ dữ liệu cuộc gọi CDR, file ghi âm và lưu lượng cuộc gọi phát sinh từ các đầu số này thuộc quyền quản lý của nhóm. Ngược lại, một nhóm đầu số chỉ được cấp phát cho duy nhất một nhóm người dùng (không chia sẻ giữa các nhóm).
@@ -51,6 +52,7 @@ erDiagram
     ORGANIZATIONS ||--o{ USER_GROUPS : "tham chiếu cây đơn vị (organization_id nullable)"
     USER_GROUPS ||--|| PHONE_PREFIX_GROUPS : "liên kết 1 - 1 độc quyền (unique fk)"
     USER_GROUPS ||--|{ USERS : "1 nhóm chứa 1..n thành viên (cố định từ lúc tạo, không chuyển nhóm)"
+    USERS ||--|| USER_ROLES : "mang đúng 1 vai trò"
     PHONE_PREFIX_GROUPS ||--|{ PHONE_PREFIX_RANGES : "tập hợp 1..n dải số prefix"
     PHONE_PREFIX_RANGES ||--o{ PHONE_NUMBERS : "phân bổ từ kho số tổng 90.000 số"
     USER_GROUPS ||--o{ PREFIX_ALLOCATION_HISTORY : "lưu vết cấp phát dải số"
@@ -74,8 +76,12 @@ erDiagram
         string username "Unique"
         string email "Unique"
         string full_name
-        boolean is_group_admin "Tối thiểu 1 user trong nhóm có giá trị true (Group Admin có quyền tạo user trong nhóm)"
         string status "ACTIVE/LOCKED/INACTIVE"
+    }
+
+    USER_ROLES {
+        int user_id PK "Mỗi user đúng 1 vai trò"
+        int role_id FK "GROUP_ADMIN / USER_RECORDING / REGULAR_USER (tối thiểu 1 GROUP_ADMIN ACTIVE mỗi nhóm)"
     }
 
     PHONE_PREFIX_GROUPS {
@@ -102,10 +108,10 @@ erDiagram
 | Mã quy tắc | Tên quy tắc | Mô tả chi tiết & Ràng buộc xử lý |
 | :--- | :--- | :--- |
 | **BR-UG-01** | **Nhóm chứa nhiều thành viên (1 - N) & Không chuyển nhóm** | - Một nhóm người dùng (`user_groups`) chứa một danh sách từ $1$ đến $N$ tài khoản người dùng (`users`).<br>- **Người dùng luôn thuộc cố định 1 nhóm người dùng ngay từ lúc tạo ra** (`users.user_group_id NOT NULL`, bản chất là thuộc đơn vị tổ chức). Hệ thống **không có khái niệm chuyển người dùng giữa các nhóm**; thuộc tính `user_group_id` là bất biến (immutable).<br>- **Thẩm quyền tạo người dùng**: Tài khoản có thể được tạo ra bởi **Quản trị viên hệ thống** (toàn quyền chọn nhóm bất kỳ) hoặc **Quản trị viên nhóm** (cũng là một thành viên trong nhóm có quyền quản trị, chỉ được tạo trong nhóm của mình).<br>- **Phân quyền thành viên thường**: Cả hai loại thành viên thường (`USER_RECORDING` và `REGULAR_USER`) đều không có quyền quản trị (không thể thêm/sửa/xóa thành viên hoặc chuyển quyền admin).<br>- **Ràng buộc an toàn khi xóa**: Không được phép ngừng hoạt động (xóa mềm) nhóm nếu vẫn còn thành viên chưa `INACTIVE`. Hệ thống phản hồi mã lỗi `409 Conflict`. Nhóm không bao giờ bị xóa cứng (`docs/01_database_schema.md` mục 14). |
-| **BR-UG-02** | **Tối thiểu 1 Quản trị viên nhóm (Group Admin Rule) & Thẩm quyền quản trị** | - Trong danh sách thành viên của nhóm, bắt buộc phải có **ít nhất 1 người dùng có `is_group_admin = true`**.<br>- Nhóm được phép có nhiều quản trị viên nhóm (Multi-admin).<br>- Người đại diện chính (`representative_user_id`) phải là một trong các Quản trị viên nhóm.<br>- **Thẩm quyền của Quản trị viên nhóm**: Toàn quyền CRUD thành viên nội bộ nhóm (`user:create`, `user:view`, `user:edit`, `user:delete`), quyền phân bổ hoặc thu hồi quyền Quản trị nhóm cho thành viên khác trong nhóm (`group:manage_admin`), và quyền bật/tắt quyền nghe ghi âm Tầng 2 cho từng thành viên (`group:toggle_recording`).<br>- **Bảo toàn Quản trị viên (Safeguard)**: Khi một nhóm chỉ còn đúng 1 Quản trị viên nhóm, hệ thống chặn tuyệt đối các thao tác: hạ quyền admin về user thường hoặc xóa tài khoản user đó (do người dùng cố định vào nhóm, không chuyển nhóm). Phải bổ nhiệm một thành viên khác lên làm Quản trị viên nhóm trước khi chuyển giao. |
-| **BR-UG-03** | **Liên kết 1 - 1 với Nhóm đầu số điện thoại & Cô lập dữ liệu CDR** | - Mỗi nhóm người dùng liên kết với duy nhất một nhóm đầu số điện thoại (`phone_prefix_groups`) theo quan hệ **1 - 1** (`phone_prefix_group_id` có ràng buộc `UNIQUE`).<br>- Một nhóm đầu số điện thoại không được phép gán cho nhiều hơn 1 nhóm người dùng.<br>- **Phạm vi phân quyền dữ liệu (Group-Based Data Isolation)**: Bảng `cdr_enriched` được tiến trình Batch Scheduler tự động làm giàu thông tin `caller_group_id` và `called_group_id` dựa trên dải số và máy lẻ của nhóm này.<br>- **Quyền bình đẳng về dữ liệu trong nhóm**: Quản trị viên nhóm (`GROUP_ADMIN`), Thành viên có quyền ghi âm (`USER_RECORDING`) và Thành viên không có quyền ghi âm (`REGULAR_USER`) đều có **quyền hạn tương tự và bình đẳng** đối với việc xem nhật ký cuộc gọi CDR (danh sách, chi tiết 87 trường, lọc nâng cao theo IP/mã ngắt kết nối, xuất file Excel), phân tích chỉ số QoS cuộc gọi và xem/xuất báo cáo thống kê trong phạm vi nhóm mình (`caller_group_id = user_group_id OR called_group_id = user_group_id`).<br>- Nhóm đầu số chỉ chọn lúc tạo nhóm, **không đổi được** sau đó (`409`). |
+| **BR-UG-02** | **Tối thiểu 1 Quản trị viên nhóm (Group Admin Rule) & Thẩm quyền quản trị** | - Trong danh sách thành viên của nhóm, bắt buộc phải có **ít nhất 1 người dùng `ACTIVE` mang vai trò `GROUP_ADMIN`**.<br>- Nhóm được phép có nhiều quản trị viên nhóm (Multi-admin).<br>- Người đại diện chính (`representative_user_id`) phải là một trong các Quản trị viên nhóm.<br>- **Thẩm quyền của Quản trị viên nhóm**: Toàn quyền CRUD thành viên nội bộ nhóm (`user:create`, `user:view`, `user:edit`, `user:delete`), quyền bổ nhiệm hoặc hạ quyền Quản trị nhóm cho thành viên khác trong nhóm (`group:manage_admin`), và quyền đổi vai trò thành viên giữa `REGULAR_USER` và `USER_RECORDING` (`group:toggle_recording`). Mọi thay đổi vai trò qua `PUT /api/v1/users/:id/role`.<br>- **Bảo toàn Quản trị viên (Safeguard)**: Khi một nhóm chỉ còn đúng 1 Quản trị viên nhóm, hệ thống chặn tuyệt đối các thao tác: hạ quyền admin về user thường hoặc xóa tài khoản user đó (do người dùng cố định vào nhóm, không chuyển nhóm). Phải bổ nhiệm một thành viên khác lên làm Quản trị viên nhóm trước khi chuyển giao. |
+| **BR-UG-03** | **Liên kết 1 - 1 với Nhóm đầu số điện thoại & Cô lập dữ liệu CDR** | - Mỗi nhóm người dùng liên kết với duy nhất một nhóm đầu số điện thoại (`phone_prefix_groups`) theo quan hệ **1 - 1** (`phone_prefix_group_id` có ràng buộc `UNIQUE`).<br>- Một nhóm đầu số điện thoại không được phép gán cho nhiều hơn 1 nhóm người dùng.<br>- **Phạm vi phân quyền dữ liệu (Group-Based Data Isolation)**: Bảng `cdr_enriched` được tiến trình Batch Scheduler tự động làm giàu thông tin `caller_group_id` và `called_group_id` dựa trên dải số và máy lẻ của nhóm này.<br>- **Quyền bình đẳng về dữ liệu trong nhóm**: Quản trị viên nhóm (`GROUP_ADMIN`), Thành viên nghe ghi âm (`USER_RECORDING`) và Thành viên (`REGULAR_USER`) đều có **quyền hạn tương tự và bình đẳng** đối với việc xem nhật ký cuộc gọi CDR (danh sách, chi tiết 87 trường, lọc nâng cao theo IP/mã ngắt kết nối, xuất file Excel), phân tích chỉ số QoS cuộc gọi và xem/xuất báo cáo thống kê trong phạm vi nhóm mình (`caller_group_id = user_group_id OR called_group_id = user_group_id`).<br>- Nhóm đầu số chỉ chọn lúc tạo nhóm, **không đổi được** sau đó (`409`). |
 | **BR-UG-04** | **Tham chiếu Cây tổ chức tùy chọn (0..1 - N)** | - **1 đơn vị có nhiều nhóm (1 - N)**: Một đơn vị trong cây tổ chức (`organizations`) có thể quản lý 0, 1 hoặc nhiều nhóm người dùng trực thuộc.<br>- **Cho phép không thuộc đơn vị nào (Nullable)**: Thuộc tính `organization_id` trong `user_groups` cho phép nhận giá trị `NULL`. Các nhóm này hoạt động như các nhóm độc lập (Standalone Groups) cấp toàn hệ thống hoặc nhóm dự án đặc thù.<br>- **Hierarchy Path**: Nếu `organization_id` có giá trị, hệ thống tính toán chuỗi cấp bậc từ gốc tới đơn vị (ví dụ: `["Tổng công ty 71", "Khối CNTT"]`). Nếu `organization_id = NULL`, `hierarchyPath` trả về mảng rỗng `[]` và hiển thị trên giao diện là "Nhóm độc lập". |
-| **BR-UG-05** | **Mô hình Phân quyền Ghi âm Kiểm soát 2 Tầng (2-Tier Recording Access Gate)** | - **Tầng 1 (Cấp nhóm - System Admin kiểm soát)**: Quản trị viên hệ thống (Admin Portal) có thẩm quyền tối cao cấp hoặc thu hồi quyền truy cập ghi âm cho từng Nhóm người dùng thông qua cờ `allow_recording_access` (cấu hình trong form Thêm/Sửa nhóm `PUT /api/v1/admin/user-groups/:id`).<br>  + **Nếu nhóm chưa được cấp phép (`allow_recording_access = 0`)**: Mọi tính năng liên quan đến ghi âm bị triệt tiêu khỏi giao diện người dùng của nhóm đó: Cột "File ghi âm" bị loại bỏ hoàn toàn khỏi bảng lịch sử cuộc gọi (bảng co về 6 cột); trong Modal chi tiết cuộc gọi, khối Audio Player được thay thế bằng thông báo *"Tính năng ghi âm chưa được kích hoạt cho đơn vị của bạn"*; trên giao diện Quản trị nhóm (`group-admin.html`), các cột và nút bấm/switch phân quyền ghi âm cho thành viên bị ẩn triệt để; Backend chặn toàn bộ API stream và download ghi âm với mã lỗi `403 Forbidden`.<br>  + **Nếu nhóm được cấp phép (`allow_recording_access = 1`)**: Kích hoạt Tầng 2.<br>- **Tầng 2 (Cấp thành viên - Group Admin kiểm soát khi Tầng 1 đã mở)**:<br>  + **Quản trị viên nhóm (`is_group_admin = 1`)**: Mặc định tự động có toàn quyền nghe trực tuyến và tải về máy bản ghi âm của nhóm mà không cần thêm bất kỳ cấu hình nào.<br>  + **Người dùng thành viên**: Quản trị viên nhóm có quyền bật hoặc tắt quyền nghe/tải ghi âm cho từng thành viên trong nhóm mình qua trường `can_access_recording` trên bảng `users`.<br>    * **Thành viên có quyền ghi âm (`USER_RECORDING`)**: Khi được bật (`can_access_recording = 1`), thành viên được nghe trực tuyến (`cdr:listen_audio`) và tải file ghi âm (.wav) (`cdr:download_audio`) của nhóm mình.<br>    * **Thành viên không có quyền ghi âm (`REGULAR_USER`)**: Khi tắt (`can_access_recording = 0`), thành viên bị khóa hoàn toàn tính năng nghe/tải (hiển thị trạng thái khóa và bị chặn API). Đây là điểm khác biệt duy nhất giữa hai loại thành viên. |
+| **BR-UG-05** | **Mô hình Phân quyền Ghi âm Kiểm soát 2 Tầng (2-Tier Recording Access Gate)** | - **Tầng 1 (Cấp nhóm - System Admin kiểm soát)**: Quản trị viên hệ thống (Admin Portal) có thẩm quyền tối cao cấp hoặc thu hồi quyền truy cập ghi âm cho từng Nhóm người dùng thông qua cờ `allow_recording_access` (cấu hình trong form Thêm/Sửa nhóm `PUT /api/v1/admin/user-groups/:id`).<br>  + **Nếu nhóm chưa được cấp phép (`allow_recording_access = 0`)**: Mọi tính năng liên quan đến ghi âm bị triệt tiêu khỏi giao diện người dùng của nhóm đó: Cột "File ghi âm" bị loại bỏ hoàn toàn khỏi bảng lịch sử cuộc gọi (bảng co về 6 cột); trong Modal chi tiết cuộc gọi, khối Audio Player được thay thế bằng thông báo *"Tính năng ghi âm chưa được kích hoạt cho đơn vị của bạn"*; trên giao diện Quản trị nhóm (`group-admin.html`), các cột và nút bấm/switch phân quyền ghi âm cho thành viên bị ẩn triệt để; Backend chặn toàn bộ API stream và download ghi âm với mã lỗi `403 Forbidden`.<br>  + **Nếu nhóm được cấp phép (`allow_recording_access = 1`)**: Kích hoạt Tầng 2.<br>- **Tầng 2 (Vai trò - Group Admin kiểm soát khi Tầng 1 đã mở)**: quyền nghe/tải là quyền của vai trò (`permission_roles`), không lưu cờ trên người dùng.<br>  + **Quản trị viên nhóm (`GROUP_ADMIN`)**: Vai trò có sẵn `cdr:listen_audio`, `cdr:download_audio`, nên mặc định nghe/tải được ghi âm của nhóm.<br>  + **Người dùng thành viên**: Quản trị viên nhóm bật/tắt quyền nghe/tải bằng cách đổi vai trò thành viên (`PUT /api/v1/users/:id/role`).<br>    * **Thành viên nghe ghi âm (`USER_RECORDING`)**: được nghe trực tuyến (`cdr:listen_audio`) và tải file ghi âm (.wav) (`cdr:download_audio`) của nhóm mình.<br>    * **Thành viên (`REGULAR_USER`)**: bị khóa hoàn toàn tính năng nghe/tải (hiển thị trạng thái khóa và bị chặn API). Đây là điểm khác biệt duy nhất giữa hai vai trò thành viên.<br>- **Thứ tự kiểm tra**: quyền nhóm (Tầng 1) trước, quyền vai trò (Tầng 2) sau (`docs/modules/10_permissions_and_roles.md` mục 2.3). |
 
 ---
 
@@ -163,7 +169,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
 ### 2.3. Bảng Người dùng (`users`) & Quản trị viên nhóm
 
 - Cột `user_group_id`: Tham chiếu bắt buộc tới nhóm người dùng (Quan hệ 1 - N: 1 nhóm chứa nhiều thành viên).
-- Cột `is_group_admin`: Đánh dấu Quản trị viên nhóm (Mỗi nhóm có ít nhất 1 người có giá trị `1`).
+- Vai trò người dùng lưu ở `user_roles` (`docs/01_database_schema.md` mục 7), không phải cột của `users`. Mỗi nhóm có ít nhất 1 người dùng `ACTIVE` mang vai trò `GROUP_ADMIN`.
 
 > DDL chuẩn của `users` (mục 6) chỉ định nghĩa tại `docs/01_database_schema.md`. Module này không chép lại DDL để tránh lệch; khi sinh code, entity và migration lấy từ `01`.
 
@@ -207,7 +213,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
         "fullName": "Trần Thị B",
         "email": "tran.b@71portal.vn",
         "avatarUrl": "https://ui-avatars.com/api/?name=Tran+B",
-        "isGroupAdmin": true
+        "roleCode": "GROUP_ADMIN"
       },
       "admins": [
         {
@@ -245,7 +251,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
         "fullName": "Nguyễn Văn D",
         "email": "nguyen.d@audit.evn.vn",
         "avatarUrl": "https://ui-avatars.com/api/?name=Nguyen+D",
-        "isGroupAdmin": true
+        "roleCode": "GROUP_ADMIN"
       },
       "admins": [
         {
@@ -278,7 +284,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
   - `initialAdmin`: Bắt buộc. Thông tin tài khoản Quản trị viên nhóm đầu tiên; `username`/`email` không được trùng với tài khoản **chưa `INACTIVE`** nào (kiểm tra `username_active`/`email_active`, `docs/01_database_schema.md` mục 6); trùng thì `409`.
 - **Xử lý Backend (một transaction)**:
   1. Tạo dòng `user_groups`.
-  2. Tạo dòng `users` thuộc nhóm vừa tạo với `is_group_admin = 1`, `must_change_password = 1`, mật khẩu tạm ngẫu nhiên 16 ký tự đạt chính sách mật khẩu (`docs/01_database_schema.md` mục 6.1).
+  2. Tạo dòng `users` thuộc nhóm vừa tạo với `must_change_password = 1` và dòng `user_roles` mang vai trò `GROUP_ADMIN`, mật khẩu tạm ngẫu nhiên 16 ký tự đạt chính sách mật khẩu (`docs/01_database_schema.md` mục 6.1).
   3. Đặt `user_groups.representative_user_id` = id user vừa tạo.
   4. Ghi `audit_logs`: `USER_GROUP / CREATE` và `USER / CREATE`.
   5. Lỗi ở bất kỳ bước nào thì rollback toàn bộ.
@@ -331,8 +337,8 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
 - **Quy tắc**:
   - Cho phép cập nhật `organizationId` (gán sang đơn vị khác hoặc gán về `null` để chuyển thành nhóm độc lập).
   - **Không cho đổi `phonePrefixGroupId`** sau khi tạo nhóm: request gửi giá trị khác giá trị hiện tại thì trả `409 CONFLICT`. Muốn chuyển số sang nhóm khác thì thu hồi dải ở nhóm cũ và cấp dải cho nhóm mới (`docs/01_database_schema.md` mục 8).
-  - Cập nhật tên, mô tả, người đại diện (người đại diện bắt buộc phải là Quản trị viên của nhóm).
-  - **Cập nhật quyền ghi âm nhóm (`allowRecordingAccess`)**: Chỉ Quản trị viên hệ thống (Admin Portal) mới có quyền sửa trường này.
+  - Cập nhật tên, mô tả, người đại diện (người đại diện bắt buộc phải mang vai trò `GROUP_ADMIN` trong nhóm).
+  - **Cập nhật quyền ghi âm nhóm (`allowRecordingAccess`)**: Chỉ Quản trị viên hệ thống (Admin Portal) mới có quyền sửa trường này. Tắt cờ không đổi vai trò của thành viên; quyền nghe/tải của cả nhóm bị chặn ngay ở request kế tiếp. Ghi `audit_logs` `TOGGLE_GROUP_RECORDING`.
 
 ```json
 {
@@ -362,45 +368,13 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
 
 ---
 
-### 3.5. Bổ nhiệm / Hạ quyền Quản trị viên nhóm
+### 3.5. Đổi vai trò thành viên (Bổ nhiệm Quản trị viên nhóm & Ủy quyền Nghe/Tải ghi âm)
 
-- Dùng **một endpoint duy nhất** `PUT /api/v1/users/:id/group-admin` với body `{ "isGroupAdmin": true | false }` (có bản `/api/v1/admin/...`), đặc tả tại `docs/modules/03_auth_user.md` mục 3.6. Không có endpoint `/user-groups/:id/admins`.
-- Hạ quyền bị chặn (`409`) nếu người đó là Quản trị viên nhóm đang hoạt động cuối cùng (`SELECT COUNT(*) FROM users WHERE user_group_id = :groupId AND is_group_admin = 1 AND status = 'ACTIVE'`).
-
----
-
-### 3.6. `PATCH /api/v1/user-groups/:id/members/:userId/recording-access` (Ủy quyền Nghe & Tải ghi âm)
-
-- **Mục đích**: Quản trị viên nhóm bật hoặc tắt quyền truy cập nghe và tải bản ghi âm thoại IP cho một người dùng thành viên trong nhóm (BR-UG-05).
-- **Quyền hạn truy cập**:
-  - Quản trị viên nhóm của nhóm này (`currentUser.is_group_admin === 1 && currentUser.user_group_id === id`).
-  - Quản trị viên hệ thống (Admin Portal).
-  - Thành viên thường hoặc Quản trị viên của nhóm khác bị từ chối với mã lỗi `403 FORBIDDEN`.
-- **Ràng buộc Chốt chặn Tầng 1 (Level 1 Gate Validation)**:
-  - Hệ thống kiểm tra trạng thái của nhóm: `SELECT allow_recording_access FROM user_groups WHERE id = :id`.
-  - Nếu `allow_recording_access === 0`: Từ chối ngay lập tức với lỗi `400 BAD REQUEST: Nhóm người dùng chưa được Quản trị viên hệ thống kích hoạt tính năng ghi âm. Không thể cấp quyền cho thành viên`.
-- **Request Body**:
-```json
-{
-  "canAccessRecording": true
-}
-```
-- **Response**:
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "message": "Cập nhật quyền nghe và tải ghi âm cho thành viên thành công",
-  "data": {
-    "userId": 25,
-    "userGroupId": 1,
-    "fullName": "Nguyễn Văn An",
-    "canAccessRecording": true,
-    "updatedAt": "2026-10-20T14:45:00+07:00"
-  }
-}
-```
-- **Audit Log**: Tự động ghi bản ghi nhật ký kiểm toán hành động `TOGGLE_RECORDING_ACCESS` (`resource_name = USER`) kèm người thực hiện, thành viên mục tiêu và trạng thái mới.
+- Dùng **một endpoint duy nhất** `PUT /api/v1/users/:id/role` với body `{ "roleCode": "GROUP_ADMIN" | "USER_RECORDING" | "REGULAR_USER" }` (có bản `/api/v1/admin/...`), đặc tả tại `docs/modules/10_permissions_and_roles.md` mục 1.3 và 3.2. Không có endpoint `/user-groups/:id/admins`, `/users/:id/group-admin` hay `/user-groups/:id/members/:userId/recording-access`.
+- **Bổ nhiệm / Hạ quyền Quản trị viên nhóm** (sang/khỏi `GROUP_ADMIN`, cần `group:manage_admin`): hạ quyền bị chặn `409` nếu người đó là Quản trị viên nhóm đang hoạt động cuối cùng.
+- **Ủy quyền nghe & tải ghi âm** (`REGULAR_USER` ↔ `USER_RECORDING`, cần `group:toggle_recording`, BR-UG-05): chuyển sang `USER_RECORDING` khi nhóm có `allow_recording_access = 0` bị từ chối `409 GROUP_RECORDING_DISABLED` ("Nhóm người dùng chưa được Quản trị viên hệ thống kích hoạt tính năng ghi âm").
+- **Phạm vi**: Quản trị viên nhóm chỉ đổi vai trò thành viên cùng nhóm; Quản trị viên hệ thống đổi ở mọi nhóm. Thành viên thường (`USER_RECORDING`, `REGULAR_USER`) không có hai quyền trên nên bị `403 FORBIDDEN_PERMISSION`.
+- **Audit Log**: ghi `CHANGE_ROLE` (`resource_name = USER`) kèm người thực hiện, thành viên mục tiêu, vai trò cũ và mới.
 
 ---
 
@@ -414,8 +388,7 @@ user-groups/
 ├── dto/
 │   ├── create-user-group.dto.ts
 │   ├── update-user-group.dto.ts
-│   ├── user-group-query.dto.ts
-│   └── assign-group-admin.dto.ts
+│   └── user-group-query.dto.ts
 └── entities/
     └── user-group.entity.ts
 ```
@@ -460,9 +433,15 @@ async validatePhonePrefixGroupBinding(prefixGroupId: number, currentGroupId?: nu
 
 async validateGroupAdminSafeguard(groupId: number, targetAdminUserId: number): Promise<void> {
   // Đếm Quản trị viên nhóm đang hoạt động, KHÔNG tính người sắp bị hạ quyền / ngừng hoạt động
-  const remaining = await this.userRepo.count({
-    where: { userGroupId: groupId, isGroupAdmin: true, status: 'ACTIVE', id: Not(targetAdminUserId) },
-  });
+  const remaining = await this.userRepo
+    .createQueryBuilder('u')
+    .innerJoin('u.userRole', 'ur')
+    .innerJoin('ur.role', 'r')
+    .where('u.userGroupId = :groupId', { groupId })
+    .andWhere("r.code = 'GROUP_ADMIN'")
+    .andWhere("u.status = 'ACTIVE'")
+    .andWhere('u.id <> :id', { id: targetAdminUserId })
+    .getCount();
 
   if (remaining < 1) {
     throw new ConflictException(
@@ -501,7 +480,7 @@ async validateGroupAdminSafeguard(groupId: number, targetAdminUserId: number): P
   - `fetchAvailablePrefixGroups()`: Tải các nhóm đầu số chưa bị gán để chọn trong form tạo/sửa.
   - `createUserGroup(payload)`: Kiểm tra ràng buộc 1-1 và admin tối thiểu $\ge 1$.
   - `updateUserGroup(id, payload)`: Cập nhật thông tin nhóm.
-  - `demoteAdmin(groupId, userId)`: Bắt lỗi nếu vi phạm điều kiện tối thiểu 1 admin.
+  - `changeMemberRole(userId, roleCode)`: Gọi `PUT /users/:id/role`; bắt lỗi `409` khi vi phạm tối thiểu 1 admin hoặc nhóm chưa mở Tầng 1.
   - `deleteUserGroup(id)`: Ngừng hoạt động nhóm (xóa mềm); chặn khi còn thành viên có `status <> 'INACTIVE'`.
 
 ---

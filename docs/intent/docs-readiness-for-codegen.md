@@ -1,6 +1,8 @@
 # Intent: Chuẩn hóa `docs/` sẵn sàng sinh code
 
 > Chốt ngày 2026-10-23 · Nguồn: phỏng vấn sau báo cáo `DB_SCHEMA_AUDIT_2026-10-23.md`
+>
+> **Lưu ý (2026-10-26)**: Q6 và phần `role_permissions`/`role:manage` của Q7 đã được thay thế bởi `docs/intent/roles-permissions-redesign.md`.
 
 - **Kết quả**: `docs/` đủ chuẩn để sinh code toàn bộ dự án; mỗi quyết định Q1–Q11 (mục 6 báo cáo) có một đáp án duy nhất, ghi vào `docs/01_database_schema.md` và các module liên quan.
 - **Cách làm**: phỏng vấn từng câu (kèm đề xuất + bằng chứng dữ liệu thật); chốt câu nào cập nhật docs câu đó rồi mới hỏi tiếp.

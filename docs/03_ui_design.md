@@ -454,8 +454,9 @@ templates/
  └── Nhóm 5: Quản trị Người dùng & Phân quyền
       ├── users.html & users.css             # Danh mục tài khoản người dùng
       ├── user_group.html & users4group.html # Nhóm người dùng & phân bổ thành viên
-      ├── roles.html & permissions.html      # Ma trận phân quyền dựa trên vai trò (RBAC)
-      ├── data-permissions.html & .css       # Ma trận quyền theo đối tượng, loại dữ liệu & hành vi
+      ├── roles.html & roles.css             # Danh sách 5 vai trò kèm quyền (chỉ xem)
+      ├── permissions.html (không triển khai) # Mẫu cũ: ma trận chỉnh quyền, đã bỏ khỏi phạm vi
+      ├── data-permissions.html (không triển khai) # Mẫu cũ: ma trận quyền theo màn hình, đã bỏ khỏi phạm vi
       ├── profile.html & .css                # Hồ sơ cá nhân người dùng
       ├── change-password.html & .css        # Đổi mật khẩu & đo độ an toàn bảo mật
       └── user-settings.html & .css          # Tùy biến cài đặt tài khoản cá nhân
@@ -478,9 +479,9 @@ templates/
 | **11** | `users.html` | `users.css` | Quản trị Người dùng | Bảng tài khoản, Avatar đại diện, Nhãn chức vụ, Modal khóa/kích hoạt tài khoản |
 | **12** | `user_group.html` | `user_group.css` | Nhóm Người dùng | Danh sách nhóm nghiệp vụ, Phân bổ quyền hạn tập trung |
 | **13** | `users4group.html` | `users4group.css` | Thành viên Nhóm | Danh sách chọn người dùng vào nhóm, Hộp kiểm checkbox chọn hàng loạt |
-| **14** | `roles.html` | `roles.css` | Vai trò Quản trị | Danh mục các vai trò Quản trị (Root Admin, System Admin) & Đơn vị thành viên (Group Admin, Thành viên ghi âm, Thành viên cơ bản) |
-| **15** | `permissions.html` | `permissions.css` | Ma trận Quyền hạn | Bảng tích chọn quyền hạn theo từng Module chức năng hệ thống |
-| **16** | `data-permissions.html` | `data-permissions.css` | Ma trận Quyền Chức năng | Bảng ma trận đối chiếu Màn hình ➔ Chức năng ➔ 5 Đối tượng người dùng chuẩn hóa, Phân nhóm trang, Highlight đối tượng, Modal quy tắc |
+| **14** | `roles.html` | `roles.css` | Vai trò | Danh sách chỉ xem 5 vai trò: Nhóm Quản trị (Quản trị viên tối cao, Quản trị viên hệ thống) & Nhóm Người dùng (Quản trị viên nhóm, Thành viên nghe ghi âm, Thành viên), mỗi vai trò kèm danh sách quyền rút gọn và số tài khoản; không có nút thêm/sửa/xóa (`docs/modules/10_permissions_and_roles.md` mục 5.1) |
+| **15** | `permissions.html` | `permissions.css` | *(Không triển khai)* | Mẫu cũ ma trận chỉnh quyền; quyền của vai trò nay là seed cố định, không có giao diện chỉnh |
+| **16** | `data-permissions.html` | `data-permissions.css` | *(Không triển khai)* | Mẫu cũ ma trận quyền theo màn hình; thông tin quyền nay hiển thị ngay trong `roles.html` |
 | **17** | `notifications.html` | `notifications.css` | Trung tâm Thông báo | Danh sách thông báo phân loại theo icon (User, System, Alert, Report, Org) |
 | **18** | `system-settings.html` | `system-settings.css` | Cài đặt Hệ thống | Cấu hình IP PABX, Thông số MariaDB, Danger Zone, Bật/Tắt chế độ bảo trì |
 | **19** | `user-settings.html` | `user-settings.css` | Cài đặt Cá nhân | Bố cục Settings Sidebar hai cột, Tùy chọn thông báo email/âm thanh |

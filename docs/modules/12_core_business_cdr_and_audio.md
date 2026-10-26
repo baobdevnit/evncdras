@@ -30,11 +30,11 @@ Hệ thống tổng đài IP PABX của EVN ghi nhận hàng ngày hàng chục 
       + Trên giao diện Quản trị nhóm (`group-admin.html`), các nút bấm, cột và switch phân quyền ghi âm cho thành viên bị ẩn triệt để; Quản trị viên nhóm không có quyền nghe/tải và không thể cấp quyền cho ai.
       + Backend API chặn tức thì mọi yêu cầu stream và download với mã lỗi `403 Forbidden` (`Tổ chức/Nhóm người dùng của bạn chưa được cấp phép sử dụng tính năng ghi âm`).
     - **Khi nhóm được cấp phép (`allow_recording_access = 1`)**: Kích hoạt phân quyền Tầng 2.
-  - **Tầng 2 (Cấp thành viên - Do Quản trị viên nhóm phân quyền khi Tầng 1 đã mở)**:
-    - **Quản trị viên nhóm (`is_group_admin = 1`)**: Mặc định tự động có toàn quyền nghe trực tuyến và tải về máy bản ghi âm của nhóm mà không cần thêm bất kỳ cấu hình nào.
-    - **Ủy quyền cho thành viên**: Quản trị viên nhóm có quyền bật hoặc tắt quyền nghe và tải ghi âm (.wav) cho từng thành viên trong nhóm mình thông qua cờ `can_access_recording` trên bảng `users`.
-    - Thành viên được bật quyền (`can_access_recording = 1`): Được phép nghe luồng âm thanh trực tuyến và tải file ghi âm của các cuộc gọi thuộc nhóm mình.
-    - Thành viên chưa được bật quyền (`can_access_recording = 0`): Giao diện hiển thị nhãn ổ khóa `Chưa cấp quyền`, không thể phát hoặc tải âm thanh; Backend chặn với mã lỗi `403 Forbidden`.
+  - **Tầng 2 (Vai trò - Do Quản trị viên nhóm đổi vai trò thành viên khi Tầng 1 đã mở)**: quyền `cdr:listen_audio`/`cdr:download_audio` thuộc vai trò (`permission_roles`), không lưu cờ trên người dùng.
+    - **Quản trị viên nhóm (`GROUP_ADMIN`)**: Vai trò có sẵn hai quyền này, nên mặc định nghe/tải được ghi âm của nhóm.
+    - **Ủy quyền cho thành viên**: Quản trị viên nhóm đổi vai trò thành viên giữa `REGULAR_USER` và `USER_RECORDING` (`PUT /api/v1/users/:id/role`, `docs/modules/10_permissions_and_roles.md` mục 1.3).
+    - Thành viên nghe ghi âm (`USER_RECORDING`): Được phép nghe luồng âm thanh trực tuyến và tải file ghi âm của các cuộc gọi thuộc nhóm mình.
+    - Thành viên (`REGULAR_USER`): Giao diện hiển thị nhãn ổ khóa `Chưa cấp quyền`, không thể phát hoặc tải âm thanh; Backend chặn `403 FORBIDDEN_PERMISSION`.
 - **Kênh ghi âm**: chỉ có `Recorded_Mix_FileName` (âm thanh trộn hai chiều, `.wav`, mỗi leg một file). `Recorded_RX_FileName`/`Recorded_TX_FileName` luôn NULL trên dữ liệu thật và không được dùng (mục 2.3).
 
 ---
@@ -151,10 +151,10 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
 
 > [!NOTE]
 > Trường `canAccessAudio` được Backend tính toán động cho từng dòng dựa trên mô hình kiểm soát 2 tầng:
-> - Đối với Admin Portal: luôn trả về `true`.
+> - Đối với Admin Portal: `true` nếu vai trò có `cdr:listen_audio` (cả `ROOT_ADMIN` và `SYSTEM_ADMIN` đều có).
 > - Đối với User Portal:
 >   + Nếu nhóm chưa được cấp phép ghi âm (`user.group.allow_recording_access === 0`): Trả về `canAccessAudio: false`, `hasAudio: false`, `audioFileName: null`.
->   + Nếu nhóm đã được cấp phép (`user.group.allow_recording_access === 1`): Trả về `true` nếu `currentUser.is_group_admin == 1` HOẶC `currentUser.can_access_recording == 1`; ngược lại trả về `false`.
+>   + Nếu nhóm đã được cấp phép (`user.group.allow_recording_access === 1`): Trả về `true` nếu vai trò của người dùng có `cdr:listen_audio` (`GROUP_ADMIN`, `USER_RECORDING`); ngược lại (`REGULAR_USER`) trả về `false`.
 > - Nếu số điện thoại chưa gán nhóm nào, `callerGroup` hoặc `calledGroup` trả về `null` (Frontend hiển thị badge "Chưa xác định nhóm").
 
 ### 3.1.1. Xuất danh sách CDR (`GET /api/v1/cdr/export`)
@@ -178,12 +178,11 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
   1. Truy vấn bản ghi từ `cdr_enriched` theo `:id`.
   2. **Kiểm tra Cô lập Dữ liệu (Group Isolation Check)**:
      - Nếu là User Portal: Kiểm tra `(record.caller_group_id == user.user_group_id || record.called_group_id == user.user_group_id)`. Nếu sai -> ném `ForbiddenException('Bạn không có quyền truy cập dữ liệu cuộc gọi của nhóm khác')`.
-  3. **Kiểm tra Phân quyền Ghi âm 2 Tầng (2-Tier Recording Gate)**:
+  3. **Kiểm tra Phân quyền Ghi âm 2 Tầng (2-Tier Recording Gate)**: do `PermissionsGuard` thực hiện trước khi vào service (`@RequirePermissions('cdr:listen_audio')`, thuật toán `docs/modules/10_permissions_and_roles.md` mục 2.3):
      - Nếu là User Portal:
-       + **Tầng 1 (Cấp nhóm)**: Kiểm tra `user.group.allow_recording_access === 1`. Nếu bằng 0 -> ném `ForbiddenException('Tổ chức/Nhóm người dùng của bạn chưa được Quản trị viên hệ thống kích hoạt tính năng ghi âm')`.
-       + **Tầng 2 (Cấp người dùng)**:
-         * Nếu `user.is_group_admin === 1`: Tự động vượt qua (Quản trị viên nhóm mặc định có quyền).
-         * Nếu là thành viên thường: Kiểm tra `user.can_access_recording === 1`. Nếu không thỏa mãn -> ném `ForbiddenException('Bạn chưa được Quản trị viên nhóm cấp quyền nghe và tải ghi âm')`.
+       + **Tầng 1 (Quyền nhóm)**: `user_groups.allow_recording_access = 1`. Nếu bằng 0 -> `403 GROUP_RECORDING_DISABLED` ('Tổ chức/Nhóm người dùng của bạn chưa được Quản trị viên hệ thống kích hoạt tính năng ghi âm').
+       + **Tầng 2 (Quyền vai trò)**: vai trò trong token phải có `cdr:listen_audio` (`GROUP_ADMIN`, `USER_RECORDING`). Nếu không -> `403 FORBIDDEN_PERMISSION` ('Bạn chưa được Quản trị viên nhóm cấp quyền nghe và tải ghi âm').
+     - Nếu là Admin Portal: chỉ xét quyền vai trò.
   4. Tìm file theo thuật toán mục 2.3 (`recording_path_map`); không có file thì `404 RECORDING_FILE_NOT_FOUND`. Stream với Header `Accept-Ranges: bytes`, `Content-Type: audio/wav`, trả về mã `206 Partial Content` khi có `Range`.
   5. Ghi Audit Log: `LISTEN_AUDIO` (Lưu user_id, user_group_id, cdr_id, IP).
 
@@ -414,7 +413,7 @@ export class CdrEnrichmentScheduler {
 6. **TC-CDR-06 (Recording Access Delegation khi Tầng 1 đã mở)**: 
    - Quản trị viên hệ thống bật `allow_recording_access = 1` cho nhóm.
    - Đăng nhập Quản trị viên nhóm: Xác nhận tự động thấy cột ghi âm và nghe/tải trực tiếp bình thường (mặc định có quyền).
-   - Đăng nhập tài khoản thành viên thường có `can_access_recording = 0`: Xác nhận thấy cột ghi âm nhưng ở trạng thái khóa (`badge-locked`).
-   - Quản trị viên nhóm vào giao diện `group-admin.html` bật quyền `can_access_recording = 1` cho thành viên. Đăng nhập lại tài khoản thành viên: Xác nhận nghe và tải file thành công.
+   - Đăng nhập tài khoản thành viên vai trò `REGULAR_USER`: Xác nhận thấy cột ghi âm nhưng ở trạng thái khóa (`badge-locked`).
+   - Quản trị viên nhóm vào giao diện `group-admin.html` bật switch "Nghe ghi âm" cho thành viên (đổi vai trò sang `USER_RECORDING`). Đăng nhập lại tài khoản thành viên: Xác nhận nghe và tải file thành công.
 7. **TC-CDR-07 (Admin View & Badges)**: Đăng nhập tài khoản Quản trị viên hệ thống (Admin Portal), kiểm tra danh sách hiển thị đầy đủ các bản ghi (kể cả các bản ghi có group_id là `NULL`), trên mỗi dòng xuất hiện đầy đủ nhãn Badge của bên gọi và bên nghe. Lọc thử theo `groupId = 1`, kiểm tra kết quả trả về chính xác.
 

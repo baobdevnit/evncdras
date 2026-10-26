@@ -49,7 +49,6 @@ Bảng MariaDB: `users` và `user_settings`.
     "jobTitle": "Trưởng nhóm Kỹ thuật Vận hành",
     "phoneNumber": "0912345678",
     "avatarUrl": "https://ui-avatars.com/api/?name=Tran+B",
-    "isGroupAdmin": true,
     "userGroup": {
       "id": 1,
       "name": "Khối Công nghệ Thông tin",
@@ -60,7 +59,8 @@ Bảng MariaDB: `users` và `user_settings`.
       "name": "Khối Công nghệ Thông tin",
       "code": "IT-01"
     },
-    "roleCode": "GROUP_ADMIN"
+    "roleCode": "GROUP_ADMIN",
+    "roleName": "Quản trị viên nhóm"
   }
 }
 ```
@@ -68,7 +68,7 @@ Bảng MariaDB: `users` và `user_settings`.
 ### 3.2. `PUT /api/v1/profile`
 
 - **Body**: `{ "fullName": "Trần Thị Bích", "phoneNumber": "0912345679" }`
-- **Validation**: Không cho phép client gửi `email`, `username`, `isGroupAdmin` lên để can thiệp.
+- **Validation**: Không cho phép client gửi `email`, `username`, `roleCode` lên để can thiệp (vai trò chỉ đổi qua `PUT /users/:id/role`).
 
 ### 3.3. `POST /api/v1/profile/avatar`
 
