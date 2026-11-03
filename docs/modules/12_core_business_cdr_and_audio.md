@@ -184,7 +184,7 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
        + **Tầng 2 (Quyền vai trò)**: vai trò trong token phải có `cdr:listen_audio` (`GROUP_ADMIN`, `USER_RECORDING`). Nếu không -> `403 FORBIDDEN_PERMISSION` ('Bạn chưa được Quản trị viên nhóm cấp quyền nghe và tải ghi âm').
      - Nếu là Admin Portal: chỉ xét quyền vai trò.
   4. Tìm file theo thuật toán mục 2.3 (`recording_path_map`); không có file thì `404 RECORDING_FILE_NOT_FOUND`. Stream với Header `Accept-Ranges: bytes`, `Content-Type: audio/wav`, trả về mã `206 Partial Content` khi có `Range`.
-  5. Ghi Audit Log: `LISTEN_AUDIO` (Lưu user_id, user_group_id, cdr_id, IP).
+  5. Ghi `audit_logs` (`docs/01_database_schema.md` mục 13): `action = 'LISTEN_AUDIO'`, `resource_name = 'AUDIO'`, `resource_id` = id leg CDR, `actor_type`/`actor_id`/`actor_name` theo tài khoản gọi API (`USER` hoặc `ADMIN`), `ip_address`, `user_agent`, `action_details = { "userGroupId": <nhóm của người gọi, NULL với Admin>, "callGroupKey": <call_group_key> }`.
 
 ### 3.4. Tải file ghi âm cuộc gọi (`GET /api/v1/cdr/:id/audio/download`)
 - **Query params**: không có.
@@ -192,7 +192,7 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
   1. Thực hiện các bước kiểm tra cô lập nhóm và kiểm tra 2 tầng (Group Gate & Member Gate) tương tự API stream ở mục 3.3.
   2. Đính kèm Header `Content-Disposition: attachment; filename="..."`.
   3. Stream file về cho Client tải xuống.
-  4. Ghi Audit Log: `DOWNLOAD_AUDIO` (Lưu user_id, user_group_id, cdr_id, IP).
+  4. Ghi `audit_logs` như mục 3.3 bước 5, với `action = 'DOWNLOAD_AUDIO'`.
 
 ---
 

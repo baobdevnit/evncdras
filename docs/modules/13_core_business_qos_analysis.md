@@ -273,7 +273,7 @@ backend/src/
   - **Hàng 1 (Cơ bản)**: Khoảng thời gian (From / To Date), Số gọi đi (Caller), Số nhận (Called), Trạng thái (Tất cả, Nghe máy, Máy bận, Hủy gọi, Lỗi mạng), Nút "Tìm kiếm" và Nút "Bộ lọc nâng cao".
   - **Hàng 2 (Nâng cao - Trượt mở rộng / Slide Toggle)**: Ngưỡng chất lượng MOS (Kém &lt;3.0, Trung bình 3.0–&lt;3.5, Tốt 3.5–&lt;4.0, Xuất sắc &ge;4.0; lọc theo `mos_x100`), Mã kết thúc SIP (200, 486, 487, 503, 408), Định dạng Codec (`G711U`, `G711A`), Tỷ lệ mất gói tin (`packetLoss` = `none` | `warning` | `critical`: không mất gói, vượt ngưỡng warning, vượt ngưỡng critical của `PACKET_LOSS_PERCENT`).
 - **Bảng dữ liệu QoS cô đọng 7 cột (`.data-table`)**:
-  - Cột 1: Thời gian & Thời lượng đàm thoại (`Created`, `Answered_Duration`).
+  - Cột 1: Thời gian & Thời lượng đàm thoại (`Created`, `answered_duration_sec`; không dùng `Answered_Duration` vì cột thô tính bằng mili-giây).
   - Cột 2: Bên gọi (Caller): Số điện thoại, Tên hiển thị, Badge Đơn vị/Nhóm người dùng.
   - Cột 3: Bên nhận (Called): Số điện thoại, Tên hiển thị, Badge Đơn vị/Nhóm người dùng.
   - Cột 4: Trạng thái & Mã SIP: Render badge chuẩn màu `.badge-sip-200` (xanh), `.badge-sip-486` (cam), `.badge-sip-487` (xám), `.badge-sip-503`/`.badge-sip-408` (đỏ).

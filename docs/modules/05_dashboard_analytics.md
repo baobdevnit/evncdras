@@ -252,7 +252,7 @@ async getDashboardData(user: CurrentUserPayload, query: DashboardStatsQueryDto) 
 | | Khu vực Admin | Khu vực Member |
 | :--- | :--- | :--- |
 | View | `src/apps/admin/views/dashboard/DashboardView.vue` | `src/apps/member/views/dashboard/DashboardView.vue` |
-| Route | `admin.dashboard` (`/admin/`), quyền `report:view` | `member.dashboard` (`/`), quyền `report:view` |
+| Route | `admin.dashboard` (`/admin/`), chỉ cần đăng nhập (widget kho số cần `prefix:view`) | `member.dashboard` (`/`), chỉ cần đăng nhập |
 | KPI, biểu đồ, cuộc gọi gần đây | `/api/v1/admin/dashboard/stats`, `/charts`, `/recent-calls` (toàn hệ thống) | `/api/v1/dashboard/stats`, `/charts`, `/recent-calls` (tự cô lập theo nhóm) |
 | Chỉ có ở app này | `/api/v1/admin/dashboard/groups`, `/api/v1/admin/phone-numbers/pool/summary` | Widget dải số từ `GET /api/v1/prefixes` |
 

@@ -601,12 +601,12 @@ Cột View là component trong `src/apps/admin/views/`; Template nguồn trong `
 | URL | Route name | View | Template nguồn | `meta.permissions` |
 | :--- | :--- | :--- | :--- | :--- |
 | `/admin/login` | `admin.login` | `AdminLoginView` | `templates/admin/login.html` | *(public)* |
-| `/admin/` | `admin.dashboard` | `DashboardView` | `dashboard.html` | `report:view` |
+| `/admin/` | `admin.dashboard` | `DashboardView` | `dashboard.html` | — |
 | `/admin/notifications` | `admin.notifications` | `NotificationsView` | `notifications.html` | — |
 | `/admin/cdr` | `admin.cdr` | `CdrHistoryView` | `cdr-history.html` | `cdr:view` |
 | `/admin/qos` | `admin.qos` | `QosDebugView` | `qos-debug.html` | `qos:view` |
 | `/admin/reports` | `admin.reports` | `ReportsView` | `reports.html` | `report:view` |
-| `/admin/traffic` | `admin.traffic` | `TrafficSummaryView` | *(không có template riêng, theo `docs/modules/14_core_business_call_traffic.md`)* | `report:view` |
+| `/admin/traffic` | `admin.traffic` | `TrafficSummaryView` | *(không có template riêng, theo `docs/modules/14_core_business_call_traffic.md`)* | `cdr:view` |
 | `/admin/organizations` | `admin.organizations` | `OrganizationView` | `organization.html` | `org:view` |
 | `/admin/prefixes` | `admin.prefixes` | `PrefixManagementView` | `prefix-management.html` | `prefix:view` |
 | `/admin/prefix-history` | `admin.prefix-history` | `PrefixHistoryView` | `prefix-history.html` | `prefix:view` |
@@ -631,7 +631,7 @@ Cột View là component trong `src/apps/admin/views/`; Template nguồn trong `
 | `admin.notifications` | Nút + modal "Soạn thông báo" (`docs/modules/06_notifications.md` mục 5.2) | `system:manage` | `POST /admin/notifications` |
 | `admin.prefixes` | Modal Kho số chung (`#poolModal`), danh sách số trong dải (`#numbersListModal`) kèm khóa/dự phòng/sửa thông tin số | xem `prefix:view`, sửa `prefix:manage` | `/admin/phone-numbers/pool`, `/admin/phone-numbers/pool/summary`, `PUT /admin/phone-numbers/:number` |
 | `admin.prefixes` | Quản lý Nhóm đầu số (danh sách + modal thêm/sửa/xóa) | xem `prefix:view`, sửa `prefix:manage` | `/admin/prefix-groups*` |
-| `admin.dashboard` | Bảng xếp hạng nhóm theo lưu lượng, widget kho số (`docs/modules/05_dashboard_analytics.md`) | `report:view` | `/admin/dashboard/groups`, `/admin/phone-numbers/pool/summary` |
+| `admin.dashboard` | Bảng xếp hạng nhóm theo lưu lượng, widget kho số (`docs/modules/05_dashboard_analytics.md`) | bảng xếp hạng: —; widget kho số: `prefix:view` | `/admin/dashboard/groups`, `/admin/phone-numbers/pool/summary` |
 | `admin.prefix-history` | Tab "Lịch sử số" bên cạnh lịch sử cấp phát dải | `prefix:view` | `/admin/phone-numbers/history` |
 | `admin.users` | Nút "Thu hồi phiên đăng nhập" của người dùng | `user:edit` | `DELETE /admin/users/:id/sessions` |
 | `admin.profile` | Phiên đăng nhập của tôi, hoạt động gần đây | — | `/admin/auth/sessions*`, `/admin/profile/recent-activity` |
@@ -643,12 +643,12 @@ Cột View là component trong `src/apps/member/views/`; Template nguồn trong 
 | URL | Route name | View | Template nguồn | `meta.permissions` |
 | :--- | :--- | :--- | :--- | :--- |
 | `/login` | `member.login` | `LoginView` | `templates/member/login.html` | *(public)* |
-| `/` | `member.dashboard` | `DashboardView` | `dashboard.html` | `report:view` |
+| `/` | `member.dashboard` | `DashboardView` | `dashboard.html` | — |
 | `/notifications` | `member.notifications` | `NotificationsView` | `notifications.html` | — |
 | `/cdr` | `member.cdr` | `CdrHistoryView` | `cdr-history.html` | `cdr:view` |
 | `/qos` | `member.qos` | `QosDebugView` | `qos-debug.html` | `qos:view` |
 | `/reports` | `member.reports` | `ReportsView` | `reports.html` | `report:view` |
-| `/traffic` | `member.traffic` | `TrafficSummaryView` | *(không có template riêng, theo `docs/modules/14_core_business_call_traffic.md`)* | `report:view` |
+| `/traffic` | `member.traffic` | `TrafficSummaryView` | *(không có template riêng, theo `docs/modules/14_core_business_call_traffic.md`)* | `cdr:view` |
 | `/org-prefix` | `member.org-prefix` | `OrgPrefixView` | `org-prefix.html` | `prefix:view` |
 | `/group-admin` | `member.group-admin` | `GroupAdminView` | `group-admin.html` | `user:view` |
 | `/group-members` | `member.group-members` | `GroupMembersView` | `group-members.html` | `user_group:view` |

@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS `cdr` (
 ```
 
 > [!NOTE]
-> **Index khuyến nghị trên bảng `cdr` (KHÔNG thuộc migration của hệ thống)**: bảng `cdr` thuộc PABX; chỉ DBA tạo các index dưới đây khi chủ hệ thống PABX đồng ý. Hệ thống EVN CDR AS không phụ thuộc chúng (tiến trình làm giàu chỉ đọc theo khóa chính `id > watermark`).
+> **Index khuyến nghị trên bảng `cdr` (KHÔNG thuộc migration của hệ thống)**: bảng `cdr` thuộc PABX; chỉ DBA tạo các index dưới đây khi chủ hệ thống PABX đồng ý. Hệ thống EVN CDR AS không phụ thuộc chúng: tiến trình làm giàu chỉ đọc theo khóa chính (`id > watermark`, và `ORDER BY id DESC LIMIT 1` để phát hiện PABX ngừng ghi, mục 10).
 >
 > ```sql
 > -- CHỈ THAM KHẢO, không đưa vào migration
@@ -641,24 +641,26 @@ CREATE TABLE IF NOT EXISTS `permission_roles` (
 CREATE TABLE IF NOT EXISTS `admin_roles` (
   `admin_id` int(11) unsigned NOT NULL,
   `role_id` int(11) unsigned NOT NULL,
-  `role_scope` enum('ADMIN') NOT NULL DEFAULT 'ADMIN' COMMENT 'Hằng ADMIN; cùng role_id tạo khóa ngoại bảo đảm chỉ gán vai trò scope ADMIN',
+  `role_scope` enum('ADMIN','USER') NOT NULL DEFAULT 'ADMIN' COMMENT 'Luôn ADMIN (chk_ar_scope); cùng role_id tạo khóa ngoại bảo đảm chỉ gán vai trò scope ADMIN. Bắt buộc cùng định nghĩa enum với roles.scope',
   `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`admin_id`) COMMENT 'Mỗi admin đúng 1 vai trò',
   KEY `idx_ar_role` (`role_id`, `role_scope`),
   CONSTRAINT `fk_ar_admin` FOREIGN KEY (`admin_id`) REFERENCES `admins` (`id`) ON DELETE RESTRICT,
-  CONSTRAINT `fk_ar_role_scope` FOREIGN KEY (`role_id`, `role_scope`) REFERENCES `roles` (`id`, `scope`) ON DELETE RESTRICT
+  CONSTRAINT `fk_ar_role_scope` FOREIGN KEY (`role_id`, `role_scope`) REFERENCES `roles` (`id`, `scope`) ON DELETE RESTRICT,
+  CONSTRAINT `chk_ar_scope` CHECK (`role_scope` = 'ADMIN')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Vai trò của người dùng: mỗi user đúng 1 vai trò thuộc scope USER
 CREATE TABLE IF NOT EXISTS `user_roles` (
   `user_id` int(11) unsigned NOT NULL,
   `role_id` int(11) unsigned NOT NULL,
-  `role_scope` enum('USER') NOT NULL DEFAULT 'USER' COMMENT 'Hằng USER; cùng role_id tạo khóa ngoại bảo đảm chỉ gán vai trò scope USER',
+  `role_scope` enum('ADMIN','USER') NOT NULL DEFAULT 'USER' COMMENT 'Luôn USER (chk_ur_scope); cùng role_id tạo khóa ngoại bảo đảm chỉ gán vai trò scope USER. Bắt buộc cùng định nghĩa enum với roles.scope',
   `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`user_id`) COMMENT 'Mỗi user đúng 1 vai trò',
   KEY `idx_ur_role` (`role_id`, `role_scope`),
   CONSTRAINT `fk_ur_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT,
-  CONSTRAINT `fk_ur_role_scope` FOREIGN KEY (`role_id`, `role_scope`) REFERENCES `roles` (`id`, `scope`) ON DELETE RESTRICT
+  CONSTRAINT `fk_ur_role_scope` FOREIGN KEY (`role_id`, `role_scope`) REFERENCES `roles` (`id`, `scope`) ON DELETE RESTRICT,
+  CONSTRAINT `chk_ur_scope` CHECK (`role_scope` = 'USER')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed cố định 5 vai trò hệ thống (không tạo/sửa/xóa qua API):
@@ -676,7 +678,7 @@ Seed `permissions` và `permission_roles`: `docs/modules/10_permissions_and_role
 > [!IMPORTANT]
 > **Mô hình vai trò – quyền**:
 > - Hệ thống có **đúng 5 vai trò cố định** (seed ở trên). `roles`, `permissions`, `permission_roles` chỉ đổi bằng migration/seed; không có API hay giao diện chỉnh sửa. Giao diện chỉ có màn hình xem danh sách vai trò kèm quyền.
-> - **Gán vai trò**: mỗi Admin có đúng 1 dòng `admin_roles`, mỗi User có đúng 1 dòng `user_roles` (PK là id tài khoản), tạo cùng transaction với tài khoản. Khóa ngoại `(role_id, role_scope) → roles(id, scope)` chặn ở mức CSDL việc gán vai trò User cho Admin và ngược lại.
+> - **Gán vai trò**: mỗi Admin có đúng 1 dòng `admin_roles`, mỗi User có đúng 1 dòng `user_roles` (PK là id tài khoản), tạo cùng transaction với tài khoản. Khóa ngoại `(role_id, role_scope) → roles(id, scope)` chặn ở mức CSDL việc gán vai trò User cho Admin và ngược lại. Cột `role_scope` phải khai báo **đúng** `enum('ADMIN','USER')` như `roles.scope` và cố định giá trị bằng `CHECK`: InnoDB so khóa ngoại trên ENUM theo chỉ số nội bộ, nên nếu khai báo `enum('USER')` thì `'USER'` (chỉ số 1) bị so với `'ADMIN'` (chỉ số 1 của `roles.scope`), dẫn tới chặn vai trò hợp lệ và cho qua vai trò Admin.
 > - **Không lưu quyền trên tài khoản**: các cột `admins.is_root`, `users.is_group_admin`, `users.can_access_recording` của thiết kế cũ **đã bị loại bỏ**. Quyền cấp nhóm duy nhất là `user_groups.allow_recording_access`, lưu trực tiếp trên nhóm.
 > - **Kiểm tra quyền Admin**: chỉ xét vai trò trong `admin_roles` và quyền của vai trò đó trong `permission_roles`.
 > - **Kiểm tra quyền User**: xét quyền nhóm trước (nhóm `ACTIVE`; `cdr:listen_audio`/`cdr:download_audio` cần `allow_recording_access = 1`), sau đó xét vai trò trong `user_roles` và quyền của vai trò đó trong `permission_roles`. Thuật toán chi tiết: `docs/modules/10_permissions_and_roles.md` mục 2.3.
@@ -860,7 +862,7 @@ ON DUPLICATE KEY UPDATE `metric_name` = VALUES(`metric_name`);
 > **Sinh cảnh báo (Alert Engine)**. Đây là nơi duy nhất định nghĩa ngưỡng; các module không viết cứng ngưỡng.
 > - **`QOS_ALERT` theo giờ**: ngay sau mỗi lần job tổng hợp (mục 15.0), đánh giá **khung giờ vừa kết thúc** trên dòng toàn hệ thống và từng dòng nhóm của `stats_hourly`. Chỉ xét khi `total_calls >= qos_alert_min_calls` (mặc định 20). Với mỗi ngưỡng `is_enabled = 1`: vượt `critical_threshold` thì `severity = CRITICAL`, chỉ vượt `warning_threshold` thì `WARNING`. Chỉ số so sánh: MOS = `avg_mos / 100`, mất gói = `rtp_lost_packets_total / rtp_packets_total * 100`, `avg_jitter_ms`, `asr_percentage`.
 > - **Chống trùng**: `notifications.dedupe_key = 'QOS:{scope}:{metric}:{stat_date}:{stat_hour}'` (`scope` = `SYSTEM` hoặc `G{group_id}`). Tạo lại cùng khóa thì bỏ qua.
-> - **`PABX_OFFLINE`**: tiến trình làm giàu theo dõi `MAX(cdr.Created)`. Không có bản ghi mới trong `pabx_offline_minutes` (mặc định 60) thì tạo một cảnh báo `CRITICAL` (`dedupe_key = 'PABX_OFFLINE:{thời điểm bản ghi cuối}'`). Khi có bản ghi mới trở lại thì tạo thông báo `type = PABX_OFFLINE`, `severity = INFO`, tiêu đề "Đã nhận lại dữ liệu từ PABX", `dedupe_key = 'PABX_RECOVERED:{thời điểm bản ghi mới đầu tiên}'`.
+> - **`PABX_OFFLINE`**: tiến trình làm giàu theo dõi thời điểm bản ghi mới nhất của PABX bằng truy vấn theo khóa chính `SELECT Created FROM cdr ORDER BY id DESC LIMIT 1` (không dùng `MAX(cdr.Created)`: bảng `cdr` không bảo đảm có index `Created`, xem ghi chú mục 2, nên `MAX` sẽ quét toàn bảng của PABX). Nếu `Created` của bản ghi đó NULL thì dùng `Destroyed`. Không có bản ghi mới trong `pabx_offline_minutes` (mặc định 60) thì tạo một cảnh báo `CRITICAL` (`dedupe_key = 'PABX_OFFLINE:{thời điểm bản ghi cuối}'`). Khi có bản ghi mới trở lại thì tạo thông báo `type = PABX_OFFLINE`, `severity = INFO`, tiêu đề "Đã nhận lại dữ liệu từ PABX", `dedupe_key = 'PABX_RECOVERED:{thời điểm bản ghi mới đầu tiên}'`.
 > - **Người nhận** (luôn tạo **một dòng `notification_recipients` cho mỗi tài khoản**):
 >   - Cảnh báo toàn hệ thống và `PABX_OFFLINE`: mọi Admin `ACTIVE`.
 >   - Cảnh báo của một nhóm: mọi Admin `ACTIVE` và các Quản trị viên nhóm `ACTIVE` của nhóm đó.
