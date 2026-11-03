@@ -15,7 +15,7 @@ Người dùng thành viên thuộc các đơn vị EVN có nhu cầu cá nhân 
 1. **Quản lý thông tin cá nhân**: Cập nhật họ tên hiển thị, số điện thoại liên lạc, ảnh đại diện (avatar). Các thông tin hành chính như Tên đăng nhập, Email EVN, Đơn vị tổ chức và Nhóm QLND do Quản trị viên chỉ định nên hiển thị ở chế độ Chỉ đọc (Read-only).
 2. **Bảo mật & Đổi mật khẩu**: Tự thay đổi mật khẩu định kỳ, tuân thủ chính sách mật khẩu mạnh của EVN (tối thiểu 10 ký tự, có ít nhất 3 trong 4 loại: chữ hoa, chữ thường, chữ số, ký tự đặc biệt; hết hạn sau 90 ngày, theo `docs/01_database_schema.md` mục 6.1).
 3. **Tùy chỉnh giao diện & Thiết lập cá nhân (Preferences)**:
-   - Giao diện Sáng / Tối (Light / Dark Mode).
+   - Giao diện Sáng / Tối / Theo hệ thống (`theme`: `light`, `dark`, `system`; mặc định `system`, theo `user_settings.theme`).
    - Trạng thái thanh Sidebar thu gọn hoặc mở rộng mặc định.
    - Số lượng bản ghi hiển thị trên mỗi trang (`itemsPerPage`: 10, 20, 50).
    - Bật/tắt nhận thông báo qua email và âm thanh chuông khi có sự cố mới.
@@ -137,9 +137,9 @@ Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView
 - **Panel bên phải (`.profile-content`)**:
   - Tab 1: Form cập nhật họ tên, điện thoại, các trường readonly đơn vị và quyền hạn.
   - Tab 2: Form đổi mật khẩu với nút bật/tắt mắt xem mật khẩu (`.eye-icon`).
-  - Tab 3: Công tắc chuyển đổi Dark Mode, thanh menu thu gọn, chọn số dòng hiển thị mỗi bảng.
+  - Tab 3: Nhóm lựa chọn giao diện 3 giá trị Sáng / Tối / Theo hệ thống, thanh menu thu gọn, chọn số dòng hiển thị mỗi bảng.
 - **Tích hợp đồng bộ Theme**:
-  - Khi người dùng bật/tắt Dark Mode, cập nhật trực tiếp `document.documentElement.setAttribute('data-theme', theme)` và gọi API lưu cấu hình.
+  - Khi người dùng chọn giao diện, cập nhật trực tiếp `document.documentElement.setAttribute('data-theme', theme)` (với `system`: bỏ thuộc tính `data-theme` để theo `prefers-color-scheme` của trình duyệt) và gọi API lưu cấu hình.
 
 ---
 

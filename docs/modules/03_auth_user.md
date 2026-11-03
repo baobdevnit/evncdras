@@ -249,7 +249,7 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
     - Cột Nhóm người dùng: Tên nhóm, Mã nhóm (`UMO-IT-01`,...).
     - Cột Vai trò trong nhóm: Huy hiệu theo `roleCode` (`<span class="badge-role admin">★ Quản trị viên nhóm</span>`, Thành viên nghe ghi âm, Thành viên), kèm chức danh chuyên môn.
     - Cột Ngày tham gia.
-    - Cột Trạng thái (`<span class="badge-status active">Hoạt động</span>` / `<span class="badge-status inactive">Khóa</span>`).
+    - Cột Trạng thái theo `users.status` (`<span class="badge-status active">Hoạt động</span>` = `ACTIVE`, `<span class="badge-status locked">Khóa</span>` = `LOCKED`, `<span class="badge-status inactive">Ngừng hoạt động</span>` = `INACTIVE`, chỉ hiện khi bật bộ lọc "Đã ngừng hoạt động").
     - Cột Hành động: Sửa thông tin, Xóa tài khoản.
 - Modal tạo mới / sửa người dùng (`#userModal`): Form nhập thông tin người dùng và chọn Nhóm người dùng (`user_group_id`), chọn vai trò (`roleCode`: Quản trị viên nhóm / Thành viên nghe ghi âm / Thành viên) khi tạo mới; khi sửa, đổi vai trò gọi `PUT /users/:id/role`. Không phụ thuộc hay tham chiếu trực tiếp đến tổ chức.
 

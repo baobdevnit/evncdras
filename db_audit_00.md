@@ -8,7 +8,9 @@
 ---
 
 > [!IMPORTANT]
-> **Cập nhật 2026-11-03: đã sửa toàn bộ Critical và Major trong `docs/`** (D-01, D-02, X-01, X-02, X-03, đánh dấu ✅ bên dưới). DDL `01` + seed `M10` đã chạy lại trên MariaDB 13.0.2: gán `GROUP_ADMIN`/`REGULAR_USER` cho user và `ROOT_ADMIN` cho admin thành công; gán vai trò sai cổng bị FK chặn (`1452`); ép `role_scope` sai bị `CHECK` chặn (`4025`); đổi vai trò user sang `USER_RECORDING` được, sang `SYSTEM_ADMIN` bị chặn. **Chưa làm**: chạy lại trên MariaDB 10.6; các Minor (mục 3) giữ nguyên.
+> **Cập nhật 2026-11-03: đã sửa toàn bộ Critical và Major trong `docs/`** (D-01, D-02, X-01, X-02, X-03, đánh dấu ✅ bên dưới). DDL `01` + seed `M10` đã chạy lại trên MariaDB 13.0.2: gán `GROUP_ADMIN`/`REGULAR_USER` cho user và `ROOT_ADMIN` cho admin thành công; gán vai trò sai cổng bị FK chặn (`1452`); ép `role_scope` sai bị `CHECK` chặn (`4025`); đổi vai trò user sang `USER_RECORDING` được, sang `SYSTEM_ADMIN` bị chặn. **Chưa làm**: chạy lại trên MariaDB 10.6.
+>
+> **Cập nhật 2026-11-03 (lần 2): đã sửa toàn bộ 24 Minor** (D-03…D-10, A-01, X-04…X-18, đánh dấu ✅). Thay đổi schema: bỏ `phone_prefix_ranges.status` (D-09); thêm `range_id`/`range_from`/`range_to` + index vào `prefix_allocation_history` (D-07); thêm `uniq_notif_recipient` (D-08); COMMENT `assigned_at`, `metadata`, stats; partition khởi tạo sinh theo dữ liệu thật (D-04); bảng §14 thêm cột điều kiện khóa (X-18). DDL + seed chạy lại trên MariaDB 13.0.2 không lỗi; UNIQUE người nhận chặn trùng (`1062`); FK vai trò vẫn đúng. Phụ lục A (template) chưa xử lý.
 
 ## 0. Tóm tắt điều hành
 
@@ -123,47 +125,47 @@ Báo cáo này rà lại toàn bộ thiết kế CSDL sau hai thay đổi đó, 
 - **Hậu quả**: không có index thì mỗi chu kỳ kiểm tra là một lần quét toàn bảng `cdr` của PABX. Điều này trái với cam kết chỉ đọc theo PK, và gây tải lên CSDL dùng chung với PABX.
 - **Hướng sửa**: lấy thời điểm của bản ghi mới nhất theo PK (`SELECT Created FROM cdr ORDER BY id DESC LIMIT 1`), hoặc lưu `MAX(Created)` của batch vừa làm giàu vào `cdr_enrichment_state` (thêm cột `last_cdr_created_at`) và so sánh trên đó.
 
-#### D-03 · Minor · ERD §1 lệch DDL
+#### ✅ D-03 · Minor · ERD §1 lệch DDL
 
 - `01:22` `USER_GROUPS ||--|| PHONE_PREFIX_GROUPS`: một nhóm đầu số có thể chưa gắn nhóm người dùng nào (`01:1015`), phía `phone_prefix_groups` nên là `|o`.
 - `01:24` `PHONE_PREFIX_RANGES ||--o{ PHONE_NUMBERS`: `phone_numbers.range_id` NULL-able (`01:731`), phía dải nên là `|o`.
 - ERD thiếu các FK thật từ `ADMINS`: `fk_admins_created_by` (`01:435`), `fk_pah_admin` (`01:787`), `fk_pnrh_admin` (`01:812`), `fk_notif_admin` (`01:888`).
 
-#### D-04 · Minor · Partition khởi tạo viết cứng theo tháng của dữ liệu mẫu
+#### ✅ D-04 · Minor · Partition khởi tạo viết cứng theo tháng của dữ liệu mẫu
 
 - **Bằng chứng**: `01:359-362` (`p_2025_06`…`p_2025_08`).
 - Cài mới vào năm 2026 thì toàn bộ CDR cũ hơn 2025-07 dồn vào `p_2025_06`, và các tháng 2025-09 → hiện tại nằm trong `p_future` cho tới khi job tách. Job khởi động (`01:370`) xử lý được phần sau, nhưng phần trước làm `DROP PARTITION` theo hạn 60 tháng (`01:375`) kém chính xác.
 - **Hướng sửa**: migration tạo partition đầu tiên theo `MIN(cdr.Created)` lúc cài, hoặc ghi rõ khối DDL là ví dụ và job khởi động sinh danh sách thật.
 
-#### D-05 · Minor · `01:374` dùng đường dẫn User cho tham số chỉ dành cho Admin
+#### ✅ D-05 · Minor · `01:374` dùng đường dẫn User cho tham số chỉ dành cho Admin
 
 - "qua tham số `includeArchive=true` trên `GET /api/v1/cdr`", trong khi `02:24` chỉ cho bản Admin (`/api/v1/admin/cdr`) nhận `includeArchive`. Sửa thành `GET /api/v1/admin/cdr`.
 
-#### D-06 · Minor · COMMENT cột stats dùng tên API thay tên cột
+#### ✅ D-06 · Minor · COMMENT cột stats dùng tên API thay tên cột
 
 - `01:1133`, `01:1219` "> criticalThreshold của PACKET_LOSS_PERCENT". Cột thật là `qos_threshold_configs.critical_threshold` (`01:840`).
 
-#### D-07 · Minor · `prefix_allocation_history` không lưu dải có cấu trúc
+#### ✅ D-07 · Minor · `prefix_allocation_history` không lưu dải có cấu trúc
 
 - `01:769-788` chỉ có `range_text` (chuỗi hiển thị), không có `range_id`/`range_from`/`range_to`. Sau khi dải bị xóa cứng (`01:1016`), không truy vấn lịch sử theo dải hay theo khoảng số được.
 - **Hướng sửa**: thêm `range_id` (không FK, snapshot), `range_from`, `range_to`.
 
-#### D-08 · Minor · `notification_recipients` không chặn trùng người nhận
+#### ✅ D-08 · Minor · `notification_recipients` không chặn trùng người nhận
 
 - `01:891-903` không có UNIQUE (`notification_id`, `recipient_type`, `recipient_id`). Với `target = EVERYONE` hoặc cảnh báo nhóm (Admin + Quản trị viên nhóm, `01:866`), lỗi gộp danh sách sẽ tạo 2 dòng cho một người.
 - **Hướng sửa**: thêm UNIQUE đó; index `idx_notif_recipient` giữ nguyên.
 
-#### D-09 · Minor · `phone_prefix_ranges.status` không có ngữ nghĩa
+#### ✅ D-09 · Minor · `phone_prefix_ranges.status` không có ngữ nghĩa
 
 - `01:717` `status enum('ACTIVE','INACTIVE')`, nhưng thu hồi dải là xóa cứng (`01:1016`), không có thao tác nào đặt `INACTIVE`. Bỏ cột hoặc định nghĩa khi nào dùng.
 
-#### D-10 · Minor · `assigned_at` của `admin_roles`/`user_roles` có `ON UPDATE`
+#### ✅ D-10 · Minor · `assigned_at` của `admin_roles`/`user_roles` có `ON UPDATE`
 
 - `01:645`, `01:657` `assigned_at … ON UPDATE CURRENT_TIMESTAMP`. Với `user_roles` đây là "thời điểm gán vai trò hiện tại" và đúng ý; nên ghi rõ trong COMMENT để người sinh entity không hiểu là thời điểm tạo tài khoản. Lịch sử đổi vai trò nằm ở `audit_logs` (`CHANGE_ROLE`).
 
 ### 3.2. Nhóm A – Kiến trúc 1 ứng dụng
 
-#### A-01 · Minor · Đường dẫn job trong `01` thiếu tiền tố `src/`
+#### ✅ A-01 · Minor · Đường dẫn job trong `01` thiếu tiền tố `src/`
 
 - `01:370` `apps/worker/partition-maintenance`, `01:596` `apps/worker/session-cleanup`. Cây thư mục chuẩn ở `00:344-351` là `backend/src/apps/worker/...`. Tên tiến trình `backend-worker` khớp `00:135-136`, không phải lỗi.
 - Các module dùng cùng cách viết tắt nhưng luôn đặt sau ngữ cảnh `backend/src/`, nên không tính là lỗi.
@@ -194,65 +196,65 @@ Báo cáo này rà lại toàn bộ thiết kế CSDL sau hai thay đổi đó, 
 - Người có `cdr:view` nhưng không có `report:view` gọi được API nhưng không vào được màn hình, hoặc ngược lại. Theo seed hiện tại mọi vai trò đều có cả hai mã nên chưa lộ ra, nhưng sinh guard/`meta.permissions` theo hai nguồn sẽ ra hai quy tắc khác nhau.
 - **Hướng sửa**: chốt một mã cho mỗi màn hình và ghi ở cả `00` lẫn `02` (đề xuất: Lưu lượng = `cdr:view` như API; Dashboard = không cần mã quyền, theo Q7 "thao tác cá nhân (dashboard…) không cần mã quyền").
 
-#### X-04 · Minor · M01 ví dụ `level` sai thang
+#### ✅ X-04 · Minor · M01 ví dụ `level` sai thang
 
 - `M01:62` "Tổng công ty 71" `"level": 0`; `M01:71` "Khối Công nghệ Thông tin" `"level": 1`. Thang ở `01:459`: 0 Tập đoàn, 1 Tổng công ty, 2 Khối/Công ty, 3 Phòng ban/Điện lực.
 
-#### X-05 · Minor · ERD M02 lệch ERD `01`
+#### ✅ X-05 · Minor · ERD M02 lệch ERD `01`
 
 - `M02:58` `PHONE_PREFIX_GROUPS ||--|{ PHONE_PREFIX_RANGES` (1..n), `01:23` là 0..N.
 - `M02:60`, `M02:61` vẽ nét liền (FK) cho `PREFIX_ALLOCATION_HISTORY`, `PHONE_NUMBER_RANGE_HISTORY`; `01:26-27` và DDL là snapshot, không FK.
 - `M02:56` `USER_GROUPS ||--|{ USERS` (1..n), `01:29` là 0..n. Chấp nhận được nếu muốn thể hiện quy tắc "ít nhất 1 GROUP_ADMIN", nhưng nên thống nhất một cách vẽ.
 
-#### X-06 · Minor · M03 nhãn trạng thái trộn `LOCKED` và `INACTIVE`
+#### ✅ X-06 · Minor · M03 nhãn trạng thái trộn `LOCKED` và `INACTIVE`
 
 - `M03:252` `badge-status inactive` hiển thị "Khóa". `users.status` có 3 giá trị (`01:536`); "Khóa" là `LOCKED`, còn `INACTIVE` là ngừng hoạt động (xóa mềm, `01:1013`).
 
-#### X-07 · Minor · M05 dùng tên claim token không tồn tại
+#### ✅ X-07 · Minor · M05 dùng tên claim token không tồn tại
 
 - `M05:235` `user.role`, `user.groupId`. Token mang `roleCode` (`01:683`), claim User là `sub`, `userGroupId`, `roleCode` (`M03:71`, `M03:218`).
 
-#### X-08 · Minor · M06 khóa `metadata` khác COMMENT cột
+#### ✅ X-08 · Minor · M06 khóa `metadata` khác COMMENT cột
 
 - `M06:54-61` trả `userGroupId`, `statDate`, `statHour`; COMMENT `01:882` ghi `user_group_id`, `stat_date`, `stat_hour`. Theo D1 API dùng camelCase, nên cần nói rõ hoặc **lưu** JSON bằng camelCase, hoặc service đổi khóa khi trả về. Đề xuất lưu camelCase và sửa COMMENT `01:882`.
 
-#### X-09 · Minor · M08 không có giá trị `system` của theme
+#### ✅ X-09 · Minor · M08 không có giá trị `system` của theme
 
 - `M08:18`, `M08:140` chỉ có công tắc Sáng/Tối; `user_settings.theme` là `enum('light','dark','system')`, mặc định `system` (`01:950`).
 
-#### X-10 · Minor · M13 thang MOS tối đa 5.0
+#### ✅ X-10 · Minor · M13 thang MOS tối đa 5.0
 
 - `M13:15` "từ 1.0 … đến 5.0". MOS thập phân hệ thống dùng tính từ E-model, tối đa 4.5 (`01:227`). Chỉ cột thô `RTP_*_G107MOS` lên tới 5.
 
-#### X-11 · Minor · M13 hiển thị cột luôn NULL
+#### ✅ X-11 · Minor · M13 hiển thị cột luôn NULL
 
 - `M13:64`, `M13:288` hiển thị `Audio_Signal_Delay` trong modal QoS; `01:1046` ghi cột này luôn NULL trên dữ liệu thật. Cùng module lại ẩn RTT với cùng lý do (`M13:65`). Nên xử lý như RTT.
 
-#### X-12 · Minor · M09 tên vai trò khác seed
+#### ✅ X-12 · Minor · M09 tên vai trò khác seed
 
 - `M09:93` nhãn `SYSTEM_ADMIN` là "Kỹ thuật viên Quản trị"; seed `01:667` và `M10:26` là "Quản trị viên hệ thống". Giao diện nên hiển thị `roles.name`.
 
-#### X-13 · Minor · M10 nhắc service không có trong cây thư mục
+#### ✅ X-13 · Minor · M10 nhắc service không có trong cây thư mục
 
 - `M10:293` "dùng chung `RoleAssignmentService`", nhưng cây `core/permissions/` ở `M10:270-291` không có file này. Thêm vào cây (service ghi `user_roles`/`admin_roles`).
 
-#### X-14 · Minor · `02:161` tên trường snake_case
+#### ✅ X-14 · Minor · `02:161` tên trường snake_case
 
 - "Lấy thiết lập giao diện (theme, items_per_page)" trái quy ước camelCase `02:59`; nên là `itemsPerPage`.
 
-#### X-15 · Minor · `03` danh mục thông báo không khớp enum
+#### ✅ X-15 · Minor · `03` danh mục thông báo không khớp enum
 
 - `03:485` "phân loại theo icon (User, System, Alert, Report, Org)"; `notifications.type` là `QOS_ALERT`, `PABX_OFFLINE`, `SYSTEM_MAINTENANCE`, `GENERAL` (`01:878`).
 
-#### X-16 · Minor · `03` mô tả cài đặt không có trong seed
+#### ✅ X-16 · Minor · `03` mô tả cài đặt không có trong seed
 
 - `03:441` "Cài đặt tích hợp PABX, MariaDB & Sao lưu", `03:486` "Thông số MariaDB, Danger Zone". Seed `01:924-943` là danh mục key duy nhất (`01:923`), không có key MariaDB/sao lưu; `00:367` nói cấu hình CSDL không lưu trong DB.
 
-#### X-17 · Minor · `03` nhắc template và thao tác không tồn tại
+#### ✅ X-17 · Minor · `03` nhắc template và thao tác không tồn tại
 
 - `03:456`, `03:481` `users4group.html` "chọn người dùng vào nhóm": file không có trong `templates/`, và đổi nhóm của user trái với `users.user_group_id` bất biến (`M10:81`).
 
-#### X-18 · Minor · Quy tắc khóa tài khoản chặt hơn `01` §14
+#### ✅ X-18 · Minor · Quy tắc khóa tài khoản chặt hơn `01` §14
 
 - `M03:36` cấm khóa Quản trị viên nhóm cuối cùng; `M04:20`, `M04:96` cấm khóa Root Admin. `01:1013-1014` chỉ nói chặn **xóa mềm**. Không mâu thuẫn, nhưng nên bổ sung cột "Khóa (`LOCKED`)" vào bảng §14 để nguồn chuẩn đầy đủ.
 

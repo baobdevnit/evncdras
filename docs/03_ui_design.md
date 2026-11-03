@@ -438,7 +438,7 @@ templates/
  ├── Nhóm 1: Xác thực & Quản trị Hệ thống
  │    ├── login.html & login.css             # Đăng nhập Cổng Đơn vị Thành viên
  │    ├── login_admin.html & login_admin.css # Đăng nhập Cổng Quản trị Tối cao EVNICT
- │    ├── system-settings.html & .css        # Cài đặt tích hợp PABX, MariaDB & Sao lưu
+ │    ├── system-settings.html & .css        # Cài đặt hệ thống theo các key seed system_settings (phân tích PABX, lưu trữ, bảo trì, SMTP, bảo mật)
  │    └── notifications.html & .css          # Trung tâm thông báo hệ thống toàn cục
  ├── Nhóm 2: Bảng Điều khiển & Báo cáo
  │    ├── dashboard.html & dashboard.css     # Trung tâm giám sát trực quan & tổng quan
@@ -453,7 +453,7 @@ templates/
  │    └── org-prefix.html & .css             # Tra cứu đầu số dành cho đơn vị thành viên
  └── Nhóm 5: Quản trị Người dùng & Phân quyền
       ├── users.html & users.css             # Danh mục tài khoản người dùng
-      ├── user_group.html & users4group.html # Nhóm người dùng & phân bổ thành viên
+      ├── user_group.html & user_group.css   # Nhóm người dùng (thành viên cố định từ lúc tạo, không chuyển nhóm)
       ├── roles.html & roles.css             # Danh sách 5 vai trò kèm quyền (chỉ xem)
       ├── permissions.html (không triển khai) # Mẫu cũ: ma trận chỉnh quyền, đã bỏ khỏi phạm vi
       ├── data-permissions.html (không triển khai) # Mẫu cũ: ma trận quyền theo màn hình, đã bỏ khỏi phạm vi
@@ -478,12 +478,12 @@ templates/
 | **10** | `org-prefix.html` | `org-prefix.css` | Tra cứu Đơn vị | Danh bạ dải số PABX nội bộ EVN, Tìm kiếm nhanh theo đơn vị và mã tỉnh |
 | **11** | `users.html` | `users.css` | Quản trị Người dùng | Bảng tài khoản, Avatar đại diện, Nhãn chức vụ, Modal khóa/kích hoạt tài khoản |
 | **12** | `user_group.html` | `user_group.css` | Nhóm Người dùng | Danh sách nhóm nghiệp vụ, Phân bổ quyền hạn tập trung |
-| **13** | `users4group.html` | `users4group.css` | Thành viên Nhóm | Danh sách chọn người dùng vào nhóm, Hộp kiểm checkbox chọn hàng loạt |
+| **13** | `users4group.html` | `users4group.css` | *(Không triển khai)* | Mẫu cũ chọn người dùng vào nhóm: không có trong `templates/` và trái quy tắc `users.user_group_id` bất biến (`docs/modules/10_permissions_and_roles.md`) |
 | **14** | `roles.html` | `roles.css` | Vai trò | Danh sách chỉ xem 5 vai trò: Nhóm Quản trị (Quản trị viên tối cao, Quản trị viên hệ thống) & Nhóm Người dùng (Quản trị viên nhóm, Thành viên nghe ghi âm, Thành viên), mỗi vai trò kèm danh sách quyền rút gọn và số tài khoản; không có nút thêm/sửa/xóa (`docs/modules/10_permissions_and_roles.md` mục 5.1) |
 | **15** | `permissions.html` | `permissions.css` | *(Không triển khai)* | Mẫu cũ ma trận chỉnh quyền; quyền của vai trò nay là seed cố định, không có giao diện chỉnh |
 | **16** | `data-permissions.html` | `data-permissions.css` | *(Không triển khai)* | Mẫu cũ ma trận quyền theo màn hình; thông tin quyền nay hiển thị ngay trong `roles.html` |
-| **17** | `notifications.html` | `notifications.css` | Trung tâm Thông báo | Danh sách thông báo phân loại theo icon (User, System, Alert, Report, Org) |
-| **18** | `system-settings.html` | `system-settings.css` | Cài đặt Hệ thống | Cấu hình IP PABX, Thông số MariaDB, Danger Zone, Bật/Tắt chế độ bảo trì |
+| **17** | `notifications.html` | `notifications.css` | Trung tâm Thông báo | Danh sách thông báo phân loại theo icon theo `notifications.type` (`QOS_ALERT`, `PABX_OFFLINE`, `SYSTEM_MAINTENANCE`, `GENERAL`) và màu theo `severity` |
+| **18** | `system-settings.html` | `system-settings.css` | Cài đặt Hệ thống | Các tab theo `system_settings.category` (`ANALYSIS`: IP lõi PABX, mẫu số máy lẻ; `REPORTING`: thời hạn lưu trữ; `ADVANCED`: bật/tắt chế độ bảo trì, ánh xạ ghi âm, cảnh báo, SMTP, bảo mật). Không có cấu hình MariaDB/sao lưu (cấu hình CSDL nằm ở biến môi trường, `docs/00_overview_and_architecture.md`) |
 | **19** | `user-settings.html` | `user-settings.css` | Cài đặt Cá nhân | Bố cục Settings Sidebar hai cột, Tùy chọn thông báo email/âm thanh |
 | **20** | `profile.html` | `profile.css` | Hồ sơ Cá nhân | Thẻ tóm tắt thông tin tài khoản, Huy hiệu vai trò, Form cập nhật thông tin |
 | **21** | `change-password.html` | `change-password.css` | Đổi Mật khẩu | Thước đo độ mạnh mật khẩu (Password Strength Meter), Hướng dẫn an toàn |

@@ -12,7 +12,7 @@
 
 Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt chẽ vào tình trạng mạng IP (băng thông, độ trễ, mất gói, jitter). Tổng đài EVN đo lường và ghi nhận chi tiết hơn 30 tham số chất lượng mạng vào từng bản ghi CDR:
 
-- **Chuẩn đo lường MOS ITU-T G.107 (E-Model)**: Điểm chất lượng âm thanh ước lượng từ 1.0 (Không thể nghe được) đến 5.0 (Tuyệt vời).
+- **Chuẩn đo lường MOS ITU-T G.107 (E-Model)**: Điểm chất lượng âm thanh ước lượng từ 1.0 (Không thể nghe được) đến tối đa 4.5 (Tuyệt vời) theo E-model (`docs/01_database_schema.md` mục 2.1). Chỉ cột thô `RTP_*_G107MOS` của PABX có thang tới 5.0.
 - **Jitter RFC 3550**: Sự biến thiên độ trễ giữa các gói tin RTP liên tiếp. Jitter cao gây ra tiếng méo, giật cục (ngưỡng theo `qos_threshold_configs.JITTER_MS`, mặc định warning 30 ms, critical 50 ms).
 - **Packet Loss (Mất gói RTP)**: Tỷ lệ phần trăm gói tin thoại bị thất lạc trên đường truyền mạng IP. Mất gói cao gây gián đoạn âm tiết (ngưỡng theo `PACKET_LOSS_PERCENT`, mặc định warning 1 %, critical 2 %).
 - **RTT (Round-Trip Time) Delay**: Độ trễ khứ hồi đo qua RTCP. **Không có trong phiên bản này**: các cột `RTCP_RTT_*` của PABX luôn NULL trên dữ liệu thật, nên hệ thống không tính, không hiển thị và không cảnh báo theo RTT (ngưỡng `RTT_DELAY_MS` để `is_enabled = 0`).
@@ -61,7 +61,8 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 | **Hạ tầng Mạng IP & Port** | `CallerIp`, `CalledIp`<br>`RTP_Caller_Address`, `RTP_Caller_Port`<br>`RTP_Called_Address`, `RTP_Called_Port` | Địa chỉ IP báo hiệu SIP và địa chỉ/cổng Endpoint truyền tải luồng âm thanh RTP 2 chiều |
 | **Phân lớp Dịch vụ DSCP** | `RTP_Caller_DSCP`, `RTP_Called_DSCP` | Giá trị DiffServ QoS Layer 3 (ví dụ: 46 = EF Expedited Forwarding, 48 = CS6, 1 = CS1) |
 | **Nguồn đồng bộ RTP (SSRC)** | `RTP_Caller_SSRC`, `RTP_Called_SSRC` | Mã định danh nguồn phát RTP Synchronization Source (Hexadecimal, ví dụ 0x5EBD1FD1) |
-| **Codec & Âm thanh** | `RTP_Codec`, `RTP_CodecSampleRate`, `Audio_Signal_Delay` | Định dạng nén âm thanh thực tế (`G711U`, `G711A`, `98`) và tần số lấy mẫu (8000 Hz) |
+| **Codec & Âm thanh** | `RTP_Codec`, `RTP_CodecSampleRate` | Định dạng nén âm thanh thực tế (`G711U`, `G711A`, `98`) và tần số lấy mẫu (8000 Hz) |
+| **Độ trễ tín hiệu âm thanh** | `Audio_Signal_Delay` | Luôn NULL trên dữ liệu thật; giữ cột thô, không hiển thị (như RTCP RTT) |
 | **RTCP RTT** | `RTCP_RTT_Max`, `RTCP_RTT_Mean` | Luôn NULL trên dữ liệu thật; giữ cột thô, không tính thống kê, không hiển thị |
 | **PCAP Files** | `Sip_Pcap_FileName`, `Sip_And_Rtp_Pcap_FileName` | Tên file bắt gói tin (Dự phòng trong CSDL, phiên bản này không triển khai tính năng tải file) |
 
@@ -285,7 +286,7 @@ backend/src/
   - Thanh phân trang đa trang (Prev, 1, 2, 3..., Next) tương tác tức thì qua JavaScript.
 - **Modal chi tiết gỡ lỗi 4 Khối Cards (`#qosDetailModal`)**:
   - **Khối 1: Tổng quan Cuộc gọi**: ID, SIP Call-ID, Thời điểm khởi tạo/bắt máy/kết thúc, Thời lượng, Bên gọi/nhận, Bên cúp máy (`ReleasedBy`).
-  - **Khối 2: Báo hiệu SIP & Độ trễ Mạng**: Mã ngắt (`DisconnectionCode`), Trạng thái (`DisconnectionStatus`), Độ trễ nhấc máy (`Answer_Delay`), Độ trễ nhận SIP 100 Trying, SIP 180 Ringing, SIP 183 Session Progress, Độ trễ tín hiệu âm thanh (`Audio_Signal_Delay`).
+  - **Khối 2: Báo hiệu SIP & Độ trễ Mạng**: Mã ngắt (`DisconnectionCode`), Trạng thái (`DisconnectionStatus`), Độ trễ nhấc máy (`Answer_Delay`), Độ trễ nhận SIP 100 Trying, SIP 180 Ringing, SIP 183 Session Progress. Không hiển thị `Audio_Signal_Delay` (luôn NULL, như RTT).
   - **Khối 3: Chỉ số Chất lượng Thoại RTP ITU-T G.107 hai chiều**: Bảng so sánh đối chiếu song song giữa Phía gọi (TX) và Phía nhận (RX): Điểm MOS G.107, Hệ số R-Factor, Tổng số gói tin RTP, Gói tin thất lạc (số gói và %), Độ trễ Jitter RFC 3550 (Mean & Max), Biến thiên khoảng cách gói (RTP Delta Max/Min), Chu kỳ đóng gói (`PacketTime`).
   - **Khối 4: Hạ tầng Mạng IP & DSCP (Layer 3 QoS)**: IP báo hiệu SIP 2 chiều, Media Endpoint RTP (IP:Port), Phân lớp Dịch vụ DiffServ DSCP (46 = EF, 48 = CS6, 1 = CS1), RTP SSRC, Codec & Tần số lấy mẫu (8000 Hz).
 

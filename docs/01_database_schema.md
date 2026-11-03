@@ -19,9 +19,9 @@ erDiagram
     ORGANIZATIONS ||--o{ ORGANIZATIONS : "parent_id (reference tree)"
     ORGANIZATIONS ||--o{ USER_GROUPS : "reference_belongs_to"
 
-    USER_GROUPS ||--|| PHONE_PREFIX_GROUPS : "bound_1_to_1 (phone_prefix_group_id)"
+    USER_GROUPS |o--|| PHONE_PREFIX_GROUPS : "bound_1_to_1 (phone_prefix_group_id; prefix group may have no user group yet)"
     PHONE_PREFIX_GROUPS ||--o{ PHONE_PREFIX_RANGES : "contains_ranges (0..N)"
-    PHONE_PREFIX_RANGES ||--o{ PHONE_NUMBERS : "allocates_from_master_pool"
+    PHONE_PREFIX_RANGES |o--o{ PHONE_NUMBERS : "allocates_from_master_pool (range_id nullable: free pool)"
 
     USER_GROUPS ||..o{ PREFIX_ALLOCATION_HISTORY : "tracks_range_changes (snapshot, no FK)"
     PHONE_NUMBERS ||..o{ PHONE_NUMBER_RANGE_HISTORY : "tracks_range_movement (snapshot by phone_number, no FK)"
@@ -30,6 +30,10 @@ erDiagram
 
     USERS ||--|| USER_ROLES : "has_exactly_one_role"
     ADMINS ||--|| ADMIN_ROLES : "has_exactly_one_role"
+    ADMINS |o--o{ ADMINS : "created_by_admin_id (SET NULL)"
+    ADMINS |o--o{ PREFIX_ALLOCATION_HISTORY : "performed_by_admin_id (SET NULL)"
+    ADMINS |o--o{ PHONE_NUMBER_RANGE_HISTORY : "performed_by_admin_id (SET NULL)"
+    ADMINS |o--o{ NOTIFICATIONS : "created_by_admin_id (SET NULL)"
     ROLES ||--o{ USER_ROLES : "assigned_to_users (scope USER)"
     ROLES ||--o{ ADMIN_ROLES : "assigned_to_admins (scope ADMIN)"
     ROLES ||--o{ PERMISSION_ROLES : "has"
@@ -356,6 +360,8 @@ CREATE TABLE IF NOT EXISTS `cdr_enriched` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 PARTITION BY RANGE (TO_DAYS(`Created`)) (
   -- Partition theo tháng; job hằng tháng tạo trước partition cho 2 tháng tiếp theo bằng REORGANIZE PARTITION p_future
+  -- DANH SÁCH DƯỚI ĐÂY CHỈ LÀ VÍ DỤ theo dữ liệu mẫu. Migration sinh danh sách thật lúc cài: từ tháng của bản ghi cdr đầu tiên
+  -- (SELECT Created FROM cdr ORDER BY id ASC LIMIT 1, đọc theo PK) đến tháng hiện tại + 2, rồi p_future (xem ghi chú bên dưới)
   PARTITION p_2025_06 VALUES LESS THAN (TO_DAYS('2025-07-01')),
   PARTITION p_2025_07 VALUES LESS THAN (TO_DAYS('2025-08-01')),
   PARTITION p_2025_08 VALUES LESS THAN (TO_DAYS('2025-09-01')),
@@ -367,11 +373,12 @@ PARTITION BY RANGE (TO_DAYS(`Created`)) (
 
 > [!IMPORTANT]
 > **Partition & vòng đời dữ liệu `cdr_enriched`**:
-> - **Partition theo tháng** trên `Created` (`RANGE` + `TO_DAYS`). Job `apps/worker/partition-maintenance` (tiến trình `backend-worker`) chạy ngày 1 hằng tháng: tách `p_future` để luôn có sẵn partition cho tháng hiện tại và 2 tháng kế tiếp. Job cũng chạy **một lần khi `backend-worker` khởi động**: tách `p_future` (dùng `REORGANIZE PARTITION`, làm được cả khi `p_future` đã có dữ liệu) thành các partition tháng còn thiếu đến hết tháng hiện tại + 2 tháng.
+> - **Partition khởi tạo**: khối DDL ở trên chỉ minh họa. Migration tạo bảng sinh danh sách partition theo dữ liệu thật: partition đầu tiên là tháng của bản ghi `cdr` đầu tiên (`SELECT Created FROM cdr ORDER BY id ASC LIMIT 1`, đọc theo PK; NULL thì dùng `Destroyed`; bảng `cdr` rỗng thì lấy tháng hiện tại), mỗi tháng một partition đến hết tháng hiện tại + 2, cuối cùng là `p_future`. Nhờ đó mỗi partition chỉ chứa đúng một tháng và `DROP PARTITION` theo hạn `retention_archive_months` xóa đúng kỳ.
+> - **Partition theo tháng** trên `Created` (`RANGE` + `TO_DAYS`). Job `src/apps/worker/partition-maintenance` (tiến trình `backend-worker`) chạy ngày 1 hằng tháng: tách `p_future` để luôn có sẵn partition cho tháng hiện tại và 2 tháng kế tiếp. Job cũng chạy **một lần khi `backend-worker` khởi động**: tách `p_future` (dùng `REORGANIZE PARTITION`, làm được cả khi `p_future` đã có dữ liệu) thành các partition tháng còn thiếu đến hết tháng hiện tại + 2 tháng.
 > - **Tra theo `id`** (`GET /cdr/:id`, API audio): dùng phần đầu của PK (`id`) nên quét qua mọi partition theo index, chấp nhận được vì mỗi partition chỉ trả tối đa 1 dòng.
 > - **Mọi truy vấn** trên `cdr_enriched` bắt buộc có điều kiện `Created` (khoảng thời gian) để MariaDB chỉ quét các partition liên quan (partition pruning).
 > - **Trực tuyến** (`Created >= NOW() - INTERVAL retention_online_months MONTH`, mặc định 6 tháng): mọi API tra cứu CDR, QoS debug, `/traffic/records` mặc định chỉ trong cửa sổ này.
-> - **Lưu trữ** (từ `retention_online_months` đến `retention_archive_months`, mặc định 6–60 tháng): dữ liệu **vẫn nằm trong `cdr_enriched`** (các partition cũ). Chỉ Admin truy cập được, qua tham số `includeArchive=true` trên `GET /api/v1/cdr`, bắt buộc kèm `fromDate`/`toDate`, khoảng tối đa 31 ngày. Người dùng nhóm không xem được dữ liệu lưu trữ.
+> - **Lưu trữ** (từ `retention_online_months` đến `retention_archive_months`, mặc định 6–60 tháng): dữ liệu **vẫn nằm trong `cdr_enriched`** (các partition cũ). Chỉ Admin truy cập được, qua tham số `includeArchive=true` trên `GET /api/v1/admin/cdr`, bắt buộc kèm `fromDate`/`toDate`, khoảng tối đa 31 ngày. Người dùng nhóm không xem được dữ liệu lưu trữ.
 > - **Xóa hẳn**: job hằng tháng `ALTER TABLE cdr_enriched DROP PARTITION` các partition có toàn bộ `Created` cũ hơn `retention_archive_months` (60 tháng), ghi `audit_logs` (`actor_type = 'SYSTEM'`, `action = 'PURGE_CDR_PARTITION'`).
 > - **Không bị dọn**: `stats_hourly`, `stats_daily`, `audit_logs`, `prefix_allocation_history`, `phone_number_range_history`. Đây là các bảng nhỏ cần cho báo cáo dài hạn và kiểm toán. Báo cáo theo thống kê vẫn chạy được cho kỳ đã bị xóa CDR.
 > - **Phương án không làm**: tách bảng lưu trữ nén riêng qua `EXCHANGE PARTITION`. Cách này không khả thi, vì `EXCHANGE PARTITION` yêu cầu hai bảng cùng định nghĩa, kể cả `ROW_FORMAT`.
@@ -593,7 +600,7 @@ CREATE TABLE IF NOT EXISTS `auth_sessions` (
 > - **Khóa tạm khi sai mật khẩu**: sai `security_login_max_failed` (5) lần liên tiếp thì `locked_until = NOW() + security_lockout_minutes` (15 phút). Trong thời gian này API đăng nhập trả `423 LOCKED` cùng thời điểm mở khóa. Đăng nhập đúng thì đặt `failed_login_count = 0`. Khóa tạm tách biệt với `status = 'LOCKED'` do quản trị viên đặt.
 > - **Mật khẩu**: tối thiểu `security_password_min_length` (10) ký tự, có ít nhất 3 trong 4 loại (chữ hoa, chữ thường, chữ số, ký tự đặc biệt), băm `bcrypt` cost 10. Mật khẩu hết hạn sau `security_password_max_age_days` (90) ngày tính từ `password_changed_at`. Khi hết hạn hoặc `must_change_password = 1`, đăng nhập chỉ cấp một token giới hạn, chỉ được gọi API đổi mật khẩu.
 > - **Token giới hạn**: khi `must_change_password = 1` hoặc mật khẩu quá hạn, đăng nhập chỉ cấp Access Token có claim `scope: "PASSWORD_CHANGE_ONLY"` (không cấp Refresh Token). Token này chỉ được chấp nhận ở `change-password`, `logout` và `auth/me` của portal tương ứng; mọi endpoint khác trả `403` với mã `PASSWORD_CHANGE_REQUIRED`. Đổi mật khẩu thành công thì cấp cặp Access/Refresh Token đầy đủ.
-> - **Dọn dẹp**: job `apps/worker/session-cleanup` (tiến trình `backend-worker`, chạy hằng ngày) xóa phiên có `expires_at < NOW() - 30 ngày`.
+> - **Dọn dẹp**: job `src/apps/worker/session-cleanup` (tiến trình `backend-worker`, chạy hằng ngày) xóa phiên có `expires_at < NOW() - 30 ngày`.
 > - **Ngoài phạm vi phiên bản này**: xác thực hai lớp (2FA).
 
 ---
@@ -642,7 +649,7 @@ CREATE TABLE IF NOT EXISTS `admin_roles` (
   `admin_id` int(11) unsigned NOT NULL,
   `role_id` int(11) unsigned NOT NULL,
   `role_scope` enum('ADMIN','USER') NOT NULL DEFAULT 'ADMIN' COMMENT 'Luôn ADMIN (chk_ar_scope); cùng role_id tạo khóa ngoại bảo đảm chỉ gán vai trò scope ADMIN. Bắt buộc cùng định nghĩa enum với roles.scope',
-  `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Thời điểm gán vai trò hiện tại (cập nhật khi đổi vai trò), không phải thời điểm tạo tài khoản; lịch sử đổi vai trò ở audit_logs',
   PRIMARY KEY (`admin_id`) COMMENT 'Mỗi admin đúng 1 vai trò',
   KEY `idx_ar_role` (`role_id`, `role_scope`),
   CONSTRAINT `fk_ar_admin` FOREIGN KEY (`admin_id`) REFERENCES `admins` (`id`) ON DELETE RESTRICT,
@@ -655,7 +662,7 @@ CREATE TABLE IF NOT EXISTS `user_roles` (
   `user_id` int(11) unsigned NOT NULL,
   `role_id` int(11) unsigned NOT NULL,
   `role_scope` enum('ADMIN','USER') NOT NULL DEFAULT 'USER' COMMENT 'Luôn USER (chk_ur_scope); cùng role_id tạo khóa ngoại bảo đảm chỉ gán vai trò scope USER. Bắt buộc cùng định nghĩa enum với roles.scope',
-  `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Thời điểm gán vai trò hiện tại (cập nhật khi đổi vai trò), không phải thời điểm tạo tài khoản; lịch sử đổi vai trò ở audit_logs (CHANGE_ROLE)',
   PRIMARY KEY (`user_id`) COMMENT 'Mỗi user đúng 1 vai trò',
   KEY `idx_ur_role` (`role_id`, `role_scope`),
   CONSTRAINT `fk_ur_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT,
@@ -707,6 +714,7 @@ Seed `permissions` và `permission_roles`: `docs/modules/10_permissions_and_role
 
 ```sql
 -- 8.1. Bảng Dải số chi tiết thuộc Nhóm đầu số (phone_prefix_ranges)
+-- Không có cột trạng thái: dải số chỉ tồn tại khi đang cấp; thu hồi dải là xóa cứng (mục 14), lịch sử nằm ở prefix_allocation_history
 CREATE TABLE IF NOT EXISTS `phone_prefix_ranges` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `prefix_group_id` int(11) unsigned NOT NULL COMMENT 'Nhóm đầu số sở hữu dải số (liên kết 1-1 với user_groups)',
@@ -716,7 +724,6 @@ CREATE TABLE IF NOT EXISTS `phone_prefix_ranges` (
   `range_to` varchar(10) NOT NULL COMMENT 'Cuối khoảng số (ví dụ: 42499, 15499)',
   `total_numbers` int(11) NOT NULL DEFAULT 0 COMMENT 'Tổng số lượng số trong dải (tính tự động: range_to - range_from + 1)',
   `note` varchar(255) DEFAULT NULL COMMENT 'Ghi chú vị trí lắp đặt / mục đích sử dụng',
-  `status` enum('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
   `allocated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -773,6 +780,9 @@ CREATE TABLE IF NOT EXISTS `prefix_allocation_history` (
   `prefix_group_id` int(11) unsigned DEFAULT NULL COMMENT 'Nhóm đầu số tác động',
   `user_group_id` int(11) unsigned DEFAULT NULL COMMENT 'Nhóm người dùng thụ hưởng/bị thu hồi',
   `action_type` enum('ALLOCATE','REVOKE','UPDATE') NOT NULL COMMENT 'ALLOCATE: cấp dải mới, REVOKE: thu hồi dải, UPDATE: mở rộng/thu hẹp dải',
+  `range_id` int(11) unsigned DEFAULT NULL COMMENT 'Snapshot id dải tác động (không FK: dải có thể đã bị xóa cứng khi thu hồi)',
+  `range_from` varchar(10) DEFAULT NULL COMMENT 'Snapshot đầu khoảng số tại thời điểm thao tác',
+  `range_to` varchar(10) DEFAULT NULL COMMENT 'Snapshot cuối khoảng số tại thời điểm thao tác',
   `range_text` varchar(50) NOT NULL COMMENT 'Khoảng số hiển thị (ví dụ: 15100 -> 15499)',
   `numbers_count` int(11) NOT NULL DEFAULT 0 COMMENT 'Số lượng số biến động',
   `status_before` varchar(50) DEFAULT NULL COMMENT 'Tình trạng trước (Đang dùng, Kho tự do...)',
@@ -786,6 +796,8 @@ CREATE TABLE IF NOT EXISTS `prefix_allocation_history` (
   PRIMARY KEY (`id`),
   KEY `idx_pah_group` (`prefix_group_id`),
   KEY `idx_pah_user_group` (`user_group_id`),
+  KEY `idx_pah_range` (`range_id`),
+  KEY `idx_pah_range_from_to` (`range_from`, `range_to`),
   CONSTRAINT `fk_pah_admin` FOREIGN KEY (`performed_by_admin_id`) REFERENCES `admins` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -881,7 +893,7 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   `title` varchar(255) NOT NULL,
   `content` text NOT NULL,
   `severity` enum('INFO','WARNING','CRITICAL') NOT NULL DEFAULT 'INFO',
-  `metadata` json DEFAULT NULL COMMENT 'Thông tin bổ sung: { user_group_id, metric, value, threshold, stat_date, stat_hour... }',
+  `metadata` json DEFAULT NULL COMMENT 'Thông tin bổ sung, lưu khóa camelCase như API trả về: { userGroupId, metric, value, threshold, statDate, statHour... }',
   `dedupe_key` varchar(150) DEFAULT NULL COMMENT 'Khóa chống trùng cho thông báo tự sinh (quy tắc mục 10); NULL với thông báo do Admin soạn',
   `created_by_admin_id` int(11) unsigned DEFAULT NULL COMMENT 'Admin soạn thông báo; NULL nếu do hệ thống sinh',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -900,6 +912,7 @@ CREATE TABLE IF NOT EXISTS `notification_recipients` (
   `is_emailed` tinyint(1) NOT NULL DEFAULT 0,
   `emailed_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_notif_recipient` (`notification_id`, `recipient_type`, `recipient_id`) COMMENT 'Mỗi người nhận tối đa 1 dòng cho mỗi thông báo',
   KEY `idx_notif_recipient` (`recipient_type`, `recipient_id`, `is_read`),
   CONSTRAINT `fk_nr_notif` FOREIGN KEY (`notification_id`) REFERENCES `notifications` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1009,16 +1022,16 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 > [!IMPORTANT]
 > **Nguyên tắc**: dữ liệu đã phát sinh lịch sử (CDR, thống kê, nhật ký kiểm toán, lịch sử cấp phát) **không bị xóa cứng**. Khóa ngoại dùng `ON DELETE RESTRICT` để DB chặn mọi xóa cứng vô tình. Service thực hiện "xóa" theo bảng dưới, trong một transaction, và ghi `audit_logs`.
 
-| Thực thể | Thao tác "xóa" của API | Điều kiện / Lỗi | Khóa ngoại liên quan |
-|---|---|---|---|
-| `user_groups` | **Xóa mềm**: `status = 'INACTIVE'`; thu hồi toàn bộ dải số của nhóm (quy tắc thu hồi mục 8). Giữ liên kết `phone_prefix_group_id`, CDR và stats để báo cáo lịch sử vẫn đúng | Chặn `409` nếu nhóm còn user `ACTIVE`/`LOCKED` | `stats_*.group_id`, `users.user_group_id`: RESTRICT; `cdr_enriched.*_group_id` là tham chiếu logic (bảng partition, không FK) |
-| `users` | **Xóa mềm**: `status = 'INACTIVE'`; nếu là `representative_user_id` của nhóm thì set NULL | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm | `user_groups.representative_user_id`: SET NULL; `user_roles.user_id`: RESTRICT (giữ dòng vai trò) |
-| `admins` | **Xóa mềm**: `status = 'INACTIVE'` | Chặn nếu admin mang vai trò `ROOT_ADMIN` hoặc tự xóa chính mình | `*.performed_by_admin_id`, `admins.created_by_admin_id`: SET NULL (chỉ áp dụng nếu sau này có xóa cứng bằng tay); `admin_roles.admin_id`: RESTRICT (giữ dòng vai trò) |
-| `phone_prefix_groups` | **Xóa cứng** khi không có nhóm người dùng liên kết và không còn dải số. Muốn ngừng dùng mà vẫn giữ: `status = 'INACTIVE'` | `409` nếu còn liên kết hoặc còn dải | `user_groups.phone_prefix_group_id`, `phone_prefix_ranges.prefix_group_id`: RESTRICT |
-| `phone_prefix_ranges` | **Thu hồi**: dọn số theo quy tắc mục 8 → ghi `prefix_allocation_history` + `phone_number_range_history` → xóa dòng dải | — | `phone_numbers.range_id`: RESTRICT (bắt buộc dọn số trước) |
-| `organizations` | **Xóa cứng** khi không còn đơn vị con và không còn nhóm tham chiếu | `409` nếu còn con hoặc còn nhóm | `organizations.parent_id`, `user_groups.organization_id`: RESTRICT |
-| `notifications` | Xóa cứng được (dọn thông báo cũ) | — | `notification_recipients`: CASCADE |
-| `roles`, `permissions` | Không xóa (seed cố định) | — | `permission_roles`: CASCADE; `admin_roles`/`user_roles`.`role_id`: RESTRICT |
+| Thực thể | Thao tác "xóa" của API | Điều kiện xóa / Lỗi | Điều kiện khóa (`status = 'LOCKED'`) | Khóa ngoại liên quan |
+|---|---|---|---|---|
+| `user_groups` | **Xóa mềm**: `status = 'INACTIVE'`; thu hồi toàn bộ dải số của nhóm (quy tắc thu hồi mục 8). Giữ liên kết `phone_prefix_group_id`, CDR và stats để báo cáo lịch sử vẫn đúng | Chặn `409` nếu nhóm còn user `ACTIVE`/`LOCKED` | — | `stats_*.group_id`, `users.user_group_id`: RESTRICT; `cdr_enriched.*_group_id` là tham chiếu logic (bảng partition, không FK) |
+| `users` | **Xóa mềm**: `status = 'INACTIVE'`; nếu là `representative_user_id` của nhóm thì set NULL | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm (giống xóa mềm) | `user_groups.representative_user_id`: SET NULL; `user_roles.user_id`: RESTRICT (giữ dòng vai trò) |
+| `admins` | **Xóa mềm**: `status = 'INACTIVE'` | Chặn nếu admin mang vai trò `ROOT_ADMIN` hoặc tự xóa chính mình | Chặn nếu admin mang vai trò `ROOT_ADMIN` hoặc tự khóa chính mình | `*.performed_by_admin_id`, `admins.created_by_admin_id`: SET NULL (chỉ áp dụng nếu sau này có xóa cứng bằng tay); `admin_roles.admin_id`: RESTRICT (giữ dòng vai trò) |
+| `phone_prefix_groups` | **Xóa cứng** khi không có nhóm người dùng liên kết và không còn dải số. Muốn ngừng dùng mà vẫn giữ: `status = 'INACTIVE'` | `409` nếu còn liên kết hoặc còn dải | — | `user_groups.phone_prefix_group_id`, `phone_prefix_ranges.prefix_group_id`: RESTRICT |
+| `phone_prefix_ranges` | **Thu hồi**: dọn số theo quy tắc mục 8 → ghi `prefix_allocation_history` + `phone_number_range_history` → xóa dòng dải | — | — | `phone_numbers.range_id`: RESTRICT (bắt buộc dọn số trước) |
+| `organizations` | **Xóa cứng** khi không còn đơn vị con và không còn nhóm tham chiếu | `409` nếu còn con hoặc còn nhóm | — | `organizations.parent_id`, `user_groups.organization_id`: RESTRICT |
+| `notifications` | Xóa cứng được (dọn thông báo cũ) | — | — | `notification_recipients`: CASCADE |
+| `roles`, `permissions` | Không xóa (seed cố định) | — | — | `permission_roles`: CASCADE; `admin_roles`/`user_roles`.`role_id`: RESTRICT |
 
 - Tài khoản `INACTIVE` không đăng nhập được và bị ẩn khỏi danh sách mặc định (có bộ lọc "Đã ngừng hoạt động"). `username`/`email` của tài khoản `INACTIVE` được phép dùng lại cho tài khoản mới (UNIQUE chỉ áp cho tài khoản chưa `INACTIVE`, qua cột ảo `username_active`/`email_active`), phục vụ chuyển công tác.
 - Nhóm `INACTIVE` không cho đăng nhập thành viên, không nhận cấp phát dải số mới, nhưng vẫn xuất hiện trong báo cáo lịch sử.
@@ -1132,7 +1145,7 @@ CREATE TABLE IF NOT EXISTS `stats_hourly` (
   -- 5. Hiệu suất Truyền dẫn Mạng IP
   `rtp_packets_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng gói RTP hai chiều (Caller + Called PacketsCount) của leg chính có RTP',
   `rtp_lost_packets_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng gói RTP mất hai chiều (Caller + Called LostPackets); tỷ lệ mất gói = rtp_lost_packets_total / rtp_packets_total * 100',
-  `high_packet_loss_calls_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc có tỷ lệ mất gói hai chiều > criticalThreshold của PACKET_LOSS_PERCENT (qos_threshold_configs, mặc định 2%)',
+  `high_packet_loss_calls_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc có tỷ lệ mất gói hai chiều > critical_threshold của PACKET_LOSS_PERCENT (qos_threshold_configs, mặc định 2%)',
   `avg_jitter_ms` decimal(8,3) unsigned NOT NULL DEFAULT 0.000 COMMENT 'Jitter RFC 3550 trung bình = AVG((RTP_Caller_MeanRfc3550Jitter + RTP_Called_MeanRfc3550Jitter) / 2) trên leg có RTP; gia quyền theo qos_sample_count khi roll-up',
   `max_jitter_ms` decimal(8,3) unsigned NOT NULL DEFAULT 0.000 COMMENT 'MAX của RTP_Caller_MaxRfc3550Jitter / RTP_Called_MaxRfc3550Jitter (ms)',
 
@@ -1218,7 +1231,7 @@ CREATE TABLE IF NOT EXISTS `stats_daily` (
   -- 5. Hiệu suất Truyền dẫn Mạng IP
   `rtp_packets_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng gói RTP hai chiều (Caller + Called PacketsCount) của leg chính có RTP',
   `rtp_lost_packets_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng gói RTP mất hai chiều (Caller + Called LostPackets); tỷ lệ mất gói = rtp_lost_packets_total / rtp_packets_total * 100',
-  `high_packet_loss_calls_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc có tỷ lệ mất gói hai chiều > criticalThreshold của PACKET_LOSS_PERCENT (qos_threshold_configs, mặc định 2%)',
+  `high_packet_loss_calls_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc có tỷ lệ mất gói hai chiều > critical_threshold của PACKET_LOSS_PERCENT (qos_threshold_configs, mặc định 2%)',
   `avg_jitter_ms` decimal(8,3) unsigned NOT NULL DEFAULT 0.000 COMMENT 'Jitter RFC 3550 trung bình = AVG((RTP_Caller_MeanRfc3550Jitter + RTP_Called_MeanRfc3550Jitter) / 2) trên leg có RTP; gia quyền theo qos_sample_count khi roll-up',
   `max_jitter_ms` decimal(8,3) unsigned NOT NULL DEFAULT 0.000 COMMENT 'MAX của RTP_Caller_MaxRfc3550Jitter / RTP_Called_MaxRfc3550Jitter (ms)',
 

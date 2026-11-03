@@ -272,6 +272,7 @@ backend/src/
 ├── core/permissions/
 │   ├── permissions.module.ts
 │   ├── roles.service.ts                    # danh sách vai trò, đếm tài khoản
+│   ├── role-assignment.service.ts          # RoleAssignmentService: ghi user_roles/admin_roles, kiểm tra scope, ghi audit CHANGE_ROLE khi đổi vai trò user
 │   ├── role-permission.cache.ts            # ROLE_PERMISSIONS nạp từ permission_roles khi khởi động
 │   ├── group-gated-permissions.ts          # GROUP_GATED_PERMISSIONS
 │   ├── guards/

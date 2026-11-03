@@ -158,7 +158,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `POST` | `/api/v1/profile/avatar` | `UserAuthGuard` | Tải ảnh đại diện (multipart, tối đa 2 MB, `image/png`/`image/jpeg`), trả `avatarUrl` |
 | `GET` | `/api/v1/auth/sessions` | `UserAuthGuard` | Danh sách phiên đăng nhập đang hoạt động của chính User |
 | `DELETE` | `/api/v1/auth/sessions/:id` | `UserAuthGuard` | Thu hồi một phiên của chính mình (`REVOKED_BY_SELF`) |
-| `GET` | `/api/v1/profile/preferences` | `UserAuthGuard` | Lấy thiết lập giao diện (theme, items_per_page) |
+| `GET` | `/api/v1/profile/preferences` | `UserAuthGuard` | Lấy thiết lập giao diện (`theme`, `itemsPerPage`) |
 | `PUT` | `/api/v1/profile/preferences` | `UserAuthGuard` | Cập nhật thiết lập giao diện người dùng |
 
 ### 3.3. Phân hệ Cây tổ chức EVN (Organizations)

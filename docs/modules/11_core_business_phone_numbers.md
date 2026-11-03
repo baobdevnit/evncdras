@@ -121,8 +121,7 @@ Trong cùng transaction tạo/cập nhật dải số:
           "fullRange": "42000 - 42499",
           "badgeText": "42 xxx (500 số)",
           "count": 500,
-          "note": "Trụ sở chính Cửa Bắc",
-          "status": "ACTIVE"
+          "note": "Trụ sở chính Cửa Bắc"
         },
         {
           "id": 2,
@@ -133,8 +132,7 @@ Trong cùng transaction tạo/cập nhật dải số:
           "fullRange": "46500 - 46999",
           "badgeText": "46 xxx (500 số)",
           "count": 500,
-          "note": "Chi nhánh Cầu Giấy",
-          "status": "ACTIVE"
+          "note": "Chi nhánh Cầu Giấy"
         }
       ],
       "totalRanges": 2,

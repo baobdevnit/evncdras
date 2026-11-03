@@ -52,13 +52,13 @@ Trong kiến trúc quản trị người dùng phân tán và phân định ph�
 ```mermaid
 erDiagram
     ORGANIZATIONS ||--o{ USER_GROUPS : "tham chiếu cây đơn vị (organization_id nullable)"
-    USER_GROUPS ||--|| PHONE_PREFIX_GROUPS : "liên kết 1 - 1 độc quyền (unique fk)"
-    USER_GROUPS ||--|{ USERS : "1 nhóm chứa 1..n thành viên (cố định từ lúc tạo, không chuyển nhóm)"
+    USER_GROUPS |o--|| PHONE_PREFIX_GROUPS : "liên kết 1 - 1 độc quyền (unique fk); nhóm đầu số có thể chưa gắn nhóm người dùng"
+    USER_GROUPS ||--o{ USERS : "1 nhóm chứa 0..n thành viên (cố định từ lúc tạo, không chuyển nhóm); quy tắc ít nhất 1 GROUP_ADMIN hoạt động do service bảo đảm"
     USERS ||--|| USER_ROLES : "mang đúng 1 vai trò"
-    PHONE_PREFIX_GROUPS ||--|{ PHONE_PREFIX_RANGES : "tập hợp 1..n dải số prefix"
-    PHONE_PREFIX_RANGES ||--o{ PHONE_NUMBERS : "phân bổ từ kho số tổng 90.000 số"
-    USER_GROUPS ||--o{ PREFIX_ALLOCATION_HISTORY : "lưu vết cấp phát dải số"
-    PHONE_NUMBERS ||--o{ PHONE_NUMBER_RANGE_HISTORY : "lưu vết gán số vào dải"
+    PHONE_PREFIX_GROUPS ||--o{ PHONE_PREFIX_RANGES : "tập hợp 0..n dải số prefix"
+    PHONE_PREFIX_RANGES |o--o{ PHONE_NUMBERS : "phân bổ từ kho số tổng 90.000 số (range_id NULL: kho tự do)"
+    USER_GROUPS ||..o{ PREFIX_ALLOCATION_HISTORY : "lưu vết cấp phát dải số (snapshot, không FK)"
+    PHONE_NUMBERS ||..o{ PHONE_NUMBER_RANGE_HISTORY : "lưu vết gán số vào dải (snapshot theo phone_number, không FK)"
 
     USER_GROUPS {
         int id PK

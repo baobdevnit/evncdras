@@ -232,8 +232,9 @@ backend/src/
 
 ```typescript
 async getDashboardData(user: CurrentUserPayload, query: DashboardStatsQueryDto) {
-  const isSystemAdmin = [Role.ROOT_ADMIN, Role.SYSTEM_ADMIN].includes(user.role);
-  const targetGroupId = isSystemAdmin ? (query.groupId || null) : user.groupId;
+  // Claim token: roleCode (cả hai cổng); userGroupId chỉ có ở token User (docs/modules/03_auth_user.md)
+  const isSystemAdmin = [Role.ROOT_ADMIN, Role.SYSTEM_ADMIN].includes(user.roleCode);
+  const targetGroupId = isSystemAdmin ? (query.groupId || null) : user.userGroupId;
 
   return this.statsService.getAggregatedKPI({
     period: query.period,

@@ -59,7 +59,7 @@ Bảng dữ liệu MariaDB chính: `organizations` (Đã định nghĩa trong `d
       "code": "TC-71",
       "name": "Tổng công ty 71",
       "representativeName": "Nguyễn Văn A",
-      "level": 0,
+      "level": 1,
       "status": "ACTIVE",
       "children": [
         {
@@ -68,7 +68,7 @@ Bảng dữ liệu MariaDB chính: `organizations` (Đã định nghĩa trong `d
           "code": "IT-01",
           "name": "Khối Công nghệ Thông tin",
           "representativeName": "Trần Thị B",
-          "level": 1,
+          "level": 2,
           "status": "ACTIVE",
           "children": []
         }

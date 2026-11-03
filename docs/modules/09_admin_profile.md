@@ -90,7 +90,7 @@ Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView
 
 ### 5.1. Bố cục Giao diện (`AdminProfileView.vue`)
 - Kế thừa bố cục thẻ từ `templates/admin/profile.html` nhưng áp dụng theme Quản trị:
-  - Header: Huy hiệu vàng nổi bật `[Quản trị viên Tối cao]` hoặc xanh dương `[Kỹ thuật viên Quản trị]`.
+  - Header: Huy hiệu vai trò hiển thị `roles.name` (seed: `ROOT_ADMIN` "Quản trị viên tối cao" màu vàng, `SYSTEM_ADMIN` "Quản trị viên hệ thống" màu xanh dương).
   - Tab 1: Thông tin liên lạc trực ban.
   - Tab 2: Bảo mật tài khoản & Đổi mật khẩu.
   - Tab 3: Nhật ký kiểm toán cá nhân (Bảng hiển thị IP đăng nhập, thiết bị và các thao tác gần đây).
