@@ -2,7 +2,9 @@
 
 ## Đường dẫn tài liệu: `docs/modules/03_auth_user.md`
 
-## Ánh xạ giao diện mẫu: `templates/login.html` (Đăng nhập), `templates/users.html` (Quản lý User)
+## Ánh xạ giao diện mẫu
+- **Khu vực Member**: `templates/member/login.html` → `src/apps/member/views/auth/LoginView.vue` (route `member.login`, `/login`); quản lý thành viên nhóm `templates/member/group-admin.html` → `GroupAdminView.vue` (đặc tả tại `docs/modules/02_user_group.md` mục 5.3).
+- **Khu vực Admin**: `templates/admin/users.html` → `src/apps/admin/views/users/UserListView.vue` (route `admin.users`, `/admin/users`), mục 5 dưới đây.
 
 ---
 
@@ -155,28 +157,44 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/user-auth/` & `users/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-user-auth/
-├── user-auth.module.ts
-├── user-auth.controller.ts
-├── user-auth.service.ts
-├── strategies/
-│   └── user-jwt.strategy.ts
-└── guards/
-    └── user-auth.guard.ts
-
-users/
-├── users.module.ts
-├── users.controller.ts
-├── users.service.ts
-├── dto/
-│   ├── create-user.dto.ts
-│   ├── update-user.dto.ts
-│   └── user-query.dto.ts
-└── entities/
-    └── user.entity.ts
+backend/src/
+├── core/auth/                          <-- dùng chung cho apps/member, apps/admin và realtime
+│   ├── auth.module.ts
+│   ├── auth-sessions.service.ts        <-- auth_sessions, Refresh Token xoay vòng, thu hồi phiên (dùng chung với Admin)
+│   ├── password.service.ts             <-- bcrypt, chính sách mật khẩu, khóa tạm khi sai nhiều lần
+│   ├── jwt/
+│   │   ├── user-jwt.service.ts         <-- ký/xác minh Access Token User (JWT_USER_SECRET)
+│   │   └── admin-jwt.service.ts        <-- ký/xác minh Access Token Admin (JWT_ADMIN_SECRET)
+│   └── entities/
+│       └── auth-session.entity.ts
+├── core/users/
+│   ├── users.module.ts
+│   ├── users.service.ts                <-- CRUD người dùng, đổi vai trò, reset mật khẩu; nhận scope SYSTEM | GROUP
+│   ├── dto/
+│   │   ├── create-user.dto.ts
+│   │   ├── update-user.dto.ts
+│   │   └── user-query.dto.ts
+│   └── entities/
+│       └── user.entity.ts
+├── apps/member/auth/
+│   ├── member-auth.module.ts
+│   ├── user-auth.controller.ts         <-- /api/v1/auth/login, refresh, logout, me, sessions*
+│   ├── user-auth.service.ts            <-- đăng nhập User; ký JWT qua core/auth UserJwtService
+│   ├── strategies/
+│   │   └── user-jwt.strategy.ts
+│   └── guards/
+│       └── user-auth.guard.ts
+├── apps/member/users/
+│   ├── member-users.module.ts
+│   └── users.controller.ts             <-- /api/v1/users* (Quản trị viên nhóm, scope GROUP)
+└── apps/admin/users/
+    ├── admin-users.module.ts
+    └── users.controller.ts             <-- /api/v1/admin/users* (scope SYSTEM), DELETE /admin/users/:id/sessions
 ```
 
 ### 4.1. Implementation `UserJwtStrategy`
@@ -204,9 +222,21 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/users/UserListView.vue`; phía đơn vị: `frontend/apps/member/src/views/group/GroupAdminView.vue`)
+## 5. Kiến trúc Frontend Vue 3
 
-### 5.1. Bố cục Split-View (Theo `templates/users.html`)
+| App | Route | View | Template nguồn | API |
+| :--- | :--- | :--- | :--- | :--- |
+| Member | `/login` (`member.login`, public) | `src/apps/member/views/auth/LoginView.vue` | `templates/member/login.html` | `POST /api/v1/auth/login`, `/auth/refresh`, `/auth/me` |
+| Admin | `/admin/users` (`admin.users`, `user:view`) | `src/apps/admin/views/users/UserListView.vue` | `templates/admin/users.html` | `/api/v1/admin/users*`, `DELETE /api/v1/admin/users/:id/sessions` |
+| Member | `/group-admin` (`member.group-admin`, `user:view`) | `src/apps/member/views/group/GroupAdminView.vue` | `templates/member/group-admin.html` | `/api/v1/users*` – đặc tả `docs/modules/02_user_group.md` mục 5.3 |
+
+### 5.0. Màn hình Đăng nhập (Khu vực Member – `LoginView.vue`)
+
+- Form nhận username hoặc email, mật khẩu, `rememberMe`; gọi `POST /api/v1/auth/login`, lưu Access Token vào `authUser` store (không lưu trình duyệt).
+- `mustChangePassword: true` → chuyển sang `member.change-password`; `423` → hiển thị thời điểm mở khóa (`lockedUntil`); `503 MAINTENANCE` → thông báo bảo trì.
+- Liên kết "Dành cho Quản trị viên hệ thống" là `<RouterLink :to="{ name: 'admin.login' }">` (cùng router, chuyển cổng không mất phiên, `docs/00_overview_and_architecture.md` mục 5.3.2). Hộp "tài khoản mẫu" trong template không triển khai.
+
+### 5.1. Khu vực Admin – `UserListView.vue`: Bố cục Split-View (Theo `templates/admin/users.html`)
 
 - **Bên trái (`.group-sidebar`)**:
   - Danh sách nhóm người dùng (`.group-list`, `.group-item`).
@@ -223,7 +253,7 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
     - Cột Hành động: Sửa thông tin, Xóa tài khoản.
 - Modal tạo mới / sửa người dùng (`#userModal`): Form nhập thông tin người dùng và chọn Nhóm người dùng (`user_group_id`), chọn vai trò (`roleCode`: Quản trị viên nhóm / Thành viên nghe ghi âm / Thành viên) khi tạo mới; khi sửa, đổi vai trò gọi `PUT /users/:id/role`. Không phụ thuộc hay tham chiếu trực tiếp đến tổ chức.
 
-### 5.2. Quản lý trạng thái Pinia Store (`useUserStore`)
+### 5.2. Khu vực Admin – Pinia Store (`useUserStore`)
 
 - State: `users: UserItem[]`, `total: number`, `selectedGroupId: number | null` (null = mọi nhóm, chỉ Admin), `loading: boolean`.
 - Actions: `fetchUsers()`, `createUser()`, `updateUser()`, `changeRole()`, `toggleStatus()`, `resetPassword()`.

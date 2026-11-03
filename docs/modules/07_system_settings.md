@@ -117,22 +117,31 @@ Danh mục các Key cấu hình chuẩn (3 phân nhóm: `ANALYSIS`, `REPORTING`,
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/system-settings/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-system-settings/
-├── system-settings.module.ts
-├── system-settings.controller.ts
-├── system-settings.service.ts
-├── dto/
-│   └── update-settings.dto.ts
-└── entities/
-    └── system-setting.entity.ts
+backend/src/
+├── core/system-settings/
+│   ├── system-settings.module.ts
+│   ├── system-settings.service.ts      <-- đọc/ghi system_settings, cache trong bộ nhớ; ghi xong tăng cache_version
+│   ├── dto/
+│   │   └── update-settings.dto.ts
+│   └── entities/
+│       └── system-setting.entity.ts
+├── core/cache/
+│   ├── cache.module.ts
+│   ├── number-ownership-cache.service.ts
+│   └── cache-version.watcher.ts        <-- API: setInterval 5 giây; Worker: gọi đầu mỗi chu kỳ làm giàu
+└── apps/admin/settings/
+    ├── admin-settings.module.ts
+    └── system-settings.controller.ts   <-- /api/v1/admin/settings/system, POST /admin/settings/reload-cache
 ```
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/settings/SystemSettingsView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/src/apps/admin/views/settings/SystemSettingsView.vue`)
 
 ### 5.1. Bố cục Giao diện (Ánh xạ chuẩn `templates/admin/system-settings.html`)
 
@@ -149,7 +158,7 @@ system-settings/
 
 ### 5.2. Các mục bổ sung (không có trong template, dựng theo cùng bố cục `.settings-section`)
 
-Mỗi mục là một component trong `apps/admin/src/views/settings/sections/`, có nút riêng trên `.settings-sidebar`, mở trực tiếp bằng `/admin/settings?section=<key>`. Mục bị ẩn (cả nút menu) khi tài khoản thiếu quyền; thiếu quyền khi mở bằng query thì chuyển về mục đầu tiên được phép.
+Mỗi mục là một component trong `src/apps/admin/views/settings/sections/`, có nút riêng trên `.settings-sidebar`, mở trực tiếp bằng `/admin/settings?section=<key>`. Mục bị ẩn (cả nút menu) khi tài khoản thiếu quyền; thiếu quyền khi mở bằng query thì chuyển về mục đầu tiên được phép.
 
 | Key | Component | Quyền | Nội dung |
 | :--- | :--- | :--- | :--- |

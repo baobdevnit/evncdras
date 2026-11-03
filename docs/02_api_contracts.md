@@ -11,7 +11,8 @@
 ### 1.1. Tiêu chuẩn đường dẫn (URL Conventions)
 
 - **Base URL**: `https://cdr-pabx.evn.com.vn/api/v1`
-- **Gọi API từ frontend**: Admin App và Member App chạy cùng domain với API (`docs/00_overview_and_architecture.md` mục 5.3) nên gọi bằng đường dẫn tương đối (`/api/v1/admin` cho Admin App, `/api/v1` cho Member App), không cần cấu hình CORS ở production.
+- **Gọi API từ frontend**: frontend là một ứng dụng chạy cùng domain với API (`docs/00_overview_and_architecture.md` mục 5.3) nên gọi bằng đường dẫn tương đối: khu vực Admin (`frontend/src/apps/admin`) dùng `/api/v1/admin`, khu vực Member (`frontend/src/apps/member`) dùng `/api/v1`; không cần cấu hình CORS ở production.
+- **Phần backend phục vụ**: `/api/v1/admin/*` do `backend/src/apps/admin` phục vụ, `/api/v1/*` còn lại do `backend/src/apps/member` phục vụ; cả hai chạy trong tiến trình `backend-api`. WebSocket (mục 4) do `backend/src/realtime` phục vụ.
 - **Phân tách Portal** (tách tuyến tuyệt đối, **không có guard dùng chung**):
   - Admin Portal: **mọi** API Admin gọi đều nằm dưới `/api/v1/admin/*`, chỉ `AdminAuthGuard` (secret `JWT_ADMIN_SECRET`).
   - User Portal: `/api/v1/*` (không có tiền tố `/admin`), chỉ `UserAuthGuard` (secret `JWT_USER_SECRET`).
@@ -21,7 +22,7 @@
   - `USER + ADMIN`: có **hai route cùng hành vi**. Route User là đường dẫn ghi trong bảng, ví dụ `GET /api/v1/cdr`. Route Admin là bản sao có tiền tố, ví dụ `GET /api/v1/admin/cdr`.
     - Bản User luôn tự áp cô lập nhóm (`group_id = nhóm của người dùng`).
     - Bản Admin có phạm vi toàn hệ thống và nhận thêm tham số riêng của Admin (`groupId`, `callType`, `includeArchive`…).
-    - Hai bản dùng **chung service và DTO**, chỉ khác controller và guard. Response giống hệt nhau.
+    - Hai bản dùng **chung service và DTO response** đặt trong `backend/src/core/<x>/`, chỉ khác controller (`backend/src/apps/member/<x>/` và `backend/src/apps/admin/<x>/`) và guard. Response giống hệt nhau.
   - `USER`: chỉ có bản User (`/api/v1/auth/*`, `/api/v1/profile/*`).
 - Tài liệu module ghi đường dẫn bản User cho các route `USER + ADMIN`; bản Admin suy ra theo quy tắc trên.
 - **Kỳ thời gian (`period`) dùng chung** cho mọi API thống kê (dashboard, QoS, lưu lượng, báo cáo), tính theo giờ Việt Nam:
@@ -178,7 +179,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/user-groups` | `user_group:view` | Danh sách các nhóm QLND (kèm số lượng users) | USER + ADMIN |
 | `GET` | `/api/v1/user-groups/tree` | `user_group:view` | Cấu trúc cây nhóm QLND theo tổ chức | USER + ADMIN |
 | `GET` | `/api/v1/user-groups/:id` | `user_group:view` | Xem chi tiết nhóm QLND và người đại diện | USER + ADMIN |
-| `GET` | `/api/v1/user-groups/me/members` | `user_group:view` | Danh bạ thành viên **nhóm của người gọi** (màn hình Danh bạ nhóm, Member App): chỉ tài khoản `status = 'ACTIVE'`, trường danh bạ `id`, `fullName`, `jobTitle`, `email`, `phoneNumber`, `avatarUrl`, `roleCode`; không trả `username`, `status`, `lastLoginAt` hay thông tin phiên. Query `page`, `limit` (≤ 100), `search` (họ tên, email, chức danh, số điện thoại), `roleCode`. Đặc tả `docs/modules/02_user_group.md` mục 3.6 | USER |
+| `GET` | `/api/v1/user-groups/me/members` | `user_group:view` | Danh bạ thành viên **nhóm của người gọi** (màn hình Danh bạ nhóm, khu vực Member): chỉ tài khoản `status = 'ACTIVE'`, trường danh bạ `id`, `fullName`, `jobTitle`, `email`, `phoneNumber`, `avatarUrl`, `roleCode`; không trả `username`, `status`, `lastLoginAt` hay thông tin phiên. Query `page`, `limit` (≤ 100), `search` (họ tên, email, chức danh, số điện thoại), `roleCode`. Đặc tả `docs/modules/02_user_group.md` mục 3.6 | USER |
 | `POST` | `/api/v1/admin/user-groups` | `user_group:manage` | Thiết lập nhóm QLND mới gắn vào nút tổ chức (kèm `allowRecordingAccess`) | ADMIN |
 | `PUT` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Cập nhật thông tin nhóm QLND (kèm quyền bật/tắt ghi âm nhóm `allowRecordingAccess`) | ADMIN |
 | `DELETE` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Ngừng hoạt động nhóm (xóa mềm `status = INACTIVE`, thu hồi dải số; `409` nếu còn thành viên đang hoạt động) | ADMIN |

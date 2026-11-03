@@ -2,7 +2,7 @@
 
 ## Đường dẫn tài liệu: `docs/modules/01_organization.md`
 
-## Ánh xạ giao diện mẫu: `templates/organization.html`, `templates/organization.css`, `templates/organization.js`
+## Ánh xạ giao diện mẫu (chỉ khu vực Admin): `templates/admin/organization.html`, `templates/admin/organization.css`, `templates/admin/organization.js` → `OrganizationView.vue` (route `admin.organizations`, `/admin/organizations`)
 
 ---
 
@@ -111,20 +111,28 @@ Bảng dữ liệu MariaDB chính: `organizations` (Đã định nghĩa trong `d
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/organizations/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-organizations/
-├── organizations.module.ts
-├── organizations.controller.ts
-├── organizations.service.ts
-├── dto/
-│   ├── create-organization.dto.ts
-│   ├── update-organization.dto.ts
-│   └── organization-filter.dto.ts
-├── entities/
-│   └── organization.entity.ts
-└── organizations.service.spec.ts
+backend/src/
+├── core/organizations/
+│   ├── organizations.module.ts
+│   ├── organizations.service.ts        <-- cây tổ chức, CRUD, kiểm tra ràng buộc khi xóa
+│   ├── organizations.service.spec.ts
+│   ├── dto/
+│   │   ├── create-organization.dto.ts
+│   │   ├── update-organization.dto.ts
+│   │   └── organization-filter.dto.ts
+│   └── entities/
+│       └── organization.entity.ts
+├── apps/admin/organizations/
+│   ├── admin-organizations.module.ts
+│   └── organizations.controller.ts     <-- /api/v1/admin/organizations* (GET tree/list/:id, POST, PUT, DELETE)
+└── apps/member/organizations/
+    ├── member-organizations.module.ts
+    └── organizations.controller.ts     <-- /api/v1/organizations* (chỉ GET tree/list/:id)
 ```
 
 ### 4.1. Thuật toán dựng cây (Recursive Tree Builder) trong `organizations.service.ts`
@@ -158,11 +166,14 @@ async getOrganizationTree(): Promise<OrganizationTreeDto[]> {
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/organization/OrganizationView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/src/apps/admin/views/organization/OrganizationView.vue`)
+
+Màn hình Danh mục tổ chức **chỉ có ở khu vực Admin** (route yêu cầu `org:view`, gọi `/api/v1/admin/organizations*`). Khu vực Member không có màn hình này; tên đơn vị tổ chức chỉ hiển thị dạng thông tin đi kèm nhóm (vd. `organizationName` trong `GET /api/v1/auth/me`).
 
 ### 5.1. Cấu trúc Component
 
-- Tích hợp chính xác cấu trúc HTML từ `templates/organization.html`:
+- Các nút Thêm / Thêm tổ chức con / Chỉnh sửa / Xóa chỉ hiện khi tài khoản có `org:manage`.
+- Tích hợp chính xác cấu trúc HTML từ `templates/admin/organization.html`:
   - Header trang: Tiêu đề "Danh mục tổ chức", nút "Thêm mới" mở modal `#orgModal`.
   - Bảng `.tree-table`: Cột "Tên tổ chức", "Mã đơn vị", "Hành động" có nút đóng/mở từng cấp tổ chức.
   - Cột Hành động trên mỗi dòng bao gồm 4 nút:

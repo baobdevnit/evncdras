@@ -492,7 +492,7 @@ templates/
 
 ## 9. Hướng dẫn Kế thừa & Mở rộng cho Frontend Framework (Vue 3 / React)
 
-> **Ánh xạ sang mã nguồn:** `templates/admin/` → ứng dụng `frontend/apps/admin` (phục vụ tại `/admin/*`), `templates/member/` → ứng dụng `frontend/apps/member` (phục vụ tại `/*`). Design token, `style.css`, `dark-mode.css`, logo và component dùng chung đặt ở `frontend/packages/shared`; bảng màu riêng của Admin Portal (Navy `#002B7F`, Vàng `#D97706`) khai báo trong `apps/admin`. Bảng route từng cổng: `docs/00_overview_and_architecture.md` mục 5.3.
+> **Ánh xạ sang mã nguồn:** frontend là **một ứng dụng Vue** chia 2 khu vực: `templates/admin/` → `frontend/src/apps/admin` (phục vụ tại `/admin/*`), `templates/member/` → `frontend/src/apps/member` (phục vụ tại `/*`). Design token, `style.css`, `dark-mode.css`, logo và component dùng chung đặt ở `frontend/src/shared`; bảng màu riêng của Admin Portal (Navy `#002B7F`, Vàng `#D97706`) khai báo trong `frontend/src/apps/admin/styles/admin.css`, scope dưới class `.portal-admin` của `AdminLayout` để không ảnh hưởng khu vực Member. Bảng route từng cổng: `docs/00_overview_and_architecture.md` mục 5.3.
 
 Hệ thống thiết kế trong `templates/` được xây dựng bằng HTML5 chuẩn mực, CSS biến hệ thống (`var(--...)`) và JavaScript vanilla tương thích tối đa để có thể dễ dàng chuyển đổi sang các framework hiện đại như **Vue.js 3** hoặc **React**:
 

@@ -1,20 +1,20 @@
-# Todo: Rà soát docs – 2 app riêng biệt (Admin App & Member App)
+# Todo: Rà soát docs – 1 ứng dụng frontend (khu vực Admin / Member), 1 ứng dụng backend (admin / member / worker)
 
 Kế hoạch và phát hiện (F1–F7, T-a…T-e), quyết định D1–D4: `tasks/plan.md`.
-Chỉ sửa docs; không sửa `templates/`, `frontend/`, `backend/`.
+Chỉ sửa docs; không sửa `templates/`, `frontend/`, `backend/`. Kiến trúc đã chốt: `docs/intent/single-app-architecture.md` (cập nhật 2026-11-03).
 
 ---
 
 ## Phase 1 – Chốt nguồn chuẩn
 
-### Task 1: Thống nhất lưu token & refresh cho 2 app (F1, D1)
+### Task 1: Thống nhất lưu token & refresh cho 2 cổng (F1, D1)
 
 **Mô tả:** Sửa `00` §5.2 và §5.3.2 để khớp chính sách bảo mật ở `01` §6.1, `03`, `04`: Access Token chỉ trong Pinia store auth của từng app, reload/khởi động gọi `POST <base>/auth/refresh` (cookie `Path=/api/v1/auth` hoặc `/api/v1/admin/auth`), 401 → thử refresh một lần rồi về login của app. `createClient` nhận `getAccessToken` + `refresh` + `onUnauthorized` thay `tokenKey`. Nêu rõ: đăng xuất một cổng không ảnh hưởng cổng kia vì cookie khác `Path`.
 
 **Tiêu chí nghiệm thu:**
 - [x] `00` không còn `localStorage`, `tokenKey`, `evn_admin_token`, `evn_user_token`
 - [x] §5.3.2 quy tắc 5, 6 mô tả luồng refresh theo app, khớp `04` §5.1 và `03` TC-USR-01
-- [x] Guard factory trong `packages/shared/router` mô tả theo store auth (không theo token key)
+- [x] Guard factory trong `frontend/src/shared/router` mô tả theo store auth (không theo token key)
 
 **Kiểm tra:**
 - [x] `grep -rnE "localStorage|tokenKey|evn_(admin|user)_token" docs` chỉ còn câu phủ định ("không lưu localStorage")
@@ -41,7 +41,7 @@ Chỉ sửa docs; không sửa `templates/`, `frontend/`, `backend/`.
 **File:** `docs/02_api_contracts.md`, `docs/modules/02_user_group.md`, `docs/00_overview_and_architecture.md`
 **Quy mô:** M
 
-### Task 3: Hoàn thiện bảng route Admin App (F3, D3)
+### Task 3: Hoàn thiện bảng route khu vực Admin (F3, D3)
 
 **Mô tả:** Với mỗi endpoint `ADMIN` trong `02_api` chưa có màn hình (`/admin/admins*`, `/admin/audit-logs`, `POST /admin/notifications`, `/phone-numbers/pool*`, `/admin/qos/thresholds`, `/admin/stats/recalculate`), xác định nơi hiển thị (route hoặc tab của route nào, điều kiện quyền). Cập nhật `00` §5.3.3 (thêm cột/ghi chú tab), cây view §5.2 (thay `AdminManagementView.vue` bằng component tab nếu chọn phương án tab), và mục Frontend của `04`, `06`, `07`.
 
@@ -61,26 +61,26 @@ Chỉ sửa docs; không sửa `templates/`, `frontend/`, `backend/`.
 ## Checkpoint 1: Sau Task 1–3
 - [ ] Không còn mâu thuẫn token / API danh bạ / route Admin giữa `00`, `02_api`, `10`, `03`, `04`
 - [ ] Bảng route §5.3.3, §5.3.4 là bản chốt; người duyệt xác nhận trước khi sửa module docs
-- [ ] Commit: `docs: chốt token, route Admin và API danh bạ cho 2 app`
+- [ ] Commit: `docs: chốt token, route Admin và API danh bạ cho 2 cổng`
 
 ---
 
-## Phase 2 – Chuẩn hóa module docs theo 2 app
+## Phase 2 – Chuẩn hóa module docs theo 2 cổng
 
-Quy ước chung (D4) cho mỗi module: dòng "Ánh xạ giao diện mẫu" ghi theo cổng; mục "Kiến trúc Frontend" ghi đường dẫn Vue đầy đủ, route name (`admin.*` / `member.*`), base API; màn hình một cổng ghi "Chỉ Admin App" / "Chỉ Member App".
+Quy ước chung (D4) cho mỗi module: dòng "Ánh xạ giao diện mẫu" ghi theo cổng; mục "Kiến trúc Frontend" ghi đường dẫn Vue đầy đủ, route name (`admin.*` / `member.*`), base API; màn hình một cổng ghi "Chỉ khu vực Admin" / "Chỉ khu vực Member".
 
 ### Task 4: Module chỉ-Admin & kho số – `01`, `04`, `09`, `11`
 
 **Mô tả:** Đổi tham chiếu template sang `templates/admin/...` (`01` organization, `04` login → `templates/admin/login.html` – hiện đang trỏ nhầm `templates/login.html` của Member, `09` profile/change-password/user-settings); `11` bổ sung phần Member: `OrgPrefixView.vue` ánh xạ `templates/member/org-prefix.html`, gọi `/api/v1/prefixes`, `/phone-numbers/pool` (bản User, chỉ nhóm mình). `09` bổ sung `ChangePasswordView`, `AccountSettingsView` Admin.
 
 **Tiêu chí nghiệm thu:**
-- [ ] 4 file không còn `templates/<file>` phẳng
-- [ ] `11` đặc tả cả view Admin (`PrefixManagementView`, `PrefixHistoryView`) và Member (`OrgPrefixView`)
-- [ ] Đường dẫn Vue khớp cây `00` §5.2
+- [x] 4 file không còn `templates/<file>` phẳng
+- [x] `11` đặc tả cả view Admin (`PrefixManagementView`, `PrefixHistoryView`) và Member (`OrgPrefixView`)
+- [x] Đường dẫn Vue khớp cây `00` §5.2
 
 **Kiểm tra:**
-- [ ] `grep -nE "templates/[a-z_-]+\.(html|css|js)" docs/modules/0{1,4,9}_*.md docs/modules/11_*.md` rỗng
-- [ ] So từng đường dẫn Vue với `00` §5.2
+- [x] `grep -nE "templates/[a-z_-]+\.(html|css|js)" docs/modules/0{1,4,9}_*.md docs/modules/11_*.md` rỗng
+- [x] So từng đường dẫn Vue với `00` §5.2
 
 **Phụ thuộc:** Checkpoint 1
 **File:** `docs/modules/01_organization.md`, `04_auth_admin.md`, `09_admin_profile.md`, `11_core_business_phone_numbers.md`
@@ -91,12 +91,12 @@ Quy ước chung (D4) cho mỗi module: dòng "Ánh xạ giao diện mẫu" ghi 
 **Mô tả:** `03`: login → `templates/member/login.html`; `users.html` → `templates/admin/users.html` cho `UserListView`, `templates/member/group-admin.html` cho `GroupAdminView`. `05`: thay `templates/dashboard.html` / `member-dashboard.html` bằng `templates/admin/dashboard.html` / `templates/member/dashboard.html`, thêm đường dẫn Vue 2 `DashboardView` và API (`/api/v1/admin/dashboard/*` vs `/api/v1/dashboard/*`). `08`: template `templates/member/profile|user-settings|change-password.html`, thêm `AccountSettingsView`, `ChangePasswordView` Member.
 
 **Tiêu chí nghiệm thu:**
-- [ ] 3 file không còn template phẳng hay `member-dashboard`
-- [ ] `05` nêu rõ 2 view, 2 base API, widget nào chỉ có ở Admin (`/admin/dashboard/groups`, kho số)
-- [ ] `08` liệt kê đủ 3 view Member như bảng §5.3.4
+- [x] 3 file không còn template phẳng hay `member-dashboard`
+- [x] `05` nêu rõ 2 view, 2 base API, widget nào chỉ có ở Admin (`/admin/dashboard/groups`, kho số)
+- [x] `08` liệt kê đủ 3 view Member như bảng §5.3.4
 
 **Kiểm tra:**
-- [ ] `grep -nE "templates/[a-z_-]+\.(html|css|js)|member-dashboard" docs/modules/0{3,5,8}_*.md` rỗng
+- [x] `grep -nE "templates/[a-z_-]+\.(html|css|js)|member-dashboard" docs/modules/0{3,5,8}_*.md` rỗng
 
 **Phụ thuộc:** Checkpoint 1 (T2 cho phần `GroupAdminView` của `03`)
 **File:** `docs/modules/03_auth_user.md`, `05_dashboard_analytics.md`, `08_user_profile.md`
@@ -109,7 +109,7 @@ Quy ước chung (D4) cho mỗi module: dòng "Ánh xạ giao diện mẫu" ghi 
 **Tiêu chí nghiệm thu:**
 - [ ] 4 file không còn template phẳng
 - [ ] Mỗi file có bảng/đoạn "Khác biệt Admin vs Member" ngắn gọn
-- [ ] Phần UI giống nhau trỏ component `packages/shared/components/...` (vd. `CdrTable`, `CdrDetailModal`, `AudioPlayerModal`)
+- [ ] Phần UI giống nhau trỏ component `frontend/src/shared/components/...` (vd. `CdrTable`, `CdrDetailModal`, `AudioPlayerModal`)
 
 **Kiểm tra:**
 - [ ] `grep -nE "templates/[a-z_-]+\.(html|css|js)" docs/modules/{06,12,13,15}_*.md` rỗng (trừ `06` thư mục `templates/` email Handlebars của backend)
@@ -121,7 +121,7 @@ Quy ước chung (D4) cho mỗi module: dòng "Ánh xạ giao diện mẫu" ghi 
 ## Checkpoint 2: Sau Task 4–6
 - [ ] `grep -rnE "templates/[a-z_-]+\.(html|css|js)" docs/modules` chỉ còn template email backend
 - [ ] Mọi view trong `00` §5.3.3 + §5.3.4 có ít nhất một module doc đặc tả
-- [ ] Commit: `docs: chuẩn hóa module docs theo Admin App / Member App`
+- [ ] Commit: `docs: chuẩn hóa module docs theo khu vực Admin / khu vực Member`
 
 ---
 
@@ -145,11 +145,11 @@ Quy ước chung (D4) cho mỗi module: dòng "Ánh xạ giao diện mẫu" ghi 
 
 ### Task 8: Cây thư mục `README.md`, `require_for_writing_docs.md` (F7)
 
-**Mô tả:** Cập nhật cây dự án: `frontend/apps/admin`, `frontend/apps/member`, `frontend/packages/shared`, `templates/admin`, `templates/member`; README thêm một đoạn ngắn "2 ứng dụng frontend" trỏ `00` §5.3. Đổi link `file:///d:/...` tuyệt đối trong README sang link tương đối (nếu người duyệt đồng ý – lệch nhỏ cùng chỗ đang sửa).
+**Mô tả:** Cập nhật cây dự án: `frontend/src/apps/admin`, `frontend/src/apps/member`, `frontend/src/shared`, `backend/src/apps/admin|member|worker`, `backend/src/core`, `templates/admin`, `templates/member`; README trỏ `00` §2.1, §2.2, §5. **Đã làm cùng đợt đổi kiến trúc** (link `file:///` chưa đổi). Đổi link `file:///d:/...` tuyệt đối trong README sang link tương đối (nếu người duyệt đồng ý – lệch nhỏ cùng chỗ đang sửa).
 
 **Tiêu chí nghiệm thu:**
-- [ ] Cả 2 file thể hiện 2 app và 2 bộ template
-- [ ] Không mâu thuẫn với `00` §5.2
+- [x] Cả 2 file thể hiện cấu trúc 1 ứng dụng chia khu vực/phần và 2 bộ template
+- [x] Không mâu thuẫn với `00` §5.1, §5.2
 
 **Kiểm tra:**
 - [ ] Đọc lại cây thư mục so với `00` §5.2
@@ -191,4 +191,4 @@ Quy ước chung (D4) cho mỗi module: dòng "Ánh xạ giao diện mẫu" ghi 
 
 ## Checkpoint 3: Hoàn tất
 - [ ] Mọi tiêu chí T1–T10 đạt
-- [ ] Người duyệt đồng ý; commit `docs: hoàn tất rà soát 2 app Admin/Member`
+- [ ] Người duyệt đồng ý; commit `docs: hoàn tất rà soát 2 cổng Admin/Member`

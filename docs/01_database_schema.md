@@ -367,7 +367,7 @@ PARTITION BY RANGE (TO_DAYS(`Created`)) (
 
 > [!IMPORTANT]
 > **Partition & vòng đời dữ liệu `cdr_enriched`**:
-> - **Partition theo tháng** trên `Created` (`RANGE` + `TO_DAYS`). Job `@nestjs/schedule` chạy ngày 1 hằng tháng: tách `p_future` để luôn có sẵn partition cho tháng hiện tại và 2 tháng kế tiếp. Job cũng chạy **một lần khi backend khởi động**: tách `p_future` (dùng `REORGANIZE PARTITION`, làm được cả khi `p_future` đã có dữ liệu) thành các partition tháng còn thiếu đến hết tháng hiện tại + 2 tháng.
+> - **Partition theo tháng** trên `Created` (`RANGE` + `TO_DAYS`). Job `apps/worker/partition-maintenance` (tiến trình `backend-worker`) chạy ngày 1 hằng tháng: tách `p_future` để luôn có sẵn partition cho tháng hiện tại và 2 tháng kế tiếp. Job cũng chạy **một lần khi `backend-worker` khởi động**: tách `p_future` (dùng `REORGANIZE PARTITION`, làm được cả khi `p_future` đã có dữ liệu) thành các partition tháng còn thiếu đến hết tháng hiện tại + 2 tháng.
 > - **Tra theo `id`** (`GET /cdr/:id`, API audio): dùng phần đầu của PK (`id`) nên quét qua mọi partition theo index, chấp nhận được vì mỗi partition chỉ trả tối đa 1 dòng.
 > - **Mọi truy vấn** trên `cdr_enriched` bắt buộc có điều kiện `Created` (khoảng thời gian) để MariaDB chỉ quét các partition liên quan (partition pruning).
 > - **Trực tuyến** (`Created >= NOW() - INTERVAL retention_online_months MONTH`, mặc định 6 tháng): mọi API tra cứu CDR, QoS debug, `/traffic/records` mặc định chỉ trong cửa sổ này.
@@ -593,7 +593,7 @@ CREATE TABLE IF NOT EXISTS `auth_sessions` (
 > - **Khóa tạm khi sai mật khẩu**: sai `security_login_max_failed` (5) lần liên tiếp thì `locked_until = NOW() + security_lockout_minutes` (15 phút). Trong thời gian này API đăng nhập trả `423 LOCKED` cùng thời điểm mở khóa. Đăng nhập đúng thì đặt `failed_login_count = 0`. Khóa tạm tách biệt với `status = 'LOCKED'` do quản trị viên đặt.
 > - **Mật khẩu**: tối thiểu `security_password_min_length` (10) ký tự, có ít nhất 3 trong 4 loại (chữ hoa, chữ thường, chữ số, ký tự đặc biệt), băm `bcrypt` cost 10. Mật khẩu hết hạn sau `security_password_max_age_days` (90) ngày tính từ `password_changed_at`. Khi hết hạn hoặc `must_change_password = 1`, đăng nhập chỉ cấp một token giới hạn, chỉ được gọi API đổi mật khẩu.
 > - **Token giới hạn**: khi `must_change_password = 1` hoặc mật khẩu quá hạn, đăng nhập chỉ cấp Access Token có claim `scope: "PASSWORD_CHANGE_ONLY"` (không cấp Refresh Token). Token này chỉ được chấp nhận ở `change-password`, `logout` và `auth/me` của portal tương ứng; mọi endpoint khác trả `403` với mã `PASSWORD_CHANGE_REQUIRED`. Đổi mật khẩu thành công thì cấp cặp Access/Refresh Token đầy đủ.
-> - **Dọn dẹp**: tiến trình định kỳ xóa phiên có `expires_at < NOW() - 30 ngày`.
+> - **Dọn dẹp**: job `apps/worker/session-cleanup` (tiến trình `backend-worker`, chạy hằng ngày) xóa phiên có `expires_at < NOW() - 30 ngày`.
 > - **Ngoài phạm vi phiên bản này**: xác thực hai lớp (2FA).
 
 ---

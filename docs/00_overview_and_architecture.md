@@ -33,39 +33,37 @@ flowchart TD
 
     WebGateway["Nginx - 1 domain, định tuyến theo prefix URL"]
 
-    subgraph Frontend["Frontend Layer - Vue.js 3 (Monorepo pnpm, 2 ứng dụng)"]
-        AdminApp["Admin App - apps/admin (/admin/*)"]
-        MemberApp["Member App - apps/member (/*)"]
-        SharedPkg["packages/shared (API client, components, CSS, router helpers)"]
+    subgraph Frontend["Frontend Layer - Vue.js 3 (1 ứng dụng, 1 build, 1 router)"]
+        VueRouter["Vue Router gộp (meta.portal, RBAC Guard theo cổng)"]
+        AdminApp["Khu vực Quản trị - src/apps/admin (/admin/*)"]
+        MemberApp["Khu vực Thành viên - src/apps/member (/*)"]
+        SharedPkg["src/shared (API client, components, CSS, router helpers)"]
         PiniaStore["State Management (Pinia)"]
-        VueRouter["Vue Router (RBAC Guard, 1 router mỗi app)"]
         ChartUI["Chart.js / Data Visualization"]
         AudioPlayer["Web Audio Player (Streaming)"]
     end
 
-    subgraph Backend["Backend Layer - NestJS (1 codebase, 2 tiến trình)"]
-        subgraph ApiProcess["backend-api: main.ts (HTTP + Socket.IO, scale N instance)"]
-            APIGateway["NestJS API Gateway (Admin /api/v1/admin/* và Member /api/v1/*)"]
-            AuthAdminGuard["AdminAuthGuard (JWT - Secret A)"]
-            AuthUserGuard["UserAuthGuard (JWT - Secret B)"]
-
-            subgraph Modules["NestJS Modules"]
-                ModAuth["Auth & Security Module"]
-                ModOrg["Organization & Group Module"]
-                ModPhone["Phone Prefix Management"]
-                ModCDR["CDR & Audio Stream Module"]
-                ModQoS["QoS & Network Debug Module"]
-                ModTraffic["Call Duration & Traffic Module"]
-                ModReport["Report & Export Module (Zero CDR Scan)"]
-                ModNotify["Notification Module (Socket.IO push)"]
-                ModSettings["System Settings Module"]
-            end
+    subgraph Backend["Backend Layer - NestJS (1 ứng dụng, 3 phần, 2 tiến trình)"]
+        subgraph ApiProcess["backend-api: main.ts - AppModule (HTTP + Socket.IO, scale N instance)"]
+            AdminPart["src/apps/admin - API Quản trị /api/v1/admin/* (AdminAuthGuard, JWT Secret A)"]
+            MemberPart["src/apps/member - API Thành viên /api/v1/* (UserAuthGuard, JWT Secret B)"]
+            Realtime["src/realtime - Socket.IO Gateway + NotificationPushPoller"]
         end
 
-        subgraph WorkerProcess["backend-worker: main.worker.ts (không mở HTTP, đúng 1 instance)"]
-            EnrichScheduler["Direct Batch Scheduler (Polling 3-5s, In-Memory Prefix Cache)"]
-            CronStatsJob["Stats Aggregation Job (Rolling 10m & Daily Finalize 00:05)"]
-            AlertEngine["Alert Engine (QOS_ALERT, PABX_OFFLINE, Email)"]
+        subgraph WorkerProcess["backend-worker: main.worker.ts - WorkerAppModule (không mở HTTP, đúng 1 instance)"]
+            EnrichScheduler["cdr-enrichment: Direct Batch Scheduler (Polling 3-5s, In-Memory Prefix Cache)"]
+            CronStatsJob["stats-aggregation: Rolling 10m & Daily Finalize 00:05"]
+            AlertEngine["qos-alert, pabx-offline: Alert Engine (QOS_ALERT, PABX_OFFLINE, Email)"]
+        end
+
+        subgraph Core["src/core - dùng chung, không có controller/gateway/job"]
+            ModAuth["Auth sessions, PermissionsGuard"]
+            ModOrg["Organizations, User Groups, Users, Admins"]
+            ModPhone["Phone Numbers & Prefix"]
+            ModCDR["CDR query & Audio Stream"]
+            ModStats["Stats, QoS, Traffic, Reports (Zero CDR Scan)"]
+            ModNotify["Notifications & Mailer"]
+            ModSettings["System Settings & Cache (cache_version)"]
         end
     end
 
@@ -85,25 +83,19 @@ flowchart TD
 
     BrowserAdmin --> WebGateway
     BrowserUser --> WebGateway
-    WebGateway -->|"/admin/*"| AdminApp
-    WebGateway -->|"/*"| MemberApp
-    WebGateway -->|"/api/v1/*, /socket.io/*"| APIGateway
+    WebGateway -->|"/* (trừ /api, /socket.io) - 1 bản build dist/"| VueRouter
+    VueRouter -->|"/admin/*"| AdminApp
+    VueRouter -->|"/*"| MemberApp
+    WebGateway -->|"/api/v1/admin/*"| AdminPart
+    WebGateway -->|"/api/v1/*"| MemberPart
+    WebGateway -->|"/socket.io/*"| Realtime
     AdminApp --> SharedPkg
     MemberApp --> SharedPkg
 
-    APIGateway --> AuthAdminGuard
-    APIGateway --> AuthUserGuard
-    AuthAdminGuard --> ModAuth
-    AuthUserGuard --> ModAuth
-
-    APIGateway --> ModCDR
-    APIGateway --> ModQoS
-    APIGateway --> ModTraffic
-    APIGateway --> ModReport
-    APIGateway --> ModPhone
-    APIGateway --> ModOrg
-    APIGateway --> ModNotify
-    APIGateway --> ModSettings
+    AdminPart --> Core
+    MemberPart --> Core
+    Realtime --> ModNotify
+    WorkerProcess --> Core
 
     PABX -.->|Ghi CDR gốc trực tiếp| TableCDR
     PABX -.->|Sync Audio| FileServer
@@ -119,14 +111,12 @@ flowchart TD
 
     AlertEngine -->|Ghi notifications + recipients| AppDB
     AlertEngine -->|Email CRITICAL| MailServer
-    ModNotify -->|"Đọc notifications mới - Watermark ID, push notification:new"| AppDB
+    Realtime -->|"Đọc notifications mới - Watermark ID, push notification:new"| AppDB
 
     ModCDR -->|Truy vấn theo nhóm| TableCDREnriched
     ModCDR --> FileServer
-    ModQoS --> TableStatsDaily
-    ModTraffic --> TableStatsDaily
-    ModReport -->|Zero CDR Scan - chỉ đọc thống kê| TableStatsDaily
-    ModReport -->|Dashboard hôm nay| TableStatsHourly
+    ModStats -->|Zero CDR Scan - chỉ đọc thống kê| TableStatsDaily
+    ModStats -->|Dashboard hôm nay| TableStatsHourly
     ModNotify --> MailServer
 ```
 
@@ -135,12 +125,18 @@ flowchart TD
 - **Framework**: NestJS (Typescript, Express engine).
 - **ORM / Database Access**: TypeORM và tối ưu hóa câu query raw và upsert trên bảng thống kê.
 - **Authentication**: Passport-JWT, `bcrypt` băm mật khẩu, hệ thống Guard kép tách biệt cho Admin và User.
-- **Mô hình tiến trình (1 codebase, 2 tiến trình)**: cùng một project `backend/`, build một lần, chạy bằng 2 entry point:
-  - **`backend-api`** (`src/main.ts`, `AppModule`): phục vụ REST API của **cả hai cổng** (Admin `/api/v1/admin/*`, Member `/api/v1/*`) và Socket.IO. Không chạy job định kỳ nào ngoài bộ đọc thông báo mới (bên dưới). Có thể chạy nhiều instance sau Nginx.
-  - **`backend-worker`** (`src/main.worker.ts`, `WorkerModule`, khởi động bằng `NestFactory.createApplicationContext`, không mở cổng HTTP): chạy toàn bộ tác vụ nền: Direct Batch Scheduler làm giàu CDR, job tổng hợp `stats_*`, Alert Engine (`QOS_ALERT`, `PABX_OFFLINE`, gửi email). **Luôn chạy đúng 1 instance**.
-  - **Không tách backend Admin và Member**: hai cổng dùng chung DB, entity, service nghiệp vụ, `PermissionsGuard`; khác biệt chỉ ở route prefix, guard JWT và phạm vi dữ liệu, xử lý bằng controller/guard trong cùng tiến trình API.
-  - **Lý do tách worker**: scale API nhiều instance không làm job chạy trùng; job enrich/tổng hợp nặng không chiếm event loop của API; deploy, restart API không làm gián đoạn việc làm giàu CDR và ngược lại.
-- **Background Tasks & Pre-aggregation Engine**: `@nestjs/schedule` (`ScheduleModule.forRoot()`) **chỉ được import trong `WorkerModule`**, thực thi các Cron Job định kỳ (mỗi 10 phút tính lại `stats_hourly`/`stats_daily` cho 3 giờ gần nhất; chốt sổ ngày lúc 00:05). Các lớp `*.scheduler.ts` / `*.job.ts` không khai báo trong `providers` của feature module mà chỉ đăng ký ở `WorkerModule`; feature module chỉ export service. Không cần dựng Redis hay hàng đợi BullMQ.
+- **Mô hình ứng dụng (1 ứng dụng, 3 phần, 2 tiến trình)**: một project `backend/`, build một lần. Mã nguồn chia thành 3 phần độc lập như 3 ứng dụng, cùng dựa trên phần lõi dùng chung (cây thư mục tại mục 5.1):
+  - **Phần Quản trị** (`src/apps/admin`, `AdminAppModule`): mọi controller của API `/api/v1/admin/*`, `AdminAuthGuard` + JWT strategy ký bằng `JWT_ADMIN_SECRET`. Phạm vi dữ liệu toàn hệ thống, có bộ lọc theo nhóm.
+  - **Phần Thành viên** (`src/apps/member`, `MemberAppModule`): mọi controller của API `/api/v1/*` (trừ `/api/v1/admin`), `UserAuthGuard` + JWT strategy ký bằng `JWT_USER_SECRET`, áp phạm vi nhóm của người dùng đăng nhập (mục 2.4).
+  - **Phần Chạy ngầm** (`src/apps/worker`, `WorkerAppModule`): Direct Batch Scheduler làm giàu CDR, job tổng hợp `stats_*`, Alert Engine (`QOS_ALERT`, `PABX_OFFLINE`, gửi email), job bảo trì partition và dọn phiên đăng nhập. Không có controller.
+  - **Phần lõi** (`src/core`): entity, migration, seed, service nghiệp vụ, `PermissionsGuard`, cache, mailer, tiện ích chung. Không chứa controller, gateway hay job.
+  - **Socket.IO** (`src/realtime`): `NotificationsGateway` + `NotificationPushPoller`, phục vụ cả hai cổng, chỉ `AppModule` import.
+  - **Hai tiến trình chạy từ cùng bản build**:
+    - **`backend-api`** (`src/main.ts`, `AppModule` = `AdminAppModule` + `MemberAppModule` + `RealtimeModule`): phục vụ REST API của cả hai cổng và Socket.IO. Không chạy job định kỳ nào ngoài bộ đọc thông báo mới (bên dưới). Có thể chạy nhiều instance sau Nginx.
+    - **`backend-worker`** (`src/main.worker.ts`, `WorkerAppModule`, khởi động bằng `NestFactory.createApplicationContext`, không mở cổng HTTP): chạy phần Chạy ngầm. **Luôn chạy đúng 1 instance**.
+  - **Ranh giới mã**: `apps/admin`, `apps/member`, `apps/worker` **không import lẫn nhau**; logic dùng chung đặt vào `core`. `core` không import `apps/*` hay `realtime`. Hai cổng khác nhau ở controller, DTO, guard JWT và phạm vi dữ liệu; nghiệp vụ (truy vấn CDR, thống kê, cấp phát số…) viết một lần trong service của `core`, nhận phạm vi dữ liệu làm tham số. Quy tắc được ép bằng ESLint (mục 5.1).
+  - **Lý do tách worker thành tiến trình riêng**: scale API nhiều instance không làm job chạy trùng; job enrich/tổng hợp nặng không chiếm event loop của API; deploy, restart API không làm gián đoạn việc làm giàu CDR và ngược lại.
+- **Background Tasks & Pre-aggregation Engine**: `@nestjs/schedule` (`ScheduleModule.forRoot()`) **chỉ được import trong `WorkerAppModule`**, thực thi các Cron Job định kỳ (mỗi 10 phút tính lại `stats_hourly`/`stats_daily` cho 3 giờ gần nhất; chốt sổ ngày lúc 00:05). Mọi lớp `*.scheduler.ts` / `*.job.ts` nằm trong `src/apps/worker/`; chúng gọi service của `core` để làm việc. Không cần dựng Redis hay hàng đợi BullMQ.
 - **Đồng bộ cache giữa các tiến trình**: cache sở hữu số (`NumberOwnershipCacheService`) và cache `system_settings` nằm trong bộ nhớ của **từng** tiến trình. Mọi thao tác làm đổi dữ liệu này (cấp phát/thu hồi dải số, sửa nhóm sở hữu, lưu `system_settings`, `POST /api/v1/admin/settings/reload-cache`) tăng `cdr_enrichment_state.cache_version` trong cùng transaction. Worker đọc `cache_version` ở đầu mỗi chu kỳ làm giàu, mỗi instance API đọc mỗi 5 giây; giá trị khác với bản đang giữ thì nạp lại cache.
 - **File Streaming**: Hỗ trợ HTTP Range Requests (`206 Partial Content`) để người dùng có thể tua âm thanh nghe ghi âm tức thì mà không cần load toàn bộ file.
 - **Exporting**: `exceljs` để xuất báo cáo Excel định dạng chuẩn EVN, `pdfmake` hoặc `puppeteer` để xuất báo cáo PDF (trích xuất tức thì từ `stats_daily`, thời gian phản hồi $< 1\text{s}$).
@@ -148,12 +144,12 @@ flowchart TD
 
 ### 2.2. Frontend: Vue.js 3
 
-- **Ứng dụng**: **2 ứng dụng Vue riêng biệt**, build và triển khai độc lập, đặt trong một monorepo pnpm workspace (`frontend/`): **Admin App** (`apps/admin`, Cổng Quản trị hệ thống) và **Member App** (`apps/member`, Cổng Người dùng đơn vị). Hai app **chung một hệ thống route**: cùng một domain, phân tách bằng prefix URL (`/admin/*` → Admin App, `/*` → Member App, `/api/v1/*` → NestJS). Mã dùng chung đặt trong `packages/shared`. Quy tắc chi tiết tại mục 5.3.
+- **Ứng dụng**: **1 ứng dụng Vue** (`frontend/`, một `package.json`, một bản build, một router), mã nguồn chia thành 2 khu vực độc lập như 2 ứng dụng: **khu vực Quản trị** (`src/apps/admin`, Cổng Quản trị hệ thống, URL `/admin/*`) và **khu vực Thành viên** (`src/apps/member`, Cổng Người dùng đơn vị, URL `/*`). Mã dùng chung đặt trong `src/shared`. Hai khu vực không import lẫn nhau. Quy tắc chi tiết tại mục 5.2 và 5.3.
 - **Framework**: Vue 3 (Composition API với `<script setup lang="ts">`).
-- **Build Tool**: Vite cho tốc độ bundle và hot-reload tối ưu (mỗi app một `vite.config.ts`).
+- **Build Tool**: Vite (một `vite.config.ts`); view của mỗi khu vực được lazy-load nên tách thành chunk riêng, người dùng Member không tải mã Admin.
 - **UI Architecture**: Xây dựng theo bộ giao diện HTML/CSS chuẩn trong thư mục `templates/`, đảm bảo nhận diện thương hiệu EVN (màu xanh dương EVN `#0033A0`, cam `#EA580C`, layout hiện đại, hỗ trợ Dark Mode / Light Mode).
-- **State Management**: Pinia (Modules: `cdr`, `qos`, `organization`, `notifications`, `settings`). Store xác thực tách theo app: `authAdmin` chỉ có trong Admin App, `authUser` chỉ có trong Member App.
-- **Routing**: Vue Router 4, **mỗi app một router riêng** (Admin: `createWebHistory('/admin/')`; Member: `createWebHistory('/')`), lazy-load view và Navigation Guards kiểm tra Permissions dựng từ helper chung trong `packages/shared/router`.
+- **State Management**: Pinia (Modules: `cdr`, `qos`, `organization`, `notifications`, `settings`). Store xác thực tách theo khu vực: `authAdmin` đặt trong `src/apps/admin/stores`, `authUser` đặt trong `src/apps/member/stores`.
+- **Routing**: Vue Router 4, **một router** (`createWebHistory('/')`) gộp danh sách route của 2 khu vực; mỗi route khai báo `meta.portal` (`'admin'` | `'member'`). Navigation Guard chung chọn guard của đúng cổng theo `meta.portal`; guard từng cổng dựng từ helper `src/shared/router/createAuthGuard.ts`.
 - **Data Visualization**: `chart.js` & `vue-chartjs` để biểu diễn biểu đồ thống kê cuộc gọi, QoS MOS, Packet Loss theo thời gian.
 - **Audio Control**: HTML5 Custom Audio Player với thanh sóng âm thanh và điều khiển tua nhanh, phát file Mix của từng leg (chọn leg A/B trong modal chi tiết).
 
@@ -173,7 +169,7 @@ flowchart TD
                                           │
                                (Batch Polling 3-5s)
                                           ▼
-                [Direct Batch Scheduler (NestJS, tiến trình backend-worker)]
+        [Direct Batch Scheduler (src/apps/worker, tiến trình backend-worker)]
                                           │
                      ┌────────────────────┴────────────────────┐
                      ▼                                         ▼
@@ -238,7 +234,8 @@ Hệ thống thiết kế theo cơ chế **Hai cổng đăng nhập độc lập
 |        1. QUẢN TRỊ VIÊN HỆ THỐNG        |          2. NGƯỜI DÙNG ĐƠN VỊ           |
 |            (ADMIN PORTAL)               |              (USER PORTAL)              |
 +-----------------------------------------+-----------------------------------------+
-| - Ứng dụng: `frontend/apps/admin`       | - Ứng dụng: `frontend/apps/member`      |
+| - FE: `frontend/src/apps/admin`         | - FE: `frontend/src/apps/member`        |
+| - BE: `backend/src/apps/admin`          | - BE: `backend/src/apps/member`         |
 | - URL giao diện: /admin/*               | - URL giao diện: /* (trừ /admin, /api)  |
 | - Bảng dữ liệu: `admins`                | - Bảng dữ liệu: `users`                 |
 | - Đăng nhập: /api/v1/admin/auth/login   | - Đăng nhập: /api/v1/auth/login         |
@@ -296,47 +293,125 @@ sequenceDiagram
 
 ## 5. Quy chuẩn cấu trúc thư mục mã nguồn (Source Code Directory Standards)
 
-### 5.1. Backend (`backend/`)
+### 5.1. Backend (`backend/`) – 1 ứng dụng, 3 phần
+
+Một project NestJS, một `package.json`, một bản build. Thư mục `src/apps/` chứa 3 phần độc lập như 3 ứng dụng; `src/core/` là phần lõi dùng chung.
 
 ```
 backend/
 ├── src/
 │   ├── main.ts                    <-- Entry backend-api: NestFactory.create(AppModule), HTTP + Socket.IO
-│   ├── main.worker.ts             <-- Entry backend-worker: NestFactory.createApplicationContext(WorkerModule), không mở HTTP
-│   ├── app.module.ts              <-- Controller + gateway của cả 2 cổng; KHÔNG import ScheduleModule
-│   ├── worker.module.ts           <-- ScheduleModule.forRoot() + đăng ký mọi *.scheduler.ts / *.job.ts; không có controller
-│   ├── common/                    <-- Tiện ích chung, decorators, interceptors, filters
-│   │   ├── constants/
-│   │   ├── decorators/            <-- @CurrentUser(), @CurrentAdmin(), @RequirePermissions()
-│   │   ├── filters/               <-- AllExceptionsFilter (chuẩn hóa lỗi HTTP)
-│   │   ├── guards/                <-- AdminAuthGuard, UserAuthGuard, PermissionsGuard
-│   │   ├── interceptors/          <-- TransformResponseInterceptor, AuditLogInterceptor
-│   │   └── pipes/                 <-- ValidationPipe
-│   ├── config/                    <-- Cấu hình database, jwt (ngưỡng QoS và SMTP đọc từ DB, không đặt ở đây)
-│   ├── database/
-│   │   ├── database.module.ts
-│   │   ├── migrations/
-│   │   └── seeds/                 <-- Root admin, vai trò mặc định, cây tổ chức EVN
-│   └── modules/                   <-- Các module tính năng chuyên biệt
-│       ├── admin-auth/            <-- Đăng nhập & quản lý Admin
-│       ├── admin-profile/         <-- Hồ sơ cá nhân của Admin
-│       ├── user-auth/             <-- Đăng nhập & quản lý User
-│       ├── user-profile/          <-- Hồ sơ cá nhân của User
-│       ├── user-groups/           <-- Nhóm người dùng (Tổ chức quản lý người dùng)
-│       ├── organizations/         <-- Cây tổ chức EVN (Tham chiếu cho Nhóm người dùng)
-│       ├── phone-numbers/         <-- Quản lý đầu số & dải số
-│       ├── cdr/                   <-- Tra cứu CDR, phát stream audio; cdr-enrichment.scheduler.ts (chỉ chạy ở worker)
-│       ├── stats/                 <-- stats-aggregation.job.ts (10 phút, 00:05) + qos-alert.service.ts (chỉ chạy ở worker)
-│       ├── qos/                   <-- Phân tích chất lượng thoại, MOS, Jitter, SIP code
-│       ├── traffic/               <-- Thống kê lưu lượng, phân loại hướng gọi & thời lượng
-│       ├── reports/               <-- Xuất báo cáo Excel, PDF
-│       ├── notifications/         <-- In-app notification, WebSocket gateway + NotificationPushPoller (API), Mailer
-│       ├── permissions/           <-- Vai trò & quyền (seed cố định), PermissionsGuard
-│       ├── system-settings/       <-- Cài đặt hệ thống PABX, retention
-│       └── dashboard/             <-- API tổng hợp số liệu Dashboard
+│   ├── main.worker.ts             <-- Entry backend-worker: NestFactory.createApplicationContext(WorkerAppModule), không mở HTTP
+│   ├── app.module.ts              <-- AppModule = CoreModule + AdminAppModule + MemberAppModule + RealtimeModule; KHÔNG import ScheduleModule
+│   │
+│   ├── apps/
+│   │   ├── admin/                 <-- PHẦN QUẢN TRỊ: API /api/v1/admin/*
+│   │   │   ├── admin-app.module.ts    <-- RouterModule.register([{ path: 'admin', module: AdminAppModule }]), import các module con bên dưới
+│   │   │   ├── auth/              <-- admin-auth.controller.ts, AdminJwtStrategy (JWT_ADMIN_SECRET), AdminAuthGuard, @CurrentAdmin()
+│   │   │   ├── profile/           <-- admin-profile.controller.ts (/admin/profile*)
+│   │   │   ├── admins/            <-- admins.controller.ts (/admin/admins*, quyền admin:manage)
+│   │   │   ├── users/             <-- users.controller.ts (/admin/users*)
+│   │   │   ├── roles/             <-- roles.controller.ts (/admin/roles)
+│   │   │   ├── organizations/     <-- organizations.controller.ts
+│   │   │   ├── user-groups/       <-- user-groups.controller.ts
+│   │   │   ├── phone-numbers/     <-- prefixes.controller.ts, prefix-groups.controller.ts, phone-numbers.controller.ts
+│   │   │   ├── cdr/               <-- cdr.controller.ts (bản Admin: groupId, includeArchive)
+│   │   │   ├── qos/               <-- qos.controller.ts, qos-thresholds.controller.ts
+│   │   │   ├── traffic/           <-- traffic.controller.ts
+│   │   │   ├── reports/           <-- reports.controller.ts
+│   │   │   ├── dashboard/         <-- dashboard.controller.ts
+│   │   │   ├── stats/             <-- stats.controller.ts (/admin/stats/recalculate)
+│   │   │   ├── notifications/     <-- notifications.controller.ts (soạn thông báo)
+│   │   │   ├── settings/          <-- system-settings.controller.ts (/admin/settings*)
+│   │   │   └── audit-logs/        <-- audit-logs.controller.ts
+│   │   │
+│   │   ├── member/                <-- PHẦN THÀNH VIÊN: API /api/v1/* (không có tiền tố /admin)
+│   │   │   ├── member-app.module.ts
+│   │   │   ├── auth/              <-- user-auth.controller.ts, UserJwtStrategy (JWT_USER_SECRET), UserAuthGuard, @CurrentUser()
+│   │   │   ├── scope/             <-- GroupScopeInterceptor / @GroupScope(): lấy user_group_id của người dùng làm phạm vi dữ liệu
+│   │   │   ├── profile/           <-- user-profile.controller.ts (/profile*)
+│   │   │   ├── users/             <-- users.controller.ts (/users*, Quản trị viên nhóm quản lý thành viên)
+│   │   │   ├── user-groups/       <-- user-groups.controller.ts (/user-groups/me*, /user-groups/tree)
+│   │   │   ├── organizations/     <-- organizations.controller.ts (chỉ đọc)
+│   │   │   ├── phone-numbers/     <-- prefixes.controller.ts, phone-numbers.controller.ts (chỉ đọc, theo nhóm)
+│   │   │   ├── cdr/               <-- cdr.controller.ts (bản User: luôn cô lập nhóm; stream/download ghi âm)
+│   │   │   ├── qos/               <-- qos.controller.ts
+│   │   │   ├── traffic/           <-- traffic.controller.ts
+│   │   │   ├── reports/           <-- reports.controller.ts
+│   │   │   ├── dashboard/         <-- dashboard.controller.ts
+│   │   │   └── notifications/     <-- notifications.controller.ts
+│   │   │
+│   │   └── worker/                <-- PHẦN CHẠY NGẦM: không có controller
+│   │       ├── worker-app.module.ts   <-- CoreModule + ScheduleModule.forRoot() + các module con bên dưới
+│   │       ├── cdr-enrichment/    <-- cdr-enrichment.scheduler.ts (polling 3-5s, watermark, cache_version)
+│   │       ├── stats-aggregation/ <-- stats-aggregation.job.ts (*/10 phút, chốt sổ 00:05, stats_recompute_queue)
+│   │       ├── qos-alert/         <-- qos-alert.job.ts (đánh giá khung giờ vừa kết thúc, gọi sau stats-aggregation)
+│   │       ├── pabx-offline/      <-- pabx-offline.job.ts (PABX_OFFLINE / PABX_RECOVERED)
+│   │       ├── partition-maintenance/ <-- partition-maintenance.job.ts (khi khởi động + ngày 1 hằng tháng)
+│   │       └── session-cleanup/   <-- session-cleanup.job.ts (xóa auth_sessions hết hạn > 30 ngày)
+│   │
+│   ├── realtime/                  <-- Socket.IO cho cả 2 cổng, chỉ AppModule import
+│   │   ├── realtime.module.ts
+│   │   ├── admin-notifications.gateway.ts   <-- namespace /admin/notifications (JWT_ADMIN_SECRET)
+│   │   ├── user-notifications.gateway.ts    <-- namespace /notifications (JWT_USER_SECRET)
+│   │   └── notification-push.poller.ts      <-- đọc notifications mới (watermark id) mỗi 3 giây, phát notification:new
+│   │
+│   └── core/                      <-- PHẦN LÕI DÙNG CHUNG: KHÔNG có controller, gateway, scheduler/job
+│       ├── core.module.ts         <-- @Global: ConfigModule, DatabaseModule, các module domain bên dưới
+│       ├── common/
+│       │   ├── constants/
+│       │   ├── decorators/        <-- @RequirePermissions()
+│       │   ├── filters/           <-- AllExceptionsFilter (chuẩn hóa lỗi HTTP)
+│       │   ├── interceptors/      <-- TransformResponseInterceptor, AuditLogInterceptor
+│       │   └── pipes/             <-- ValidationPipe
+│       ├── config/                <-- Cấu hình database, jwt (ngưỡng QoS và SMTP đọc từ DB, không đặt ở đây)
+│       ├── database/
+│       │   ├── database.module.ts
+│       │   ├── migrations/
+│       │   └── seeds/             <-- Root admin, vai trò & quyền, cây tổ chức EVN, system_settings
+│       ├── auth/                  <-- AuthSessionsService (auth_sessions, refresh token xoay vòng), PasswordService (bcrypt),
+│       │                              UserJwtService / AdminJwtService (ký + xác minh JWT 2 secret; strategy và guard nằm ở apps/*)
+│       ├── permissions/           <-- entity roles/permissions, PermissionsService, PermissionsGuard
+│       ├── admins/                <-- entity + AdminsService
+│       ├── users/                 <-- entity + UsersService
+│       ├── user-groups/           <-- entity + UserGroupsService
+│       ├── organizations/         <-- entity + OrganizationsService
+│       ├── phone-numbers/         <-- entity + PrefixesService, PhoneNumbersService (cấp phát/thu hồi, tăng cache_version)
+│       ├── cdr/                   <-- entity cdr/cdr_enriched/cdr_enrichment_state, CdrQueryService, AudioStreamService, CdrEnrichmentService
+│       ├── stats/                 <-- entity stats_*, StatsAggregationService, StatsReadService
+│       ├── qos/                   <-- QosService, QosThresholdsService, QosAlertService
+│       ├── traffic/               <-- TrafficService
+│       ├── reports/               <-- ReportsService, ExcelExporter, PdfExporter
+│       ├── dashboard/             <-- DashboardService
+│       ├── notifications/         <-- entity + NotificationsService, MailerService
+│       ├── system-settings/       <-- entity + SystemSettingsService (cache trong bộ nhớ)
+│       ├── cache/                 <-- NumberOwnershipCacheService, CacheVersionWatcher (đọc cdr_enrichment_state.cache_version)
+│       └── audit/                 <-- entity audit_logs + AuditLogsService
+├── .eslintrc.cjs                  <-- ép ranh giới import giữa các phần (bên dưới)
 ├── package.json                   <-- scripts: start:api (node dist/main.js), start:worker (node dist/main.worker.js)
-├── tsconfig.json
+├── tsconfig.json                  <-- paths: @core/*, @apps/*, @realtime/*
 └── .env.example                   <-- Dùng chung cho cả 2 tiến trình
+```
+
+**Quy tắc phân tách mã backend:**
+
+1. Controller trong `apps/admin` khai báo path **không** có tiền tố `admin` (vd. `@Controller('cdr')`); `RouterModule` của `AdminAppModule` thêm tiền tố, prefix toàn cục `api/v1` đặt ở `main.ts`. Mỗi thư mục tính năng trong `apps/admin` / `apps/member` chỉ chứa controller, DTO đầu vào riêng của cổng (query/body) và module NestJS mỏng import service từ `core`. Không viết truy vấn DB hay nghiệp vụ trong `apps/*`.
+2. Route `USER + ADMIN` (`docs/02_api_contracts.md` mục 1.1) có 2 controller: `apps/member/<x>/` (cô lập nhóm) và `apps/admin/<x>/` (toàn hệ thống, thêm tham số Admin), cùng gọi một service trong `core/<x>/` và trả cùng DTO response đặt trong `core/<x>/dto/`. Phạm vi dữ liệu truyền vào service dưới dạng tham số `scope: { kind: 'SYSTEM', groupId?: number } | { kind: 'GROUP', groupId: number }`.
+3. `apps/worker` chỉ chứa lớp `*.scheduler.ts` / `*.job.ts` (lịch chạy, khóa `GET_LOCK`, log); phần tính toán nằm trong service của `core` để có thể gọi lại từ API (ví dụ `POST /admin/stats/recalculate` ghi `stats_recompute_queue`, không gọi trực tiếp job).
+4. Phụ thuộc cho phép: `apps/admin` → `core`; `apps/member` → `core`; `apps/worker` → `core`; `realtime` → `core`; `app.module.ts` → `apps/admin`, `apps/member`, `realtime`, `core`. Cấm mọi chiều khác. `@nestjs/schedule` chỉ được dùng trong `apps/worker`; vòng lặp ngắn chạy trong tiến trình API (`NotificationPushPoller` 3 giây, `CacheVersionWatcher` 5 giây) dùng `setInterval` trong `onModuleInit` và dừng ở `onModuleDestroy`. Cấu hình ESLint mẫu:
+
+```js
+// backend/.eslintrc.cjs (trích)
+const deny = (...groups) => ['error', { patterns: groups.map(g => ({ group: [g], message: 'Vi phạm ranh giới mã (docs/00 mục 5.1)' })) }];
+module.exports = {
+  overrides: [
+    { files: ['src/apps/admin/**'],  rules: { 'no-restricted-imports': deny('**/apps/member/**', '**/apps/worker/**', '**/realtime/**') } },
+    { files: ['src/apps/member/**'], rules: { 'no-restricted-imports': deny('**/apps/admin/**', '**/apps/worker/**', '**/realtime/**') } },
+    { files: ['src/apps/worker/**'], rules: { 'no-restricted-imports': deny('**/apps/admin/**', '**/apps/member/**', '**/realtime/**') } },
+    { files: ['src/realtime/**'],    rules: { 'no-restricted-imports': deny('**/apps/**') } },
+    { files: ['src/core/**'],        rules: { 'no-restricted-imports': deny('**/apps/**', '**/realtime/**', '@nestjs/schedule') } },
+  ],
+};
 ```
 
 **Triển khai 2 tiến trình** (cùng image/bản build, khác lệnh chạy):
@@ -350,102 +425,128 @@ backend/
 - Khi dev: `npm run start:dev` (API) và `npm run start:worker:dev` chạy song song trong 2 terminal.
 - Worker dừng thì API vẫn phục vụ bình thường; dữ liệu `cdr_enriched` và `stats_*` chỉ ngừng cập nhật. Trạng thái worker xem qua `cdr_enrichment_state.status` / `last_success_at`.
 
-### 5.2. Frontend (`frontend/`) – Monorepo 2 ứng dụng
+### 5.2. Frontend (`frontend/`) – 1 ứng dụng, 2 khu vực
 
-Frontend là **monorepo pnpm workspace** gồm 2 ứng dụng độc lập và 1 package dùng chung. `apps/admin` ánh xạ từ `templates/admin/`, `apps/member` ánh xạ từ `templates/member/`.
+Một ứng dụng Vue, một `package.json`, một bản build. Thư mục `src/apps/` chứa 2 khu vực độc lập như 2 ứng dụng; `src/shared/` là mã dùng chung. `src/apps/admin` ánh xạ từ `templates/admin/`, `src/apps/member` ánh xạ từ `templates/member/`.
 
 ```
 frontend/
-├── pnpm-workspace.yaml            <-- packages: ['apps/*', 'packages/*']
-├── package.json                   <-- scripts: dev:admin, dev:member, build (build cả 2 app)
-├── tsconfig.base.json
-├── packages/
-│   └── shared/                    <-- @evn-cdr/shared: mã dùng chung, KHÔNG chứa route/view cụ thể
-│       ├── api/
-│       │   ├── createClient.ts    <-- Factory Axios: nhận { baseURL, getAccessToken, refresh, onUnauthorized }
-│       │                          (Admin: baseURL /api/v1/admin, Member: baseURL /api/v1 – xem 02_api_contracts.md)
-│       │   ├── cdr.api.ts         <-- Hàm gọi API dùng chung, nhận client làm tham số
-│       │   ├── qos.api.ts
-│       │   ├── reports.api.ts
-│       │   └── notifications.api.ts
-│       ├── assets/                <-- CSS, fonts, SVG (logo_evn.svg)
-│       │   └── css/
-│       │       ├── style.css      <-- Biến CSS dùng chung, theme EVN
-│       │       └── dark-mode.css
-│       ├── components/
-│       │   ├── layout/            <-- AppShell.vue, Header.vue, Footer.vue, Sidebar.vue (nhận menu qua props)
-│       │   ├── audio/
-│       │   │   └── AudioPlayerModal.vue  <-- Trình nghe audio Mix theo leg
-│       │   ├── common/
-│       │   │   ├── Pagination.vue
-│       │   │   ├── TreeTable.vue
-│       │   │   ├── ConfirmDialog.vue
-│       │   │   └── ToastContainer.vue
-│       │   ├── charts/
-│       │   │   ├── LineChart.vue
-│       │   │   └── BarChart.vue
-│       │   └── cdr/               <-- CdrTable.vue, CdrDetailModal.vue, QosPanel.vue dùng cho cả 2 cổng
-│       ├── router/
-│       │   ├── createAuthGuard.ts <-- Guard factory: { useAuthStore, loginRouteName, getPermissions }
-│       │   └── types.ts           <-- Khai báo RouteMeta { requiresAuth, permissions?, title }
-│       └── stores/
-│           ├── theme.store.ts
-│           └── notification.store.ts
-└── apps/
-    ├── admin/                     <-- Admin App, phục vụ tại /admin/*
-    │   ├── index.html
-    │   ├── vite.config.ts         <-- base: '/admin/', outDir: '../../dist/admin'
-    │   ├── .env.example           <-- VITE_API_BASE=/api/v1/admin
-    │   └── src/
-    │       ├── main.ts
-    │       ├── App.vue
-    │       ├── api/client.ts      <-- createClient({ baseURL: '/api/v1/admin', getAccessToken, refresh, ... }) lấy từ authAdmin.store
-    │       ├── api/               <-- auth.api.ts (/auth → /api/v1/admin/auth), organization.api.ts, phone.api.ts, settings.api.ts...
-    │       ├── router/index.ts    <-- createWebHistory('/admin/'), route name tiền tố admin.*
-    │       ├── stores/authAdmin.store.ts
-    │       ├── menu.ts            <-- Cây menu sidebar Admin
+├── index.html
+├── vite.config.ts                 <-- base: '/', outDir: 'dist', server.proxy /api và /socket.io → backend; alias @shared, @admin, @member
+├── package.json                   <-- scripts: dev, build, lint, test
+├── tsconfig.json
+├── .eslintrc.cjs                  <-- ép ranh giới import giữa 2 khu vực (bên dưới)
+├── .env.example                   <-- VITE_API_ADMIN_BASE=/api/v1/admin, VITE_API_MEMBER_BASE=/api/v1
+└── src/
+    ├── main.ts                    <-- createApp(App), Pinia, router; không gọi refresh ở đây (guard từng cổng tự làm)
+    ├── App.vue                    <-- <component :is="layout"> theo route.meta.portal: AdminLayout | MemberLayout | AuthLayout
+    ├── router/
+    │   ├── index.ts               <-- createWebHistory('/'), routes = [...adminRoutes, ...memberRoutes]; beforeEach chuyển tới guard của cổng theo meta.portal
+    │   └── portal.ts              <-- getPortal(route): 'admin' | 'member'
+    │
+    ├── apps/
+    │   ├── admin/                 <-- KHU VỰC QUẢN TRỊ, URL /admin/*
+    │   │   ├── routes.ts          <-- { path: '/admin', children: [...] }, meta.portal = 'admin', route name tiền tố admin.*, view import động
+    │   │   ├── guard.ts           <-- createAuthGuard({ useAuthStore: useAuthAdminStore, loginRouteName: 'admin.login', ... })
+    │   │   ├── menu.ts            <-- Cây menu sidebar Admin
+    │   │   ├── layout/AdminLayout.vue   <-- AppShell + menu Admin + class .portal-admin (bảng màu Navy/Vàng)
+    │   │   ├── styles/admin.css   <-- biến màu riêng Admin, scope dưới .portal-admin
+    │   │   ├── api/client.ts      <-- createClient({ baseURL: '/api/v1/admin', getAccessToken, refresh, ... }) lấy từ authAdmin.store
+    │   │   ├── api/               <-- auth.api.ts, organization.api.ts, phone.api.ts, settings.api.ts...
+    │   │   ├── stores/authAdmin.store.ts
+    │   │   └── views/
+    │   │       ├── auth/AdminLoginView.vue
+    │   │       ├── dashboard/DashboardView.vue
+    │   │       ├── cdr/CdrHistoryView.vue, QosDebugView.vue
+    │   │       ├── reports/ReportsView.vue
+    │   │       ├── traffic/TrafficSummaryView.vue
+    │   │       ├── notifications/NotificationsView.vue
+    │   │       ├── organization/OrganizationView.vue, UserGroupView.vue,
+    │   │       │                PrefixManagementView.vue, PrefixHistoryView.vue
+    │   │       ├── users/UserListView.vue, RolesView.vue
+    │   │       ├── settings/SystemSettingsView.vue, AccountSettingsView.vue
+    │   │       │   └── sections/  AnalysisSection.vue, ReportingSection.vue, AdvancedSection.vue,
+    │   │       │                  QosThresholdsSection.vue, AdminAccountsSection.vue, AuditLogSection.vue
+    │   │       ├── profile/AdminProfileView.vue, ChangePasswordView.vue
+    │   │       └── errors/ForbiddenView.vue, NotFoundView.vue
+    │   │
+    │   └── member/                <-- KHU VỰC THÀNH VIÊN, URL /* (trừ /admin, /api, /socket.io)
+    │       ├── routes.ts          <-- path tuyệt đối không bắt đầu bằng /admin, meta.portal = 'member', route name tiền tố member.*
+    │       ├── guard.ts           <-- createAuthGuard({ useAuthStore: useAuthUserStore, loginRouteName: 'member.login', ... })
+    │       ├── menu.ts            <-- Cây menu sidebar Member
+    │       ├── layout/MemberLayout.vue
+    │       ├── api/client.ts      <-- createClient({ baseURL: '/api/v1', getAccessToken, refresh, ... }) lấy từ authUser.store
+    │       ├── api/               <-- auth.api.ts, group.api.ts, phone.api.ts...
+    │       ├── stores/authUser.store.ts
     │       └── views/
-    │           ├── auth/AdminLoginView.vue
+    │           ├── auth/LoginView.vue
     │           ├── dashboard/DashboardView.vue
     │           ├── cdr/CdrHistoryView.vue, QosDebugView.vue
     │           ├── reports/ReportsView.vue
     │           ├── traffic/TrafficSummaryView.vue
     │           ├── notifications/NotificationsView.vue
-    │           ├── organization/OrganizationView.vue, UserGroupView.vue,
-    │           │                PrefixManagementView.vue, PrefixHistoryView.vue
-    │           ├── users/UserListView.vue, RolesView.vue
-    │           ├── settings/SystemSettingsView.vue, AccountSettingsView.vue
-    │           │   └── sections/  AnalysisSection.vue, ReportingSection.vue, AdvancedSection.vue,
-    │           │                  QosThresholdsSection.vue, AdminAccountsSection.vue, AuditLogSection.vue
-    │           └── profile/AdminProfileView.vue, ChangePasswordView.vue
-    └── member/                    <-- Member App, phục vụ tại /* (trừ /admin, /api, /socket.io)
-        ├── index.html
-        ├── vite.config.ts         <-- base: '/', outDir: '../../dist/member'
-        ├── .env.example           <-- VITE_API_BASE=/api/v1
-        └── src/
-            ├── main.ts
-            ├── App.vue
-            ├── api/client.ts      <-- createClient({ baseURL: '/api/v1', getAccessToken, refresh, ... }) lấy từ authUser.store
-            ├── api/               <-- auth.api.ts (/auth → /api/v1/auth), group.api.ts, phone.api.ts...
-            ├── router/index.ts    <-- createWebHistory('/'), route name tiền tố member.*
-            ├── stores/authUser.store.ts
-            ├── menu.ts            <-- Cây menu sidebar Member
-            └── views/
-                ├── auth/LoginView.vue
-                ├── dashboard/DashboardView.vue
-                ├── cdr/CdrHistoryView.vue, QosDebugView.vue
-                ├── reports/ReportsView.vue
-                ├── traffic/TrafficSummaryView.vue
-                ├── notifications/NotificationsView.vue
-                ├── phone/OrgPrefixView.vue
-                ├── group/GroupAdminView.vue, GroupMembersView.vue
-                ├── settings/AccountSettingsView.vue
-                └── profile/UserProfileView.vue, ChangePasswordView.vue
+    │           ├── phone/OrgPrefixView.vue
+    │           ├── group/GroupAdminView.vue, GroupMembersView.vue
+    │           ├── settings/AccountSettingsView.vue
+    │           ├── profile/UserProfileView.vue, ChangePasswordView.vue
+    │           └── errors/ForbiddenView.vue, NotFoundView.vue
+    │
+    └── shared/                    <-- MÃ DÙNG CHUNG, KHÔNG chứa route/view cụ thể của cổng nào
+        ├── api/
+        │   ├── createClient.ts    <-- Factory Axios: nhận { baseURL, getAccessToken, refresh, onUnauthorized }
+        │   ├── cdr.api.ts         <-- Hàm gọi API dùng chung, nhận client làm tham số
+        │   ├── qos.api.ts
+        │   ├── reports.api.ts
+        │   └── notifications.api.ts
+        ├── assets/                <-- CSS, fonts, SVG (logo_evn.svg)
+        │   └── css/
+        │       ├── style.css      <-- Biến CSS dùng chung, theme EVN
+        │       └── dark-mode.css
+        ├── components/
+        │   ├── layout/            <-- AppShell.vue, Header.vue, Footer.vue, Sidebar.vue (nhận menu qua props), AuthLayout.vue
+        │   ├── audio/
+        │   │   └── AudioPlayerModal.vue  <-- Trình nghe audio Mix theo leg
+        │   ├── common/
+        │   │   ├── Pagination.vue
+        │   │   ├── TreeTable.vue
+        │   │   ├── ConfirmDialog.vue
+        │   │   └── ToastContainer.vue
+        │   ├── charts/
+        │   │   ├── LineChart.vue
+        │   │   └── BarChart.vue
+        │   └── cdr/               <-- CdrTable.vue, CdrDetailModal.vue, QosPanel.vue dùng cho cả 2 cổng
+        ├── router/
+        │   ├── createAuthGuard.ts <-- Guard factory: { useAuthStore, loginRouteName, forbiddenRouteName, getPermissions }
+        │   └── types.ts           <-- Khai báo RouteMeta { portal, requiresAuth, permissions?, title }
+        ├── realtime/
+        │   └── createSocket.ts    <-- Kết nối Socket.IO theo namespace + Access Token của cổng đang dùng
+        └── stores/
+            ├── theme.store.ts
+            └── notification.store.ts
 ```
 
-Màn hình có ở cả 2 cổng (Dashboard, CDR, QoS, Báo cáo, Thông báo, Hồ sơ) có **view riêng trong mỗi app** (khác phạm vi dữ liệu, bộ lọc nhóm, menu); phần giao diện giống nhau đặt ở `packages/shared/components`.
+Màn hình có ở cả 2 cổng (Dashboard, CDR, QoS, Báo cáo, Thông báo, Hồ sơ) có **view riêng trong mỗi khu vực** (khác phạm vi dữ liệu, bộ lọc nhóm, menu); phần giao diện giống nhau đặt ở `src/shared/components`.
 
-### 5.3. Định tuyến & triển khai 2 ứng dụng frontend (chung hệ thống route)
+**Quy tắc phân tách mã frontend:**
+
+1. `src/apps/admin` và `src/apps/member` **không import lẫn nhau** (kể cả kiểu TypeScript). Mã cần dùng ở cả hai chuyển vào `src/shared`. `src/shared` không import `src/apps/*`.
+2. Chỉ `src/router/index.ts` được import `apps/admin/routes.ts` và `apps/member/routes.ts`; chỉ `App.vue` được import 2 layout.
+3. Mọi view khai báo bằng `() => import(...)` để Vite tách chunk theo khu vực.
+4. Cấu hình ESLint mẫu:
+
+```js
+// frontend/.eslintrc.cjs (trích)
+const deny = (...groups) => ['error', { patterns: groups.map(g => ({ group: [g], message: 'Vi phạm ranh giới mã (docs/00 mục 5.2)' })) }];
+module.exports = {
+  overrides: [
+    { files: ['src/apps/admin/**'],  rules: { 'no-restricted-imports': deny('@member/*', '**/apps/member/**') } },
+    { files: ['src/apps/member/**'], rules: { 'no-restricted-imports': deny('@admin/*', '**/apps/admin/**') } },
+    { files: ['src/shared/**'],      rules: { 'no-restricted-imports': deny('@admin/*', '@member/*', '**/apps/**') } },
+  ],
+};
+```
+
+### 5.3. Định tuyến & triển khai frontend (1 ứng dụng, 2 cổng chung hệ thống route)
 
 #### 5.3.1. Bản đồ URL trên một domain
 
@@ -453,10 +554,10 @@ Toàn hệ thống chạy trên **một domain** (`https://cdr-pabx.evn.com.vn`)
 
 | Prefix URL | Đích | Ghi chú |
 | :--- | :--- | :--- |
-| `/api/v1/*` | NestJS `backend-api` | REST API cả 2 cổng (`/api/v1/admin/...` cho Admin) |
-| `/socket.io/*` | NestJS `backend-api` | WebSocket thông báo in-app |
-| `/admin`, `/admin/*` | `dist/admin` | Admin App; `/admin` redirect 301 sang `/admin/`; URL không khớp file tĩnh trả `/admin/index.html` |
-| `/*` (còn lại) | `dist/member` | Member App; URL không khớp file tĩnh trả `/index.html` |
+| `/api/v1/admin/*` | NestJS `backend-api`, phần `src/apps/admin` | REST API Cổng Quản trị |
+| `/api/v1/*` | NestJS `backend-api`, phần `src/apps/member` | REST API Cổng Thành viên |
+| `/socket.io/*` | NestJS `backend-api`, `src/realtime` | WebSocket thông báo in-app (namespace `/admin/notifications` và `/notifications`) |
+| `/*` (còn lại, gồm `/admin/*`) | `frontend/dist` | Một bản build; URL không khớp file tĩnh trả `/index.html`, router quyết định cổng |
 
 ```nginx
 server {
@@ -471,14 +572,8 @@ server {
         proxy_set_header Connection "upgrade";
     }
 
-    location = /admin { return 301 /admin/; }
-    location /admin/ {
-        alias /var/www/evn-cdr/dist/admin/;
-        try_files $uri $uri/ /admin/index.html;
-    }
-
     location / {
-        root /var/www/evn-cdr/dist/member;
+        root /var/www/evn-cdr/dist;
         try_files $uri $uri/ /index.html;
     }
 }
@@ -486,19 +581,22 @@ server {
 
 #### 5.3.2. Quy tắc route
 
-1. **Mỗi app một router**, không import route, view hay store xác thực của app kia. Dùng chung chỉ qua `packages/shared`.
-2. **Không trùng không gian URL**: mọi path của Member App không được bắt đầu bằng `/admin`, `/api`, `/socket.io`. Path trong router Admin khai báo **tương đối** với base `/admin/` (vd. `path: 'cdr'` → URL `/admin/cdr`).
+1. **Một router, hai nhóm route**: `src/router/index.ts` gộp `adminRoutes` (một route cha `path: '/admin'`, các route con khai báo **tương đối**, vd. `path: 'cdr'` → URL `/admin/cdr`) và `memberRoutes`. Mọi route có `meta.portal`; route con thừa kế từ route cha.
+2. **Không trùng không gian URL**: mọi path của khu vực Thành viên không được bắt đầu bằng `/admin`, `/api`, `/socket.io`. `/admin` (không có dấu `/` cuối) redirect về `admin.dashboard`.
 3. **Route name** có tiền tố cổng: `admin.cdr`, `member.cdr`... để log, breadcrumb và test không nhầm lẫn.
-4. **Chuyển cổng là điều hướng toàn trang**: liên kết "Cổng Người dùng" trên trang đăng nhập Admin là `<a href="/login">`, liên kết "Cổng Quản trị" trên trang đăng nhập Member là `<a href="/admin/login">`. Không dùng `router.push` sang app kia.
-5. **Phiên tách theo app** (chính sách token tại `docs/01_database_schema.md` mục 6.1):
-   - Access Token chỉ giữ trong bộ nhớ, trong store xác thực của chính app (`authAdmin` / `authUser`); **không** lưu `localStorage`/`sessionStorage`. Hai app cùng origin nhưng không đọc được token của nhau.
+4. **Chuyển cổng**: liên kết "Cổng Người dùng" trên trang đăng nhập Admin là `<RouterLink :to="{ name: 'member.login' }">`, liên kết "Cổng Quản trị" trên trang đăng nhập Member là `<RouterLink :to="{ name: 'admin.login' }">`. Chuyển cổng không làm mất phiên của cổng kia.
+5. **Phiên tách theo cổng** (chính sách token tại `docs/01_database_schema.md` mục 6.1):
+   - Access Token chỉ giữ trong bộ nhớ, trong store xác thực của chính cổng (`authAdmin` / `authUser`); **không** lưu `localStorage`/`sessionStorage`. Store và API client của cổng này không đọc token của cổng kia.
    - Refresh Token nằm trong cookie `HttpOnly` có `Path` riêng: `/api/v1/admin/auth` (Admin) và `/api/v1/auth` (Member). Trình duyệt chỉ gửi cookie tới endpoint refresh của đúng cổng, nên đăng nhập/đăng xuất một cổng không ảnh hưởng phiên của cổng kia.
-   - Khi khởi động hoặc tải lại trang, app gọi `POST <base>/auth/refresh` một lần trước khi chạy guard: thành công thì lưu Access Token mới vào store rồi gọi `GET <base>/auth/me`; thất bại thì coi là chưa đăng nhập. Token `PASSWORD_CHANGE_ONLY` không kèm Refresh Token, nên tải lại trang khi đang đổi mật khẩu bắt buộc sẽ phải đăng nhập lại.
-   - Admin App chỉ gọi `/api/v1/admin/*`; Member App chỉ gọi `/api/v1/*` không có tiền tố `/admin` (`docs/02_api_contracts.md`).
-6. **Guard**: route có `meta.requiresAuth = true` mặc định (trừ trang login). Store chưa có Access Token (sau bước refresh lúc khởi động) → về login của chính app; có token nhưng thiếu quyền trong `meta.permissions` → trang 403 của app. API trả `401` → client gọi refresh **một lần** (các request đồng thời chờ chung một lần refresh) rồi gửi lại request; refresh cũng lỗi → xóa phiên trong store và về login của app đó. Backend vẫn là chốt chặn cuối (guard JWT riêng, `PermissionsGuard`).
-7. **Route 404**: mỗi app có route `/:pathMatch(.*)*` hiển thị trang Không tìm thấy của chính app.
+   - Lần đầu điều hướng vào một cổng (kể cả khi tải lại trang), guard của cổng đó gọi `POST <base>/auth/refresh` một lần nếu store chưa có Access Token: thành công thì lưu Access Token mới vào store rồi gọi `GET <base>/auth/me`; thất bại thì coi là chưa đăng nhập. Token `PASSWORD_CHANGE_ONLY` không kèm Refresh Token, nên tải lại trang khi đang đổi mật khẩu bắt buộc sẽ phải đăng nhập lại.
+   - Khu vực Admin chỉ gọi `/api/v1/admin/*`; khu vực Member chỉ gọi `/api/v1/*` không có tiền tố `/admin` (`docs/02_api_contracts.md`).
+   - Socket.IO: mỗi cổng mở kết nối riêng tới namespace của mình bằng Access Token của cổng đó; rời cổng thì ngắt kết nối.
+6. **Guard**: `router.beforeEach` đọc `meta.portal` của route đích và gọi guard của cổng đó. Route có `meta.requiresAuth = true` mặc định (trừ trang login). Store chưa có Access Token (sau bước refresh) → về login của chính cổng; có token nhưng thiếu quyền trong `meta.permissions` → trang 403 của cổng. API trả `401` → client của cổng gọi refresh **một lần** (các request đồng thời chờ chung một lần refresh) rồi gửi lại request; refresh cũng lỗi → xóa phiên trong store và về login của cổng đó. Backend vẫn là chốt chặn cuối (guard JWT riêng, `PermissionsGuard`).
+7. **Route 404**: `/admin/:pathMatch(.*)*` → `admin.not-found`; `/:pathMatch(.*)*` → `member.not-found`. Mỗi cổng hiển thị trang Không tìm thấy trong layout của mình.
 
-#### 5.3.3. Bảng route Admin App (base `/admin/`)
+#### 5.3.3. Bảng route khu vực Quản trị (`src/apps/admin/routes.ts`, tiền tố `/admin`)
+
+Cột View là component trong `src/apps/admin/views/`; Template nguồn trong `templates/admin/`.
 
 | URL | Route name | View | Template nguồn | `meta.permissions` |
 | :--- | :--- | :--- | :--- | :--- |
@@ -538,7 +636,9 @@ server {
 | `admin.users` | Nút "Thu hồi phiên đăng nhập" của người dùng | `user:edit` | `DELETE /admin/users/:id/sessions` |
 | `admin.profile` | Phiên đăng nhập của tôi, hoạt động gần đây | — | `/admin/auth/sessions*`, `/admin/profile/recent-activity` |
 
-#### 5.3.4. Bảng route Member App (base `/`)
+#### 5.3.4. Bảng route khu vực Thành viên (`src/apps/member/routes.ts`)
+
+Cột View là component trong `src/apps/member/views/`; Template nguồn trong `templates/member/`.
 
 | URL | Route name | View | Template nguồn | `meta.permissions` |
 | :--- | :--- | :--- | :--- | :--- |
@@ -556,14 +656,13 @@ server {
 | `/change-password` | `member.change-password` | `ChangePasswordView` | `change-password.html` | — |
 | `/account-settings` | `member.account-settings` | `AccountSettingsView` | `user-settings.html` | — |
 
-`—` nghĩa là chỉ cần đăng nhập. Mã quyền theo `docs/modules/10_permissions_and_roles.md`; menu sidebar ẩn mục khi tài khoản thiếu quyền tương ứng. Với Member App, quyền ghi âm còn phụ thuộc Tầng 1 `allow_recording_access` của nhóm (mục 2.4).
+`—` nghĩa là chỉ cần đăng nhập. Mã quyền theo `docs/modules/10_permissions_and_roles.md`; menu sidebar ẩn mục khi tài khoản thiếu quyền tương ứng. Với khu vực Thành viên, quyền ghi âm còn phụ thuộc Tầng 1 `allow_recording_access` của nhóm (mục 2.4).
 
 #### 5.3.5. Môi trường phát triển
 
-- `pnpm dev:member` chạy Member App tại `http://localhost:5173`; `pnpm dev:admin` chạy Admin App tại `http://localhost:5174/admin/`.
-- `apps/member/vite.config.ts` cấu hình `server.proxy`: `/admin` → `http://localhost:5174` (kèm `ws: true` cho HMR), `/api` và `/socket.io` → backend `http://localhost:3000`. Nhờ đó khi dev chỉ cần mở `http://localhost:5173` và 2 app chạy cùng origin giống production.
-- `apps/admin/vite.config.ts` cũng proxy `/api`, `/socket.io` về backend để chạy độc lập được.
-- `pnpm build` build cả 2 app ra `frontend/dist/admin` và `frontend/dist/member`; hai thư mục triển khai độc lập (có thể cập nhật một app mà không build lại app kia).
+- `npm run dev` chạy cả ứng dụng tại `http://localhost:5173`: Member ở `/`, Admin ở `/admin/`.
+- `vite.config.ts` cấu hình `server.proxy`: `/api` và `/socket.io` (kèm `ws: true`) → backend `http://localhost:3000`. Khi dev, frontend và API cùng origin giống production.
+- `npm run build` ra một thư mục `frontend/dist`; chunk của mỗi khu vực tách riêng nhờ lazy-load. Mọi thay đổi frontend triển khai bằng cách thay toàn bộ `dist`.
 
 ---
 
@@ -577,5 +676,8 @@ Khi thực hiện sinh code cho từng thành phần, Agent bắt buộc phải 
    - Luôn kiểm tra quyền truy cập vào file ghi âm: chỉ thuê bao có thẩm quyền đối với đầu số trong CDR mới được phép stream hoặc download file.
    - Ghi lại đầy đủ `audit_logs` khi có hành vi nghe lại hoặc tải file ghi âm.
 3. **Hiệu năng cao**: Mọi thao tác truy vấn CDR đều phải có điều kiện lọc theo mốc thời gian (`Created` / `fromDate`, `toDate`, tối đa 31 ngày) để tận dụng Partitioning và Index của MariaDB.
-4. **Tách biệt 2 ứng dụng frontend**: Mã Cổng Quản trị đặt trong `frontend/apps/admin`, mã Cổng Người dùng đặt trong `frontend/apps/member`. Không import chéo giữa 2 app; mã dùng chung đặt trong `frontend/packages/shared`. Route và URL tuân theo mục 5.3.
-5. **Tính nhất quán giao diện**: Kế thừa **bảng màu, class CSS, icon và bố cục** từ `templates/admin/` (cho `apps/admin`) và `templates/member/` (cho `apps/member`). **Không** kế thừa mock data, tên trường, enum, mã quyền hay luồng nghiệp vụ trong JS của templates: khi templates mâu thuẫn với `docs/`, `docs/` luôn là chuẩn (danh sách điểm lệch đã biết ở `docs/intent/docs-readiness-for-codegen.md`).
+4. **Ranh giới mã (1 ứng dụng, nhiều phần)**:
+   - Frontend: Cổng Quản trị đặt trong `frontend/src/apps/admin`, Cổng Người dùng trong `frontend/src/apps/member`, mã dùng chung trong `frontend/src/shared`; hai khu vực không import lẫn nhau (mục 5.2). Route và URL tuân theo mục 5.3.
+   - Backend: controller Admin đặt trong `backend/src/apps/admin`, controller Member trong `backend/src/apps/member`, job nền trong `backend/src/apps/worker`, nghiệp vụ và entity trong `backend/src/core`; ba phần `apps/*` không import lẫn nhau (mục 5.1).
+   - Không tắt hay nới quy tắc ESLint `no-restricted-imports` để vượt ranh giới; nếu cần dùng chung thì chuyển mã vào `core` / `shared`.
+5. **Tính nhất quán giao diện**: Kế thừa **bảng màu, class CSS, icon và bố cục** từ `templates/admin/` (cho `src/apps/admin`) và `templates/member/` (cho `src/apps/member`). **Không** kế thừa mock data, tên trường, enum, mã quyền hay luồng nghiệp vụ trong JS của templates: khi templates mâu thuẫn với `docs/`, `docs/` luôn là chuẩn (danh sách điểm lệch đã biết ở `docs/intent/docs-readiness-for-codegen.md`).

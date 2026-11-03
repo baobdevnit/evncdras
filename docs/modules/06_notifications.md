@@ -75,21 +75,33 @@ Bảng MariaDB: `notifications` và `notification_recipients` (Mô tả chi ti�
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/notifications/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-notifications/
-├── notifications.module.ts
-├── notifications.controller.ts
-├── notifications.service.ts
-├── notifications.gateway.ts        <-- WebSocket Gateway (Socket.IO), chỉ chạy ở backend-api
-├── notification-push.poller.ts     <-- Đọc notifications mới (watermark id) rồi gọi gateway; chỉ chạy ở backend-api
-├── mailer/
-│   ├── mailer.service.ts           <-- Gửi Email qua Nodemailer
-│   └── templates/                  <-- Handlebars HTML template email
-└── entities/
-    ├── notification.entity.ts
-    └── notification-recipient.entity.ts
+backend/src/
+├── core/notifications/
+│   ├── notifications.module.ts
+│   ├── notifications.service.ts        <-- tạo thông báo + notification_recipients (dedupe_key), đánh dấu đã đọc
+│   ├── mailer/
+│   │   ├── mailer.service.ts           <-- Gửi Email qua Nodemailer (SMTP đọc từ system_settings)
+│   │   └── templates/                  <-- Handlebars HTML template email
+│   └── entities/
+│       ├── notification.entity.ts
+│       └── notification-recipient.entity.ts
+├── apps/admin/notifications/
+│   ├── admin-notifications.module.ts
+│   └── notifications.controller.ts     <-- /api/v1/admin/notifications* (đọc + POST soạn thông báo)
+├── apps/member/notifications/
+│   ├── member-notifications.module.ts
+│   └── notifications.controller.ts     <-- /api/v1/notifications*
+├── apps/worker/qos-alert/, apps/worker/pabx-offline/   <-- tạo cảnh báo QOS_ALERT / PABX_OFFLINE qua NotificationsService (docs/modules/13 mục 3)
+└── realtime/                           <-- chỉ chạy ở backend-api (AppModule)
+    ├── realtime.module.ts
+    ├── admin-notifications.gateway.ts  <-- namespace /admin/notifications (JWT_ADMIN_SECRET)
+    ├── user-notifications.gateway.ts   <-- namespace /notifications (JWT_USER_SECRET)
+    └── notification-push.poller.ts     <-- Đọc notifications mới (watermark id) rồi gọi gateway
 ```
 
 ### 4.1. Implementation Gateway WebSocket (2 namespace theo portal)
@@ -97,6 +109,7 @@ notifications/
 Theo quy tắc tách portal (`docs/02_api_contracts.md` mục 1.1 và 4): User và Admin dùng **hai namespace riêng**, mỗi namespace xác minh token bằng secret của portal đó. Token đi trong payload `auth` lúc handshake, không bao giờ trên query string. CORS chỉ cho domain frontend cấu hình trong `FRONTEND_ORIGIN`.
 
 ```typescript
+// backend/src/realtime/*.gateway.ts – xác minh token bằng UserJwtService / AdminJwtService của core/auth
 abstract class BaseNotificationsGateway implements OnGatewayConnection {
   @WebSocketServer() server: Server;
   protected abstract readonly actorType: 'USER' | 'ADMIN';
@@ -175,7 +188,7 @@ export class MailerService {
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/notifications/NotificationsView.vue` & `frontend/apps/member/src/views/notifications/NotificationsView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/src/apps/admin/views/notifications/NotificationsView.vue` & `frontend/src/apps/member/views/notifications/NotificationsView.vue`)
 
 ### 5.1. Bố cục Giao diện (Theo `templates/notifications.html`)
 
@@ -190,11 +203,11 @@ export class MailerService {
   - Hiển thị thời gian tương đối (`timeAgo`): "Vừa xong", "15 phút trước", "2 giờ trước".
 - **Trạng thái rỗng (`.empty-state`)**: Hiển thị icon SVG hộp thư rỗng và dòng chữ "Không có thông báo nào" khi tab không có bản ghi.
 
-### 5.2. Soạn thông báo (chỉ Admin App)
+### 5.2. Soạn thông báo (chỉ khu vực Admin)
 
-- Nút "Soạn thông báo" trên header `NotificationsView` của Admin App, chỉ hiện khi tài khoản có `system:manage`. Template `notifications.html` chưa có nút này: dựng modal theo kiểu `.modal` chung.
+- Nút "Soạn thông báo" trên header `NotificationsView` của khu vực Admin, chỉ hiện khi tài khoản có `system:manage`. Template `notifications.html` chưa có nút này: dựng modal theo kiểu `.modal` chung.
 - Modal gồm `title`, `content`, `severity`, `target` (`ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` với dropdown nhóm từ `GET /api/v1/admin/user-groups` \| `EVERYONE`); gửi `POST /api/v1/admin/notifications`, thành công thì đóng modal và hiện toast.
-- Member App không có chức năng này.
+- Khu vực Member không có chức năng này.
 
 ### 5.3. Quản lý trạng thái Pinia Store (`useNotificationStore`)
 

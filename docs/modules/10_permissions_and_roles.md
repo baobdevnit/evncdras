@@ -263,26 +263,31 @@ Không có API tạo/sửa/xóa vai trò, không có API sửa quyền của vai
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/permissions/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-permissions/
-├── permissions.module.ts
-├── roles.controller.ts                 # GET /admin/roles
-├── roles.service.ts                    # danh sách vai trò, đếm tài khoản
-├── role-permission.cache.ts            # ROLE_PERMISSIONS nạp từ permission_roles khi khởi động
-├── group-gated-permissions.ts          # GROUP_GATED_PERMISSIONS
-├── guards/
-│   └── permissions.guard.ts
-├── decorators/
-│   ├── require-permissions.decorator.ts
-│   └── require-any-permission.decorator.ts
-└── entities/
-    ├── role.entity.ts
-    ├── permission.entity.ts
-    ├── permission-role.entity.ts
-    ├── admin-role.entity.ts
-    └── user-role.entity.ts
+backend/src/
+├── core/permissions/
+│   ├── permissions.module.ts
+│   ├── roles.service.ts                    # danh sách vai trò, đếm tài khoản
+│   ├── role-permission.cache.ts            # ROLE_PERMISSIONS nạp từ permission_roles khi khởi động
+│   ├── group-gated-permissions.ts          # GROUP_GATED_PERMISSIONS
+│   ├── guards/
+│   │   └── permissions.guard.ts            # dùng ở cả apps/admin và apps/member
+│   ├── decorators/
+│   │   ├── require-permissions.decorator.ts
+│   │   └── require-any-permission.decorator.ts
+│   └── entities/
+│       ├── role.entity.ts
+│       ├── permission.entity.ts
+│       ├── permission-role.entity.ts
+│       ├── admin-role.entity.ts
+│       └── user-role.entity.ts
+└── apps/admin/roles/
+    ├── admin-roles.module.ts
+    └── roles.controller.ts                 # GET /admin/roles
 ```
 
 API đổi vai trò người dùng (`PUT /users/:id/role`) nằm ở module người dùng (`docs/modules/03_auth_user.md`), dùng chung `RoleAssignmentService` của module này.

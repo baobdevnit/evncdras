@@ -104,19 +104,27 @@ Báo cáo định kỳ là căn cứ quan trọng để Lãnh đạo Tập đoà
 
 ---
 
-## 3. Kiến trúc Backend NestJS (`backend/src/modules/reports/`)
+## 3. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-reports/
-├── reports.module.ts
-├── reports.controller.ts
-├── reports.service.ts
-├── exporters/
-│   ├── excel-exporter.service.ts   <-- Xây dựng cấu trúc Workbook bằng exceljs
-│   └── pdf-exporter.service.ts     <-- Render PDF bằng pdfmake
-└── dto/
-    ├── report-filter.dto.ts
-    └── report-export.dto.ts
+backend/src/
+├── core/reports/
+│   ├── reports.module.ts
+│   ├── reports.service.ts              <-- chỉ đọc stats_* (Zero CDR Scan); nhận scope SYSTEM | GROUP
+│   ├── exporters/
+│   │   ├── excel-exporter.service.ts   <-- Xây dựng cấu trúc Workbook bằng exceljs
+│   │   └── pdf-exporter.service.ts     <-- Render PDF bằng pdfmake
+│   └── dto/
+│       ├── report-filter.dto.ts
+│       └── report-export.dto.ts
+├── apps/admin/reports/
+│   ├── admin-reports.module.ts
+│   └── reports.controller.ts           <-- /api/v1/admin/reports/summary, export/excel, export/pdf
+└── apps/member/reports/
+    ├── member-reports.module.ts
+    └── reports.controller.ts           <-- /api/v1/reports/* (scope GROUP)
 ```
 
 ### 3.1. Implementation `ExcelExporterService` (Chuẩn EVN)

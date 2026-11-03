@@ -216,7 +216,7 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 ### 3.3. Ngưỡng cảnh báo QoS (`GET` / `PUT /api/v1/admin/qos/thresholds`)
 
 - **Guard**: `AdminAuthGuard`; `GET` cần `qos:view`, `PUT` cần `qos:manage`.
-- **Giao diện**: chỉ Admin App, mục `qos-thresholds` trong `/admin/settings` (`docs/modules/07_system_settings.md` mục 5.2). `QosDebugView` của Admin App chỉ đọc ngưỡng để tô màu; Member App nhận ngưỡng qua `meta.thresholds` của `debug-table`.
+- **Giao diện**: chỉ khu vực Admin, mục `qos-thresholds` trong `/admin/settings` (`docs/modules/07_system_settings.md` mục 5.2). `QosDebugView` của khu vực Admin chỉ đọc ngưỡng để tô màu; khu vực Member nhận ngưỡng qua `meta.thresholds` của `debug-table`.
 - **Dữ liệu**: bảng `qos_threshold_configs` (một dòng mỗi `metric_name`). `PUT` nhận toàn bộ danh sách, ghi trong một transaction và ghi `audit_logs` (`SYSTEM / UPDATE_SETTINGS`).
 - **Body `PUT`** (cũng là dạng response của `GET`):
 
@@ -233,24 +233,38 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/qos/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-qos/
-├── qos.module.ts
-├── qos.controller.ts
-├── qos.service.ts
-├── qos-evaluator.service.ts        <-- Thuật toán đánh giá MOS G.107 & cảnh báo
-├── dto/
-│   ├── qos-debug-query.dto.ts
-│   └── qos-summary-response.dto.ts
-└── entities/
-    └── qos-threshold-config.entity.ts
+backend/src/
+├── core/qos/
+│   ├── qos.module.ts
+│   ├── qos.service.ts                  <-- debug-table, summary, disconnection-codes; nhận scope SYSTEM | GROUP
+│   ├── qos-thresholds.service.ts
+│   ├── qos-evaluator.service.ts        <-- Thuật toán đánh giá MOS G.107 & cảnh báo
+│   ├── qos-alert.service.ts            <-- đánh giá khung giờ vừa kết thúc, tạo QOS_ALERT qua core/notifications
+│   ├── dto/
+│   │   ├── qos-debug-query.dto.ts
+│   │   └── qos-summary-response.dto.ts
+│   └── entities/
+│       └── qos-threshold-config.entity.ts
+├── apps/admin/qos/
+│   ├── admin-qos.module.ts
+│   ├── qos.controller.ts               <-- /api/v1/admin/qos/debug-table, summary, disconnection-codes
+│   └── qos-thresholds.controller.ts    <-- GET/PUT /api/v1/admin/qos/thresholds
+├── apps/member/qos/
+│   ├── member-qos.module.ts
+│   └── qos.controller.ts               <-- /api/v1/qos/* (scope GROUP)
+└── apps/worker/qos-alert/
+    ├── qos-alert-worker.module.ts
+    └── qos-alert.job.ts                <-- chạy sau mỗi lần stats-aggregation, gọi QosAlertService
 ```
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/cdr/QosDebugView.vue` & `frontend/apps/member/src/views/cdr/QosDebugView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/src/apps/admin/views/cdr/QosDebugView.vue` & `frontend/src/apps/member/views/cdr/QosDebugView.vue`)
 
 ### 5.1. Bố cục Giao diện (Ánh xạ `templates/qos-debug.html`)
 

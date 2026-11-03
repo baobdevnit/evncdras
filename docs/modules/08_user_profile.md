@@ -2,7 +2,7 @@
 
 ## Đường dẫn tài liệu: `docs/modules/08_user_profile.md`
 
-## Ánh xạ giao diện mẫu: `templates/profile.html`, `templates/user-settings.html`, `templates/profile.css`, `templates/user-settings.css`
+## Ánh xạ giao diện mẫu (chỉ khu vực Member): `templates/member/profile.html`, `templates/member/change-password.html`, `templates/member/user-settings.html` (+ `.css`, `.js`) (bản tương ứng cho khu vực Admin thuộc `docs/modules/09_admin_profile.md`)
 
 ---
 
@@ -96,26 +96,39 @@ Bảng MariaDB: `users` và `user_settings`.
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/user-profile/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-user-profile/
-├── user-profile.module.ts
-├── user-profile.controller.ts
-├── user-profile.service.ts
-├── dto/
-│   ├── update-profile.dto.ts
-│   ├── change-password.dto.ts
-│   └── update-preferences.dto.ts
-└── entities/
-    └── user-setting.entity.ts
+backend/src/
+├── core/profile/
+│   ├── profile.module.ts
+│   ├── profile.service.ts              <-- hồ sơ, avatar, preferences, đổi mật khẩu cho cả User và Admin (tham số user_type)
+│   └── entities/
+│       └── user-setting.entity.ts
+└── apps/member/profile/
+    ├── member-profile.module.ts
+    ├── user-profile.controller.ts      <-- /api/v1/profile*
+    └── dto/
+        ├── update-profile.dto.ts
+        ├── change-password.dto.ts
+        └── update-preferences.dto.ts
 ```
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/member/src/views/profile/UserProfileView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (chỉ khu vực Member)
 
-### 5.1. Bố cục Giao diện (Ánh xạ `templates/profile.html` & `user-settings.html`)
+| Route | View | Template nguồn | API |
+| :--- | :--- | :--- | :--- |
+| `/profile` (`member.profile`) | `src/apps/member/views/profile/UserProfileView.vue` | `templates/member/profile.html` | `GET`/`PUT /api/v1/profile`, `POST /api/v1/profile/avatar`, `/api/v1/auth/sessions*` |
+| `/change-password` (`member.change-password`) | `src/apps/member/views/profile/ChangePasswordView.vue` | `templates/member/change-password.html` | `PUT /api/v1/profile/change-password` |
+| `/account-settings` (`member.account-settings`) | `src/apps/member/views/settings/AccountSettingsView.vue` | `templates/member/user-settings.html` | `GET`/`PUT /api/v1/profile/preferences` |
+
+Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView` là route duy nhất mở được bằng token `PASSWORD_CHANGE_ONLY`: guard của khu vực Member chuyển mọi route khác về `member.change-password` khi `authUser` đang giữ token giới hạn; đổi mật khẩu thành công thì lưu Access Token mới trả về và vào `member.dashboard`.
+
+### 5.1. Bố cục Giao diện (`UserProfileView.vue`, ánh xạ `templates/member/profile.html`)
 
 - **Panel bên trái (`.profile-sidebar`)**:
   - Avatar cỡ lớn (`.profile-avatar-large`) kèm nút tải ảnh đại diện `.btn-change-avatar`.

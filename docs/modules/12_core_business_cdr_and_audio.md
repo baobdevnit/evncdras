@@ -196,24 +196,36 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/cdr/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-cdr/
-├── cdr.module.ts
-├── cdr.controller.ts
-├── cdr.service.ts
-├── cdr-enrichment.scheduler.ts      <-- Direct Batch Scheduler polling 3-5s & in-memory prefix lookup
-├── audio-stream.service.ts          <-- Xử lý HTTP Range Request Streaming & Access Control
-├── guards/
-│   └── group-data-isolation.guard.ts <-- Kiểm tra quyền truy cập bản ghi theo nhóm người dùng
-├── dto/
-│   ├── cdr-query.dto.ts
-│   └── cdr-detail-response.dto.ts
-└── entities/
-    ├── cdr.entity.ts                <-- Entity ánh xạ bảng cdr gốc từ PABX
-    ├── cdr-enriched.entity.ts       <-- Entity ánh xạ bảng cdr_enriched trung tâm
-    └── cdr-enrichment-state.entity.ts <-- Watermark state tracking
+backend/src/
+├── core/cdr/
+│   ├── cdr.module.ts
+│   ├── cdr-query.service.ts             <-- tra cứu/chi tiết/xuất cdr_enriched; nhận scope SYSTEM | GROUP (cô lập nhóm)
+│   ├── audio-stream.service.ts          <-- Xử lý HTTP Range Request Streaming & Access Control
+│   ├── cdr-enrichment.service.ts        <-- Logic làm giàu 1 batch (gộp leg, call_status, MOS, nhóm sở hữu)
+│   ├── dto/
+│   │   ├── cdr-query.dto.ts
+│   │   └── cdr-detail-response.dto.ts
+│   └── entities/
+│       ├── cdr.entity.ts                <-- Entity ánh xạ bảng cdr gốc từ PABX
+│       ├── cdr-enriched.entity.ts       <-- Entity ánh xạ bảng cdr_enriched trung tâm
+│       └── cdr-enrichment-state.entity.ts <-- Watermark state tracking
+├── apps/admin/cdr/
+│   ├── admin-cdr.module.ts
+│   ├── cdr.controller.ts                <-- /api/v1/admin/cdr* (scope SYSTEM, groupId, includeArchive)
+│   └── dto/admin-cdr-query.dto.ts       <-- mở rộng CdrQueryDto với tham số riêng Admin
+├── apps/member/cdr/
+│   ├── member-cdr.module.ts
+│   ├── cdr.controller.ts                <-- /api/v1/cdr* (scope GROUP, gồm audio/stream, audio/download)
+│   └── guards/
+│       └── group-data-isolation.guard.ts <-- Kiểm tra quyền truy cập bản ghi theo nhóm người dùng
+└── apps/worker/cdr-enrichment/
+    ├── cdr-enrichment-worker.module.ts
+    └── cdr-enrichment.scheduler.ts      <-- Direct Batch Scheduler polling 3-5s, gọi CdrEnrichmentService
 ```
 
 ### 4.1. Implementation Stream Audio với HTTP 206 trong `audio-stream.service.ts`
@@ -267,15 +279,44 @@ export class AudioStreamService {
 }
 ```
 
-### 4.2. Implementation Tiến trình Làm giàu dữ liệu trong `cdr-enrichment.scheduler.ts`
+### 4.2. Implementation Tiến trình Làm giàu dữ liệu (`apps/worker/cdr-enrichment` + `core/cdr`)
 
 Tiến trình áp dụng đúng các quy tắc tại `docs/01_database_schema.md` mục 2.1 (gộp leg, `call_status`, cột dẫn xuất, MOS) và mục 8 (quyền sở hữu số). Mỗi batch chạy trong **một transaction**: watermark chỉ tiến lên khi toàn bộ batch đã ghi xong.
 
+Lớp lịch chạy nằm ở phần Chạy ngầm, chỉ giữ nhịp và chống chạy chồng:
+
 ```typescript
+// backend/src/apps/worker/cdr-enrichment/cdr-enrichment.scheduler.ts
 @Injectable()
 export class CdrEnrichmentScheduler {
-  private readonly logger = new Logger(CdrEnrichmentScheduler.name);
   private isRunning = false;
+
+  constructor(
+    private readonly cacheVersion: CacheVersionWatcher,
+    private readonly enrichment: CdrEnrichmentService,
+  ) {}
+
+  @Interval(3000)
+  async tick() {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    try {
+      await this.cacheVersion.reloadIfChanged(); // nạp lại cache sở hữu số / system_settings khi cache_version đổi
+      await this.enrichment.runBatch();
+    } finally {
+      this.isRunning = false;
+    }
+  }
+}
+```
+
+Logic một batch nằm ở phần lõi:
+
+```typescript
+// backend/src/core/cdr/cdr-enrichment.service.ts
+@Injectable()
+export class CdrEnrichmentService {
+  private readonly logger = new Logger(CdrEnrichmentService.name);
 
   constructor(
     private readonly dataSource: DataSource,
@@ -283,10 +324,7 @@ export class CdrEnrichmentScheduler {
     private readonly settings: SystemSettingsService,
   ) {}
 
-  @Interval(3000)
-  async handleEnrichmentBatch() {
-    if (this.isRunning) return;
-    this.isRunning = true;
+  async runBatch() {
     const qr = this.dataSource.createQueryRunner();
     await qr.connect();
     await qr.startTransaction();
@@ -353,21 +391,20 @@ export class CdrEnrichmentScheduler {
       );
     } finally {
       await qr.release();
-      this.isRunning = false;
     }
   }
 }
 ```
 
 - `NumberOwnershipCacheService` dựng map `phone_number → user_groups.id` **chỉ** từ chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, theo `01` §8). Không tra theo `prefix` hay `range_from..range_to`. Cache được nạp khi khởi động và nạp lại khi `cdr_enrichment_state.cache_version` khác bản đang giữ (kiểm tra ở đầu mỗi chu kỳ); API tăng `cache_version` sau mỗi thao tác cấp phát/thu hồi dải số.
-- `CdrEnrichmentScheduler` chỉ được đăng ký trong `WorkerModule` và chạy ở tiến trình `backend-worker` (đúng 1 instance); `CdrModule` không khai báo nó trong `providers` (`docs/00_overview_and_architecture.md` mục 2.1).
+- `CdrEnrichmentScheduler` nằm trong `src/apps/worker/cdr-enrichment/`, chỉ được `WorkerAppModule` import và chạy ở tiến trình `backend-worker` (đúng 1 instance). `CdrModule` trong `core` chỉ export `CdrEnrichmentService`, không chứa lớp lịch chạy (`docs/00_overview_and_architecture.md` mục 2.1, 5.1).
 - Thay đổi `analysis_internal_extension_pattern` hoặc `pabx_core_ip_list` chỉ áp dụng cho bản ghi làm giàu sau thời điểm lưu.
 - Watermark theo `id` giả định PABX là **một tiến trình ghi duy nhất**, cấp `id` tăng dần theo thứ tự commit (đúng với dữ liệu thật).
 - Khi ghi hoặc đổi leg chính của một bản ghi có `Created` cũ hơn 3 giờ, tiến trình thêm (`DATE(Created)`, `HOUR(Created)`) vào `stats_recompute_queue` (`INSERT IGNORE`) để job tổng hợp tính lại khung giờ đó (`docs/01_database_schema.md` mục 15.0).
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/cdr/CdrHistoryView.vue` & `frontend/apps/member/src/views/cdr/CdrHistoryView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/src/apps/admin/views/cdr/CdrHistoryView.vue` & `frontend/src/apps/member/views/cdr/CdrHistoryView.vue`)
 
 ### 5.1. Bố cục Giao diện (Ánh xạ `templates/cdr-history.html`)
 - **Page Header**: Tiêu đề "Tra cứu Lịch sử Cuộc gọi (CDR)", phụ đề hướng dẫn.

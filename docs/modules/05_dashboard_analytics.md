@@ -3,8 +3,10 @@
 ## Đường dẫn tài liệu: `docs/modules/05_dashboard_analytics.md`
 
 ## Ánh xạ giao diện mẫu:
-- **Bảng điều khiển Quản trị viên hệ thống (System Admin Dashboard)**: `templates/dashboard.html`, `templates/dashboard.css`, `templates/dashboard.js`
-- **Bảng điều khiển Thành viên đơn vị (Member Dashboard)**: `templates/member-dashboard.html`, `templates/member-dashboard.js`
+- **Khu vực Admin – Dashboard Quản trị viên hệ thống**: `templates/admin/dashboard.html` (+ `.css`, `.js`) → `src/apps/admin/views/dashboard/DashboardView.vue`, route `admin.dashboard` (`/admin/`), API base `/api/v1/admin/dashboard/*`.
+- **Khu vực Member – Dashboard Thành viên đơn vị**: `templates/member/dashboard.html` (+ `.css`, `.js`) → `src/apps/member/views/dashboard/DashboardView.vue`, route `member.dashboard` (`/`), API base `/api/v1/dashboard/*`.
+
+Hai view là 2 file riêng trong 2 khu vực; phần giống nhau (thẻ KPI, `LineChart`/`BarChart`, bảng cuộc gọi gần đây) dùng component trong `src/shared/components`.
 
 ---
 
@@ -33,7 +35,7 @@ Hệ thống EVN CDRAS phân tách rõ ràng giao diện Bảng điều khiển 
 
 ### 1.2. Các chỉ số KPI cốt lõi trên 2 Dashboard
 
-#### A. Dashboard Quản trị viên hệ thống (`templates/dashboard.html`)
+#### A. Dashboard Quản trị viên hệ thống (Khu vực Admin, `templates/admin/dashboard.html`)
 | Thẻ KPI | Ý nghĩa nghiệp vụ | Nguồn tính toán (Zero CDR Scan) |
 | :--- | :--- | :--- |
 | **Tổng Cuộc Gọi Toàn Mạng** | Tổng số cuộc gọi phát sinh toàn EVN | `SUM(total_calls) FROM stats_daily` |
@@ -41,7 +43,7 @@ Hệ thống EVN CDRAS phân tách rõ ràng giao diện Bảng điều khiển 
 | **Tỉ Lệ Thành Công (ASR)** | Tỉ lệ cuộc gọi `call_status = ANSWERED` (SIP 200 OK) trên tổng cuộc gọi | `SUM(answered_calls) / NULLIF(SUM(total_calls), 0) * 100%` (cộng bộ đếm rồi mới chia, không lấy trung bình `asr_percentage`) |
 | **Điểm MOS Trung Bình** | Chất lượng âm thanh chuẩn ITU-T G.107 (thang thập phân tính từ R, xem `docs/01_database_schema.md` mục 2.1) | `SUM(avg_mos * qos_sample_count) / NULLIF(SUM(qos_sample_count), 0) / 100` từ `stats_*`; hiển thị 2 chữ số thập phân, `--` khi không có mẫu |
 
-#### B. Dashboard Thành viên đơn vị (`templates/member-dashboard.html`)
+#### B. Dashboard Thành viên đơn vị (Khu vực Member, `templates/member/dashboard.html`)
 | Thẻ KPI | Ý nghĩa nghiệp vụ | Nguồn tính toán (Group Isolation) |
 | :--- | :--- | :--- |
 | **Tổng Cuộc Gọi Đơn Vị** | Cuộc gọi phát sinh liên quan đến dải số của nhóm | `SUM(total_calls) WHERE group_id = :userGroupId` |
@@ -203,16 +205,27 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/dashboard/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-dashboard/
-├── dashboard.module.ts
-├── dashboard.controller.ts
-├── dashboard.service.ts
-└── dto/
-    ├── dashboard-stats-query.dto.ts
-    └── dashboard-chart-query.dto.ts
+backend/src/
+├── core/dashboard/
+│   ├── dashboard.module.ts
+│   ├── dashboard.service.ts            <-- KPI, biểu đồ, cuộc gọi gần đây, xếp hạng nhóm; nhận scope SYSTEM | GROUP
+│   └── dto/
+│       ├── dashboard-stats-query.dto.ts
+│       └── dashboard-chart-query.dto.ts
+├── apps/admin/dashboard/
+│   ├── admin-dashboard.module.ts
+│   └── dashboard.controller.ts         <-- /api/v1/admin/dashboard/stats, charts, recent-calls, groups
+├── apps/admin/stats/
+│   ├── admin-stats.module.ts
+│   └── stats.controller.ts             <-- POST /api/v1/admin/stats/recalculate (ghi stats_recompute_queue qua core/stats)
+└── apps/member/dashboard/
+    ├── member-dashboard.module.ts
+    └── dashboard.controller.ts         <-- /api/v1/dashboard/stats, charts, recent-calls (scope GROUP)
 ```
 
 ### 4.1. Tự động Scoped Data theo vai trò người dùng trong `dashboard.service.ts`
@@ -236,9 +249,18 @@ async getDashboardData(user: CurrentUserPayload, query: DashboardStatsQueryDto) 
 
 ## 5. Kiến trúc Frontend & Giao diện Chuẩn hóa
 
-### 5.1. Dashboard Quản trị viên hệ thống (`templates/dashboard.html`)
+| | Khu vực Admin | Khu vực Member |
+| :--- | :--- | :--- |
+| View | `src/apps/admin/views/dashboard/DashboardView.vue` | `src/apps/member/views/dashboard/DashboardView.vue` |
+| Route | `admin.dashboard` (`/admin/`), quyền `report:view` | `member.dashboard` (`/`), quyền `report:view` |
+| KPI, biểu đồ, cuộc gọi gần đây | `/api/v1/admin/dashboard/stats`, `/charts`, `/recent-calls` (toàn hệ thống) | `/api/v1/dashboard/stats`, `/charts`, `/recent-calls` (tự cô lập theo nhóm) |
+| Chỉ có ở app này | `/api/v1/admin/dashboard/groups`, `/api/v1/admin/phone-numbers/pool/summary` | Widget dải số từ `GET /api/v1/prefixes` |
+
+Các liên kết trong template (`*.html`) chuyển thành `router-link` tới route **trong cùng app**; không có liên kết hay nút chuyển sang dashboard của app kia (nút demo `.btn-demo-switch` trong template bị bỏ).
+
+### 5.1. Dashboard Quản trị viên hệ thống (Khu vực Admin)
 1. **Tiêu đề trang**:
-   - Tiêu đề: "Tổng quan Hệ thống EVN CDRAS" - Toàn Tập đoàn Điện lực Việt Nam. Không có nút chuyển sang Dashboard thành viên (hai portal tách riêng).
+   - Tiêu đề: "Tổng quan Hệ thống EVN CDRAS" - Toàn Tập đoàn Điện lực Việt Nam. Không có nút chuyển sang Dashboard thành viên (hai app tách riêng).
 2. **4 Thẻ KPI toàn hệ thống**:
    - Tổng Cuộc Gọi Toàn Mạng (`1,245,600`).
    - Tổng Thời Lượng Đàm Thoại (`3,845,200` phút).
@@ -247,7 +269,7 @@ async getDashboardData(user: CurrentUserPayload, query: DashboardStatsQueryDto) 
 3. **Widget Kho số PABX EVN (90.000 số: 10000 ➔ 99999)**:
    - Tổng kho 90.000 số và 4 ô theo trạng thái từ `pool/summary`: Đang dùng (`ALLOCATED`), Dự phòng (`RESERVED`), Khóa (`LOCKED`), Rảnh (`FREE`).
    - Thanh phân bổ màu 4 phần tương ứng 4 trạng thái.
-   - Nút liên kết sang `prefix-management.html`.
+   - Nút liên kết sang route `admin.prefixes` (template: `prefix-management.html`).
 4. **2 Biểu đồ toàn mạng**:
    - `quantityChart`: Số cuộc gọi & thời lượng theo thời gian (giờ/ngày, từ `GET /api/v1/admin/dashboard/charts`).
    - `qualityChart`: ASR % & MOS G.107 toàn hệ thống theo thời gian.
@@ -255,7 +277,7 @@ async getDashboardData(user: CurrentUserPayload, query: DashboardStatsQueryDto) 
 5. **Bảng Giám sát các Nhóm người dùng** (`GET /api/v1/admin/dashboard/groups`, có phân trang và sắp xếp):
    - Cột: Nhóm người dùng, Dải số quy hoạch, Lưu lượng hôm nay, Thời lượng, ASR %, MOS G.107 (đọc các dòng nhóm của `stats_hourly` hôm nay). Không có cột trạng thái Trunk SIP (không có nguồn dữ liệu).
 
-### 5.2. Dashboard Thành viên đơn vị (`templates/member-dashboard.html`)
+### 5.2. Dashboard Thành viên đơn vị (Khu vực Member)
 1. **Tiêu đề trang & Huy hiệu Nhóm**:
    - Tiêu đề: "Tổng quan Đơn vị - EVNICT Đà Nẵng".
    - Huy hiệu nhận diện nhóm: `Group Isolation: 51xxx`.
@@ -268,22 +290,21 @@ async getDashboardData(user: CurrentUserPayload, query: DashboardStatsQueryDto) 
    - Dải số EVN cấp riêng cho nhóm: `51000 ➔ 51999` (Tổng 1.000 số).
    - 4 ô thống kê: Số dải được cấp, Tổng số trong dải, Dự phòng (`RESERVED`), Khóa (`LOCKED`); số còn lại là `ALLOCATED` (đang dùng).
    - Thanh phân bổ theo trạng thái trong các dải của nhóm.
-   - Nút liên kết sang `org-prefix.html`.
+   - Nút liên kết sang route `member.org-prefix` (template: `org-prefix.html`).
 4. **2 Biểu đồ chuyên biệt cho Đơn vị**:
    - `unitTrafficChart`: Biểu đồ Cột xếp chồng 3 màu Lưu lượng 3 hướng gọi (Nội bộ đơn vị `calls_intra_group`, Gọi đi ngoại đơn vị `calls_outbound`, Gọi đến từ ngoại đơn vị `calls_inbound`).
    - `unitQualityChart`: Biểu đồ Đường kép Chất lượng cuộc gọi QoS & Tỷ lệ trả lời ASR của đơn vị (ASR % và Điểm MOS G.107).
 5. **Bảng 5 Cuộc gọi Gần nhất của Đơn vị**:
    - Hiển thị 5 cuộc gọi gần nhất của nhóm từ `GET /api/v1/dashboard/recent-calls?limit=5` (Thời gian, Hướng gọi, Caller, Called, Thời lượng, Mã SIP, Điểm MOS).
-   - Nút liên kết sang `cdr-history.html`.
-6. **Sidebar Menu dành cho Thành viên**:
-   - Giữ cấu trúc menu quen thuộc, gắn nhãn rõ ràng "Đầu số nội bộ đơn vị", "Thành viên đơn vị", ẩn hoàn toàn "Cài đặt hệ thống" và "Quản lý kho số chung 90.000 số".
+   - Nút liên kết sang route `member.cdr` (template: `cdr-history.html`).
+6. **Sidebar Menu**: lấy từ `src/apps/member/menu.ts` (nhóm "Đầu số & Đơn vị", "Thành viên đơn vị"). Khu vực Member không có route "Cài đặt hệ thống" hay kho số chung 90.000 số, nên menu không có các mục này.
 
 ---
 
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
 
-1. **TC-DASH-01**: Tải `dashboard.html`, xác nhận hiển thị số liệu toàn mạng EVN (Kho số 90.000 số, ASR 82.5%, MOS 4.18) và bảng giám sát 5 đơn vị EVN.
-2. **TC-DASH-02**: Đăng nhập User Portal, xác nhận Dashboard chỉ hiển thị số liệu của nhóm mình và không có nút chuyển sang Dashboard Admin.
-3. **TC-DASH-03**: Trên `member-dashboard.html`, xác nhận hiển thị huy hiệu `Group Isolation: 51xxx`, 4 KPI chuyên biệt của đơn vị và Widget dải số 1.000 số (`51000 ➔ 51999`).
+1. **TC-DASH-01**: Đăng nhập khu vực Admin, mở `/admin/`, xác nhận hiển thị số liệu toàn mạng EVN (Kho số 90.000 số, ASR 82.5%, MOS 4.18) và bảng giám sát 5 đơn vị EVN.
+2. **TC-DASH-02**: Đăng nhập khu vực Member, mở `/`, xác nhận Dashboard chỉ hiển thị số liệu của nhóm mình và không có nút chuyển sang Dashboard Admin.
+3. **TC-DASH-03**: Trên Dashboard khu vực Member (`member.dashboard`), xác nhận hiển thị huy hiệu `Group Isolation: 51xxx`, 4 KPI chuyên biệt của đơn vị và Widget dải số 1.000 số (`51000 ➔ 51999`).
 4. **TC-DASH-04**: Thử nghiệm lọc biểu đồ 3 hướng gọi (`unitTrafficFilter`) và chất lượng QoS (`unitQualityFilter`) trên Dashboard Thành viên, xác nhận dữ liệu cập nhật mượt mà.
-5. **TC-DASH-05**: Kiểm tra tính cô lập dữ liệu (Group-Based Data Isolation): Đảm bảo trên `member-dashboard.html` không hiển thị kho số 90.000 số hay số liệu của các đơn vị khác ngoài `EVNICT Đà Nẵng`.
+5. **TC-DASH-05**: Kiểm tra tính cô lập dữ liệu (Group-Based Data Isolation): Đảm bảo Dashboard khu vực Member không gọi API `/api/v1/admin/*` nào và không hiển thị kho số 90.000 số hay số liệu của các đơn vị khác ngoài `EVNICT Đà Nẵng`.

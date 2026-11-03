@@ -2,7 +2,9 @@
 
 ## Đường dẫn tài liệu: `docs/modules/11_core_business_phone_numbers.md`
 
-## Ánh xạ giao diện mẫu: `templates/admin/prefix-management.html`, `templates/admin/prefix-history.html`, `templates/admin/prefix-management.js`, `templates/admin/prefix-history.js`
+## Ánh xạ giao diện mẫu
+- **Khu vực Admin**: `templates/admin/prefix-management.html` (+ `.css`, `.js`) → `PrefixManagementView.vue` (route `admin.prefixes`); `templates/admin/prefix-history.html` (+ `.css`, `.js`) → `PrefixHistoryView.vue` (route `admin.prefix-history`).
+- **Khu vực Member**: `templates/member/org-prefix.html` (+ `.css`, `.js`) → `OrgPrefixView.vue` (route `member.org-prefix`), chỉ xem dải số của nhóm mình.
 
 ---
 
@@ -213,25 +215,38 @@ Trong cùng transaction tạo/cập nhật dải số:
 
 ---
 
-## 5. Kiến trúc Backend NestJS (`backend/src/modules/phone-numbers/`)
+## 5. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-phone-numbers/
-├── phone-numbers.module.ts
-├── phone-numbers.controller.ts
-├── phone-numbers.service.ts
-├── prefix-validator.service.ts        <-- Thuật toán kiểm tra trùng dải số
-├── master-pool-seeder.service.ts      <-- Khởi tạo và kiểm tra đủ 90.000 số
-├── dto/
-│   ├── allocate-prefix.dto.ts
-│   ├── query-pool.dto.ts
-│   └── query-history.dto.ts
-└── entities/
-    ├── phone-prefix-group.entity.ts
-    ├── phone-prefix-range.entity.ts
-    ├── phone-number.entity.ts
-    ├── prefix-allocation-history.entity.ts
-    └── phone-number-range-history.entity.ts
+backend/src/
+├── core/phone-numbers/
+│   ├── phone-numbers.module.ts
+│   ├── prefixes.service.ts               <-- cấp phát/thu hồi dải, lịch sử; tăng cache_version trong cùng transaction
+│   ├── prefix-groups.service.ts
+│   ├── phone-numbers.service.ts          <-- kho số, khóa/dự phòng/sửa thông tin số; nhận scope SYSTEM | GROUP
+│   ├── prefix-validator.service.ts       <-- Thuật toán kiểm tra trùng dải số
+│   ├── master-pool-seeder.service.ts     <-- Khởi tạo và kiểm tra đủ 90.000 số (chạy từ seed)
+│   ├── dto/
+│   │   ├── allocate-prefix.dto.ts
+│   │   ├── query-pool.dto.ts
+│   │   └── query-history.dto.ts
+│   └── entities/
+│       ├── phone-prefix-group.entity.ts
+│       ├── phone-prefix-range.entity.ts
+│       ├── phone-number.entity.ts
+│       ├── prefix-allocation-history.entity.ts
+│       └── phone-number-range-history.entity.ts
+├── apps/admin/phone-numbers/
+│   ├── admin-phone-numbers.module.ts
+│   ├── prefixes.controller.ts            <-- /api/v1/admin/prefixes* (đọc + POST, PUT, DELETE, history)
+│   ├── prefix-groups.controller.ts       <-- /api/v1/admin/prefix-groups*
+│   └── phone-numbers.controller.ts       <-- /api/v1/admin/phone-numbers/pool, pool/summary, history, PUT :number
+└── apps/member/phone-numbers/
+    ├── member-phone-numbers.module.ts
+    ├── prefixes.controller.ts            <-- /api/v1/prefixes, /prefixes/:id, /prefixes/history (chỉ đọc, scope GROUP)
+    └── phone-numbers.controller.ts       <-- /api/v1/phone-numbers/pool, /phone-numbers/history (chỉ đọc, scope GROUP)
 ```
 
 ---
@@ -258,6 +273,16 @@ phone-numbers/
 ### 6.2. Bố cục Giao diện Lịch sử Cấp phát (Ánh xạ `templates/admin/prefix-history.html`)
 
 - Bảng tra cứu lịch sử kiểm toán: Thời điểm, Quản trị viên, Hành động (`Cấp mới`, `Thu hồi`, `Điều chỉnh`), Khoảng số tác động, Số lượng số biến động, Tên nhóm người dùng, Căn cứ pháp lý, Ghi chú chốt quyền CDR.
+- Tab "Lịch sử số" đọc `GET /api/v1/admin/phone-numbers/history` (biến động gán số vào dải, khóa/dự phòng, sửa thông tin số).
+
+### 6.3. Khu vực Member – `OrgPrefixView.vue` (Ánh xạ `templates/member/org-prefix.html`)
+
+- **Route**: `/org-prefix` (`member.org-prefix`), quyền `prefix:view` (mọi vai trò User). File `src/apps/member/views/phone/OrgPrefixView.vue`. **Chỉ đọc**: không có nút cấp phát, thu hồi, khóa hay sửa số.
+- **Phạm vi**: luôn là nhóm của người đăng nhập; các API bản User tự lọc theo `req.user.userGroupId`, frontend không gửi tham số nhóm.
+- **Thẻ thông tin nhóm**: tên nhóm, đơn vị tổ chức, nhóm đầu số (từ `GET /api/v1/auth/me` và `GET /api/v1/user-groups/:id`).
+- **Bảng dải số** (`GET /api/v1/prefixes`): cột Dải số, Số lượng (`counts`), Tình trạng, Hiệu lực CDR, Mục đích / Căn cứ; hành động "Xem danh sách số" và "Tra cứu CDR" (điều hướng trong khu vực Member sang `member.cdr`; `GET /api/v1/cdr` không có bộ lọc theo dải, nên không truyền tham số dải).
+- **Modal danh sách số trong dải**: `GET /api/v1/phone-numbers/pool` lọc theo `rangeId`, hiển thị số, trạng thái, tên hiển thị; không có thao tác sửa.
+- **Khác khu vực Admin**: không có `/admin/prefix-groups*`, `/admin/phone-numbers/pool/summary`, `PUT /admin/phone-numbers/:number`, không có cột hay bộ lọc nhóm người dùng khác.
 
 ---
 

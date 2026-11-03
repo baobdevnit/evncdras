@@ -1,6 +1,6 @@
 # MODULE 09: HỒ SƠ & THIẾT LẬP CỦA QUẢN TRỊ VIÊN HỆ THỐNG (ADMIN PROFILE & SECURITY)
 ## Đường dẫn tài liệu: `docs/modules/09_admin_profile.md`
-## Ánh xạ giao diện mẫu: `templates/profile.html` (Admin Mode), `templates/user-settings.html`
+## Ánh xạ giao diện mẫu (chỉ khu vực Admin): `templates/admin/profile.html`, `templates/admin/change-password.html`, `templates/admin/user-settings.html` (bản tương ứng cho khu vực Member thuộc `docs/modules/08_user_profile.md`)
 
 ---
 
@@ -61,24 +61,35 @@ Dữ liệu lưu tại bảng `admins`, `user_settings` (`user_type = 'ADMIN'`) 
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/admin-profile/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-admin-profile/
-├── admin-profile.module.ts
-├── admin-profile.controller.ts
-├── admin-profile.service.ts
-└── dto/
-    ├── update-admin-profile.dto.ts
-    └── change-admin-password.dto.ts
+backend/src/
+├── core/profile/                       <-- dùng chung với hồ sơ User (docs/modules/08_user_profile.md mục 4)
+└── apps/admin/profile/
+    ├── admin-profile.module.ts
+    ├── admin-profile.controller.ts     <-- /api/v1/admin/profile* (gồm recent-activity đọc qua core/audit)
+    └── dto/
+        ├── update-admin-profile.dto.ts
+        └── change-admin-password.dto.ts
 ```
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/profile/AdminProfileView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (chỉ khu vực Admin)
 
-### 5.1. Bố cục Giao diện
-- Kế thừa bố cục thẻ từ `templates/profile.html` nhưng áp dụng theme Quản trị:
+| Route | View | Template nguồn | API |
+| :--- | :--- | :--- | :--- |
+| `/admin/profile` (`admin.profile`) | `src/apps/admin/views/profile/AdminProfileView.vue` | `templates/admin/profile.html` | `GET`/`PUT /api/v1/admin/profile`, `POST /admin/profile/avatar`, `GET /admin/profile/recent-activity`, `/admin/auth/sessions*` |
+| `/admin/change-password` (`admin.change-password`) | `src/apps/admin/views/profile/ChangePasswordView.vue` | `templates/admin/change-password.html` | `PUT /api/v1/admin/profile/change-password` |
+| `/admin/account-settings` (`admin.account-settings`) | `src/apps/admin/views/settings/AccountSettingsView.vue` | `templates/admin/user-settings.html` | `GET`/`PUT /api/v1/admin/profile/preferences` |
+
+Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView` là route duy nhất mở được bằng token `PASSWORD_CHANGE_ONLY`: guard của khu vực Admin chuyển mọi route khác về `admin.change-password` khi `authAdmin` đang giữ token giới hạn; đổi mật khẩu thành công thì lưu Access Token mới trả về và vào `admin.dashboard`.
+
+### 5.1. Bố cục Giao diện (`AdminProfileView.vue`)
+- Kế thừa bố cục thẻ từ `templates/admin/profile.html` nhưng áp dụng theme Quản trị:
   - Header: Huy hiệu vàng nổi bật `[Quản trị viên Tối cao]` hoặc xanh dương `[Kỹ thuật viên Quản trị]`.
   - Tab 1: Thông tin liên lạc trực ban.
   - Tab 2: Bảo mật tài khoản & Đổi mật khẩu.

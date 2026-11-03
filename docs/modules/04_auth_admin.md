@@ -1,6 +1,6 @@
 # MODULE 04: XÁC THỰC & QUẢN LÝ QUẢN TRỊ VIÊN HỆ THỐNG (ADMIN AUTH & ADMIN MANAGEMENT)
 ## Đường dẫn tài liệu: `docs/modules/04_auth_admin.md`
-## Ánh xạ giao diện mẫu: `templates/login.html` (Admin Login Mode), `templates/system-settings.html` (Admin Accounts Tab)
+## Ánh xạ giao diện mẫu (chỉ khu vực Admin): `templates/admin/login.html` → `AdminLoginView.vue` (route `admin.login`); bố cục `templates/admin/system-settings.html` → mục `admins` của `SystemSettingsView.vue` (`/admin/settings?section=admins`)
 
 ---
 
@@ -97,17 +97,31 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/admin-auth/` & `admin-management/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-admin-auth/
-├── admin-auth.module.ts
-├── admin-auth.controller.ts
-├── admin-auth.service.ts
-├── strategies/
-│   └── admin-jwt.strategy.ts
-└── guards/
-    └── admin-auth.guard.ts
+backend/src/
+├── core/admins/
+│   ├── admins.module.ts
+│   ├── admins.service.ts               <-- CRUD Admin, khóa/mở, reset mật khẩu (chặn thao tác lên ROOT_ADMIN)
+│   └── entities/
+│       └── admin.entity.ts
+├── apps/admin/auth/
+│   ├── admin-auth.module.ts
+│   ├── admin-auth.controller.ts        <-- /api/v1/admin/auth/login, refresh, logout, me, sessions*
+│   ├── admin-auth.service.ts           <-- đăng nhập Admin; ký JWT qua core/auth AdminJwtService, phiên qua AuthSessionsService
+│   ├── strategies/
+│   │   └── admin-jwt.strategy.ts
+│   └── guards/
+│       └── admin-auth.guard.ts
+└── apps/admin/admins/
+    ├── admin-admins.module.ts
+    ├── admins.controller.ts            <-- /api/v1/admin/admins* (quyền admin:manage)
+    └── dto/
+        ├── create-admin.dto.ts
+        └── update-admin.dto.ts
 ```
 
 ### 4.1. Phân quyền API quản lý Admin
@@ -115,17 +129,17 @@ admin-auth/
 Không có guard riêng cho Root Admin. Controller quản lý Admin dùng `PermissionsGuard` chung (`docs/modules/10_permissions_and_roles.md` mục 4.1):
 
 ```typescript
-@Controller('admin/admins')
+@Controller('admins') // AdminAppModule đăng ký RouterModule tiền tố 'admin' → /api/v1/admin/admins
 @UseGuards(AdminAuthGuard, PermissionsGuard)
 @RequirePermissions('admin:manage')
-export class AdminManagementController { /* ... */ }
+export class AdminsController { /* ... */ } // backend/src/apps/admin/admins/admins.controller.ts
 ```
 
 Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN` (`403`, ghi `audit_logs` `ACCESS_DENIED`).
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (chỉ Admin App: `frontend/apps/admin/src/views/auth/AdminLoginView.vue` & `views/settings/sections/AdminAccountsSection.vue`)
+## 5. Kiến trúc Frontend Vue 3 (chỉ khu vực Admin: `frontend/src/apps/admin/views/auth/AdminLoginView.vue` & `views/settings/sections/AdminAccountsSection.vue`)
 
 ### 5.1. Màn hình Đăng nhập Quản trị (`AdminLoginView.vue`, route `admin.login`)
 - Giao diện thiết kế theo phong cách trang nghiêm của EVN (`templates/admin/login.html`, `templates/admin/login.css`):

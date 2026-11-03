@@ -101,18 +101,28 @@ Số liệu tổng hợp (`/traffic/summary`) đọc từ `stats_daily` theo ngu
 
 ---
 
-## 4. Kiến trúc Backend NestJS (`backend/src/modules/traffic/`)
+## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
+
+Theo quy tắc `docs/00_overview_and_architecture.md` mục 5.1: nghiệp vụ và entity ở `core`, controller ở `apps/admin` / `apps/member`, job nền ở `apps/worker`; các phần `apps/*` không import lẫn nhau.
 
 ```
-traffic/
-├── traffic.module.ts
-├── traffic.controller.ts
-├── traffic.service.ts
-├── traffic-classifier.service.ts   <-- Phân loại Call Type, được tiến trình làm giàu CDR gọi khi ghi cdr_enriched.call_type
-└── dto/
-    ├── traffic-query.dto.ts
-    └── traffic-summary.dto.ts
+backend/src/
+├── core/traffic/
+│   ├── traffic.module.ts
+│   ├── traffic.service.ts              <-- summary (stats_*), records (cdr_enriched); nhận scope SYSTEM | GROUP
+│   ├── traffic-classifier.service.ts   <-- Phân loại Call Type, được CdrEnrichmentService gọi khi ghi cdr_enriched.call_type
+│   └── dto/
+│       ├── traffic-query.dto.ts
+│       └── traffic-summary.dto.ts
+├── apps/admin/traffic/
+│   ├── admin-traffic.module.ts
+│   └── traffic.controller.ts           <-- /api/v1/admin/traffic/*
+└── apps/member/traffic/
+    ├── member-traffic.module.ts
+    └── traffic.controller.ts           <-- /api/v1/traffic/* (scope GROUP)
 ```
+
+Job tổng hợp `stats_hourly` / `stats_daily` (`docs/01_database_schema.md` mục 15.0) đặt ở `apps/worker/stats-aggregation/stats-aggregation.job.ts`, gọi `StatsAggregationService` trong `core/stats/`.
 
 Module không có entity riêng; dùng entity `CdrEnriched` của module CDR (`docs/modules/12_core_business_cdr_and_audio.md`).
 
@@ -140,7 +150,7 @@ export class TrafficClassifierService {
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/traffic/TrafficSummaryView.vue` & `frontend/apps/member/src/views/traffic/TrafficSummaryView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/src/apps/admin/views/traffic/TrafficSummaryView.vue` & `frontend/src/apps/member/views/traffic/TrafficSummaryView.vue`)
 
 ### 5.1. Bố cục Giao diện
 
