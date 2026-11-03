@@ -249,7 +249,7 @@ qos/
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/cdr/QosDebugView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/cdr/QosDebugView.vue` & `frontend/apps/member/src/views/cdr/QosDebugView.vue`)
 
 ### 5.1. Bố cục Giao diện (Ánh xạ `templates/qos-debug.html`)
 

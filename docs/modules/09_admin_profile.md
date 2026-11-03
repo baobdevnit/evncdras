@@ -75,7 +75,7 @@ admin-profile/
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/profile/AdminProfileView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/profile/AdminProfileView.vue`)
 
 ### 5.1. Bố cục Giao diện
 - Kế thừa bố cục thẻ từ `templates/profile.html` nhưng áp dụng theme Quản trị:

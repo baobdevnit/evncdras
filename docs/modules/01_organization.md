@@ -158,7 +158,7 @@ async getOrganizationTree(): Promise<OrganizationTreeDto[]> {
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/organization/OrganizationView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/organization/OrganizationView.vue`)
 
 ### 5.1. Cấu trúc Component
 

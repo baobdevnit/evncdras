@@ -204,7 +204,7 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/users/UserListView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/users/UserListView.vue`; phía đơn vị: `frontend/apps/member/src/views/group/GroupAdminView.vue`)
 
 ### 5.1. Bố cục Split-View (Theo `templates/users.html`)
 

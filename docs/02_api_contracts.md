@@ -11,6 +11,7 @@
 ### 1.1. Tiêu chuẩn đường dẫn (URL Conventions)
 
 - **Base URL**: `https://cdr-pabx.evn.com.vn/api/v1`
+- **Gọi API từ frontend**: Admin App và Member App chạy cùng domain với API (`docs/00_overview_and_architecture.md` mục 5.3) nên gọi bằng đường dẫn tương đối (`/api/v1/admin` cho Admin App, `/api/v1` cho Member App), không cần cấu hình CORS ở production.
 - **Phân tách Portal** (tách tuyến tuyệt đối, **không có guard dùng chung**):
   - Admin Portal: **mọi** API Admin gọi đều nằm dưới `/api/v1/admin/*`, chỉ `AdminAuthGuard` (secret `JWT_ADMIN_SECRET`).
   - User Portal: `/api/v1/*` (không có tiền tố `/admin`), chỉ `UserAuthGuard` (secret `JWT_USER_SECRET`).

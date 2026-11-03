@@ -140,7 +140,7 @@ export class TrafficClassifierService {
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/traffic/TrafficSummaryView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/traffic/TrafficSummaryView.vue` & `frontend/apps/member/src/views/traffic/TrafficSummaryView.vue`)
 
 ### 5.1. Bố cục Giao diện
 

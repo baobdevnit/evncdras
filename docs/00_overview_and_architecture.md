@@ -16,7 +16,7 @@ Tổng đài PABX ghi nhận toàn bộ thông tin cuộc gọi thoại IP dư�
 
 1. **Thu thập & Giám sát dữ liệu CDR**: Tự động đồng bộ và quản lý hàng triệu bản ghi CDR từ các tổng đài PABX phân tán.
 2. **Đánh giá chất lượng thoại IP (QoS Analysis)**: Phân tích các chỉ số kỹ thuật chuyên sâu theo chuẩn ITU-T (MOS G.107, R-Factor, Jitter RFC 3550, Packet Loss, độ trễ thiết lập SIP, ASR, NER, Disconnection Codes) nhằm phát hiện sớm các sự cố suy giảm chất lượng âm thanh hoặc rớt cuộc gọi.
-3. **Quản lý & Cung cấp ghi âm cuộc gọi có kiểm soát**: Cho phép các đơn vị thành viên nghe lại trực tuyến và tải về bản ghi âm kênh trộn hai chiều (Mix, định dạng `.wav`; PABX không ghi kênh RX/TX riêng) phục vụ nghiệp vụ đối soát, giải quyết khiếu nại khách hàng sử dụng điện, tuân thủ chính sách bảo mật thông tin.
+3. **Quản lý & Cung cấp ghi âm cuộc gọi có kiểm soát**: Cho phép các đơn vị thành viên nghe lại trực tuyến và tải về bản ghi âm kênh trộn hai chiều (Mix, định dạng `.wav`; PABX không ghi kênh RX/TX riêng) phục vụ nghiệp vụ giám sát công tác vận hành mạng lưới, tuân thủ chính sách bảo mật thông tin.
 4. **Thống kê Thời lượng & Lưu lượng thoại (Traffic & Duration Engine)**: Phân loại cuộc gọi nội bộ EVN theo hướng đi đến từ các đơn vị thành viên; ghi nhận và tổng hợp thời lượng đàm thoại thực tế theo từng đơn vị phục vụ công tác giám sát lưu lượng mạng viễn thông và các nhu cầu quản trị khác của Tập đoàn.
 5. **Phân quyền đa cấp độ (Multi-tenancy by User Group)**: Hệ thống chứng thực 2 cấp riêng biệt (**System Admin Portal** và **Tenant User Portal**). Dữ liệu được cô lập **theo Nhóm người dùng** (`user_groups`), thông qua dải đầu số cấp cho nhóm. Cây tổ chức EVN chỉ dùng để tham chiếu và lọc danh sách nhóm, không dùng để phân quyền hay cộng số liệu.
 
@@ -31,10 +31,14 @@ flowchart TD
         BrowserUser["User Browser (Các đơn vị EVN)"]
     end
 
-    subgraph Frontend["Frontend Layer - Vue.js 3"]
-        VueApp["Vue 3 (Vite + TypeScript)"]
+    WebGateway["Nginx - 1 domain, định tuyến theo prefix URL"]
+
+    subgraph Frontend["Frontend Layer - Vue.js 3 (Monorepo pnpm, 2 ứng dụng)"]
+        AdminApp["Admin App - apps/admin (/admin/*)"]
+        MemberApp["Member App - apps/member (/*)"]
+        SharedPkg["packages/shared (API client, components, CSS, router helpers)"]
         PiniaStore["State Management (Pinia)"]
-        VueRouter["Vue Router (RBAC Guard)"]
+        VueRouter["Vue Router (RBAC Guard, 1 router mỗi app)"]
         ChartUI["Chart.js / Data Visualization"]
         AudioPlayer["Web Audio Player (Streaming)"]
     end
@@ -75,10 +79,14 @@ flowchart TD
         MailServer["EVN SMTP Email Gateway"]
     end
 
-    BrowserAdmin --> VueApp
-    BrowserUser --> VueApp
+    BrowserAdmin --> WebGateway
+    BrowserUser --> WebGateway
+    WebGateway -->|"/admin/*"| AdminApp
+    WebGateway -->|"/*"| MemberApp
+    WebGateway -->|"/api/v1/*, /socket.io/*"| APIGateway
+    AdminApp --> SharedPkg
+    MemberApp --> SharedPkg
 
-    VueApp --> APIGateway
     APIGateway --> AuthAdminGuard
     APIGateway --> AuthUserGuard
     AuthAdminGuard --> ModAuth
@@ -126,11 +134,12 @@ flowchart TD
 
 ### 2.2. Frontend: Vue.js 3
 
+- **Ứng dụng**: **2 ứng dụng Vue riêng biệt**, build và triển khai độc lập, đặt trong một monorepo pnpm workspace (`frontend/`): **Admin App** (`apps/admin`, Cổng Quản trị hệ thống) và **Member App** (`apps/member`, Cổng Người dùng đơn vị). Hai app **chung một hệ thống route**: cùng một domain, phân tách bằng prefix URL (`/admin/*` → Admin App, `/*` → Member App, `/api/v1/*` → NestJS). Mã dùng chung đặt trong `packages/shared`. Quy tắc chi tiết tại mục 5.3.
 - **Framework**: Vue 3 (Composition API với `<script setup lang="ts">`).
-- **Build Tool**: Vite cho tốc độ bundle và hot-reload tối ưu.
+- **Build Tool**: Vite cho tốc độ bundle và hot-reload tối ưu (mỗi app một `vite.config.ts`).
 - **UI Architecture**: Xây dựng theo bộ giao diện HTML/CSS chuẩn trong thư mục `templates/`, đảm bảo nhận diện thương hiệu EVN (màu xanh dương EVN `#0033A0`, cam `#EA580C`, layout hiện đại, hỗ trợ Dark Mode / Light Mode).
-- **State Management**: Pinia (Modules: `authAdmin`, `authUser`, `cdr`, `qos`, `organization`, `notifications`, `settings`).
-- **Routing**: Vue Router 4 tích hợp Dynamic Route Loading và Navigation Guards kiểm tra Permissions.
+- **State Management**: Pinia (Modules: `cdr`, `qos`, `organization`, `notifications`, `settings`). Store xác thực tách theo app: `authAdmin` chỉ có trong Admin App, `authUser` chỉ có trong Member App.
+- **Routing**: Vue Router 4, **mỗi app một router riêng** (Admin: `createWebHistory('/admin/')`; Member: `createWebHistory('/')`), lazy-load view và Navigation Guards kiểm tra Permissions dựng từ helper chung trong `packages/shared/router`.
 - **Data Visualization**: `chart.js` & `vue-chartjs` để biểu diễn biểu đồ thống kê cuộc gọi, QoS MOS, Packet Loss theo thời gian.
 - **Audio Control**: HTML5 Custom Audio Player với thanh sóng âm thanh và điều khiển tua nhanh, phát file Mix của từng leg (chọn leg A/B trong modal chi tiết).
 
@@ -139,9 +148,9 @@ flowchart TD
 - **Múi giờ**: DB, backend và PABX cùng dùng giờ Việt Nam (UTC+7). Cấu hình bắt buộc: MariaDB `default-time-zone = '+07:00'`, TypeORM `timezone: '+07:00'`, biến môi trường `TZ=Asia/Ho_Chi_Minh` cho tiến trình Node. Chi tiết tại `docs/01_database_schema.md` (đầu tài liệu).
 
 - **Động cơ lưu trữ**: InnoDB (Hỗ trợ ACID, Foreign Keys, Row-level Locking).
-- **Bảng CDR gốc `cdr`**: Tiếp nhận trực tiếp từ tổng đài PABX với 87 cột dữ liệu SIP/RTP/RTCP. Dữ liệu thuần túy kỹ thuật của tổng đài, giữ nguyên vẹn để đối soát và bảo toàn log viễn thông.
+- **Bảng CDR gốc `cdr`**: Tiếp nhận trực tiếp từ tổng đài PABX với 87 cột dữ liệu SIP/RTP/RTCP. Dữ liệu thuần túy kỹ thuật của tổng đài, giữ nguyên vẹn để đối soát và bảo toàn log cuộc gọi.
 - **Bảng CDR làm giàu `cdr_enriched`**: Bảng trung tâm phục vụ toàn bộ nghiệp vụ Backend, API và Phân quyền. Chứa các cột gốc kế thừa từ `cdr` và các cột làm giàu: nhóm sở hữu (`caller_group_id`, `called_group_id`), gộp leg (`leg_role`, `call_group_key`, `is_primary_leg`), `call_status`, `answered_duration_sec`, `call_type`, MOS (`mos_*_x100`). Partition theo tháng trên `Created`. Định nghĩa đầy đủ tại `docs/01_database_schema.md` mục 2.1.
-- **Bảng dữ liệu nghiệp vụ phụ trợ**: Lưu trữ tổ chức, nhóm người dùng, dải số viễn thông, thống kê thời lượng & lưu lượng, cảnh báo QoS.
+- **Bảng dữ liệu nghiệp vụ phụ trợ**: Lưu trữ tổ chức, nhóm người dùng, dải số điện thoại EVN 5 số đã quy hoạch - cấp phát, thống kê thời lượng & lưu lượng, cảnh báo QoS.
 
 ### 2.4. Kiến trúc Đồng bộ Làm giàu CDR & Cô lập Dữ liệu theo Nhóm (CDR Enrichment & Group-Based Isolation Pipeline)
 
@@ -176,8 +185,8 @@ WHERE caller_group_id = G      Xem toàn bộ bản ghi
    - Module NestJS Scheduler thực thi polling mỗi **3 - 5 giây**.
    - Truy vấn bản ghi mới từ bảng `cdr` theo cơ chế Watermark ID (`WHERE id > last_processed_cdr_id ORDER BY id ASC LIMIT 1000`) lưu trong bảng `cdr_enrichment_state`.
 2. **Thuật toán xác định nhóm sở hữu số (Number Ownership Lookup)**:
-   - Phần lớn cuộc gọi là mạng thoại nội bộ dùng riêng EVN giữa các máy lẻ 5 số `[H][C][XXX]` (kho 10000–99999). Dữ liệu thật vẫn có số ngoài kho (`Anonymous`, `0xxxx` dịch vụ đặc biệt, số di động, số không đủ 5 chữ số); phía đó có nhóm sở hữu = NULL.
-   - **Quy tắc duy nhất**: số khớp `analysis_internal_extension_pattern` được tra cứu **duy nhất** qua chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, quy tắc tại `docs/01_database_schema.md` mục 8); không so khớp theo `prefix` hay `range_from..range_to`. Map được nạp vào bộ nhớ và nạp lại sau mỗi lần cấp phát/thu hồi dải số.
+   - Phần lớn cuộc gọi là mạng thoại nội bộ dùng riêng EVN giữa các máy lẻ 5 số `[H][C][XXX]` (kho 10000–99999). Rà soát dữ liệu thật vẫn có số ngoài kho (`Anonymous`, `0xxxx` dịch vụ đặc biệt, số di động, số không đủ 5 chữ số), các số này được coi là số chưa quy hoạch và có nhóm sở hữu = NULL.
+   - **Quy tắc duy nhất**: số khớp `analysis_internal_extension_pattern` được tra cứu **duy nhất** qua chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, quy tắc trình bày tại `docs/01_database_schema.md` mục 8); không so khớp theo `prefix` hay `range_from..range_to`. Map được nạp vào bộ nhớ và nạp lại sau mỗi lần cấp phát/thu hồi dải số.
    - **Xử lý số chưa quy hoạch**: Nếu số điện thoại không thuộc bất kỳ nhóm nào, trường tương ứng nhận giá trị `NULL`.
 3. **Nguyên tắc Cô lập dữ liệu theo nhóm (Group-Based Data Isolation)**:
    - **Tra cứu danh sách & Nghe ghi âm**: Thực hiện trên bảng `cdr_enriched`.
@@ -185,12 +194,12 @@ WHERE caller_group_id = G      Xem toàn bộ bản ghi
      `WHERE (caller_group_id = :currentUserGroupId OR called_group_id = :currentUserGroupId)`
      Một cuộc gọi xuất hiện trong danh sách tra cứu của nhóm khi có số gọi đi HOẶC số nhận cuộc gọi thuộc quyền quản lý của nhóm đó.
    - **Phạm vi dữ liệu Quản trị viên hệ thống (Admin Portal)**: Quản trị viên hệ thống có toàn quyền xem 100% bản ghi CDR (bao gồm cả các cuộc gọi có `caller_group_id` hoặc `called_group_id` bằng `NULL`). Trên giao diện, thông tin nhóm của người gọi và người nhận được hiển thị trực quan dưới dạng nhãn Badge; kèm theo bộ lọc "Nhóm người dùng" cho phép Admin lọc nhanh dữ liệu theo từng đơn vị.
-4. **Mô hình Phân quyền Ghi âm Kiểm soát 2 Tầng (2-Tier Recording Access Gate)**:
+4. **Mô hình Phân quyền Truy cập ghi âm Kiểm soát 2 Tầng (2-Tier Recording Access Gate)**:
    - **Tầng 1 (Cấp nhóm - Do Quản trị viên hệ thống cấp quyền)**:
      - Trường `user_groups.allow_recording_access` (tinyint 0/1) đóng vai trò Chốt chặn Tầng 1 do Quản trị viên hệ thống quản lý.
      - **Khi nhóm chưa được cấp phép (`allow_recording_access = 0`)**: Mọi tính năng liên quan đến ghi âm đều không xuất hiện trên giao diện của toàn bộ người dùng nhóm đó: Bảng lưới CDR ẩn hoàn toàn cột "File ghi âm"; trong Modal chi tiết cuộc gọi, khối Audio Player được thay thế bằng thông báo: *"Tính năng ghi âm chưa được kích hoạt cho đơn vị của bạn"*; trên giao diện Quản trị nhóm (`group-admin.html`), các nút bấm, cột và switch phân quyền ghi âm thành viên bị ẩn triệt để. Quản trị viên nhóm không có quyền nghe/tải và không thể cấp quyền cho thành viên. Backend chặn tuyệt đối mọi yêu cầu stream và download với mã lỗi `403 Forbidden`.
      - **Khi nhóm được cấp phép (`allow_recording_access = 1`)**: Kích hoạt phân quyền Tầng 2.
-   - **Tầng 2 (Vai trò - Do Quản trị viên nhóm phân quyền khi Tầng 1 đã mở)**: quyền nghe/tải thuộc vai trò, không lưu cờ trên người dùng.
+   - **Tầng 2 (Vai trò - Do Quản trị viên nhóm phân quyền khi Tầng 1 đã mở)**: quyền nghe/tải thuộc vai trò được thiết lập theo nhóm quyền.
      - **Quản trị viên nhóm (`GROUP_ADMIN`)**: Mặc định có quyền nghe trực tuyến và tải về máy bản ghi âm của nhóm mà không cần thêm cấu hình nào.
      - **Quản trị viên nhóm có quyền cấp phép cho thành viên**: Đổi vai trò thành viên giữa `REGULAR_USER` (Thành viên) và `USER_RECORDING` (Thành viên nghe ghi âm) qua giao diện Quản trị nhóm (`group-admin.html`).
      - Thành viên `USER_RECORDING` được quyền nghe & tải ghi âm của nhóm; thành viên `REGULAR_USER` thấy nhãn khóa `Chưa cấp quyền` và không thể phát hoặc tải file.
@@ -199,7 +208,7 @@ WHERE caller_group_id = G      Xem toàn bộ bản ghi
    - **Số liệu tổng hợp chỉ đọc `stats_*`**: thẻ KPI, biểu đồ, thống kê QoS/lưu lượng, xem trước và xuất báo cáo không bao giờ `GROUP BY` trên `cdr`/`cdr_enriched`. Danh sách từng cuộc gọi (lịch sử CDR, QoS debug, cuộc gọi gần đây, xuất CDR) được đọc `cdr_enriched` với khoảng thời gian ≤ 31 ngày, qua index và có giới hạn số dòng (nguyên tắc đầy đủ tại `docs/01_database_schema.md` mục 15).
    - **Cơ chế tính toán định kỳ**: Cron Job `@nestjs/schedule` mỗi 10 phút (`*/10 * * * *`) **tính lại toàn bộ** (không cộng dồn) các khung giờ trong 3 giờ gần nhất và các khung giờ trong hàng đợi `stats_recompute_queue`, ghi `stats_hourly` rồi tính lại `stats_daily` của ngày bị tác động. Khóa thời gian là `Created` (thời điểm bắt đầu cuộc gọi) của leg chính. Thuật toán đầy đủ tại `docs/01_database_schema.md` mục 15.0.
    - **Chốt sổ ngày tự động**: 00:05 mỗi sáng, job tính lại cả 24 giờ của ngày hôm trước lần cuối rồi đặt `is_finalized = 1`.
-   - **Cô lập dữ liệu báo cáo**: Người dùng đơn vị chỉ truy vấn được dữ liệu có `group_id = currentUser.user_group_id`. Quản trị viên hệ thống mặc định xem Toàn hệ thống (`group_id IS NULL`) hoặc lọc theo nhóm bất kỳ.
+   - **Cô lập dữ liệu báo cáo**: Người dùng đơn vị chỉ truy vấn được dữ liệu có `group_id = currentUser.user_group_id`. Quản trị viên hệ thống mặc định xem Toàn hệ thống hoặc lọc theo nhóm bất kỳ.
    - **Thời gian phản hồi siêu tốc**: Mọi API thống kê và xuất báo cáo chỉ quét từ 1 đến vài chục dòng trong bảng `stats_daily`, trả kết quả tức thì trong $< 50\text{ms}$.
 
 ---
@@ -215,6 +224,8 @@ Hệ thống thiết kế theo cơ chế **Hai cổng đăng nhập độc lập
 |        1. QUẢN TRỊ VIÊN HỆ THỐNG        |          2. NGƯỜI DÙNG ĐƠN VỊ           |
 |            (ADMIN PORTAL)               |              (USER PORTAL)              |
 +-----------------------------------------+-----------------------------------------+
+| - Ứng dụng: `frontend/apps/admin`       | - Ứng dụng: `frontend/apps/member`      |
+| - URL giao diện: /admin/*               | - URL giao diện: /* (trừ /admin, /api)  |
 | - Bảng dữ liệu: `admins`                | - Bảng dữ liệu: `users`                 |
 | - Đăng nhập: /api/v1/admin/auth/login   | - Đăng nhập: /api/v1/auth/login         |
 | - Secret Key JWT riêng biệt             | - Secret Key JWT riêng biệt             |
@@ -291,8 +302,8 @@ backend/
 │       ├── admin-profile/         <-- Hồ sơ cá nhân của Admin
 │       ├── user-auth/             <-- Đăng nhập & quản lý User
 │       ├── user-profile/          <-- Hồ sơ cá nhân của User
-│       ├── user-groups/           <-- Nhóm người dùng (Tổ chức QLND)
-│       ├── organizations/         <-- Cây tổ chức EVN
+│       ├── user-groups/           <-- Nhóm người dùng (Tổ chức quản lý người dùng)
+│       ├── organizations/         <-- Cây tổ chức EVN (Tham chiếu cho Nhóm người dùng)
 │       ├── phone-numbers/         <-- Quản lý đầu số & dải số
 │       ├── cdr/                   <-- Tra cứu CDR, phát stream audio
 │       ├── qos/                   <-- Phân tích chất lượng thoại, MOS, Jitter, SIP code
@@ -307,80 +318,197 @@ backend/
 └── .env.example
 ```
 
-### 5.2. Frontend (`frontend/`)
+### 5.2. Frontend (`frontend/`) – Monorepo 2 ứng dụng
+
+Frontend là **monorepo pnpm workspace** gồm 2 ứng dụng độc lập và 1 package dùng chung. `apps/admin` ánh xạ từ `templates/admin/`, `apps/member` ánh xạ từ `templates/member/`.
 
 ```
 frontend/
-├── src/
-│   ├── main.ts
-│   ├── App.vue
-│   ├── api/                       <-- Axios instances, API endpoints theo module
-│   │   ├── client.ts              <-- Axios interceptors gắn token JWT & handle 401/403
-│   │   ├── auth.api.ts
-│   │   ├── cdr.api.ts
-│   │   ├── qos.api.ts
-│   │   ├── organization.api.ts
-│   │   ├── phone.api.ts
-│   │   ├── reports.api.ts
-│   │   └── settings.api.ts
-│   ├── assets/                    <-- CSS, fonts, SVG (logo_evn.svg)
-│   │   ├── css/
-│   │   │   ├── style.css          <-- Biến CSS dùng chung, theme EVN
-│   │   │   └── dark-mode.css
-│   ├── components/                <-- Tái sử dụng components
-│   │   ├── layout/
-│   │   │   ├── Sidebar.vue
-│   │   │   ├── Header.vue
-│   │   │   └── Footer.vue
-│   │   ├── audio/
-│   │   │   └── AudioPlayerModal.vue  <-- Trình nghe audio Mix theo leg
-│   │   ├── common/
-│   │   │   ├── Pagination.vue
-│   │   │   ├── TreeTable.vue
-│   │   │   ├── ConfirmDialog.vue
-│   │   │   └── ToastContainer.vue
-│   │   └── charts/
-│   │       ├── LineChart.vue
-│   │       └── BarChart.vue
-│   ├── router/                    <-- Vue Router định tuyến và phân quyền
-│   │   └── index.ts
-│   ├── stores/                    <-- Pinia stores
-│   │   ├── auth.store.ts
-│   │   ├── cdr.store.ts
-│   │   ├── notification.store.ts
-│   │   └── theme.store.ts
-│   └── views/                     <-- Các màn hình giao diện (ánh xạ từ templates)
-│       ├── auth/
-│       │   ├── LoginView.vue
-│       │   └── AdminLoginView.vue
-│       ├── dashboard/
-│       │   └── DashboardView.vue
-│       ├── cdr/
-│       │   ├── CdrHistoryView.vue
-│       │   └── QosDebugView.vue
-│       ├── organization/
-│       │   ├── OrganizationView.vue
-│       │   ├── UserGroupView.vue
-│       │   └── PrefixManagementView.vue
-│       ├── users/
-│       │   ├── UserListView.vue
-│       │   ├── RoleListView.vue
-│       │   └── PermissionMatrixView.vue
-│       ├── reports/
-│       │   └── ReportsView.vue
-│       ├── notifications/
-│       │   └── NotificationsView.vue
-│       ├── profile/
-│       │   ├── UserProfileView.vue
-│       │   └── AdminProfileView.vue
-│       └── settings/
-│           ├── SystemSettingsView.vue
-│           └── UserSettingsView.vue
-├── index.html
-├── package.json
-├── vite.config.ts
-└── .env.example
+├── pnpm-workspace.yaml            <-- packages: ['apps/*', 'packages/*']
+├── package.json                   <-- scripts: dev:admin, dev:member, build (build cả 2 app)
+├── tsconfig.base.json
+├── packages/
+│   └── shared/                    <-- @evn-cdr/shared: mã dùng chung, KHÔNG chứa route/view cụ thể
+│       ├── api/
+│       │   ├── createClient.ts    <-- Factory Axios: nhận { baseURL, tokenKey, onUnauthorized }
+│       │                          (Admin: baseURL /api/v1/admin, Member: baseURL /api/v1 – xem 02_api_contracts.md)
+│       │   ├── cdr.api.ts         <-- Hàm gọi API dùng chung, nhận client làm tham số
+│       │   ├── qos.api.ts
+│       │   ├── reports.api.ts
+│       │   └── notifications.api.ts
+│       ├── assets/                <-- CSS, fonts, SVG (logo_evn.svg)
+│       │   └── css/
+│       │       ├── style.css      <-- Biến CSS dùng chung, theme EVN
+│       │       └── dark-mode.css
+│       ├── components/
+│       │   ├── layout/            <-- AppShell.vue, Header.vue, Footer.vue, Sidebar.vue (nhận menu qua props)
+│       │   ├── audio/
+│       │   │   └── AudioPlayerModal.vue  <-- Trình nghe audio Mix theo leg
+│       │   ├── common/
+│       │   │   ├── Pagination.vue
+│       │   │   ├── TreeTable.vue
+│       │   │   ├── ConfirmDialog.vue
+│       │   │   └── ToastContainer.vue
+│       │   ├── charts/
+│       │   │   ├── LineChart.vue
+│       │   │   └── BarChart.vue
+│       │   └── cdr/               <-- CdrTable.vue, CdrDetailModal.vue, QosPanel.vue dùng cho cả 2 cổng
+│       ├── router/
+│       │   ├── createAuthGuard.ts <-- Guard factory: { tokenKey, loginRouteName, getPermissions }
+│       │   └── types.ts           <-- Khai báo RouteMeta { requiresAuth, permissions?, title }
+│       └── stores/
+│           ├── theme.store.ts
+│           └── notification.store.ts
+└── apps/
+    ├── admin/                     <-- Admin App, phục vụ tại /admin/*
+    │   ├── index.html
+    │   ├── vite.config.ts         <-- base: '/admin/', outDir: '../../dist/admin'
+    │   ├── .env.example           <-- VITE_API_BASE=/api/v1/admin
+    │   └── src/
+    │       ├── main.ts
+    │       ├── App.vue
+    │       ├── api/client.ts      <-- createClient({ baseURL: '/api/v1/admin', tokenKey: 'evn_admin_token', ... })
+    │       ├── api/               <-- auth.api.ts (/auth → /api/v1/admin/auth), organization.api.ts, phone.api.ts, settings.api.ts...
+    │       ├── router/index.ts    <-- createWebHistory('/admin/'), route name tiền tố admin.*
+    │       ├── stores/authAdmin.store.ts
+    │       ├── menu.ts            <-- Cây menu sidebar Admin
+    │       └── views/
+    │           ├── auth/AdminLoginView.vue
+    │           ├── dashboard/DashboardView.vue
+    │           ├── cdr/CdrHistoryView.vue, QosDebugView.vue
+    │           ├── reports/ReportsView.vue
+    │           ├── traffic/TrafficSummaryView.vue
+    │           ├── notifications/NotificationsView.vue
+    │           ├── organization/OrganizationView.vue, UserGroupView.vue,
+    │           │                PrefixManagementView.vue, PrefixHistoryView.vue
+    │           ├── users/UserListView.vue, RolesView.vue
+    │           ├── settings/SystemSettingsView.vue, AccountSettingsView.vue
+    │           └── profile/AdminProfileView.vue, ChangePasswordView.vue
+    └── member/                    <-- Member App, phục vụ tại /* (trừ /admin, /api, /socket.io)
+        ├── index.html
+        ├── vite.config.ts         <-- base: '/', outDir: '../../dist/member'
+        ├── .env.example           <-- VITE_API_BASE=/api/v1
+        └── src/
+            ├── main.ts
+            ├── App.vue
+            ├── api/client.ts      <-- createClient({ baseURL: '/api/v1', tokenKey: 'evn_user_token', ... })
+            ├── api/               <-- auth.api.ts (/auth → /api/v1/auth), group.api.ts, phone.api.ts...
+            ├── router/index.ts    <-- createWebHistory('/'), route name tiền tố member.*
+            ├── stores/authUser.store.ts
+            ├── menu.ts            <-- Cây menu sidebar Member
+            └── views/
+                ├── auth/LoginView.vue
+                ├── dashboard/DashboardView.vue
+                ├── cdr/CdrHistoryView.vue, QosDebugView.vue
+                ├── reports/ReportsView.vue
+                ├── traffic/TrafficSummaryView.vue
+                ├── notifications/NotificationsView.vue
+                ├── phone/OrgPrefixView.vue
+                ├── group/GroupAdminView.vue, GroupMembersView.vue
+                ├── settings/AccountSettingsView.vue
+                └── profile/UserProfileView.vue, ChangePasswordView.vue
 ```
+
+Màn hình có ở cả 2 cổng (Dashboard, CDR, QoS, Báo cáo, Thông báo, Hồ sơ) có **view riêng trong mỗi app** (khác phạm vi dữ liệu, bộ lọc nhóm, menu); phần giao diện giống nhau đặt ở `packages/shared/components`.
+
+### 5.3. Định tuyến & triển khai 2 ứng dụng frontend (chung hệ thống route)
+
+#### 5.3.1. Bản đồ URL trên một domain
+
+Toàn hệ thống chạy trên **một domain** (`https://cdr-pabx.evn.com.vn`). Nginx định tuyến theo prefix, theo thứ tự ưu tiên:
+
+| Prefix URL | Đích | Ghi chú |
+| :--- | :--- | :--- |
+| `/api/v1/*` | NestJS | REST API cả 2 cổng (`/api/v1/admin/...` cho Admin) |
+| `/socket.io/*` | NestJS | WebSocket thông báo in-app |
+| `/admin`, `/admin/*` | `dist/admin` | Admin App; `/admin` redirect 301 sang `/admin/`; URL không khớp file tĩnh trả `/admin/index.html` |
+| `/*` (còn lại) | `dist/member` | Member App; URL không khớp file tĩnh trả `/index.html` |
+
+```nginx
+server {
+    server_name cdr-pabx.evn.com.vn;
+
+    location /api/      { proxy_pass http://backend:3000; }
+    location /socket.io/ {
+        proxy_pass http://backend:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    location = /admin { return 301 /admin/; }
+    location /admin/ {
+        alias /var/www/evn-cdr/dist/admin/;
+        try_files $uri $uri/ /admin/index.html;
+    }
+
+    location / {
+        root /var/www/evn-cdr/dist/member;
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+#### 5.3.2. Quy tắc route
+
+1. **Mỗi app một router**, không import route, view hay store xác thực của app kia. Dùng chung chỉ qua `packages/shared`.
+2. **Không trùng không gian URL**: mọi path của Member App không được bắt đầu bằng `/admin`, `/api`, `/socket.io`. Path trong router Admin khai báo **tương đối** với base `/admin/` (vd. `path: 'cdr'` → URL `/admin/cdr`).
+3. **Route name** có tiền tố cổng: `admin.cdr`, `member.cdr`... để log, breadcrumb và test không nhầm lẫn.
+4. **Chuyển cổng là điều hướng toàn trang**: liên kết "Cổng Người dùng" trên trang đăng nhập Admin là `<a href="/login">`, liên kết "Cổng Quản trị" trên trang đăng nhập Member là `<a href="/admin/login">`. Không dùng `router.push` sang app kia.
+5. **Token tách khóa lưu trữ**: hai app cùng origin nên dùng chung `localStorage`; Admin App chỉ đọc/ghi `evn_admin_token`, Member App chỉ đọc/ghi `evn_user_token`. Đăng xuất một cổng không ảnh hưởng phiên của cổng kia. Admin App chỉ gọi `/api/v1/admin/*`; Member App chỉ gọi `/api/v1/*` không có tiền tố `/admin` (`docs/02_api_contracts.md`).
+6. **Guard**: route có `meta.requiresAuth = true` mặc định (trừ trang login). Thiếu token → về login của chính app; có token nhưng thiếu quyền trong `meta.permissions` → trang 403 của app. API trả `401` → xóa token của app và về login của app đó. Backend vẫn là chốt chặn cuối (guard JWT riêng, `PermissionsGuard`).
+7. **Route 404**: mỗi app có route `/:pathMatch(.*)*` hiển thị trang Không tìm thấy của chính app.
+
+#### 5.3.3. Bảng route Admin App (base `/admin/`)
+
+| URL | Route name | View | Template nguồn | `meta.permissions` |
+| :--- | :--- | :--- | :--- | :--- |
+| `/admin/login` | `admin.login` | `AdminLoginView` | `templates/admin/login.html` | *(public)* |
+| `/admin/` | `admin.dashboard` | `DashboardView` | `dashboard.html` | `report:view` |
+| `/admin/notifications` | `admin.notifications` | `NotificationsView` | `notifications.html` | — |
+| `/admin/cdr` | `admin.cdr` | `CdrHistoryView` | `cdr-history.html` | `cdr:view` |
+| `/admin/qos` | `admin.qos` | `QosDebugView` | `qos-debug.html` | `qos:view` |
+| `/admin/reports` | `admin.reports` | `ReportsView` | `reports.html` | `report:view` |
+| `/admin/traffic` | `admin.traffic` | `TrafficSummaryView` | *(không có template riêng, theo `docs/modules/14_core_business_call_traffic.md`)* | `report:view` |
+| `/admin/organizations` | `admin.organizations` | `OrganizationView` | `organization.html` | `org:view` |
+| `/admin/prefixes` | `admin.prefixes` | `PrefixManagementView` | `prefix-management.html` | `prefix:view` |
+| `/admin/prefix-history` | `admin.prefix-history` | `PrefixHistoryView` | `prefix-history.html` | `prefix:view` |
+| `/admin/user-groups` | `admin.user-groups` | `UserGroupView` | `user_group.html` | `user_group:view` |
+| `/admin/users` | `admin.users` | `UserListView` | `users.html` | `user:view` |
+| `/admin/roles` | `admin.roles` | `RolesView` | `roles.html` | `role:view` |
+| `/admin/settings` | `admin.settings` | `SystemSettingsView` | `system-settings.html` | `system:manage` |
+| `/admin/profile` | `admin.profile` | `AdminProfileView` | `profile.html` | — |
+| `/admin/change-password` | `admin.change-password` | `ChangePasswordView` | `change-password.html` | — |
+| `/admin/account-settings` | `admin.account-settings` | `AccountSettingsView` | `user-settings.html` | — |
+
+`templates/admin/permissions.html` và `data-permissions.html` không triển khai, không có route.
+
+#### 5.3.4. Bảng route Member App (base `/`)
+
+| URL | Route name | View | Template nguồn | `meta.permissions` |
+| :--- | :--- | :--- | :--- | :--- |
+| `/login` | `member.login` | `LoginView` | `templates/member/login.html` | *(public)* |
+| `/` | `member.dashboard` | `DashboardView` | `dashboard.html` | `report:view` |
+| `/notifications` | `member.notifications` | `NotificationsView` | `notifications.html` | — |
+| `/cdr` | `member.cdr` | `CdrHistoryView` | `cdr-history.html` | `cdr:view` |
+| `/qos` | `member.qos` | `QosDebugView` | `qos-debug.html` | `qos:view` |
+| `/reports` | `member.reports` | `ReportsView` | `reports.html` | `report:view` |
+| `/traffic` | `member.traffic` | `TrafficSummaryView` | *(không có template riêng, theo `docs/modules/14_core_business_call_traffic.md`)* | `report:view` |
+| `/org-prefix` | `member.org-prefix` | `OrgPrefixView` | `org-prefix.html` | `prefix:view` |
+| `/group-admin` | `member.group-admin` | `GroupAdminView` | `group-admin.html` | `user:view` |
+| `/group-members` | `member.group-members` | `GroupMembersView` | `group-members.html` | `user_group:view` |
+| `/profile` | `member.profile` | `UserProfileView` | `profile.html` | — |
+| `/change-password` | `member.change-password` | `ChangePasswordView` | `change-password.html` | — |
+| `/account-settings` | `member.account-settings` | `AccountSettingsView` | `user-settings.html` | — |
+
+`—` nghĩa là chỉ cần đăng nhập. Mã quyền theo `docs/modules/10_permissions_and_roles.md`; menu sidebar ẩn mục khi tài khoản thiếu quyền tương ứng. Với Member App, quyền ghi âm còn phụ thuộc Tầng 1 `allow_recording_access` của nhóm (mục 2.4).
+
+#### 5.3.5. Môi trường phát triển
+
+- `pnpm dev:member` chạy Member App tại `http://localhost:5173`; `pnpm dev:admin` chạy Admin App tại `http://localhost:5174/admin/`.
+- `apps/member/vite.config.ts` cấu hình `server.proxy`: `/admin` → `http://localhost:5174` (kèm `ws: true` cho HMR), `/api` và `/socket.io` → backend `http://localhost:3000`. Nhờ đó khi dev chỉ cần mở `http://localhost:5173` và 2 app chạy cùng origin giống production.
+- `apps/admin/vite.config.ts` cũng proxy `/api`, `/socket.io` về backend để chạy độc lập được.
+- `pnpm build` build cả 2 app ra `frontend/dist/admin` và `frontend/dist/member`; hai thư mục triển khai độc lập (có thể cập nhật một app mà không build lại app kia).
 
 ---
 
@@ -394,4 +522,5 @@ Khi thực hiện sinh code cho từng thành phần, Agent bắt buộc phải 
    - Luôn kiểm tra quyền truy cập vào file ghi âm: chỉ thuê bao có thẩm quyền đối với đầu số trong CDR mới được phép stream hoặc download file.
    - Ghi lại đầy đủ `audit_logs` khi có hành vi nghe lại hoặc tải file ghi âm.
 3. **Hiệu năng cao**: Mọi thao tác truy vấn CDR đều phải có điều kiện lọc theo mốc thời gian (`Created` / `fromDate`, `toDate`, tối đa 31 ngày) để tận dụng Partitioning và Index của MariaDB.
-4. **Tính nhất quán giao diện**: Kế thừa **bảng màu, class CSS, icon và bố cục** từ `templates/admin/` và `templates/member/`. **Không** kế thừa mock data, tên trường, enum, mã quyền hay luồng nghiệp vụ trong JS của templates: khi templates mâu thuẫn với `docs/`, `docs/` luôn là chuẩn (danh sách điểm lệch đã biết ở `docs/intent/docs-readiness-for-codegen.md`).
+4. **Tách biệt 2 ứng dụng frontend**: Mã Cổng Quản trị đặt trong `frontend/apps/admin`, mã Cổng Người dùng đặt trong `frontend/apps/member`. Không import chéo giữa 2 app; mã dùng chung đặt trong `frontend/packages/shared`. Route và URL tuân theo mục 5.3.
+5. **Tính nhất quán giao diện**: Kế thừa **bảng màu, class CSS, icon và bố cục** từ `templates/admin/` (cho `apps/admin`) và `templates/member/` (cho `apps/member`). **Không** kế thừa mock data, tên trường, enum, mã quyền hay luồng nghiệp vụ trong JS của templates: khi templates mâu thuẫn với `docs/`, `docs/` luôn là chuẩn (danh sách điểm lệch đã biết ở `docs/intent/docs-readiness-for-codegen.md`).

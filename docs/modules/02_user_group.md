@@ -453,7 +453,7 @@ async validateGroupAdminSafeguard(groupId: number, targetAdminUserId: number): P
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/organization/UserGroupView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/organization/UserGroupView.vue`)
 
 ### 5.1. Cấu trúc Component & Giao diện người dùng
 

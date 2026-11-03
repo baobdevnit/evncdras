@@ -366,7 +366,7 @@ export class CdrEnrichmentScheduler {
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/cdr/CdrHistoryView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/cdr/CdrHistoryView.vue` & `frontend/apps/member/src/views/cdr/CdrHistoryView.vue`)
 
 ### 5.1. Bố cục Giao diện (Ánh xạ `templates/cdr-history.html`)
 - **Page Header**: Tiêu đề "Tra cứu Lịch sử Cuộc gọi (CDR)", phụ đề hướng dẫn.

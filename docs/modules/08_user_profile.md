@@ -113,7 +113,7 @@ user-profile/
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/profile/UserProfileView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/member/src/views/profile/UserProfileView.vue`)
 
 ### 5.1. Bố cục Giao diện (Ánh xạ `templates/profile.html` & `user-settings.html`)
 

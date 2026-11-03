@@ -170,7 +170,7 @@ export class MailerService {
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/notifications/NotificationsView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/notifications/NotificationsView.vue` & `frontend/apps/member/src/views/notifications/NotificationsView.vue`)
 
 ### 5.1. Bố cục Giao diện (Theo `templates/notifications.html`)
 

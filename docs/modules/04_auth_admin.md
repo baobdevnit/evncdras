@@ -125,7 +125,7 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/src/views/auth/AdminLoginView.vue` & `AdminManagementView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/auth/AdminLoginView.vue` & `AdminManagementView.vue`)
 
 ### 5.1. Màn hình Đăng nhập Quản trị (`AdminLoginView.vue`)
 - Giao diện thiết kế theo phong cách trang nghiêm của EVN (`templates/login.css`, `templates/login.html`):
