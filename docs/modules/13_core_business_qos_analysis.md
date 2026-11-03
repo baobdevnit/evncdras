@@ -216,6 +216,7 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 ### 3.3. Ngưỡng cảnh báo QoS (`GET` / `PUT /api/v1/admin/qos/thresholds`)
 
 - **Guard**: `AdminAuthGuard`; `GET` cần `qos:view`, `PUT` cần `qos:manage`.
+- **Giao diện**: chỉ Admin App, mục `qos-thresholds` trong `/admin/settings` (`docs/modules/07_system_settings.md` mục 5.2). `QosDebugView` của Admin App chỉ đọc ngưỡng để tô màu; Member App nhận ngưỡng qua `meta.thresholds` của `debug-table`.
 - **Dữ liệu**: bảng `qos_threshold_configs` (một dòng mỗi `metric_name`). `PUT` nhận toàn bộ danh sách, ghi trong một transaction và ghi `audit_logs` (`SYSTEM / UPDATE_SETTINGS`).
 - **Body `PUT`** (cũng là dạng response của `GET`):
 

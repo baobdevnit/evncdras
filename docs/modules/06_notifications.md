@@ -82,7 +82,8 @@ notifications/
 ├── notifications.module.ts
 ├── notifications.controller.ts
 ├── notifications.service.ts
-├── notifications.gateway.ts        <-- WebSocket Gateway (Socket.IO)
+├── notifications.gateway.ts        <-- WebSocket Gateway (Socket.IO), chỉ chạy ở backend-api
+├── notification-push.poller.ts     <-- Đọc notifications mới (watermark id) rồi gọi gateway; chỉ chạy ở backend-api
 ├── mailer/
 │   ├── mailer.service.ts           <-- Gửi Email qua Nodemailer
 │   └── templates/                  <-- Handlebars HTML template email
@@ -134,6 +135,10 @@ export class AdminNotificationsGateway extends BaseNotificationsGateway {
 ```
 
 - Không có hàm broadcast toàn namespace: thông báo luôn được phát tới room của **từng người nhận** sau khi đã tạo dòng `notification_recipients`.
+- **Nguồn phát duy nhất là `NotificationPushPoller`** (`docs/00_overview_and_architecture.md` mục 2.1). Cảnh báo do `backend-worker` tạo (QoS, PABX offline) và thông báo do Admin soạn qua API đều chỉ ghi DB; không service nào gọi `sendToRecipient` trực tiếp. Mỗi instance `backend-api` chạy poller riêng:
+  - Khởi động: `lastId = SELECT MAX(id) FROM notifications` (không phát lại thông báo cũ).
+  - Mỗi 3 giây: đọc `notification_recipients` JOIN `notifications` với `notifications.id > lastId` (`ORDER BY id`, tối đa 500 dòng), gọi `sendToRecipient` của gateway đúng `recipient_type`, rồi đặt `lastId` = id lớn nhất đã đọc.
+  - Socket.IO không phát được tới client của instance khác, nên mỗi instance chỉ phát tới client đang kết nối vào chính nó; vì mọi instance cùng đọc mọi thông báo, người nhận ở instance nào cũng nhận đúng một lần.
 
 ### 4.2. Implementation `MailerService`
 
@@ -185,7 +190,13 @@ export class MailerService {
   - Hiển thị thời gian tương đối (`timeAgo`): "Vừa xong", "15 phút trước", "2 giờ trước".
 - **Trạng thái rỗng (`.empty-state`)**: Hiển thị icon SVG hộp thư rỗng và dòng chữ "Không có thông báo nào" khi tab không có bản ghi.
 
-### 5.2. Quản lý trạng thái Pinia Store (`useNotificationStore`)
+### 5.2. Soạn thông báo (chỉ Admin App)
+
+- Nút "Soạn thông báo" trên header `NotificationsView` của Admin App, chỉ hiện khi tài khoản có `system:manage`. Template `notifications.html` chưa có nút này: dựng modal theo kiểu `.modal` chung.
+- Modal gồm `title`, `content`, `severity`, `target` (`ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` với dropdown nhóm từ `GET /api/v1/admin/user-groups` \| `EVERYONE`); gửi `POST /api/v1/admin/notifications`, thành công thì đóng modal và hiện toast.
+- Member App không có chức năng này.
+
+### 5.3. Quản lý trạng thái Pinia Store (`useNotificationStore`)
 
 - Kết nối WebSocket khi người dùng đăng nhập thành công.
 - Lắng nghe sự kiện `notification:new`:

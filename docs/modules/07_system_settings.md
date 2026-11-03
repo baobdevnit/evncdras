@@ -113,7 +113,7 @@ Danh mục các Key cấu hình chuẩn (3 phân nhóm: `ANALYSIS`, `REPORTING`,
 ### 3.3. Nạp lại bộ nhớ đệm (`POST /api/v1/admin/settings/reload-cache`)
 
 - **Guard**: `AdminAuthGuard`, `Permission: system:manage`
-- Nạp lại cache sở hữu số (`phone_numbers.range_id → user_groups`) và cache `system_settings` trên mọi instance backend; ghi `audit_logs` (`SYSTEM / UPDATE_SETTINGS`, `action_details.op = "RELOAD_CACHE"`). Dùng sau khi sửa dữ liệu trực tiếp trong DB.
+- Nạp lại cache sở hữu số (`phone_numbers.range_id → user_groups`) và cache `system_settings` trên mọi tiến trình backend (mọi instance `backend-api` và `backend-worker`) bằng cách tăng `cdr_enrichment_state.cache_version`; mỗi tiến trình phát hiện giá trị mới trong vòng vài giây và tự nạp lại (`docs/00_overview_and_architecture.md` mục 2.1). Ghi `audit_logs` (`SYSTEM / UPDATE_SETTINGS`, `action_details.op = "RELOAD_CACHE"`). Dùng sau khi sửa dữ liệu trực tiếp trong DB.
 
 ---
 
@@ -145,6 +145,18 @@ system-settings/
     - **Vùng Phân tích (`#section-analysis`)**: Biểu thức chính quy nhận dạng máy lẻ 5 số, danh sách IP lõi PABX.
     - **Vùng Báo cáo & Lưu trữ (`#section-reporting`)**: Chu kỳ tra cứu trực tuyến (tháng) và thời hạn giữ CDR trước khi xóa (tháng).
     - **Vùng Nâng cao (`#section-advanced`)**: Công tắc Chế độ bảo trì, ánh xạ đường dẫn ghi âm, cảnh báo & SMTP, chính sách xác thực, và nút "Nạp lại bộ nhớ đệm" (gọi `POST /api/v1/admin/settings/reload-cache`).
+- **Nút "Tính lại thống kê"** trong vùng Báo cáo & Lưu trữ: chọn `fromDate`/`toDate` (≤ 366 ngày), gọi `POST /api/v1/admin/stats/recalculate`, hiển thị số khung giờ đã xếp hàng (`queuedHours`).
+
+### 5.2. Các mục bổ sung (không có trong template, dựng theo cùng bố cục `.settings-section`)
+
+Mỗi mục là một component trong `apps/admin/src/views/settings/sections/`, có nút riêng trên `.settings-sidebar`, mở trực tiếp bằng `/admin/settings?section=<key>`. Mục bị ẩn (cả nút menu) khi tài khoản thiếu quyền; thiếu quyền khi mở bằng query thì chuyển về mục đầu tiên được phép.
+
+| Key | Component | Quyền | Nội dung |
+| :--- | :--- | :--- | :--- |
+| `analysis`, `reporting`, `advanced` | `AnalysisSection.vue`, `ReportingSection.vue`, `AdvancedSection.vue` | `system:manage` | Mục 5.1 |
+| `qos-thresholds` | `QosThresholdsSection.vue` | xem `qos:view`, nút Lưu cần `qos:manage` | Bảng ngưỡng warning/critical theo `metric_name`, `GET`/`PUT /api/v1/admin/qos/thresholds` (`docs/modules/13_core_business_qos_analysis.md` mục 3.3) |
+| `admins` | `AdminAccountsSection.vue` | `admin:manage` | Quản lý Quản trị viên (`docs/modules/04_auth_admin.md` mục 5.2) |
+| `audit-logs` | `AuditLogSection.vue` | `audit:view` | Bảng `GET /api/v1/admin/audit-logs`: lọc `fromDate`/`toDate` (bắt buộc), `actorType`, `actorId`, `action`, `resourceName`, phân trang; chỉ đọc |
 
 ---
 

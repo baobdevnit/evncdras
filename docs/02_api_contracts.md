@@ -178,6 +178,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/user-groups` | `user_group:view` | Danh sách các nhóm QLND (kèm số lượng users) | USER + ADMIN |
 | `GET` | `/api/v1/user-groups/tree` | `user_group:view` | Cấu trúc cây nhóm QLND theo tổ chức | USER + ADMIN |
 | `GET` | `/api/v1/user-groups/:id` | `user_group:view` | Xem chi tiết nhóm QLND và người đại diện | USER + ADMIN |
+| `GET` | `/api/v1/user-groups/me/members` | `user_group:view` | Danh bạ thành viên **nhóm của người gọi** (màn hình Danh bạ nhóm, Member App): chỉ tài khoản `status = 'ACTIVE'`, trường danh bạ `id`, `fullName`, `jobTitle`, `email`, `phoneNumber`, `avatarUrl`, `roleCode`; không trả `username`, `status`, `lastLoginAt` hay thông tin phiên. Query `page`, `limit` (≤ 100), `search` (họ tên, email, chức danh, số điện thoại), `roleCode`. Đặc tả `docs/modules/02_user_group.md` mục 3.6 | USER |
 | `POST` | `/api/v1/admin/user-groups` | `user_group:manage` | Thiết lập nhóm QLND mới gắn vào nút tổ chức (kèm `allowRecordingAccess`) | ADMIN |
 | `PUT` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Cập nhật thông tin nhóm QLND (kèm quyền bật/tắt ghi âm nhóm `allowRecordingAccess`) | ADMIN |
 | `DELETE` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Ngừng hoạt động nhóm (xóa mềm `status = INACTIVE`, thu hồi dải số; `409` nếu còn thành viên đang hoạt động) | ADMIN |
@@ -288,7 +289,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `PUT` | `/api/v1/notifications/mark-all-read` | Authenticated | Đánh dấu tất cả thông báo đã đọc | USER + ADMIN |
 | `GET` | `/api/v1/admin/settings/system` | `system:manage` | Lấy cấu hình hệ thống (Quy tắc phân tích, retention, bảo trì...) | ADMIN |
 | `PUT` | `/api/v1/admin/settings/system` | `system:manage` | Lưu cấu hình hệ thống | ADMIN |
-| `POST` | `/api/v1/admin/settings/reload-cache` | `system:manage` | Nạp lại cache sở hữu số và cache setting trên mọi instance backend | ADMIN |
+| `POST` | `/api/v1/admin/settings/reload-cache` | `system:manage` | Nạp lại cache sở hữu số và cache setting trên mọi tiến trình backend (API và worker, qua `cache_version`) | ADMIN |
 
 ---
 

@@ -359,7 +359,8 @@ export class CdrEnrichmentScheduler {
 }
 ```
 
-- `NumberOwnershipCacheService` dựng map `phone_number → user_groups.id` **chỉ** từ chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, theo `01` §8). Không tra theo `prefix` hay `range_from..range_to`. Cache được nạp lại sau mỗi thao tác cấp phát/thu hồi dải số và khi khởi động.
+- `NumberOwnershipCacheService` dựng map `phone_number → user_groups.id` **chỉ** từ chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, theo `01` §8). Không tra theo `prefix` hay `range_from..range_to`. Cache được nạp khi khởi động và nạp lại khi `cdr_enrichment_state.cache_version` khác bản đang giữ (kiểm tra ở đầu mỗi chu kỳ); API tăng `cache_version` sau mỗi thao tác cấp phát/thu hồi dải số.
+- `CdrEnrichmentScheduler` chỉ được đăng ký trong `WorkerModule` và chạy ở tiến trình `backend-worker` (đúng 1 instance); `CdrModule` không khai báo nó trong `providers` (`docs/00_overview_and_architecture.md` mục 2.1).
 - Thay đổi `analysis_internal_extension_pattern` hoặc `pabx_core_ip_list` chỉ áp dụng cho bản ghi làm giàu sau thời điểm lưu.
 - Watermark theo `id` giả định PABX là **một tiến trình ghi duy nhất**, cấp `id` tăng dần theo thứ tự commit (đúng với dữ liệu thật).
 - Khi ghi hoặc đổi leg chính của một bản ghi có `Created` cũ hơn 3 giờ, tiến trình thêm (`DATE(Created)`, `HOUR(Created)`) vào `stats_recompute_queue` (`INSERT IGNORE`) để job tổng hợp tính lại khung giờ đó (`docs/01_database_schema.md` mục 15.0).

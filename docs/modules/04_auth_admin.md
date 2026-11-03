@@ -125,18 +125,19 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/auth/AdminLoginView.vue` & `AdminManagementView.vue`)
+## 5. Kiến trúc Frontend Vue 3 (chỉ Admin App: `frontend/apps/admin/src/views/auth/AdminLoginView.vue` & `views/settings/sections/AdminAccountsSection.vue`)
 
-### 5.1. Màn hình Đăng nhập Quản trị (`AdminLoginView.vue`)
-- Giao diện thiết kế theo phong cách trang nghiêm của EVN (`templates/login.css`, `templates/login.html`):
+### 5.1. Màn hình Đăng nhập Quản trị (`AdminLoginView.vue`, route `admin.login`)
+- Giao diện thiết kế theo phong cách trang nghiêm của EVN (`templates/admin/login.html`, `templates/admin/login.css`):
   - Panel bên trái hiển thị Logo EVN (`logo_evn.svg`), tiêu đề "EVN CDR Analysis System - Quản trị hệ thống".
   - Panel bên phải: Form đăng nhập tài khoản Quản trị với nhãn cảnh báo đỏ nhỏ: "Khu vực dành riêng cho Quản trị viên hạ tầng viễn thông EVNICT".
   - Access Token Admin chỉ giữ trong bộ nhớ (Pinia store riêng của Admin Portal), không lưu `localStorage`; Refresh Token nằm trong cookie `HttpOnly` có `Path=/api/v1/admin/auth`, nên không xung đột với phiên của User Portal (chính sách tại `docs/01_database_schema.md` mục 6.1).
 
 ### 5.2. Quản lý Quản trị viên trong Cài đặt hệ thống
-- Tích hợp vào Tab "Quản lý Quản trị viên" trong `SystemSettingsView.vue`.
-- Hiển thị danh sách các Admin, nhãn vai trò theo `roleCode` (`ROOT_ADMIN` nổi bật màu vàng gold).
-- Ẩn toàn bộ tab và các nút "Thêm Quản trị viên", "Khóa", "Xóa" nếu tài khoản đang đăng nhập không có `admin:manage` (`!authAdminStore.permissions.includes('admin:manage')`).
+- Là mục `admins` (component `AdminAccountsSection.vue`) trong `SystemSettingsView.vue`, mở trực tiếp tại `/admin/settings?section=admins` (`docs/00_overview_and_architecture.md` mục 5.3.3, bảng "Chức năng đặt bên trong màn hình"). Không có route hay view riêng.
+- Template `system-settings.html` chưa có mục này: dựng theo cùng bố cục `.settings-section` và bảng `.data-table` của template.
+- Hiển thị danh sách các Admin, nhãn vai trò theo `roleCode` (`ROOT_ADMIN` nổi bật màu vàng gold); thao tác Thêm (hiển thị `temporaryPassword` một lần), Sửa, Khóa/Kích hoạt, Đặt lại mật khẩu, Thu hồi phiên, Ngừng hoạt động – theo các endpoint `/api/v1/admin/admins*`.
+- Ẩn toàn bộ mục (cả nút trên menu `.settings-sidebar`) nếu tài khoản đang đăng nhập không có `admin:manage` (`!authAdminStore.permissions.includes('admin:manage')`).
 
 ---
 

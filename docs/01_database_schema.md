@@ -392,6 +392,7 @@ CREATE TABLE IF NOT EXISTS `cdr_enrichment_state` (
   `records_enriched_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng số bản ghi đã làm giàu tích lũy',
   `status` enum('IDLE','PROCESSING','ERROR') NOT NULL DEFAULT 'IDLE' COMMENT 'Trạng thái chạy hiện tại',
   `error_message` text DEFAULT NULL COMMENT 'Chi tiết lỗi nếu phát sinh sự cố',
+  `cache_version` int(10) unsigned NOT NULL DEFAULT 0 COMMENT 'Tăng khi dữ liệu sở hữu số hoặc system_settings thay đổi; worker và API so sánh để nạp lại cache',
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -2,7 +2,9 @@
 
 ## Đường dẫn tài liệu: `docs/modules/02_user_group.md`
 
-## Ánh xạ giao diện mẫu: Đã loại bỏ (Trước đây là `templates/user-management-orgs.html`)
+## Ánh xạ giao diện mẫu
+- **Admin App**: `templates/admin/user_group.html` → `UserGroupView.vue` (route `admin.user-groups`, mục 5.1–5.2).
+- **Member App**: `templates/member/group-admin.html` → `GroupAdminView.vue` (route `member.group-admin`), `templates/member/group-members.html` → `GroupMembersView.vue` (route `member.group-members`) (mục 5.3–5.4).
 
 ---
 
@@ -376,6 +378,38 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
 - **Phạm vi**: Quản trị viên nhóm chỉ đổi vai trò thành viên cùng nhóm; Quản trị viên hệ thống đổi ở mọi nhóm. Thành viên thường (`USER_RECORDING`, `REGULAR_USER`) không có hai quyền trên nên bị `403 FORBIDDEN_PERMISSION`.
 - **Audit Log**: ghi `CHANGE_ROLE` (`resource_name = USER`) kèm người thực hiện, thành viên mục tiêu, vai trò cũ và mới.
 
+### 3.6. `GET /api/v1/user-groups/me/members` (Danh bạ nhóm – chỉ Member App)
+
+- **Mục đích**: cho **mọi** thành viên nhóm tra cứu liên hệ của đồng nghiệp cùng nhóm. Tách khỏi `GET /api/v1/users` (cần `user:view`, chỉ Quản trị viên nhóm có) để thành viên thường không nhận được dữ liệu quản trị tài khoản.
+- **Guard / Quyền**: `UserAuthGuard` + `user_group:view` (cả 3 vai trò User đều có, `docs/modules/10_permissions_and_roles.md` mục 2.2). Không có bản `/api/v1/admin/...`: Admin xem thành viên nhóm qua `GET /api/v1/admin/users?groupId=`.
+- **Phạm vi**: luôn là `req.user.userGroupId`; endpoint không nhận tham số nhóm. Chỉ trả tài khoản `status = 'ACTIVE'`.
+- **Query params**: `page=1`, `limit=20` (tối đa 100), `search` (khớp `full_name`, `email`, `job_title`, `phone_number`), `roleCode` (`GROUP_ADMIN` \| `USER_RECORDING` \| `REGULAR_USER`). Sắp xếp: Quản trị viên nhóm trước, sau đó `full_name` tăng dần.
+- **Response** `200`:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh bạ nhóm thành công",
+  "data": [
+    {
+      "id": 10,
+      "fullName": "Trần Thị B",
+      "jobTitle": "Trưởng nhóm Kỹ thuật",
+      "email": "tran.b@71portal.vn",
+      "phoneNumber": "0905123456",
+      "avatarUrl": "https://ui-avatars.com/api/?name=Tran+B",
+      "roleCode": "GROUP_ADMIN"
+    }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 45, "totalPages": 3 }
+}
+```
+
+- **Không trả**: `username`, `status`, `lastLoginAt`, `mustChangePassword`, `failedLoginCount`, `lockedUntil`, phiên đăng nhập.
+- **Thông tin tóm tắt nhóm** (người đại diện, danh sách Quản trị viên nhóm, nhóm đầu số và dải số) lấy từ `GET /api/v1/user-groups/:id` với `id` là nhóm của người gọi.
+- **Khai báo route NestJS**: đặt `@Get('me/members')` **trước** `@Get(':id')` trong `UserGroupsController` và dùng `ParseIntPipe` cho `:id`, để `me` không bị bắt nhầm là id.
+
 ---
 
 ## 4. Kiến trúc Backend NestJS (`backend/src/modules/user-groups/`)
@@ -453,9 +487,17 @@ async validateGroupAdminSafeguard(groupId: number, targetAdminUserId: number): P
 
 ---
 
-## 5. Kiến trúc Frontend Vue 3 (`frontend/apps/admin/src/views/organization/UserGroupView.vue`)
+## 5. Kiến trúc Frontend Vue 3
 
-### 5.1. Cấu trúc Component & Giao diện người dùng
+Module có màn hình ở cả 2 ứng dụng (`docs/00_overview_and_architecture.md` mục 5.3):
+
+| App | Route | View | Template nguồn | Quyền route | API chính |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Admin | `/admin/user-groups` (`admin.user-groups`) | `apps/admin/src/views/organization/UserGroupView.vue` | `templates/admin/user_group.html` | `user_group:view` | `/api/v1/admin/user-groups*`, `/api/v1/admin/prefix-groups/available` |
+| Member | `/group-admin` (`member.group-admin`) | `apps/member/src/views/group/GroupAdminView.vue` | `templates/member/group-admin.html` | `user:view` (chỉ `GROUP_ADMIN`) | `/api/v1/users*`, `PUT /api/v1/users/:id/role` |
+| Member | `/group-members` (`member.group-members`) | `apps/member/src/views/group/GroupMembersView.vue` | `templates/member/group-members.html` | `user_group:view` (mọi vai trò User) | `GET /api/v1/user-groups/me/members`, `GET /api/v1/user-groups/:id` |
+
+### 5.1. Admin App – `UserGroupView.vue`: Cấu trúc Component & Giao diện người dùng
 
 - **Page Header**: Tiêu đề "Quản lý Nhóm người dùng (User Groups)", nút "Thiết lập mới" mở modal `#userGroupModal`.
 - **Bộ Tabs**:
@@ -472,7 +514,7 @@ async validateGroupAdminSafeguard(groupId: number, targetAdminUserId: number): P
   - Dropdown chọn Nhóm đầu số điện thoại: Chỉ hiển thị các nhóm đầu số đang rảnh (chưa bị User Group nào liên kết) để đảm bảo ràng buộc 1 - 1.
   - Khối "Quản trị viên nhóm đầu tiên" (chỉ khi tạo mới): nhập tên đăng nhập, email, họ tên, số điện thoại, chức danh. Sau khi lưu, hiển thị mật khẩu tạm **một lần** trong hộp thoại có nút sao chép và cảnh báo "Mật khẩu chỉ hiển thị một lần".
 
-### 5.2. Quản lý trạng thái Pinia Store (`useUserGroupStore`)
+### 5.2. Admin App – Pinia Store (`useUserGroupStore`)
 
 - State: `userGroups: UserGroupItem[]`, `loading: boolean`, `pagination: PaginationInfo`, `availablePrefixGroups: PhonePrefixGroupItem[]`.
 - Actions:
@@ -482,6 +524,23 @@ async validateGroupAdminSafeguard(groupId: number, targetAdminUserId: number): P
   - `updateUserGroup(id, payload)`: Cập nhật thông tin nhóm.
   - `changeMemberRole(userId, roleCode)`: Gọi `PUT /users/:id/role`; bắt lỗi `409` khi vi phạm tối thiểu 1 admin hoặc nhóm chưa mở Tầng 1.
   - `deleteUserGroup(id)`: Ngừng hoạt động nhóm (xóa mềm); chặn khi còn thành viên có `status <> 'INACTIVE'`.
+
+### 5.3. Member App – `GroupAdminView.vue` (Quản trị nhóm)
+
+- **Đối tượng**: chỉ vai trò `GROUP_ADMIN` (route yêu cầu `user:view`; menu ẩn mục này với thành viên thường).
+- **Phạm vi**: chỉ thành viên nhóm mình; backend tự gán `userGroupId = req.user.userGroupId` (`docs/modules/03_auth_user.md`). Không có bộ chọn nhóm, không đổi được nhóm của thành viên (BR-UG-01).
+- **Bảng thành viên**: `GET /api/v1/users` (lọc `search`, `status`, phân trang); thao tác Thêm (`POST /users`, hiển thị `temporaryPassword` một lần), Sửa (`PUT /users/:id`), Khóa/Mở khóa (`PUT /users/:id/status`), Đặt lại mật khẩu (`PUT /users/:id/reset-password`), Ngừng hoạt động (`DELETE /users/:id`).
+- **Đổi vai trò**: `PUT /api/v1/users/:id/role` (mục 3.5); bắt `409` khi hạ Quản trị viên nhóm cuối cùng (BR-UG-02) hoặc nhóm chưa mở Tầng 1.
+- **Ghi âm Tầng 1**: khi `GET /api/v1/auth/me` trả `userGroup.allowRecordingAccess = false`, ẩn hẳn cột, nút và lựa chọn vai trò `USER_RECORDING` (`docs/00_overview_and_architecture.md` mục 2.4).
+- **Store**: `useGroupAdminStore` – state `members`, `pagination`, `loading`; actions `fetchMembers`, `createMember`, `updateMember`, `setMemberStatus`, `resetMemberPassword`, `changeMemberRole`, `deactivateMember`.
+
+### 5.4. Member App – `GroupMembersView.vue` (Danh bạ nhóm)
+
+- **Đối tượng**: mọi vai trò User (`GROUP_ADMIN`, `USER_RECORDING`, `REGULAR_USER`). **Chỉ đọc**: không có nút hay modal thêm/sửa/khóa/xóa.
+- **Thẻ tóm tắt nhóm**: `GET /api/v1/user-groups/:id` với `id = userGroup.id` từ `GET /api/v1/auth/me` – tên nhóm, người đại diện, danh sách Quản trị viên nhóm, nhóm đầu số và dải số.
+- **Danh bạ**: `GET /api/v1/user-groups/me/members` (mục 3.6); 2 chế độ xem Thẻ / Bảng; tìm kiếm theo họ tên, email, chức danh, số điện thoại; lọc theo vai trò; thao tác sao chép số điện thoại/email và `mailto:`.
+- **Không hiển thị**: trạng thái tài khoản, lần đăng nhập cuối, nhãn quyền ghi âm của từng người. Trường `extension` (máy lẻ) trong mock của template không có trong bảng `users` nên không triển khai.
+- **Store**: `useGroupDirectoryStore` – state `group`, `members`, `pagination`, `viewMode` (`card` \| `table`, trạng thái giao diện cục bộ); actions `fetchGroupSummary`, `fetchMembers`.
 
 ---
 
@@ -502,4 +561,6 @@ async validateGroupAdminSafeguard(groupId: number, targetAdminUserId: number): P
 6. **TC-UG-06 (Ràng buộc toàn vẹn khi ngừng hoạt động nhóm)**:
    - Khi nhóm còn thành viên chưa `INACTIVE`, gọi API DELETE -> Xác nhận trả về lỗi `409 Conflict`.
    - Ngừng hoạt động toàn bộ thành viên (`status = 'INACTIVE'`; thành viên không bao giờ được chuyển sang nhóm khác), gọi API DELETE -> Xác nhận nhóm có `status = 'INACTIVE'`, mọi số trong dải của nhóm có `range_id = NULL` (số `ALLOCATED` về `FREE`, số `LOCKED` giữ nguyên), CDR và `stats_*` của nhóm vẫn còn nguyên.
-
+7. **TC-UG-07 (Danh bạ nhóm cho thành viên thường)**:
+   - Đăng nhập Member App bằng `REGULAR_USER` -> mở `/group-members` thành công; `GET /api/v1/user-groups/me/members` trả `200`, chỉ thành viên `ACTIVE` cùng nhóm, không có trường `username`, `status`, `lastLoginAt`.
+   - Cùng tài khoản gọi `GET /api/v1/users` -> `403 FORBIDDEN_PERMISSION`; menu không có mục "Quản trị nhóm", truy cập thẳng `/group-admin` -> trang 403 của Member App.

@@ -43,26 +43,30 @@ flowchart TD
         AudioPlayer["Web Audio Player (Streaming)"]
     end
 
-    subgraph Backend["Backend Layer - NestJS"]
-        APIGateway["NestJS API Gateway"]
-        AuthAdminGuard["AdminAuthGuard (JWT - Secret A)"]
-        AuthUserGuard["UserAuthGuard (JWT - Secret B)"]
+    subgraph Backend["Backend Layer - NestJS (1 codebase, 2 tiến trình)"]
+        subgraph ApiProcess["backend-api: main.ts (HTTP + Socket.IO, scale N instance)"]
+            APIGateway["NestJS API Gateway (Admin /api/v1/admin/* và Member /api/v1/*)"]
+            AuthAdminGuard["AdminAuthGuard (JWT - Secret A)"]
+            AuthUserGuard["UserAuthGuard (JWT - Secret B)"]
 
-        subgraph Modules["NestJS Modules"]
-            ModAuth["Auth & Security Module"]
-            ModOrg["Organization & Group Module"]
-            ModPhone["Phone Prefix Management"]
-            ModCDR["CDR & Audio Stream Module"]
-            ModQoS["QoS & Network Debug Module"]
-            ModTraffic["Call Duration & Traffic Module"]
-            ModReport["Report & Export Module (Zero CDR Scan)"]
-            ModNotify["Notification & Mailer Module"]
-            ModSettings["System Settings Module"]
-            ModStats["Pre-Aggregation Cron Engine"]
+            subgraph Modules["NestJS Modules"]
+                ModAuth["Auth & Security Module"]
+                ModOrg["Organization & Group Module"]
+                ModPhone["Phone Prefix Management"]
+                ModCDR["CDR & Audio Stream Module"]
+                ModQoS["QoS & Network Debug Module"]
+                ModTraffic["Call Duration & Traffic Module"]
+                ModReport["Report & Export Module (Zero CDR Scan)"]
+                ModNotify["Notification Module (Socket.IO push)"]
+                ModSettings["System Settings Module"]
+            end
         end
 
-        EnrichScheduler["Direct Batch Scheduler (Polling 3-5s, In-Memory Prefix Cache)"]
-        CronStatsJob["Scheduled Task (Rolling 10m & Daily Finalize 00:05)"]
+        subgraph WorkerProcess["backend-worker: main.worker.ts (không mở HTTP, đúng 1 instance)"]
+            EnrichScheduler["Direct Batch Scheduler (Polling 3-5s, In-Memory Prefix Cache)"]
+            CronStatsJob["Stats Aggregation Job (Rolling 10m & Daily Finalize 00:05)"]
+            AlertEngine["Alert Engine (QOS_ALERT, PABX_OFFLINE, Email)"]
+        end
     end
 
     subgraph Storage["Storage & Network Layer"]
@@ -71,7 +75,7 @@ flowchart TD
             TableCDREnriched[("Table cdr_enriched (Group Enriched)")]
             TableStatsHourly[("Table stats_hourly (Hourly Aggregated)")]
             TableStatsDaily[("Table stats_daily (Daily Aggregated)")]
-            AppDB[("App Tables (Users, Groups, Org, Prefixes)")]
+            AppDB[("App Tables (Users, Groups, Org, Prefixes, Notifications)")]
         end
 
         FileServer["Thư mục ghi âm PABX (SMB/NFS, gắn chỉ đọc) - WAV"]
@@ -100,7 +104,6 @@ flowchart TD
     APIGateway --> ModOrg
     APIGateway --> ModNotify
     APIGateway --> ModSettings
-    APIGateway --> ModStats
 
     PABX -.->|Ghi CDR gốc trực tiếp| TableCDR
     PABX -.->|Sync Audio| FileServer
@@ -112,6 +115,11 @@ flowchart TD
     CronStatsJob -->|1. Tính lại 3 giờ gần nhất| TableCDREnriched
     CronStatsJob -->|2. Rolling UPSERT mỗi 10 phút| TableStatsHourly
     CronStatsJob -->|3. Rolling UPSERT và chốt sổ ngày| TableStatsDaily
+    CronStatsJob -->|4. Đánh giá khung giờ vừa kết thúc| AlertEngine
+
+    AlertEngine -->|Ghi notifications + recipients| AppDB
+    AlertEngine -->|Email CRITICAL| MailServer
+    ModNotify -->|"Đọc notifications mới - Watermark ID, push notification:new"| AppDB
 
     ModCDR -->|Truy vấn theo nhóm| TableCDREnriched
     ModCDR --> FileServer
@@ -127,10 +135,16 @@ flowchart TD
 - **Framework**: NestJS (Typescript, Express engine).
 - **ORM / Database Access**: TypeORM và tối ưu hóa câu query raw và upsert trên bảng thống kê.
 - **Authentication**: Passport-JWT, `bcrypt` băm mật khẩu, hệ thống Guard kép tách biệt cho Admin và User.
-- **Background Tasks & Pre-aggregation Engine**: `@nestjs/schedule` nội bộ thực thi các Cron Job định kỳ (mỗi 10 phút tính lại `stats_hourly`/`stats_daily` cho 3 giờ gần nhất; chốt sổ ngày lúc 00:05). Tinh gọn hạ tầng, chạy trực tiếp trong NestJS process, không cần dựng Redis hay hàng đợi BullMQ.
+- **Mô hình tiến trình (1 codebase, 2 tiến trình)**: cùng một project `backend/`, build một lần, chạy bằng 2 entry point:
+  - **`backend-api`** (`src/main.ts`, `AppModule`): phục vụ REST API của **cả hai cổng** (Admin `/api/v1/admin/*`, Member `/api/v1/*`) và Socket.IO. Không chạy job định kỳ nào ngoài bộ đọc thông báo mới (bên dưới). Có thể chạy nhiều instance sau Nginx.
+  - **`backend-worker`** (`src/main.worker.ts`, `WorkerModule`, khởi động bằng `NestFactory.createApplicationContext`, không mở cổng HTTP): chạy toàn bộ tác vụ nền: Direct Batch Scheduler làm giàu CDR, job tổng hợp `stats_*`, Alert Engine (`QOS_ALERT`, `PABX_OFFLINE`, gửi email). **Luôn chạy đúng 1 instance**.
+  - **Không tách backend Admin và Member**: hai cổng dùng chung DB, entity, service nghiệp vụ, `PermissionsGuard`; khác biệt chỉ ở route prefix, guard JWT và phạm vi dữ liệu, xử lý bằng controller/guard trong cùng tiến trình API.
+  - **Lý do tách worker**: scale API nhiều instance không làm job chạy trùng; job enrich/tổng hợp nặng không chiếm event loop của API; deploy, restart API không làm gián đoạn việc làm giàu CDR và ngược lại.
+- **Background Tasks & Pre-aggregation Engine**: `@nestjs/schedule` (`ScheduleModule.forRoot()`) **chỉ được import trong `WorkerModule`**, thực thi các Cron Job định kỳ (mỗi 10 phút tính lại `stats_hourly`/`stats_daily` cho 3 giờ gần nhất; chốt sổ ngày lúc 00:05). Các lớp `*.scheduler.ts` / `*.job.ts` không khai báo trong `providers` của feature module mà chỉ đăng ký ở `WorkerModule`; feature module chỉ export service. Không cần dựng Redis hay hàng đợi BullMQ.
+- **Đồng bộ cache giữa các tiến trình**: cache sở hữu số (`NumberOwnershipCacheService`) và cache `system_settings` nằm trong bộ nhớ của **từng** tiến trình. Mọi thao tác làm đổi dữ liệu này (cấp phát/thu hồi dải số, sửa nhóm sở hữu, lưu `system_settings`, `POST /api/v1/admin/settings/reload-cache`) tăng `cdr_enrichment_state.cache_version` trong cùng transaction. Worker đọc `cache_version` ở đầu mỗi chu kỳ làm giàu, mỗi instance API đọc mỗi 5 giây; giá trị khác với bản đang giữ thì nạp lại cache.
 - **File Streaming**: Hỗ trợ HTTP Range Requests (`206 Partial Content`) để người dùng có thể tua âm thanh nghe ghi âm tức thì mà không cần load toàn bộ file.
 - **Exporting**: `exceljs` để xuất báo cáo Excel định dạng chuẩn EVN, `pdfmake` hoặc `puppeteer` để xuất báo cáo PDF (trích xuất tức thì từ `stats_daily`, thời gian phản hồi $< 1\text{s}$).
-- **Realtime**: `@nestjs/websockets` (Socket.IO) gửi thông báo tức thời (In-app alerts) và cập nhật số liệu giám sát.
+- **Realtime**: `@nestjs/websockets` (Socket.IO) chạy trong `backend-api`, gửi thông báo tức thời (In-app alerts). Worker không giữ kết nối WebSocket: nó chỉ ghi `notifications` + `notification_recipients`. Mỗi instance API chạy bộ đọc `NotificationPushPoller` (mỗi 3 giây, đọc `notifications.id >` watermark trong bộ nhớ, khởi tạo bằng `MAX(id)` lúc khởi động) và phát `notification:new` tới room người nhận đang kết nối vào chính instance đó. Thông báo do Admin soạn qua API **cũng** đi đường này, không emit trực tiếp, để mỗi thông báo chỉ được phát một lần.
 
 ### 2.2. Frontend: Vue.js 3
 
@@ -159,7 +173,7 @@ flowchart TD
                                           │
                                (Batch Polling 3-5s)
                                           ▼
-                         [Direct Batch Scheduler (NestJS)]
+                [Direct Batch Scheduler (NestJS, tiến trình backend-worker)]
                                           │
                      ┌────────────────────┴────────────────────┐
                      ▼                                         ▼
@@ -182,11 +196,11 @@ WHERE caller_group_id = G      Xem toàn bộ bản ghi
 ```
 
 1. **Tiến trình chạy ngầm định thời (Direct Batch Scheduler)**:
-   - Module NestJS Scheduler thực thi polling mỗi **3 - 5 giây**.
+   - Chạy trong tiến trình `backend-worker` (đúng 1 instance, mục 2.1), polling mỗi **3 - 5 giây**.
    - Truy vấn bản ghi mới từ bảng `cdr` theo cơ chế Watermark ID (`WHERE id > last_processed_cdr_id ORDER BY id ASC LIMIT 1000`) lưu trong bảng `cdr_enrichment_state`.
 2. **Thuật toán xác định nhóm sở hữu số (Number Ownership Lookup)**:
    - Phần lớn cuộc gọi là mạng thoại nội bộ dùng riêng EVN giữa các máy lẻ 5 số `[H][C][XXX]` (kho 10000–99999). Rà soát dữ liệu thật vẫn có số ngoài kho (`Anonymous`, `0xxxx` dịch vụ đặc biệt, số di động, số không đủ 5 chữ số), các số này được coi là số chưa quy hoạch và có nhóm sở hữu = NULL.
-   - **Quy tắc duy nhất**: số khớp `analysis_internal_extension_pattern` được tra cứu **duy nhất** qua chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, quy tắc trình bày tại `docs/01_database_schema.md` mục 8); không so khớp theo `prefix` hay `range_from..range_to`. Map được nạp vào bộ nhớ và nạp lại sau mỗi lần cấp phát/thu hồi dải số.
+   - **Quy tắc duy nhất**: số khớp `analysis_internal_extension_pattern` được tra cứu **duy nhất** qua chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, quy tắc trình bày tại `docs/01_database_schema.md` mục 8); không so khớp theo `prefix` hay `range_from..range_to`. Map được nạp vào bộ nhớ của worker lúc khởi động và nạp lại khi `cdr_enrichment_state.cache_version` thay đổi (API tăng giá trị này sau mỗi lần cấp phát/thu hồi dải số, mục 2.1).
    - **Xử lý số chưa quy hoạch**: Nếu số điện thoại không thuộc bất kỳ nhóm nào, trường tương ứng nhận giá trị `NULL`.
 3. **Nguyên tắc Cô lập dữ liệu theo nhóm (Group-Based Data Isolation)**:
    - **Tra cứu danh sách & Nghe ghi âm**: Thực hiện trên bảng `cdr_enriched`.
@@ -249,7 +263,8 @@ sequenceDiagram
     actor Called as Thuê bao nhận (Called)
     participant MariaDB as MariaDB (Table cdr)
     participant Storage as File Server (Audio)
-    participant NestJS as Backend NestJS Engine
+    participant Worker as backend-worker (NestJS)
+    participant NestJS as backend-api (NestJS)
     actor AdminUser as Người dùng / Kỹ thuật viên EVN
 
     Caller->>PABX: Khởi tạo cuộc gọi SIP INVITE
@@ -260,9 +275,12 @@ sequenceDiagram
     PABX->>Storage: Lưu trữ file .wav
     
     loop Chu kỳ thống kê lưu lượng & kiểm tra QoS
-        NestJS->>MariaDB: Quét CDR mới, đối soát dải số, ghi nhận thời lượng & tính điểm QoS
+        Worker->>MariaDB: Quét CDR mới, đối soát dải số, ghi nhận thời lượng & tính điểm QoS
         alt Điểm MOS thấp hoặc Packet Loss cao
-            NestJS->>AdminUser: Gửi cảnh báo In-app & Email Alert
+            Worker->>MariaDB: Ghi notifications + notification_recipients
+            Worker->>AdminUser: Gửi Email Alert (CRITICAL)
+            NestJS->>MariaDB: NotificationPushPoller đọc thông báo mới
+            NestJS->>AdminUser: Phát notification:new qua Socket.IO
         end
     end
 
@@ -283,8 +301,10 @@ sequenceDiagram
 ```
 backend/
 ├── src/
-│   ├── app.module.ts
-│   ├── main.ts
+│   ├── main.ts                    <-- Entry backend-api: NestFactory.create(AppModule), HTTP + Socket.IO
+│   ├── main.worker.ts             <-- Entry backend-worker: NestFactory.createApplicationContext(WorkerModule), không mở HTTP
+│   ├── app.module.ts              <-- Controller + gateway của cả 2 cổng; KHÔNG import ScheduleModule
+│   ├── worker.module.ts           <-- ScheduleModule.forRoot() + đăng ký mọi *.scheduler.ts / *.job.ts; không có controller
 │   ├── common/                    <-- Tiện ích chung, decorators, interceptors, filters
 │   │   ├── constants/
 │   │   ├── decorators/            <-- @CurrentUser(), @CurrentAdmin(), @RequirePermissions()
@@ -305,18 +325,30 @@ backend/
 │       ├── user-groups/           <-- Nhóm người dùng (Tổ chức quản lý người dùng)
 │       ├── organizations/         <-- Cây tổ chức EVN (Tham chiếu cho Nhóm người dùng)
 │       ├── phone-numbers/         <-- Quản lý đầu số & dải số
-│       ├── cdr/                   <-- Tra cứu CDR, phát stream audio
+│       ├── cdr/                   <-- Tra cứu CDR, phát stream audio; cdr-enrichment.scheduler.ts (chỉ chạy ở worker)
+│       ├── stats/                 <-- stats-aggregation.job.ts (10 phút, 00:05) + qos-alert.service.ts (chỉ chạy ở worker)
 │       ├── qos/                   <-- Phân tích chất lượng thoại, MOS, Jitter, SIP code
 │       ├── traffic/               <-- Thống kê lưu lượng, phân loại hướng gọi & thời lượng
 │       ├── reports/               <-- Xuất báo cáo Excel, PDF
-│       ├── notifications/         <-- In-app notification, WebSocket, Mailer
+│       ├── notifications/         <-- In-app notification, WebSocket gateway + NotificationPushPoller (API), Mailer
 │       ├── permissions/           <-- Vai trò & quyền (seed cố định), PermissionsGuard
 │       ├── system-settings/       <-- Cài đặt hệ thống PABX, retention
 │       └── dashboard/             <-- API tổng hợp số liệu Dashboard
-├── package.json
+├── package.json                   <-- scripts: start:api (node dist/main.js), start:worker (node dist/main.worker.js)
 ├── tsconfig.json
-└── .env.example
+└── .env.example                   <-- Dùng chung cho cả 2 tiến trình
 ```
+
+**Triển khai 2 tiến trình** (cùng image/bản build, khác lệnh chạy):
+
+| Service | Lệnh | Số instance | Cổng | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- |
+| `backend-api` | `node dist/main.js` | 1..N | 3000 | Nginx proxy `/api/`, `/socket.io/` tới đây. Nhiều instance thì bật sticky session cho `/socket.io/` (Socket.IO polling fallback). |
+| `backend-worker` | `node dist/main.worker.js` | **đúng 1** | không | Cần quyền đọc DB, ghi `cdr_enriched`/`stats_*`/`notifications` và truy cập SMTP; không cần gắn thư mục ghi âm. |
+
+- Cả hai đặt `TZ=Asia/Ho_Chi_Minh` và dùng chung biến môi trường DB (mục 2.3).
+- Khi dev: `npm run start:dev` (API) và `npm run start:worker:dev` chạy song song trong 2 terminal.
+- Worker dừng thì API vẫn phục vụ bình thường; dữ liệu `cdr_enriched` và `stats_*` chỉ ngừng cập nhật. Trạng thái worker xem qua `cdr_enrichment_state.status` / `last_success_at`.
 
 ### 5.2. Frontend (`frontend/`) – Monorepo 2 ứng dụng
 
@@ -330,7 +362,7 @@ frontend/
 ├── packages/
 │   └── shared/                    <-- @evn-cdr/shared: mã dùng chung, KHÔNG chứa route/view cụ thể
 │       ├── api/
-│       │   ├── createClient.ts    <-- Factory Axios: nhận { baseURL, tokenKey, onUnauthorized }
+│       │   ├── createClient.ts    <-- Factory Axios: nhận { baseURL, getAccessToken, refresh, onUnauthorized }
 │       │                          (Admin: baseURL /api/v1/admin, Member: baseURL /api/v1 – xem 02_api_contracts.md)
 │       │   ├── cdr.api.ts         <-- Hàm gọi API dùng chung, nhận client làm tham số
 │       │   ├── qos.api.ts
@@ -354,7 +386,7 @@ frontend/
 │       │   │   └── BarChart.vue
 │       │   └── cdr/               <-- CdrTable.vue, CdrDetailModal.vue, QosPanel.vue dùng cho cả 2 cổng
 │       ├── router/
-│       │   ├── createAuthGuard.ts <-- Guard factory: { tokenKey, loginRouteName, getPermissions }
+│       │   ├── createAuthGuard.ts <-- Guard factory: { useAuthStore, loginRouteName, getPermissions }
 │       │   └── types.ts           <-- Khai báo RouteMeta { requiresAuth, permissions?, title }
 │       └── stores/
 │           ├── theme.store.ts
@@ -367,7 +399,7 @@ frontend/
     │   └── src/
     │       ├── main.ts
     │       ├── App.vue
-    │       ├── api/client.ts      <-- createClient({ baseURL: '/api/v1/admin', tokenKey: 'evn_admin_token', ... })
+    │       ├── api/client.ts      <-- createClient({ baseURL: '/api/v1/admin', getAccessToken, refresh, ... }) lấy từ authAdmin.store
     │       ├── api/               <-- auth.api.ts (/auth → /api/v1/admin/auth), organization.api.ts, phone.api.ts, settings.api.ts...
     │       ├── router/index.ts    <-- createWebHistory('/admin/'), route name tiền tố admin.*
     │       ├── stores/authAdmin.store.ts
@@ -383,6 +415,8 @@ frontend/
     │           │                PrefixManagementView.vue, PrefixHistoryView.vue
     │           ├── users/UserListView.vue, RolesView.vue
     │           ├── settings/SystemSettingsView.vue, AccountSettingsView.vue
+    │           │   └── sections/  AnalysisSection.vue, ReportingSection.vue, AdvancedSection.vue,
+    │           │                  QosThresholdsSection.vue, AdminAccountsSection.vue, AuditLogSection.vue
     │           └── profile/AdminProfileView.vue, ChangePasswordView.vue
     └── member/                    <-- Member App, phục vụ tại /* (trừ /admin, /api, /socket.io)
         ├── index.html
@@ -391,7 +425,7 @@ frontend/
         └── src/
             ├── main.ts
             ├── App.vue
-            ├── api/client.ts      <-- createClient({ baseURL: '/api/v1', tokenKey: 'evn_user_token', ... })
+            ├── api/client.ts      <-- createClient({ baseURL: '/api/v1', getAccessToken, refresh, ... }) lấy từ authUser.store
             ├── api/               <-- auth.api.ts (/auth → /api/v1/auth), group.api.ts, phone.api.ts...
             ├── router/index.ts    <-- createWebHistory('/'), route name tiền tố member.*
             ├── stores/authUser.store.ts
@@ -419,8 +453,8 @@ Toàn hệ thống chạy trên **một domain** (`https://cdr-pabx.evn.com.vn`)
 
 | Prefix URL | Đích | Ghi chú |
 | :--- | :--- | :--- |
-| `/api/v1/*` | NestJS | REST API cả 2 cổng (`/api/v1/admin/...` cho Admin) |
-| `/socket.io/*` | NestJS | WebSocket thông báo in-app |
+| `/api/v1/*` | NestJS `backend-api` | REST API cả 2 cổng (`/api/v1/admin/...` cho Admin) |
+| `/socket.io/*` | NestJS `backend-api` | WebSocket thông báo in-app |
 | `/admin`, `/admin/*` | `dist/admin` | Admin App; `/admin` redirect 301 sang `/admin/`; URL không khớp file tĩnh trả `/admin/index.html` |
 | `/*` (còn lại) | `dist/member` | Member App; URL không khớp file tĩnh trả `/index.html` |
 
@@ -428,9 +462,10 @@ Toàn hệ thống chạy trên **một domain** (`https://cdr-pabx.evn.com.vn`)
 server {
     server_name cdr-pabx.evn.com.vn;
 
-    location /api/      { proxy_pass http://backend:3000; }
+    # backend-worker không nhận request HTTP, chỉ backend-api đứng sau Nginx
+    location /api/      { proxy_pass http://backend-api:3000; }
     location /socket.io/ {
-        proxy_pass http://backend:3000;
+        proxy_pass http://backend-api:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -455,8 +490,12 @@ server {
 2. **Không trùng không gian URL**: mọi path của Member App không được bắt đầu bằng `/admin`, `/api`, `/socket.io`. Path trong router Admin khai báo **tương đối** với base `/admin/` (vd. `path: 'cdr'` → URL `/admin/cdr`).
 3. **Route name** có tiền tố cổng: `admin.cdr`, `member.cdr`... để log, breadcrumb và test không nhầm lẫn.
 4. **Chuyển cổng là điều hướng toàn trang**: liên kết "Cổng Người dùng" trên trang đăng nhập Admin là `<a href="/login">`, liên kết "Cổng Quản trị" trên trang đăng nhập Member là `<a href="/admin/login">`. Không dùng `router.push` sang app kia.
-5. **Token tách khóa lưu trữ**: hai app cùng origin nên dùng chung `localStorage`; Admin App chỉ đọc/ghi `evn_admin_token`, Member App chỉ đọc/ghi `evn_user_token`. Đăng xuất một cổng không ảnh hưởng phiên của cổng kia. Admin App chỉ gọi `/api/v1/admin/*`; Member App chỉ gọi `/api/v1/*` không có tiền tố `/admin` (`docs/02_api_contracts.md`).
-6. **Guard**: route có `meta.requiresAuth = true` mặc định (trừ trang login). Thiếu token → về login của chính app; có token nhưng thiếu quyền trong `meta.permissions` → trang 403 của app. API trả `401` → xóa token của app và về login của app đó. Backend vẫn là chốt chặn cuối (guard JWT riêng, `PermissionsGuard`).
+5. **Phiên tách theo app** (chính sách token tại `docs/01_database_schema.md` mục 6.1):
+   - Access Token chỉ giữ trong bộ nhớ, trong store xác thực của chính app (`authAdmin` / `authUser`); **không** lưu `localStorage`/`sessionStorage`. Hai app cùng origin nhưng không đọc được token của nhau.
+   - Refresh Token nằm trong cookie `HttpOnly` có `Path` riêng: `/api/v1/admin/auth` (Admin) và `/api/v1/auth` (Member). Trình duyệt chỉ gửi cookie tới endpoint refresh của đúng cổng, nên đăng nhập/đăng xuất một cổng không ảnh hưởng phiên của cổng kia.
+   - Khi khởi động hoặc tải lại trang, app gọi `POST <base>/auth/refresh` một lần trước khi chạy guard: thành công thì lưu Access Token mới vào store rồi gọi `GET <base>/auth/me`; thất bại thì coi là chưa đăng nhập. Token `PASSWORD_CHANGE_ONLY` không kèm Refresh Token, nên tải lại trang khi đang đổi mật khẩu bắt buộc sẽ phải đăng nhập lại.
+   - Admin App chỉ gọi `/api/v1/admin/*`; Member App chỉ gọi `/api/v1/*` không có tiền tố `/admin` (`docs/02_api_contracts.md`).
+6. **Guard**: route có `meta.requiresAuth = true` mặc định (trừ trang login). Store chưa có Access Token (sau bước refresh lúc khởi động) → về login của chính app; có token nhưng thiếu quyền trong `meta.permissions` → trang 403 của app. API trả `401` → client gọi refresh **một lần** (các request đồng thời chờ chung một lần refresh) rồi gửi lại request; refresh cũng lỗi → xóa phiên trong store và về login của app đó. Backend vẫn là chốt chặn cuối (guard JWT riêng, `PermissionsGuard`).
 7. **Route 404**: mỗi app có route `/:pathMatch(.*)*` hiển thị trang Không tìm thấy của chính app.
 
 #### 5.3.3. Bảng route Admin App (base `/admin/`)
@@ -482,6 +521,22 @@ server {
 | `/admin/account-settings` | `admin.account-settings` | `AccountSettingsView` | `user-settings.html` | — |
 
 `templates/admin/permissions.html` và `data-permissions.html` không triển khai, không có route.
+
+**Chức năng đặt bên trong màn hình** (không có route riêng). Mục/nút bị **ẩn** khi tài khoản thiếu quyền ghi ở cột "Quyền"; backend vẫn kiểm tra quyền ở từng API. Mục của `/admin/settings` mở trực tiếp bằng query `?section=<key>`; thiếu quyền thì về mục đầu tiên được phép.
+
+| Màn hình (route) | Mục / thành phần | Quyền | API |
+| :--- | :--- | :--- | :--- |
+| `admin.settings` | `analysis`, `reporting`, `advanced` (template `system-settings.html`); nút "Tính lại thống kê" trong `reporting` | `system:manage` | `/admin/settings/system`, `/admin/settings/reload-cache`, `/admin/stats/recalculate` |
+| `admin.settings` | `qos-thresholds` – Ngưỡng cảnh báo QoS (`docs/modules/13_core_business_qos_analysis.md` mục 3.3) | xem `qos:view`, lưu `qos:manage` | `/admin/qos/thresholds` |
+| `admin.settings` | `admins` – Quản lý Quản trị viên (`docs/modules/04_auth_admin.md` mục 5.2) | `admin:manage` (chỉ `ROOT_ADMIN`) | `/admin/admins*` |
+| `admin.settings` | `audit-logs` – Nhật ký kiểm toán | `audit:view` | `/admin/audit-logs` |
+| `admin.notifications` | Nút + modal "Soạn thông báo" (`docs/modules/06_notifications.md` mục 5.2) | `system:manage` | `POST /admin/notifications` |
+| `admin.prefixes` | Modal Kho số chung (`#poolModal`), danh sách số trong dải (`#numbersListModal`) kèm khóa/dự phòng/sửa thông tin số | xem `prefix:view`, sửa `prefix:manage` | `/admin/phone-numbers/pool`, `/admin/phone-numbers/pool/summary`, `PUT /admin/phone-numbers/:number` |
+| `admin.prefixes` | Quản lý Nhóm đầu số (danh sách + modal thêm/sửa/xóa) | xem `prefix:view`, sửa `prefix:manage` | `/admin/prefix-groups*` |
+| `admin.dashboard` | Bảng xếp hạng nhóm theo lưu lượng, widget kho số (`docs/modules/05_dashboard_analytics.md`) | `report:view` | `/admin/dashboard/groups`, `/admin/phone-numbers/pool/summary` |
+| `admin.prefix-history` | Tab "Lịch sử số" bên cạnh lịch sử cấp phát dải | `prefix:view` | `/admin/phone-numbers/history` |
+| `admin.users` | Nút "Thu hồi phiên đăng nhập" của người dùng | `user:edit` | `DELETE /admin/users/:id/sessions` |
+| `admin.profile` | Phiên đăng nhập của tôi, hoạt động gần đây | — | `/admin/auth/sessions*`, `/admin/profile/recent-activity` |
 
 #### 5.3.4. Bảng route Member App (base `/`)
 
