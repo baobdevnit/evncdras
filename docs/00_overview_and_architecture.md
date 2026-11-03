@@ -107,7 +107,7 @@ flowchart TD
     CronStatsJob -->|1. Tính lại 3 giờ gần nhất| TableCDREnriched
     CronStatsJob -->|2. Rolling UPSERT mỗi 10 phút| TableStatsHourly
     CronStatsJob -->|3. Rolling UPSERT và chốt sổ ngày| TableStatsDaily
-    CronStatsJob -->|4. Đánh giá khung giờ vừa kết thúc| AlertEngine
+    CronStatsJob -->|4. Đánh giá khung giờ đã kết thúc ≥ 60 phút| AlertEngine
 
     AlertEngine -->|Ghi notifications + recipients| AppDB
     AlertEngine -->|Email CRITICAL| MailServer
@@ -216,7 +216,7 @@ WHERE caller_group_id = G      Xem toàn bộ bản ghi
    - **Mô hình vai trò – quyền**: 5 vai trò seed cố định (`roles`), quyền seed cố định (`permissions`, `permission_roles`), gán vai trò qua `admin_roles` / `user_roles` (mỗi tài khoản 1 vai trò). Admin chỉ kiểm tra quyền vai trò; User kiểm tra quyền nhóm trước rồi đến quyền vai trò (`docs/modules/10_permissions_and_roles.md`).
 5. **Nguyên tắc Thống kê Sẵn & Zero CDR Scan (Pre-aggregated Reporting Engine)**:
    - **Số liệu tổng hợp chỉ đọc `stats_*`**: thẻ KPI, biểu đồ, thống kê QoS/lưu lượng, xem trước và xuất báo cáo không bao giờ `GROUP BY` trên `cdr`/`cdr_enriched`. Danh sách từng cuộc gọi (lịch sử CDR, QoS debug, cuộc gọi gần đây, xuất CDR) được đọc `cdr_enriched` với khoảng thời gian ≤ 31 ngày, qua index và có giới hạn số dòng (nguyên tắc đầy đủ tại `docs/01_database_schema.md` mục 15).
-   - **Cơ chế tính toán định kỳ**: Cron Job `@nestjs/schedule` mỗi 10 phút (`*/10 * * * *`) **tính lại toàn bộ** (không cộng dồn) các khung giờ trong 3 giờ gần nhất và các khung giờ trong hàng đợi `stats_recompute_queue`, ghi `stats_hourly` rồi tính lại `stats_daily` của ngày bị tác động. Khóa thời gian là `Created` (thời điểm bắt đầu cuộc gọi) của leg chính. Thuật toán đầy đủ tại `docs/01_database_schema.md` mục 15.0.
+   - **Cơ chế tính toán định kỳ**: Cron Job `@nestjs/schedule` mỗi 10 phút (`*/10 * * * *`) **tính lại toàn bộ** (không cộng dồn) các khung giờ trong 3 giờ gần nhất và các khung giờ trong hàng đợi `stats_recompute_queue`, ghi `stats_hourly` rồi tính lại `stats_daily` của ngày bị tác động. Khóa thời gian là `Created` (thời điểm bắt đầu) của leg chính cho bộ đếm cuộc gọi, và của từng leg cho khối QoS (MOS, jitter, gói RTP tính trên mọi leg). Thuật toán đầy đủ tại `docs/01_database_schema.md` mục 15.0.
    - **Chốt sổ ngày tự động**: 00:05 mỗi sáng, job tính lại cả 24 giờ của ngày hôm trước lần cuối rồi đặt `is_finalized = 1`.
    - **Cô lập dữ liệu báo cáo**: Người dùng đơn vị chỉ truy vấn được dữ liệu có `group_id = currentUser.user_group_id`. Quản trị viên hệ thống mặc định xem Toàn hệ thống hoặc lọc theo nhóm bất kỳ.
    - **Thời gian phản hồi siêu tốc**: Mọi API thống kê và xuất báo cáo chỉ quét từ 1 đến vài chục dòng trong bảng `stats_daily`, trả kết quả tức thì trong $< 50\text{ms}$.
@@ -345,7 +345,7 @@ backend/
 │   │       ├── worker-app.module.ts   <-- CoreModule + ScheduleModule.forRoot() + các module con bên dưới
 │   │       ├── cdr-enrichment/    <-- cdr-enrichment.scheduler.ts (polling 3-5s, watermark, cache_version)
 │   │       ├── stats-aggregation/ <-- stats-aggregation.job.ts (*/10 phút, chốt sổ 00:05, stats_recompute_queue)
-│   │       ├── qos-alert/         <-- qos-alert.job.ts (đánh giá khung giờ vừa kết thúc, gọi sau stats-aggregation)
+│   │       ├── qos-alert/         <-- qos-alert.job.ts (đánh giá khung giờ đã kết thúc ≥ 60 phút, gọi sau stats-aggregation)
 │   │       ├── pabx-offline/      <-- pabx-offline.job.ts (PABX_OFFLINE / PABX_RECOVERED)
 │   │       ├── partition-maintenance/ <-- partition-maintenance.job.ts (khi khởi động + ngày 1 hằng tháng)
 │   │       └── session-cleanup/   <-- session-cleanup.job.ts (xóa auth_sessions hết hạn > 30 ngày)

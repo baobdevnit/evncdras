@@ -338,6 +338,11 @@ export class CdrEnrichmentService {
       ]);
       if (rows.length === 0) { await qr.commitTransaction(); return; }
 
+      // Báo trạng thái đang chạy bằng kết nối riêng, để màn hình giám sát thấy ngay (transaction chưa commit)
+      await this.dataSource.query(
+        "UPDATE cdr_enrichment_state SET status = 'PROCESSING', last_run_at = NOW() WHERE id = 1",
+      );
+
       const coreIps = this.settings.getList('pabx_core_ip_list');
       const internalPattern = new RegExp(this.settings.get('analysis_internal_extension_pattern'));
 
@@ -351,7 +356,7 @@ export class CdrEnrichmentService {
         const leg = {
           // Chép các cột kỹ thuật của PABX theo danh sách cột cố định (87 cột của cdr, trừ created_at/updated_at)
           ...pickPabxColumns(r),
-          Created: r.Created ?? r.Destroyed ?? new Date(),
+          Created: r.Created ?? r.Destroyed ?? r.created_at ?? new Date(), // thứ tự dự phòng theo 01 §2.1
           caller_group_id: callerGroupId,
           called_group_id: calledGroupId,
           leg_role: coreIps.includes(r.CalledIp) ? 'A_LEG' : coreIps.includes(r.CallerIp) ? 'B_LEG' : 'UNKNOWN',
@@ -400,7 +405,8 @@ export class CdrEnrichmentService {
 - `CdrEnrichmentScheduler` nằm trong `src/apps/worker/cdr-enrichment/`, chỉ được `WorkerAppModule` import và chạy ở tiến trình `backend-worker` (đúng 1 instance). `CdrModule` trong `core` chỉ export `CdrEnrichmentService`, không chứa lớp lịch chạy (`docs/00_overview_and_architecture.md` mục 2.1, 5.1).
 - Thay đổi `analysis_internal_extension_pattern` hoặc `pabx_core_ip_list` chỉ áp dụng cho bản ghi làm giàu sau thời điểm lưu.
 - Watermark theo `id` giả định PABX là **một tiến trình ghi duy nhất**, cấp `id` tăng dần theo thứ tự commit (đúng với dữ liệu thật).
-- Khi ghi hoặc đổi leg chính của một bản ghi có `Created` cũ hơn 3 giờ, tiến trình thêm (`DATE(Created)`, `HOUR(Created)`) vào `stats_recompute_queue` (`INSERT IGNORE`) để job tổng hợp tính lại khung giờ đó (`docs/01_database_schema.md` mục 15.0).
+- Khi ghi một leg có `Created` cũ hơn 3 giờ, tiến trình thêm (`DATE(Created)`, `HOUR(Created)`) của leg đó vào `stats_recompute_queue` (`INSERT IGNORE`). Khi đổi leg chính, thêm khung giờ của cả leg chính mới và leg chính cũ nếu cũ hơn 3 giờ (hai leg lệch tới 2 giây có thể nằm ở hai khung giờ). Job tổng hợp tính lại các khung đó (`docs/01_database_schema.md` mục 15.0).
+- Nhóm sở hữu số được **chốt tại thời điểm làm giàu**: cấp phát/thu hồi dải sau đó không đổi `caller_group_id`/`called_group_id` của bản ghi đã làm giàu. Ở lần cài đặt đầu tiên, tiến trình làm giàu toàn bộ CDR lịch sử từ `id = 0` theo dải số tại thời điểm cài, nên Admin phải cấp phát xong dải số **trước** khi bật `backend-worker` nếu muốn CDR lịch sử được gán đúng nhóm.
 
 ---
 

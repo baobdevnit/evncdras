@@ -182,7 +182,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/user-groups/me/members` | `user_group:view` | Danh bạ thành viên **nhóm của người gọi** (màn hình Danh bạ nhóm, khu vực Member): chỉ tài khoản `status = 'ACTIVE'`, trường danh bạ `id`, `fullName`, `jobTitle`, `email`, `phoneNumber`, `avatarUrl`, `roleCode`; không trả `username`, `status`, `lastLoginAt` hay thông tin phiên. Query `page`, `limit` (≤ 100), `search` (họ tên, email, chức danh, số điện thoại), `roleCode`. Đặc tả `docs/modules/02_user_group.md` mục 3.6 | USER |
 | `POST` | `/api/v1/admin/user-groups` | `user_group:manage` | Thiết lập nhóm QLND mới gắn vào nút tổ chức (kèm `allowRecordingAccess`) | ADMIN |
 | `PUT` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Cập nhật thông tin nhóm QLND (kèm quyền bật/tắt ghi âm nhóm `allowRecordingAccess`) | ADMIN |
-| `DELETE` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Ngừng hoạt động nhóm (xóa mềm `status = INACTIVE`, thu hồi dải số; `409` nếu còn thành viên đang hoạt động) | ADMIN |
+| `DELETE` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Ngừng hoạt động nhóm (xóa mềm `status = INACTIVE`) kèm mọi thành viên chưa `INACTIVE` và phiên của họ, thu hồi dải số, trong một transaction; `409` nếu nhóm đã `INACTIVE`. Đặc tả `docs/modules/02_user_group.md` mục 3.4 | ADMIN |
 
 ### 3.5. Phân hệ Quản lý Người dùng & Phân quyền (Users & Roles)
 
@@ -191,8 +191,8 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/users` | `user:view` | Danh sách người dùng. Bản User chỉ trả user thuộc nhóm của người gọi; bản Admin trả toàn hệ thống, lọc tùy chọn `groupId`, `status` | USER + ADMIN |
 | `GET` | `/api/v1/users/:id` | `user:view` | Chi tiết thông tin người dùng | USER + ADMIN |
 | `POST` | `/api/v1/users` | `user:create` | Tạo mới tài khoản người dùng trong nhóm, kèm `roleCode` (mặc định `REGULAR_USER`; gán `GROUP_ADMIN` cần thêm `group:manage_admin`, gán `USER_RECORDING` cần thêm `group:toggle_recording` và nhóm có `allowRecordingAccess = true`); tạo dòng `user_roles` cùng transaction | USER + ADMIN |
-| `PUT` | `/api/v1/users/:id` | `user:edit` | Cập nhật thông tin tài khoản người dùng | USER + ADMIN |
-| `PUT` | `/api/v1/users/:id/status` | `user:edit` | Khóa / Mở khóa tài khoản | USER + ADMIN |
+| `PUT` | `/api/v1/users/:id` | `user:edit` | Cập nhật thông tin tài khoản người dùng (họ tên, chức danh, số điện thoại, ảnh); không nhận `status`, `roleCode`, `userGroupId` (`400`) | USER + ADMIN |
+| `PUT` | `/api/v1/users/:id/status` | `user:edit` | Khóa / Mở khóa tài khoản, body `{ "status": "ACTIVE" \| "LOCKED" }`; khóa thu hồi mọi phiên (`ACCOUNT_LOCKED`); `409` nếu khóa Quản trị viên nhóm đang hoạt động cuối cùng | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/reset-password` | `user:edit` | Đặt lại mật khẩu người dùng: sinh mật khẩu tạm 16 ký tự trả **một lần** (`temporaryPassword`), đặt `must_change_password = 1`, thu hồi mọi phiên của user | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/role` | `group:manage_admin` hoặc `group:toggle_recording` | Đổi vai trò người dùng `{ "roleCode": "GROUP_ADMIN" \| "USER_RECORDING" \| "REGULAR_USER" }`: chuyển sang/khỏi `GROUP_ADMIN` cần `group:manage_admin` (chặn `409` hạ quyền Quản trị viên nhóm đang hoạt động cuối cùng); `REGULAR_USER` ↔ `USER_RECORDING` cần `group:toggle_recording` (sang `USER_RECORDING` cần nhóm có `allowRecordingAccess = true`, ngược lại `409`). Đặc tả `docs/modules/10_permissions_and_roles.md` mục 1.3, 3.2 | USER + ADMIN |
 | `DELETE` | `/api/v1/admin/users/:id/sessions` | `user:edit` | Thu hồi mọi phiên đăng nhập của một người dùng (`REVOKED_BY_ADMIN`) | ADMIN |

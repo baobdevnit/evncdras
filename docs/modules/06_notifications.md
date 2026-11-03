@@ -12,7 +12,7 @@
 
 Hệ thống giám sát viễn thông EVN đòi hỏi khả năng cảnh báo sớm khi phát hiện các bất thường:
 
-1. **Sự cố Chất lượng thoại (`QOS_ALERT`)**: sinh **theo giờ** khi chỉ số của khung giờ vừa kết thúc (toàn hệ thống hoặc một nhóm) vượt ngưỡng trong `qos_threshold_configs` (MOS, mất gói, jitter, ASR), với khung giờ có ít nhất `qos_alert_min_calls` cuộc gọi. Không cảnh báo từng cuộc gọi. Ngưỡng, chống trùng và người nhận định nghĩa tại `docs/01_database_schema.md` mục 10.
+1. **Sự cố Chất lượng thoại (`QOS_ALERT`)**: sinh **theo giờ** khi chỉ số của khung giờ đã kết thúc ít nhất 60 phút (toàn hệ thống hoặc một nhóm) vượt ngưỡng trong `qos_threshold_configs` (MOS, mất gói, jitter, ASR), với khung giờ có ít nhất `qos_alert_min_calls` cuộc gọi. Không cảnh báo từng cuộc gọi. Ngưỡng, chống trùng và người nhận định nghĩa tại `docs/01_database_schema.md` mục 10.
 2. **Mất kết nối Tổng đài PABX (`PABX_OFFLINE`)**: không có bản ghi `cdr` mới trong `pabx_offline_minutes` (mặc định 60 phút); khi có dữ liệu trở lại thì tạo thông báo `INFO`.
 3. **Bảo trì hệ thống (Maintenance Notice)**: Thông báo lịch nâng cấp định kỳ do EVNICT phát động.
 
@@ -222,7 +222,7 @@ export class MailerService {
 
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
 
-1. **TC-NOTIF-01**: Khi khung giờ vừa kết thúc của một nhóm có MOS trung bình dưới ngưỡng critical (và đủ số cuộc gọi tối thiểu), WebSocket gửi sự kiện `notification:new` tới trình duyệt, kiểm tra số badge trên Sidebar tự động tăng lên 1 đơn vị.
+1. **TC-NOTIF-01**: Khi khung giờ đã kết thúc ít nhất 60 phút của một nhóm có MOS trung bình dưới ngưỡng critical (và đủ số cuộc gọi tối thiểu), WebSocket gửi sự kiện `notification:new` tới trình duyệt, kiểm tra số badge trên Sidebar tự động tăng lên 1 đơn vị.
 2. **TC-NOTIF-02**: Nhấn vào tab "Chưa đọc", xác nhận danh sách chỉ chứa các mục có `isRead == false`.
 3. **TC-NOTIF-03**: Nhấn nút "Đánh dấu đã đọc tất cả", kiểm tra số badge trở về 0 và toàn bộ mục chuyển sang class `.read`.
 4. **TC-NOTIF-04**: Cấu hình `smtp_*` trong `system_settings` qua `PUT /api/v1/admin/settings/system`, tạo một cảnh báo `CRITICAL`: email được gửi tới người nhận có `email_notification_enabled = 1` và `notification_recipients.is_emailed = 1`. Để `smtp_host` rỗng: thông báo vẫn được tạo, không có email, `is_emailed = 0`.

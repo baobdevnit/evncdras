@@ -168,24 +168,25 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
     "totalCalls": 3506,
     "asr": 59.78,
     "ner": 96.12,
-    "avgMos": 4.39,
-    "qosSampleCount": 2297,
+    "avgMos": 4.40,
+    "qosSampleCount": 4179,
     "mosDistribution": {
-      "excellent": { "count": 2281, "percent": 99.30 },
-      "good":      { "count": 3,    "percent": 0.13 },
-      "fair":      { "count": 0,    "percent": 0.00 },
-      "poor":      { "count": 13,   "percent": 0.57 }
+      "excellent": { "count": 4165, "percent": 99.67 },
+      "good":      { "count": 1,    "percent": 0.02 },
+      "fair":      { "count": 13,   "percent": 0.31 },
+      "poor":      { "count": 0,    "percent": 0.00 }
     },
-    "lossPercent": 0.04,
-    "avgJitterMs": 1.732,
+    "lossPercent": 0.01,
+    "avgJitterMs": 1.490,
     "maxJitterMs": 147.0,
-    "highPacketLossCalls": 2,
+    "highPacketLossLegs": 6,
     "sipDelays": { "sip100": 118, "sip180": 241, "sip183": null, "answer": 6120 }
   }
 }
 ```
 
-- `mosDistribution.*.percent` tính trên `qosSampleCount` (chỉ cuộc có MOS). `asr`, `ner` tính trên `totalCalls`. `sipDelays` đơn vị ms.
+- **Đơn vị**: `totalCalls`, `asr`, `ner`, `sipDelays` tính theo cuộc gọi (leg chính). `qosSampleCount`, `avgMos`, `mosDistribution`, `lossPercent`, `avgJitterMs`, `maxJitterMs`, `highPacketLossLegs` tính theo **leg** (cả leg A và leg B), để phản ánh cả đoạn máy gọi ↔ lõi và đoạn lõi ↔ máy nhận (`docs/01_database_schema.md` mục 15). Số liệu ví dụ lấy từ dữ liệu thật `voip_cdr_20250817.sql`.
+- `mosDistribution.*.percent` tính trên `qosSampleCount` (chỉ leg có MOS). `asr`, `ner` tính trên `totalCalls`. `sipDelays` đơn vị ms. `highPacketLossLegs` đếm theo ngưỡng `PACKET_LOSS_PERCENT` tại thời điểm tổng hợp từng khung giờ.
 
 ### 3.2.1. Phân bố mã kết thúc SIP (`GET /api/v1/qos/disconnection-codes`)
 
@@ -245,7 +246,7 @@ backend/src/
 │   ├── qos.service.ts                  <-- debug-table, summary, disconnection-codes; nhận scope SYSTEM | GROUP
 │   ├── qos-thresholds.service.ts
 │   ├── qos-evaluator.service.ts        <-- Thuật toán đánh giá MOS G.107 & cảnh báo
-│   ├── qos-alert.service.ts            <-- đánh giá khung giờ vừa kết thúc, tạo QOS_ALERT qua core/notifications
+│   ├── qos-alert.service.ts            <-- đánh giá khung giờ đã kết thúc ≥ 60 phút, tạo QOS_ALERT qua core/notifications
 │   ├── dto/
 │   │   ├── qos-debug-query.dto.ts
 │   │   └── qos-summary-response.dto.ts

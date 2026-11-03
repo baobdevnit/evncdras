@@ -3,7 +3,9 @@
 ## Hệ quản trị cơ sở dữ liệu: MariaDB 10.6+ (Engine InnoDB, UTF8MB4)
 
 > [!IMPORTANT]
-> **Múi giờ**: mọi cột `datetime`/`timestamp` lưu **giờ Việt Nam (`Asia/Ho_Chi_Minh`, UTC+7), không kèm múi giờ**, khớp với dữ liệu PABX ghi vào bảng `cdr`. Cấu hình bắt buộc: MariaDB `default-time-zone = '+07:00'`; kết nối TypeORM `timezone: '+07:00'`; tiến trình Node `TZ=Asia/Ho_Chi_Minh`. `stat_date`/`stat_hour` và mọi mốc "hôm nay / 7 ngày / tháng này" tính theo giờ Việt Nam do backend tự tính rồi truyền làm tham số (không dùng `CURRENT_DATE()`/`NOW()` của DB trong truy vấn thống kê).
+> **Múi giờ**: mọi cột `datetime`/`timestamp` lưu **giờ Việt Nam (`Asia/Ho_Chi_Minh`, UTC+7), không kèm múi giờ**, khớp với dữ liệu PABX ghi vào bảng `cdr`. Cấu hình bắt buộc: MariaDB `default-time-zone = '+07:00'`; kết nối TypeORM `timezone: '+07:00'`; tiến trình Node `TZ=Asia/Ho_Chi_Minh`. `stat_date`/`stat_hour` và mọi mốc "hôm nay / 7 ngày / tháng này" tính theo giờ Việt Nam do backend tự tính rồi truyền làm tham số (không dùng `CURRENT_DATE()`/`NOW()` của DB trong truy vấn thống kê và truy vấn nghiệp vụ theo khoảng thời gian).
+>
+> **Giới hạn kiểu `timestamp`**: trên MariaDB 10.6, `timestamp` chỉ lưu tới `2038-01-19 03:14:07` UTC. Các cột `created_at`/`updated_at` dùng `timestamp` nên phải nâng lên MariaDB 11.5+ (giới hạn 2106) hoặc chuyển sang `datetime` trước năm 2037. Cột nghiệp vụ dài hạn (`Created`, `stat_date`, `expires_at`...) đã dùng `datetime`/`date`.
 
 ---
 
@@ -201,6 +203,7 @@ Bảng `cdr_enriched` là **bảng trung tâm cho toàn bộ nghiệp vụ Backe
 >    - Cập nhật lại `call_group_key` cho cả nhóm.
 > 6. **Phạm vi sử dụng**:
 >    - Mọi số liệu đếm cuộc gọi, thời lượng và ASR/NER (`stats_hourly`, `stats_daily`, API lưu lượng `/traffic/*`) **chỉ tính leg chính**.
+>    - Khối chất lượng âm thanh và truyền dẫn của `stats_*` (MOS, R, jitter, gói RTP) tính trên **mọi leg**, để có cả chất lượng phía máy nhận (mục 15).
 >    - Danh sách lịch sử CDR mặc định chỉ hiển thị leg chính.
 >    - Trang chi tiết và QoS debug hiển thị đủ cả 2 leg (gom theo `call_group_key`), để xem chất lượng âm thanh từng phía.
 
@@ -232,7 +235,7 @@ Bảng `cdr_enriched` là **bảng trung tâm cho toàn bộ nghiệp vụ Backe
 >   - `mos_caller_x100 = ROUND(MOS(RTP_Caller_G107R) × 100)`, tương tự `mos_called_x100`. Bằng NULL nếu R là NULL.
 >   - `mos_x100` = trung bình hai chiều (làm tròn), hoặc chiều duy nhất có dữ liệu, hoặc NULL.
 >   - Cột số nguyên `RTP_*_G107MOS` chỉ dùng để hiển thị thô ở QoS debug. Mọi lọc, phân dải, trung bình và so sánh ngưỡng (`qos_threshold_configs.metric_name = 'MOS_G107'`, thang thập phân) dùng `mos_*_x100 / 100`. Hiển thị luôn 2 chữ số thập phân.
-> - **Dải chất lượng MOS duy nhất toàn hệ thống** (áp dụng cho `mos_x100` của leg chính, mọi module và giao diện tham chiếu bảng này):
+> - **Dải chất lượng MOS duy nhất toàn hệ thống** (áp dụng cho `mos_x100` của từng leg, mọi module và giao diện tham chiếu bảng này):
 >
 >   | Dải | Điều kiện | Lớp CSS / màu |
 >   |---|---|---|
@@ -246,7 +249,7 @@ Bảng `cdr_enriched` là **bảng trung tâm cho toàn bộ nghiệp vụ Backe
 ```sql
 CREATE TABLE IF NOT EXISTS `cdr_enriched` (
   `id` bigint(20) unsigned zerofill NOT NULL COMMENT 'Định danh trùng khớp 1-1 với cdr.id',
-  `Created` datetime NOT NULL COMMENT 'Khóa partition. Lấy từ cdr.Created; nếu NULL thì lấy cdr.Destroyed, nếu vẫn NULL thì lấy thời điểm làm giàu',
+  `Created` datetime NOT NULL COMMENT 'Khóa partition. Lấy từ cdr.Created; nếu NULL thì lấy cdr.Destroyed, rồi cdr.created_at; chỉ khi cả ba NULL mới lấy thời điểm làm giàu (mỗi bản ghi cdr chỉ được làm giàu đúng một lần nhờ watermark nên giá trị không đổi về sau)',
   `Answered` datetime DEFAULT NULL,
   `Destroyed` datetime DEFAULT NULL,
   `Direction` varchar(255) DEFAULT NULL,
@@ -377,7 +380,7 @@ PARTITION BY RANGE (TO_DAYS(`Created`)) (
 > - **Partition theo tháng** trên `Created` (`RANGE` + `TO_DAYS`). Job `src/apps/worker/partition-maintenance` (tiến trình `backend-worker`) chạy ngày 1 hằng tháng: tách `p_future` để luôn có sẵn partition cho tháng hiện tại và 2 tháng kế tiếp. Job cũng chạy **một lần khi `backend-worker` khởi động**: tách `p_future` (dùng `REORGANIZE PARTITION`, làm được cả khi `p_future` đã có dữ liệu) thành các partition tháng còn thiếu đến hết tháng hiện tại + 2 tháng.
 > - **Tra theo `id`** (`GET /cdr/:id`, API audio): dùng phần đầu của PK (`id`) nên quét qua mọi partition theo index, chấp nhận được vì mỗi partition chỉ trả tối đa 1 dòng.
 > - **Mọi truy vấn** trên `cdr_enriched` bắt buộc có điều kiện `Created` (khoảng thời gian) để MariaDB chỉ quét các partition liên quan (partition pruning).
-> - **Trực tuyến** (`Created >= NOW() - INTERVAL retention_online_months MONTH`, mặc định 6 tháng): mọi API tra cứu CDR, QoS debug, `/traffic/records` mặc định chỉ trong cửa sổ này.
+> - **Trực tuyến** (`Created >= :onlineFrom`, với `:onlineFrom` = 00:00 giờ Việt Nam của ngày hiện tại lùi `retention_online_months` tháng, do backend tính và truyền làm tham số như quy định đầu tài liệu; mặc định 6 tháng): mọi API tra cứu CDR, QoS debug, `/traffic/records` mặc định chỉ trong cửa sổ này.
 > - **Lưu trữ** (từ `retention_online_months` đến `retention_archive_months`, mặc định 6–60 tháng): dữ liệu **vẫn nằm trong `cdr_enriched`** (các partition cũ). Chỉ Admin truy cập được, qua tham số `includeArchive=true` trên `GET /api/v1/admin/cdr`, bắt buộc kèm `fromDate`/`toDate`, khoảng tối đa 31 ngày. Người dùng nhóm không xem được dữ liệu lưu trữ.
 > - **Xóa hẳn**: job hằng tháng `ALTER TABLE cdr_enriched DROP PARTITION` các partition có toàn bộ `Created` cũ hơn `retention_archive_months` (60 tháng), ghi `audit_logs` (`actor_type = 'SYSTEM'`, `action = 'PURGE_CDR_PARTITION'`).
 > - **Không bị dọn**: `stats_hourly`, `stats_daily`, `audit_logs`, `prefix_allocation_history`, `phone_number_range_history`. Đây là các bảng nhỏ cần cho báo cáo dài hạn và kiểm toán. Báo cáo theo thống kê vẫn chạy được cho kỳ đã bị xóa CDR.
@@ -527,7 +530,7 @@ CREATE TABLE IF NOT EXISTS `user_groups` (
 
 ## 6. Bảng Người dùng (Users - Thuộc User Group)
 
-Mỗi người dùng thuộc một `user_group`. Vai trò của người dùng (Quản trị viên nhóm, Thành viên nghe ghi âm, Thành viên) không lưu trên bảng này mà ở `user_roles` (mục 7). Mỗi nhóm có ít nhất 1 người dùng `ACTIVE` mang vai trò `GROUP_ADMIN`.
+Mỗi người dùng thuộc một `user_group`. Vai trò của người dùng (Quản trị viên nhóm, Thành viên nghe ghi âm, Thành viên) không lưu trên bảng này mà ở `user_roles` (mục 7). Mỗi nhóm `ACTIVE` có ít nhất 1 người dùng `ACTIVE` mang vai trò `GROUP_ADMIN` (nhóm `INACTIVE` không còn thành viên hoạt động, mục 14).
 
 ```sql
 CREATE TABLE IF NOT EXISTS `users` (
@@ -704,7 +707,7 @@ Seed `permissions` và `permission_roles`: `docs/modules/10_permissions_and_role
 > 3. **Cơ chế gán dải và chuẩn hóa quan hệ (Strict 3NF)**: Khi dải đầu số (`phone_prefix_ranges`) được phân bổ cho Nhóm đầu số (`phone_prefix_groups`) và gắn với Nhóm người dùng (`user_groups`), các số thuộc khoảng tương ứng trong kho tổng chỉ cần liên kết với dải số (`range_id`). Thông qua chuỗi quan hệ `phone_numbers.range_id -> phone_prefix_ranges.prefix_group_id -> user_groups`, hệ thống tự động suy luận ra nhóm người dùng thụ hưởng mà không gây dư thừa dữ liệu (tránh dị thường dữ liệu).
 >    - **Cấp phát**: **mọi** số trong khoảng nhận `range_id`. Số `FREE` chuyển sang `ALLOCATED`; số `RESERVED`/`LOCKED` **giữ nguyên trạng thái**.
 >    - **Thu hồi**: mọi số trong dải về `range_id = NULL`. Số `ALLOCATED` chuyển về `FREE`; số `RESERVED`/`LOCKED` giữ nguyên trạng thái.
->    - **Quyền sở hữu số khi làm giàu CDR**: số có `range_id` thuộc nhóm của dải đó, **bất kể trạng thái** (kể cả `RESERVED`/`LOCKED`).
+>    - **Quyền sở hữu số khi làm giàu CDR**: số có `range_id` thuộc nhóm của dải đó, **bất kể trạng thái** (kể cả `RESERVED`/`LOCKED`). Nhóm được **chốt tại thời điểm làm giàu** và không đổi khi dải số thay đổi về sau. Khi cài mới, CDR lịch sử được làm giàu theo dải số hiện có, nên phải cấp phát dải số trước khi bật tiến trình làm giàu (`docs/modules/12_core_business_cdr_and_audio.md` mục 4.2).
 >    - Mỗi số thay đổi `range_id` sinh một dòng `phone_number_range_history`, cùng transaction với thao tác cấp phát/thu hồi.
 >    - **Sửa dải** (`PUT /api/v1/admin/prefixes/:id`): phần **mở rộng** chỉ được chứa số chưa thuộc dải nào (`range_id IS NULL`), sai thì `409`; các số đó xử lý như khi cấp phát. Phần **thu hẹp** xử lý như khi thu hồi. Ghi 1 dòng `prefix_allocation_history` (`UPDATE`) và 1 dòng `phone_number_range_history` cho mỗi số thay đổi, cùng transaction.
 >    - **Không có thao tác gán/thu hồi từng số lẻ**: `range_id` của một số chỉ thay đổi qua thao tác trên dải. Thao tác trên từng số chỉ sửa `display_name`, `description` và trạng thái `RESERVED`/`LOCKED`.
@@ -872,7 +875,7 @@ ON DUPLICATE KEY UPDATE `metric_name` = VALUES(`metric_name`);
 
 > [!IMPORTANT]
 > **Sinh cảnh báo (Alert Engine)**. Đây là nơi duy nhất định nghĩa ngưỡng; các module không viết cứng ngưỡng.
-> - **`QOS_ALERT` theo giờ**: ngay sau mỗi lần job tổng hợp (mục 15.0), đánh giá **khung giờ vừa kết thúc** trên dòng toàn hệ thống và từng dòng nhóm của `stats_hourly`. Chỉ xét khi `total_calls >= qos_alert_min_calls` (mặc định 20). Với mỗi ngưỡng `is_enabled = 1`: vượt `critical_threshold` thì `severity = CRITICAL`, chỉ vượt `warning_threshold` thì `WARNING`. Chỉ số so sánh: MOS = `avg_mos / 100`, mất gói = `rtp_lost_packets_total / rtp_packets_total * 100`, `avg_jitter_ms`, `asr_percentage`.
+> - **`QOS_ALERT` theo giờ**: ngay sau mỗi lần job tổng hợp (mục 15.0), đánh giá **khung giờ đã kết thúc ít nhất 60 phút**, tức khung giờ bắt đầu lúc `giờ hiện tại (làm tròn xuống) − 2 giờ` (vd. lần chạy 10:00–10:50 đánh giá khung 08:00–09:00), trên dòng toàn hệ thống và từng dòng nhóm của `stats_hourly`. Lý do chờ: PABX chỉ ghi `cdr` khi cuộc gọi kết thúc, nên ngay sau khi khung giờ kết thúc, cuộc gọi ngắn/thất bại đã có nhưng cuộc nhấc máy còn đang đàm thoại chưa có, làm ASR và MOS lệch. Cuộc gọi dài hơn 60 phút có thể chưa được tính vào lần đánh giá; chấp nhận được vì cảnh báo không chấm lại (chống trùng bên dưới). Chỉ xét khi `total_calls >= qos_alert_min_calls` (mặc định 20). Với mỗi ngưỡng `is_enabled = 1`: vượt `critical_threshold` thì `severity = CRITICAL`, chỉ vượt `warning_threshold` thì `WARNING`. Chỉ số so sánh: MOS = `avg_mos / 100`, mất gói = `rtp_lost_packets_total / rtp_packets_total * 100`, `avg_jitter_ms`, `asr_percentage`.
 > - **Chống trùng**: `notifications.dedupe_key = 'QOS:{scope}:{metric}:{stat_date}:{stat_hour}'` (`scope` = `SYSTEM` hoặc `G{group_id}`). Tạo lại cùng khóa thì bỏ qua.
 > - **`PABX_OFFLINE`**: tiến trình làm giàu theo dõi thời điểm bản ghi mới nhất của PABX bằng truy vấn theo khóa chính `SELECT Created FROM cdr ORDER BY id DESC LIMIT 1` (không dùng `MAX(cdr.Created)`: bảng `cdr` không bảo đảm có index `Created`, xem ghi chú mục 2, nên `MAX` sẽ quét toàn bảng của PABX). Nếu `Created` của bản ghi đó NULL thì dùng `Destroyed`. Không có bản ghi mới trong `pabx_offline_minutes` (mặc định 60) thì tạo một cảnh báo `CRITICAL` (`dedupe_key = 'PABX_OFFLINE:{thời điểm bản ghi cuối}'`). Khi có bản ghi mới trở lại thì tạo thông báo `type = PABX_OFFLINE`, `severity = INFO`, tiêu đề "Đã nhận lại dữ liệu từ PABX", `dedupe_key = 'PABX_RECOVERED:{thời điểm bản ghi mới đầu tiên}'`.
 > - **Người nhận** (luôn tạo **một dòng `notification_recipients` cho mỗi tài khoản**):
@@ -1000,6 +1003,19 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
+> [!IMPORTANT]
+> **Chặn sửa/xóa `audit_logs` ở mức CSDL** (không chỉ dựa vào code):
+> - Ứng dụng (`backend-api`, `backend-worker`) kết nối bằng tài khoản DB riêng, ví dụ `evn_cdr_app`, chỉ có `SELECT, INSERT` trên `audit_logs`. Các bảng ứng dụng khác cấp `SELECT, INSERT, UPDATE, DELETE`; `cdr` chỉ `SELECT`; `cdr_enriched` thêm `ALTER` và `DROP` để job partition làm việc.
+> - Migration chạy bằng tài khoản khác, ví dụ `evn_cdr_migrator`, có quyền DDL; tài khoản này không được cấu hình trong tiến trình chạy thường xuyên.
+> - Thêm trigger dự phòng, để kể cả khi cấp quyền nhầm thì DB vẫn từ chối:
+>
+> ```sql
+> CREATE TRIGGER `trg_audit_logs_no_update` BEFORE UPDATE ON `audit_logs` FOR EACH ROW
+>   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'audit_logs is append-only';
+> CREATE TRIGGER `trg_audit_logs_no_delete` BEFORE DELETE ON `audit_logs` FOR EACH ROW
+>   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'audit_logs is append-only';
+> ```
+
 **Danh mục hành động duy nhất** (mọi module chỉ dùng các mã này; `actor_type` phân biệt Admin/User nên không có mã riêng kiểu `ADMIN_LOGIN`):
 
 | `resource_name` | `action` |
@@ -1024,8 +1040,8 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 
 | Thực thể | Thao tác "xóa" của API | Điều kiện xóa / Lỗi | Điều kiện khóa (`status = 'LOCKED'`) | Khóa ngoại liên quan |
 |---|---|---|---|---|
-| `user_groups` | **Xóa mềm**: `status = 'INACTIVE'`; thu hồi toàn bộ dải số của nhóm (quy tắc thu hồi mục 8). Giữ liên kết `phone_prefix_group_id`, CDR và stats để báo cáo lịch sử vẫn đúng | Chặn `409` nếu nhóm còn user `ACTIVE`/`LOCKED` | — | `stats_*.group_id`, `users.user_group_id`: RESTRICT; `cdr_enriched.*_group_id` là tham chiếu logic (bảng partition, không FK) |
-| `users` | **Xóa mềm**: `status = 'INACTIVE'`; nếu là `representative_user_id` của nhóm thì set NULL | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm (giống xóa mềm) | `user_groups.representative_user_id`: SET NULL; `user_roles.user_id`: RESTRICT (giữ dòng vai trò) |
+| `user_groups` | **Xóa mềm**: trong một transaction, chuyển **mọi** user chưa `INACTIVE` của nhóm sang `INACTIVE` (kể cả Quản trị viên nhóm cuối cùng) và thu hồi toàn bộ phiên của họ (`ACCOUNT_LOCKED`), đặt `representative_user_id = NULL`, `status = 'INACTIVE'`, thu hồi toàn bộ dải số của nhóm (quy tắc thu hồi mục 8). Giữ liên kết `phone_prefix_group_id`, CDR và stats để báo cáo lịch sử vẫn đúng | Không chặn theo số thành viên. Giao diện hiển thị số thành viên sẽ bị ngừng hoạt động và yêu cầu xác nhận | — | `stats_*.group_id`, `users.user_group_id`: RESTRICT; `cdr_enriched.*_group_id` là tham chiếu logic (bảng partition, không FK) |
+| `users` | **Xóa mềm**: `status = 'INACTIVE'`; nếu là `representative_user_id` của nhóm thì set NULL | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm `ACTIVE`. Ngoại lệ duy nhất: thao tác ngừng hoạt động cả nhóm (dòng `user_groups` ở trên) | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm (giống xóa mềm). Áp dụng cho mọi đường đổi trạng thái (`PUT /users/:id/status`, `DELETE /users/:id`) | `user_groups.representative_user_id`: SET NULL; `user_roles.user_id`: RESTRICT (giữ dòng vai trò) |
 | `admins` | **Xóa mềm**: `status = 'INACTIVE'` | Chặn nếu admin mang vai trò `ROOT_ADMIN` hoặc tự xóa chính mình | Chặn nếu admin mang vai trò `ROOT_ADMIN` hoặc tự khóa chính mình | `*.performed_by_admin_id`, `admins.created_by_admin_id`: SET NULL (chỉ áp dụng nếu sau này có xóa cứng bằng tay); `admin_roles.admin_id`: RESTRICT (giữ dòng vai trò) |
 | `phone_prefix_groups` | **Xóa cứng** khi không có nhóm người dùng liên kết và không còn dải số. Muốn ngừng dùng mà vẫn giữ: `status = 'INACTIVE'` | `409` nếu còn liên kết hoặc còn dải | — | `user_groups.phone_prefix_group_id`, `phone_prefix_ranges.prefix_group_id`: RESTRICT |
 | `phone_prefix_ranges` | **Thu hồi**: dọn số theo quy tắc mục 8 → ghi `prefix_allocation_history` + `phone_number_range_history` → xóa dòng dải | — | — | `phone_numbers.range_id`: RESTRICT (bắt buộc dọn số trước) |
@@ -1035,6 +1051,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 
 - Tài khoản `INACTIVE` không đăng nhập được và bị ẩn khỏi danh sách mặc định (có bộ lọc "Đã ngừng hoạt động"). `username`/`email` của tài khoản `INACTIVE` được phép dùng lại cho tài khoản mới (UNIQUE chỉ áp cho tài khoản chưa `INACTIVE`, qua cột ảo `username_active`/`email_active`), phục vụ chuyển công tác.
 - Nhóm `INACTIVE` không cho đăng nhập thành viên, không nhận cấp phát dải số mới, nhưng vẫn xuất hiện trong báo cáo lịch sử.
+- **Mã (`code`) không được dùng lại sau xóa mềm** (chủ ý, khác với `username`/`email`): `user_groups.code` của nhóm `INACTIVE` và `phone_prefix_groups.code` của nhóm đầu số `INACTIVE` vẫn giữ `UNIQUE`, vì báo cáo lịch sử, `audit_logs` và lịch sử cấp phát tham chiếu tới nhóm cũ qua mã; dùng lại mã sẽ làm hai nhóm khác nhau trông như một. Tạo nhóm thay thế thì dùng mã mới (vd. thêm hậu tố `-2`). `organizations.code` chỉ được giải phóng khi đơn vị bị xóa cứng.
 
 ---
 
@@ -1050,14 +1067,27 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 > - `group_id = X`: Lưu trữ dữ liệu thống kê tổng hợp của **Nhóm người dùng có `id = X`** (Group Scope - cô lập dữ liệu cho người dùng thuộc nhóm).
 > - Cột ảo `group_scope_id` (`COALESCE(group_id, 0)`) kết hợp với `UNIQUE KEY` giải quyết triệt để vấn đề ràng buộc duy nhất trên cột `NULL` của MariaDB/MySQL.
 >
-> **Đơn vị đếm là cuộc gọi, không phải bản ghi CDR**: mọi bộ đếm và thời lượng chỉ tổng hợp từ các dòng `cdr_enriched` có `is_primary_leg = 1` (quy tắc gộp leg tại mục 2.1).
+> **Đơn vị đếm**:
+> - **Sản lượng, trạng thái, thời lượng, độ trễ SIP, mã ngắt và bên cúp máy** (khối 1, 2, 3, 6, 7 của `stats_*`): đơn vị là **cuộc gọi**, chỉ tổng hợp từ các dòng `cdr_enriched` có `is_primary_leg = 1` (quy tắc gộp leg tại mục 2.1). Khóa thời gian là `Created` của leg chính.
+> - **Chất lượng âm thanh và truyền dẫn** (khối 4, 5: `qos_sample_count`, MOS, R, dải MOS, gói RTP, jitter): đơn vị là **leg**, tổng hợp từ **mọi** dòng `cdr_enriched` (cả `is_primary_leg = 0`). Lý do: leg A chỉ đo đoạn máy gọi ↔ lõi, leg B đo đoạn lõi ↔ máy nhận; chỉ lấy leg chính thì chất lượng phía máy nhận không bao giờ vào thống kê và cảnh báo (trên dữ liệu thật, jitter phía máy nhận của leg B có trung vị 2,25 ms, còn phía lõi của leg A chỉ 0,08 ms). Khóa thời gian là `Created` của chính leg đó; nhóm của leg lấy từ `caller_group_id`/`called_group_id` của leg đó theo cùng quy tắc quy chiếu bên dưới.
+> - **Giá trị QoS của một leg**: MOS = `mos_x100`; R = trung bình các phía có `RTP_*_G107R`; jitter = trung bình các phía có `RTP_*_MeanRfc3550Jitter`; gói = tổng `RTP_*_PacketsCount` / `RTP_*_LostPackets` các phía có giá trị. Phía nào NULL thì bỏ qua phía đó, cả hai NULL thì leg không có mẫu cho chỉ số đó.
 >
 > **Quy tắc cuộn (roll-up) chỉ số**: khi gộp giờ → ngày → kỳ báo cáo, không lấy trung bình của các giá trị trung bình:
 > - **Tỷ lệ** (`asr_percentage`, `ner_percentage`): cộng bộ đếm rồi chia, ví dụ `SUM(answered_calls) / NULLIF(SUM(total_calls), 0) * 100`.
-> - **Trung bình QoS** (`avg_*_mos`, `avg_r_value`): gia quyền theo `qos_sample_count`, ví dụ `SUM(avg_mos * qos_sample_count) / NULLIF(SUM(qos_sample_count), 0) / 100`. Khi `qos_sample_count = 0`, API trả `null` (không có dữ liệu), không trả 0.
+> - **Trung bình QoS**: mỗi trung bình gia quyền theo **đúng bộ đếm mẫu của nó**, vì tập leg có dữ liệu của từng chỉ số khác nhau (trên dữ liệu thật có 24 leg chỉ có RTP một phía):
+>
+>   | Trung bình | Trọng số |
+>   |---|---|
+>   | `avg_mos`, `avg_r_value` | `qos_sample_count` (leg có `mos_x100`; trùng tập leg có R ở ít nhất một phía) |
+>   | `avg_caller_mos` | `caller_mos_sample_count` (leg có `mos_caller_x100`) |
+>   | `avg_called_mos` | `called_mos_sample_count` (leg có `mos_called_x100`) |
+>   | `avg_jitter_ms` | `jitter_sample_count` (leg có jitter ở ít nhất một phía) |
+>
+>   Ví dụ `SUM(avg_mos * qos_sample_count) / NULLIF(SUM(qos_sample_count), 0) / 100`. Khi bộ đếm mẫu bằng 0, API trả `null` (không có dữ liệu), không trả 0.
 > - **ACD** (`avg_duration_sec`): `SUM(total_duration_sec) / NULLIF(SUM(answered_calls), 0)`.
 > - **Cột dạng tổng/số mẫu** (`sum_*_delay_ms`, `cnt_*_delay`, `rtp_packets_total`, `rtp_lost_packets_total`): cộng thẳng khi roll-up; API tính trung bình/tỷ lệ ở bước cuối (`SUM(sum_x) / NULLIF(SUM(cnt_x), 0)`, `SUM(rtp_lost_packets_total) / NULLIF(SUM(rtp_packets_total), 0) * 100`). Mẫu số bằng 0 thì trả `null`.
-> - **`avg_jitter_ms`** gia quyền theo `qos_sample_count` như MOS; **`max_*`** lấy `MAX`.
+> - **`max_*`** lấy `MAX`.
+> - **`high_packet_loss_legs_count`** đếm theo `critical_threshold` của `PACKET_LOSS_PERCENT` **tại thời điểm tính** khung giờ. Đổi ngưỡng không tính lại khung đã chốt sổ (chỉ áp dụng cho khung tính sau thời điểm lưu ngưỡng), nên giao diện ghi chú cột này "theo ngưỡng tại thời điểm tổng hợp". Tỷ lệ mất gói theo ngưỡng mới luôn tính được từ `rtp_lost_packets_total / rtp_packets_total`.
 > - **Không có chỉ số RTCP RTT, gói bị loại bỏ (`RTP_Rx_*`) hay `Audio_Signal_Delay`**: các cột PABX tương ứng luôn NULL trên dữ liệu thật. Khi PABX bật các tính năng này sẽ bổ sung bằng migration riêng.
 >
 > **Quy tắc quy chiếu lưu lượng (Traffic Attribution)** – áp dụng cho số cuộc gọi và cho thời lượng `*_duration_sec` tương ứng:
@@ -1078,11 +1108,11 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 
 > [!IMPORTANT]
 > **Tính lại idempotent, không cộng dồn**. Một cuộc gọi chỉ có bản ghi sau khi kết thúc, còn leg A có thể đến muộn và đổi leg chính. Nếu cộng dồn từng phần thì sẽ đếm thiếu hoặc đếm đôi, nên job luôn tính lại toàn bộ khung giờ từ `cdr_enriched`.
-> 1. **Khóa thời gian**: `stat_date = DATE(Created)`, `stat_hour = HOUR(Created)` của leg chính (`is_primary_leg = 1`), tức thời điểm **bắt đầu** cuộc gọi.
-> 2. **Job giờ** (`*/10 * * * *`): với mỗi khung giờ trong **3 giờ gần nhất**, cộng các khung giờ có trong `stats_recompute_queue`, chạy một câu `INSERT INTO stats_hourly (...) SELECT ... FROM cdr_enriched WHERE is_primary_leg = 1 AND Created >= :hourStart AND Created < :hourEnd GROUP BY ...` kèm `ON DUPLICATE KEY UPDATE` (ghi đè mọi cột). Mỗi khung giờ sinh **1 dòng toàn hệ thống** (`group_id IS NULL`) và **1 dòng cho mỗi nhóm** có tham gia cuộc gọi trong khung đó, theo quy tắc quy chiếu lưu lượng bên dưới. Dòng nhóm của khung giờ đã từng có nhưng nay không còn cuộc gọi nào thì bị xóa trong cùng transaction.
+> 1. **Khóa thời gian**: `stat_date = DATE(Created)`, `stat_hour = HOUR(Created)`, tức thời điểm **bắt đầu** của leg chính (bộ đếm cuộc gọi) hoặc của từng leg (khối QoS), theo "Đơn vị đếm" ở trên.
+> 2. **Job giờ** (`*/10 * * * *`): với mỗi khung giờ trong **3 giờ gần nhất**, cộng các khung giờ có trong `stats_recompute_queue`, chạy một câu `INSERT INTO stats_hourly (...) SELECT ... FROM cdr_enriched WHERE Created >= :hourStart AND Created < :hourEnd GROUP BY ...` kèm `ON DUPLICATE KEY UPDATE` (ghi đè mọi cột). Bộ đếm cuộc gọi dùng tổng có điều kiện trên leg chính (vd. `SUM(is_primary_leg = 1 AND call_status = 'ANSWERED')`), khối QoS tổng hợp trên mọi leg. Mỗi khung giờ sinh **1 dòng toàn hệ thống** (`group_id IS NULL`) và **1 dòng cho mỗi nhóm** có tham gia cuộc gọi (leg chính) hoặc có leg trong khung đó, theo quy tắc quy chiếu lưu lượng bên dưới. Dòng nhóm của khung giờ đã từng có nhưng nay không còn leg nào của nhóm thì bị xóa trong cùng transaction.
 > 3. **Job ngày**: ngay sau job giờ, tính lại dòng `stats_daily` của các ngày vừa bị tác động, từ các dòng `stats_hourly` cùng ngày theo quy tắc roll-up (cộng bộ đếm; tỷ lệ và trung bình tính lại, không lấy trung bình của trung bình).
 > 4. **Chốt sổ** lúc 00:05: tính lại cả 24 giờ của ngày hôm trước lần cuối, rồi đặt `is_finalized = 1`. Dòng đã chốt chỉ đổi khi có yêu cầu trong `stats_recompute_queue`.
-> 5. **Dữ liệu đến trễ**: khi tiến trình làm giàu ghi hoặc đổi leg chính của một bản ghi có `Created` cũ hơn 3 giờ, nó thêm (`stat_date`, `stat_hour`) vào `stats_recompute_queue`. Job giờ xử lý hàng đợi ở lần chạy kế tiếp, kể cả ngày đã chốt sổ, rồi xóa dòng hàng đợi đã xử lý.
+> 5. **Dữ liệu đến trễ**: khi tiến trình làm giàu ghi một leg có `Created` cũ hơn 3 giờ, nó thêm (`stat_date`, `stat_hour`) của leg đó vào `stats_recompute_queue`. Khi đổi leg chính, nó thêm khung giờ của **cả leg chính mới và leg chính cũ** nếu khung đó cũ hơn 3 giờ, vì hai leg lệch tới 2 giây có thể nằm ở hai khung giờ khác nhau (vd. 10:59:59 và 11:00:01). Job giờ xử lý hàng đợi ở lần chạy kế tiếp, kể cả ngày đã chốt sổ, rồi xóa dòng hàng đợi đã xử lý.
 > 6. **Không chạy chồng**: job giữ khóa `GET_LOCK('stats_aggregation_job', 0)`; không lấy được khóa thì bỏ qua lần chạy đó. Job độc lập với tiến trình làm giàu.
 
 ```sql
@@ -1132,21 +1162,24 @@ CREATE TABLE IF NOT EXISTS `stats_hourly` (
   `ner_percentage` decimal(5,2) NOT NULL DEFAULT 0.00 COMMENT 'Tỷ lệ hiệu quả mạng NER (% = (answered_calls + busy_calls + no_answer_calls) / total_calls * 100; 0 nếu total_calls = 0)',
 
   -- 4. Chất lượng Âm thanh & QoS Thoại (ITU-T G.107)
-  `qos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc gọi (leg chính) có mos_x100 IS NOT NULL; trọng số cho mọi trung bình QoS khi cuộn giờ -> ngày -> kỳ',
-  `avg_caller_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía gọi = AVG(mos_caller_x100) trên các cuộc có dữ liệu (×100, ví dụ 425 = 4.25)',
-  `avg_called_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía nhận = AVG(mos_called_x100) (×100)',
-  `avg_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình của cuộc gọi = AVG(mos_x100) (×100)',
-  `avg_r_value` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Hệ số R ITU-T G.107 trung bình (0 - 100) trên các cuộc có dữ liệu, gia quyền theo qos_sample_count',
-  `mos_excellent_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc gọi chất lượng Xuất sắc (mos_x100 >= 400)',
-  `mos_good_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc gọi chất lượng Tốt (350 <= mos_x100 < 400)',
-  `mos_fair_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc gọi chất lượng Trung bình (300 <= mos_x100 < 350)',
-  `mos_poor_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc gọi chất lượng Kém (mos_x100 < 300)',
+  `qos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg (mọi leg, kể cả leg phụ) có mos_x100 IS NOT NULL; trọng số của avg_mos, avg_r_value khi cuộn giờ -> ngày -> kỳ',
+  `caller_mos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có mos_caller_x100 IS NOT NULL; trọng số của avg_caller_mos',
+  `called_mos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có mos_called_x100 IS NOT NULL; trọng số của avg_called_mos',
+  `avg_caller_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía gọi = AVG(mos_caller_x100) trên các leg có dữ liệu (×100, ví dụ 425 = 4.25); gia quyền theo caller_mos_sample_count',
+  `avg_called_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía nhận = AVG(mos_called_x100) (×100); gia quyền theo called_mos_sample_count',
+  `avg_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình theo leg = AVG(mos_x100) (×100); gia quyền theo qos_sample_count',
+  `avg_r_value` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Hệ số R ITU-T G.107 trung bình (0 - 100) = AVG(R của leg), R của leg = trung bình các phía có RTP_*_G107R; gia quyền theo qos_sample_count',
+  `mos_excellent_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg chất lượng Xuất sắc (mos_x100 >= 400)',
+  `mos_good_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg chất lượng Tốt (350 <= mos_x100 < 400)',
+  `mos_fair_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg chất lượng Trung bình (300 <= mos_x100 < 350)',
+  `mos_poor_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg chất lượng Kém (mos_x100 < 300)',
 
   -- 5. Hiệu suất Truyền dẫn Mạng IP
-  `rtp_packets_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng gói RTP hai chiều (Caller + Called PacketsCount) của leg chính có RTP',
+  `rtp_packets_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng gói RTP hai chiều (Caller + Called PacketsCount) của mọi leg có RTP',
   `rtp_lost_packets_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng gói RTP mất hai chiều (Caller + Called LostPackets); tỷ lệ mất gói = rtp_lost_packets_total / rtp_packets_total * 100',
-  `high_packet_loss_calls_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc có tỷ lệ mất gói hai chiều > critical_threshold của PACKET_LOSS_PERCENT (qos_threshold_configs, mặc định 2%)',
-  `avg_jitter_ms` decimal(8,3) unsigned NOT NULL DEFAULT 0.000 COMMENT 'Jitter RFC 3550 trung bình = AVG((RTP_Caller_MeanRfc3550Jitter + RTP_Called_MeanRfc3550Jitter) / 2) trên leg có RTP; gia quyền theo qos_sample_count khi roll-up',
+  `high_packet_loss_legs_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có tỷ lệ mất gói hai chiều > critical_threshold của PACKET_LOSS_PERCENT tại thời điểm tính khung giờ (qos_threshold_configs, mặc định 2%)',
+  `jitter_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có jitter ở ít nhất một phía; trọng số của avg_jitter_ms',
+  `avg_jitter_ms` decimal(8,3) unsigned NOT NULL DEFAULT 0.000 COMMENT 'Jitter RFC 3550 trung bình = AVG(jitter của leg), jitter của leg = trung bình các phía có RTP_*_MeanRfc3550Jitter (ms); gia quyền theo jitter_sample_count khi roll-up',
   `max_jitter_ms` decimal(8,3) unsigned NOT NULL DEFAULT 0.000 COMMENT 'MAX của RTP_Caller_MaxRfc3550Jitter / RTP_Called_MaxRfc3550Jitter (ms)',
 
   -- 6. Độ trễ Thiết lập Cuộc gọi SIP (Call Setup Latency)
@@ -1218,21 +1251,24 @@ CREATE TABLE IF NOT EXISTS `stats_daily` (
   `ner_percentage` decimal(5,2) NOT NULL DEFAULT 0.00 COMMENT 'Tỷ lệ hiệu quả mạng NER trong ngày (%), tính lại từ các bộ đếm ngày',
 
   -- 4. Chất lượng Âm thanh & QoS Thoại (ITU-T G.107)
-  `qos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc gọi (leg chính) có mos_x100 IS NOT NULL; trọng số cho mọi trung bình QoS khi cuộn giờ -> ngày -> kỳ',
-  `avg_caller_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía gọi = AVG(mos_caller_x100) (×100)',
-  `avg_called_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía nhận = AVG(mos_called_x100) (×100)',
-  `avg_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình của cuộc gọi = AVG(mos_x100) (×100)',
-  `avg_r_value` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Điểm hệ số R-Value trung bình trong ngày (0 - 100)',
-  `mos_excellent_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc gọi Xuất sắc (mos_x100 >= 400)',
-  `mos_good_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc gọi Tốt (350 <= mos_x100 < 400)',
-  `mos_fair_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc gọi Trung bình (300 <= mos_x100 < 350)',
-  `mos_poor_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc gọi Kém (mos_x100 < 300)',
+  `qos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg (mọi leg, kể cả leg phụ) có mos_x100 IS NOT NULL; trọng số của avg_mos, avg_r_value khi cuộn giờ -> ngày -> kỳ',
+  `caller_mos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có mos_caller_x100 IS NOT NULL; trọng số của avg_caller_mos',
+  `called_mos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có mos_called_x100 IS NOT NULL; trọng số của avg_called_mos',
+  `avg_caller_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía gọi = AVG(mos_caller_x100) trên các leg có dữ liệu (×100, ví dụ 425 = 4.25); gia quyền theo caller_mos_sample_count',
+  `avg_called_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía nhận = AVG(mos_called_x100) (×100); gia quyền theo called_mos_sample_count',
+  `avg_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình theo leg = AVG(mos_x100) (×100); gia quyền theo qos_sample_count',
+  `avg_r_value` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Hệ số R ITU-T G.107 trung bình (0 - 100) = AVG(R của leg), R của leg = trung bình các phía có RTP_*_G107R; gia quyền theo qos_sample_count',
+  `mos_excellent_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg Xuất sắc (mos_x100 >= 400)',
+  `mos_good_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg Tốt (350 <= mos_x100 < 400)',
+  `mos_fair_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg Trung bình (300 <= mos_x100 < 350)',
+  `mos_poor_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg Kém (mos_x100 < 300)',
 
   -- 5. Hiệu suất Truyền dẫn Mạng IP
-  `rtp_packets_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng gói RTP hai chiều (Caller + Called PacketsCount) của leg chính có RTP',
+  `rtp_packets_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng gói RTP hai chiều (Caller + Called PacketsCount) của mọi leg có RTP',
   `rtp_lost_packets_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng gói RTP mất hai chiều (Caller + Called LostPackets); tỷ lệ mất gói = rtp_lost_packets_total / rtp_packets_total * 100',
-  `high_packet_loss_calls_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số cuộc có tỷ lệ mất gói hai chiều > critical_threshold của PACKET_LOSS_PERCENT (qos_threshold_configs, mặc định 2%)',
-  `avg_jitter_ms` decimal(8,3) unsigned NOT NULL DEFAULT 0.000 COMMENT 'Jitter RFC 3550 trung bình = AVG((RTP_Caller_MeanRfc3550Jitter + RTP_Called_MeanRfc3550Jitter) / 2) trên leg có RTP; gia quyền theo qos_sample_count khi roll-up',
+  `high_packet_loss_legs_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có tỷ lệ mất gói hai chiều > critical_threshold của PACKET_LOSS_PERCENT tại thời điểm tính khung giờ (qos_threshold_configs, mặc định 2%)',
+  `jitter_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có jitter ở ít nhất một phía; trọng số của avg_jitter_ms',
+  `avg_jitter_ms` decimal(8,3) unsigned NOT NULL DEFAULT 0.000 COMMENT 'Jitter RFC 3550 trung bình = AVG(jitter của leg), jitter của leg = trung bình các phía có RTP_*_MeanRfc3550Jitter (ms); gia quyền theo jitter_sample_count khi roll-up',
   `max_jitter_ms` decimal(8,3) unsigned NOT NULL DEFAULT 0.000 COMMENT 'MAX của RTP_Caller_MaxRfc3550Jitter / RTP_Called_MaxRfc3550Jitter (ms)',
 
   -- 6. Độ trễ Thiết lập Cuộc gọi SIP (Call Setup Latency)

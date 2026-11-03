@@ -143,7 +143,8 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 
 ### 3.5. Cập nhật thông tin người dùng (`PUT /api/v1/users/:id`)
 
-- **Mục đích**: Chỉnh sửa họ tên, số điện thoại, ảnh đại diện, trạng thái tài khoản (`status`). Không nhận `roleCode`: vai trò chỉ thay đổi qua API 3.6.
+- **Mục đích**: Chỉnh sửa họ tên, chức danh, số điện thoại, ảnh đại diện. Không nhận `roleCode` (vai trò chỉ đổi qua API 3.6) và không nhận `status`: khóa/mở khóa chỉ qua `PUT /api/v1/users/:id/status` (`ACTIVE` | `LOCKED`), ngừng hoạt động chỉ qua `DELETE /api/v1/users/:id`. Body có `roleCode` hoặc `status` thì trả `400`.
+- **Tối thiểu 1 Quản trị viên nhóm**: `PUT /users/:id/status` sang `LOCKED` và `DELETE /users/:id` đều bị chặn `409` nếu tài khoản là `GROUP_ADMIN` `ACTIVE` cuối cùng của nhóm (`docs/01_database_schema.md` mục 14). Ngoại lệ duy nhất là khi Quản trị viên hệ thống ngừng hoạt động cả nhóm (`docs/modules/02_user_group.md` mục 3.4).
 - **Quy tắc bất biến nhóm (Group Immutability Rule)**:
   - **Nghiêm cấm thay đổi `user_group_id`**: Người dùng gắn liền với đơn vị tổ chức/nhóm người dùng suốt vòng đời tài khoản. Tuyệt đối không có khái niệm chuyển người dùng giữa các nhóm.
   - Nếu request body có truyền `userGroupId` khác với nhóm hiện tại của người dùng, hệ thống chặn với mã lỗi `400 BAD REQUEST: Thuộc tính nhóm người dùng là cố định từ lúc tạo, không thể thay đổi hoặc chuyển nhóm`.
