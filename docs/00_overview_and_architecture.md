@@ -393,7 +393,7 @@ backend/
 ├── .eslintrc.cjs                  <-- ép ranh giới import giữa các phần (bên dưới)
 ├── package.json                   <-- scripts: start:api (node dist/main.js), start:worker (node dist/main.worker.js)
 ├── tsconfig.json                  <-- paths: @core/*, @apps/*, @realtime/*
-└── .env.example                   <-- Dùng chung cho cả 2 tiến trình
+└── .env.example                   <-- Dùng chung cho cả 2 tiến trình (gồm AVATAR_STORAGE_DIR: thư mục ảnh đại diện, chỉ backend-api dùng)
 ```
 
 **Quy tắc phân tách mã backend:**
@@ -421,7 +421,7 @@ module.exports = {
 
 | Service | Lệnh | Số instance | Cổng | Ghi chú |
 | :--- | :--- | :--- | :--- | :--- |
-| `backend-api` | `node dist/main.js` | 1..N | 3000 | Nginx proxy `/api/`, `/socket.io/` tới đây. Nhiều instance thì bật sticky session cho `/socket.io/` (Socket.IO polling fallback). |
+| `backend-api` | `node dist/main.js` | 1..N | 3000 | Nginx proxy `/api/`, `/socket.io/` tới đây. Nhiều instance thì bật sticky session cho `/socket.io/` (Socket.IO polling fallback). Gắn đọc-ghi **volume chung** `AVATAR_STORAGE_DIR` (ảnh đại diện, `docs/modules/09_admin_profile.md` mục 3.2.1) cho mọi instance; Nginx gắn cùng thư mục chỉ đọc. |
 | `backend-worker` | `node dist/main.worker.js` | **đúng 1** | không | Cần quyền đọc DB, ghi `cdr_enriched`/`stats_*`/`notifications`/`worker_job_status` và truy cập SMTP (chỉ worker gửi email); không cần gắn thư mục ghi âm. |
 
 - Cả hai đặt `TZ=Asia/Ho_Chi_Minh` và dùng chung biến môi trường DB (mục 2.3).
@@ -435,7 +435,7 @@ Một ứng dụng Vue, một `package.json`, một bản build. Thư mục `src
 ```
 frontend/
 ├── index.html
-├── vite.config.ts                 <-- base: '/', outDir: 'dist', server.proxy /api và /socket.io → backend; alias @shared, @admin, @member
+├── vite.config.ts                 <-- base: '/', outDir: 'dist', server.proxy /api, /socket.io, /media → backend; alias @shared, @admin, @member
 ├── package.json                   <-- scripts: dev, build, lint, test
 ├── tsconfig.json
 ├── .eslintrc.cjs                  <-- ép ranh giới import giữa 2 khu vực (bên dưới)
@@ -560,6 +560,7 @@ Toàn hệ thống chạy trên **một domain** (`https://cdr-pabx.evn.com.vn`)
 | `/api/v1/admin/*` | NestJS `backend-api`, phần `src/apps/admin` | REST API Cổng Quản trị |
 | `/api/v1/*` | NestJS `backend-api`, phần `src/apps/member` | REST API Cổng Thành viên |
 | `/socket.io/*` | NestJS `backend-api`, `src/realtime` | WebSocket thông báo in-app (namespace `/admin/notifications` và `/notifications`) |
+| `/media/avatars/*` | Nginx phục vụ tĩnh từ `AVATAR_STORAGE_DIR` | Ảnh đại diện đã xử lý (`<uuid>.png`/`.jpg`), không qua backend, không cần token; chỉ `POST .../profile/avatar` ghi vào (`docs/modules/09_admin_profile.md` mục 3.2.1) |
 | `/*` (còn lại, gồm `/admin/*`) | `frontend/dist` | Một bản build; URL không khớp file tĩnh trả `/index.html`, router quyết định cổng |
 
 ```nginx
@@ -567,12 +568,26 @@ server {
     server_name cdr-pabx.evn.com.vn;
 
     # backend-worker không nhận request HTTP, chỉ backend-api đứng sau Nginx
-    location /api/      { proxy_pass http://backend-api:3000; }
+    location /api/ {
+        proxy_pass http://backend-api:3000;
+        client_max_body_size 3m;   # ảnh đại diện ≤ 2 MB; vượt 2 MB backend trả 400, không để Nginx trả 413
+    }
     location /socket.io/ {
         proxy_pass http://backend-api:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+    }
+
+    # Ảnh đại diện: cùng thư mục với AVATAR_STORAGE_DIR của backend-api (volume chung, gắn chỉ đọc)
+    location /media/avatars/ {
+        alias /srv/evn-cdr/media/avatars/;
+        types { image/png png; image/jpeg jpg; }
+        default_type application/octet-stream;
+        add_header X-Content-Type-Options nosniff;
+        add_header Cache-Control "public, max-age=31536000, immutable";   # tên file đổi mỗi lần tải
+        autoindex off;
+        try_files $uri =404;
     }
 
     location / {
@@ -585,7 +600,7 @@ server {
 #### 5.3.2. Quy tắc route
 
 1. **Một router, hai nhóm route**: `src/router/index.ts` gộp `adminRoutes` (một route cha `path: '/admin'`, các route con khai báo **tương đối**, vd. `path: 'cdr'` → URL `/admin/cdr`) và `memberRoutes`. Mọi route có `meta.portal`; route con thừa kế từ route cha.
-2. **Không trùng không gian URL**: mọi path của khu vực Thành viên không được bắt đầu bằng `/admin`, `/api`, `/socket.io`. `/admin` (không có dấu `/` cuối) redirect về `admin.dashboard`.
+2. **Không trùng không gian URL**: mọi path của khu vực Thành viên không được bắt đầu bằng `/admin`, `/api`, `/socket.io`, `/media`. `/admin` (không có dấu `/` cuối) redirect về `admin.dashboard`.
 3. **Route name** có tiền tố cổng: `admin.cdr`, `member.cdr`... để log, breadcrumb và test không nhầm lẫn.
 4. **Chuyển cổng**: liên kết "Cổng Người dùng" trên trang đăng nhập Admin là `<RouterLink :to="{ name: 'member.login' }">`, liên kết "Cổng Quản trị" trên trang đăng nhập Member là `<RouterLink :to="{ name: 'admin.login' }">`. Chuyển cổng không làm mất phiên của cổng kia.
 5. **Phiên tách theo cổng** (chính sách token tại `docs/01_database_schema.md` mục 6.1):
@@ -664,7 +679,7 @@ Cột View là component trong `src/apps/member/views/`; Template nguồn trong 
 #### 5.3.5. Môi trường phát triển
 
 - `npm run dev` chạy cả ứng dụng tại `http://localhost:5173`: Member ở `/`, Admin ở `/admin/`.
-- `vite.config.ts` cấu hình `server.proxy`: `/api` và `/socket.io` (kèm `ws: true`) → backend `http://localhost:3000`. Khi dev, frontend và API cùng origin giống production.
+- `vite.config.ts` cấu hình `server.proxy`: `/api` và `/socket.io` (kèm `ws: true`) → backend `http://localhost:3000`; `/media` → nơi phục vụ `AVATAR_STORAGE_DIR` khi dev (Nginx cục bộ, hoặc backend bật `ServeStaticModule` cho `/media/avatars` **chỉ** khi `NODE_ENV=development`). Khi dev, frontend và API cùng origin giống production.
 - `npm run build` ra một thư mục `frontend/dist`; chunk của mỗi khu vực tách riêng nhờ lazy-load. Mọi thay đổi frontend triển khai bằng cách thay toàn bộ `dist`.
 
 ---

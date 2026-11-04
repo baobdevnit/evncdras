@@ -153,6 +153,89 @@ Content-Type: application/json
 - **Frontend** (`AdminProfileView`, form "Thông tin cá nhân"): giá trị ban đầu lấy từ `GET` (mục 3.1); gửi `fullName`, `phoneNumber` (ô trống → `null`) qua API client của cổng (`401` → refresh một lần rồi gửi lại), kiểm tra trước ở client cùng quy tắc của bảng body. Đang gửi thì khóa nút "Lưu thay đổi". Thành công: thay hồ sơ bằng `data`, điền lại form, cập nhật `fullName` của `authAdmin.admin` để header `AdminLayout` đổi theo ngay (không gọi lại `/auth/me`). `400` thì hiện `errors[field]` dưới ô tương ứng (khóa không ứng với ô nào thì hiện ở toast). Nút "Khôi phục" điền lại giá trị của lần tải/lưu gần nhất, không gọi API. Mẫu: `templates/admin/profile.js`, `window.adminSession.updateAccount` trong `templates/admin/main.js`.
 - Index phục vụ: khóa chính `admins`, `admin_roles`, `roles`.
 
+### 3.2.1. `POST /api/v1/admin/profile/avatar`
+
+Đặc tả chung cho cả hai cổng; bản User `POST /api/v1/profile/avatar` khác ở các điểm ghi tại `docs/modules/08_user_profile.md` mục 3.3. Đây là cách **duy nhất** đổi ảnh đại diện (mọi `PUT` có `avatarUrl` trả `400`); chưa có API gỡ ảnh về `null` (chỉ thay bằng ảnh khác).
+
+- **Guard**: `AdminAuthGuard`; không cần mã quyền. Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`. Chế độ bảo trì không áp dụng cho cổng Admin. Không có query (có thì `400`).
+- **Lưu trữ và phục vụ file** (dùng chung `admins.avatar_url`, `users.avatar_url`):
+  - Thư mục `AVATAR_STORAGE_DIR` (biến môi trường, vd. `/srv/evn-cdr/media/avatars`) là **volume chung** gắn đọc-ghi vào mọi instance `backend-api`; `backend-worker` không cần. Không lưu ảnh trong CSDL.
+  - Tên file `<uuid v4>.png` hoặc `<uuid v4>.jpg`, sinh mới mỗi lần tải (không dùng tên file của client, không dùng id tài khoản). Cột `avatar_url` lưu **đường dẫn tương đối** `/media/avatars/<tên file>` (55 ký tự, vừa `varchar(255)`); API trả nguyên giá trị đó, frontend dùng làm `src` của `<img>` cùng domain.
+  - Nginx phục vụ `/media/avatars/` trực tiếp từ thư mục đó (`docs/00_overview_and_architecture.md` mục 5.3.1): không qua backend, không cần token (thẻ `<img>` không gửi được `Authorization`); tên file ngẫu nhiên nên không đoán được ảnh của người khác. Vì tên đổi mỗi lần tải nên được cache lâu (`immutable`).
+- **Body** (`multipart/form-data`, đúng **một** phần file, không có trường văn bản nào khác):
+
+| Phần | Kiểu | Bắt buộc | Quy tắc |
+|---|---|---|---|
+| `file` | file | Có | ≤ 2 MB (2 097 152 byte); định dạng PNG hoặc JPEG xác định bằng **magic bytes** của nội dung (không tin `Content-Type` của phần file hay đuôi tên file); giải mã được; tối đa 25 000 000 điểm ảnh (chống ảnh nén "bom") |
+
+  `Content-Type` của request không phải `multipart/form-data`, thiếu `file`, có hơn một file, có trường khác hoặc sai quy tắc trả `400 VALIDATION_ERROR`, `errors` theo tên phần (`{ "file": ["Ảnh tối đa 2 MB"] }`, `{ "file": ["Chỉ nhận ảnh PNG hoặc JPEG"] }`, `{ "file": ["Không đọc được ảnh"] }`; trường lạ `{ "<tên>": ["Trường không được nhận"] }`). Vượt 2 MB cũng trả `400` (không dùng `413`): `multer` đặt `limits = { fileSize: 2097152, files: 1, fields: 0 }`, lỗi `LIMIT_*` đổi thành `400`; Nginx đặt `client_max_body_size 3m` để request tới được backend.
+- **Xử lý** (theo thứ tự):
+  1. Validate request như bảng trên (lỗi trả `400`, không đọc CSDL, không ghi file).
+  2. Xử lý ảnh trong bộ nhớ bằng `sharp` (`limitInputPixels: 25000000`): xoay theo EXIF, cắt vuông ở giữa và thu về **256×256** (`fit: 'cover'`), mã hóa lại **cùng định dạng** với file gốc (PNG giữ nền trong suốt; JPEG chất lượng 85), **bỏ toàn bộ metadata** (EXIF, GPS, ICC). Lỗi giải mã trả `400` (`errors.file`). Không bao giờ lưu file gốc.
+  3. Ghi kết quả vào `AVATAR_STORAGE_DIR` dưới tên tạm `.<uuid>.tmp` rồi `rename` sang `<uuid>.<png|jpg>` (cùng thư mục nên nguyên tử; Nginx không bao giờ thấy file dở).
+  4. Một transaction: `SELECT ... FROM admins WHERE id = sub FOR UPDATE`; không thấy dòng hoặc `status` khác `ACTIVE` thì rollback, xóa file vừa ghi, trả `401 UNAUTHORIZED` (cùng quy tắc mục 3.1). Ngược lại giữ `avatar_url` cũ, `UPDATE admins SET avatar_url = '/media/avatars/<tên file mới>'`; ghi `audit_logs` `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `full_name`, `resource_name = 'ADMIN'`, `action = 'UPDATE'`, `resource_id` = id Admin, `ip_address`, `user_agent` của request, `action_details = { "changedFields": ["avatarUrl"] }` (luôn ghi, vì tên file luôn mới; không ghi đường dẫn cũ/mới); đọc lại hồ sơ đủ 12 trường của mục 3.1; commit. Lỗi bất kỳ trước commit thì xóa file vừa ghi.
+  5. Sau commit: nếu `avatar_url` cũ khớp `^/media/avatars/[0-9a-f-]{36}\.(png|jpg)$` thì xóa file đó (bỏ qua nếu không còn; lỗi xóa chỉ ghi log, không đổi response). Giá trị cũ khác mẫu (dữ liệu nhập tay trước đây) thì không xóa gì.
+  6. Trả `200`, `data` = hồ sơ sau khi đổi, **đúng 12 trường** của mục 3.1. Không thu hồi phiên, không gửi thông báo.
+- **Ví dụ**:
+
+```http
+POST /api/v1/admin/profile/avatar
+Authorization: Bearer <access_token>
+Content-Type: multipart/form-data; boundary=----evn
+
+------evn
+Content-Disposition: form-data; name="file"; filename="anh-the.jpg"
+Content-Type: image/jpeg
+
+<nội dung ảnh>
+------evn--
+```
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Cập nhật ảnh đại diện thành công",
+  "data": {
+    "id": 1,
+    "username": "root.admin@evnict.vn",
+    "email": "root.admin@evnict.vn",
+    "fullName": "Quản trị viên Tối cao EVNICT",
+    "phoneNumber": "024 2222 2223",
+    "avatarUrl": "/media/avatars/3f2b8c1e-9d4a-4f6b-8e21-7c5d0a9b1e44.jpg",
+    "status": "ACTIVE",
+    "roleCode": "ROOT_ADMIN",
+    "roleName": "Quản trị viên tối cao",
+    "lastLoginAt": "2026-10-12T08:15:00+07:00",
+    "passwordChangedAt": "2026-09-01T10:20:00+07:00",
+    "createdAt": "2026-08-15T09:00:00+07:00"
+  },
+  "timestamp": "2026-10-12T09:55:00+07:00"
+}
+```
+
+```json
+{
+  "success": false,
+  "statusCode": 400,
+  "errorCode": "VALIDATION_ERROR",
+  "message": "Dữ liệu không hợp lệ",
+  "errors": { "file": ["Ảnh tối đa 2 MB"] },
+  "timestamp": "2026-10-12T09:55:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Không phải multipart, thiếu `file`, hơn một file, có trường khác, quá 2 MB, không phải PNG/JPEG theo magic bytes, không giải mã được, quá 25 000 000 điểm ảnh, có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản không còn `ACTIVE` (bước 4) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+
+- **Frontend** (`AdminProfileView`, nút `.btn-change-avatar` trên ảnh): mở hộp chọn file `accept="image/png,image/jpeg"`; kiểm tra trước ở client (`file.type` là `image/png`/`image/jpeg`, `file.size` ≤ 2 MB; backend là nơi quyết định), sai thì toast, không gọi API. Gửi `FormData` có đúng phần `file` qua API client của cổng (`401` → refresh một lần rồi gửi lại cùng `FormData`; không tự đặt header `Content-Type` để trình duyệt thêm `boundary`). Đang tải thì khóa nút và hiện trạng thái tải trên ảnh; **không** hiện ảnh xem trước cục bộ như đã lưu. Thành công: thay hồ sơ bằng `data`, đổi ảnh ở thẻ hồ sơ, cập nhật `avatarUrl` của `authAdmin.admin` để header `AdminLayout` đổi ngay (không gọi lại `/auth/me`), toast `message`. `400` hiện `errors.file` (hoặc mọi thông điệp trong `errors`) ở toast, giữ ảnh cũ. Luôn xóa giá trị ô file sau mỗi lần chọn để chọn lại cùng file vẫn gửi được. Mẫu: `templates/admin/profile.js`, `window.adminSession.updateAccount` trong `templates/admin/main.js`.
+- Index phục vụ: khóa chính `admins`, `admin_roles`, `roles`.
+
 ### 3.3. `PUT /api/v1/admin/profile/change-password`
 
 Đặc tả chung cho cả hai cổng; bản User `PUT /api/v1/profile/change-password` khác ở các điểm ghi tại `docs/modules/08_user_profile.md` mục 3.4. Chính sách mật khẩu và phiên: `docs/01_database_schema.md` mục 6.1.
@@ -284,3 +367,4 @@ Mẫu tĩnh: `templates/admin/change-password.html` (chế độ thường), `ch
 3. **TC-AP-03**: `GET /api/v1/admin/profile` trả đủ 12 trường của mục 3.1, không có `permissions`, `password_hash`, `locked_until`; gửi `?x=1` trả `400`; gọi bằng token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`; Root Admin khóa tài khoản trong lúc Access Token còn hạn thì lần gọi kế tiếp trả `401 UNAUTHORIZED`.
 4. **TC-AP-04**: `PUT /api/v1/admin/profile` với `{ "fullName": "  Nguyễn Văn A  " }` lưu `Nguyễn Văn A`, trả đủ 12 trường của mục 3.1, ghi một dòng `audit_logs` `ADMIN / UPDATE` với `changedFields = ["fullName"]`, header đổi tên ngay; gửi lại đúng giá trị đó trả `200` và không ghi thêm dòng audit; `{}`, `{ "fullName": "" }`, `{ "phoneNumber": "abc" }`, `{ "email": "x@evn.vn" }` đều trả `400 VALIDATION_ERROR`; `{ "phoneNumber": null }` xóa số.
 5. **TC-AP-05**: Đăng nhập trên 2 trình duyệt (A có `rememberMe = true`). Ở A `PUT /api/v1/admin/profile/change-password` đúng: `200` `{ accessToken, expiresIn }`, `Set-Cookie` `Path=/api/v1/admin/auth` có `Max-Age` ≈ 7 ngày; `admins.must_change_password = 0`, `password_changed_at` mới; cả 2 phiên cũ `PASSWORD_CHANGED`, có đúng 1 phiên mới `remember_me = 1`; `audit_logs` `AUTH / PASSWORD_CHANGED` `revokedCount = 2`, `forced = false`. Refresh ở B trả `401`. Gọi bằng token `PASSWORD_CHANGE_ONLY` (Admin mới tạo): `200`, phiên mới `remember_me = 0`, `forced = true`, token mới gọi được `GET /admin/profile`. Sai `currentPassword` 5 lần: 5 lần `400` (`errors.currentPassword`), lần 6 `423 ACCOUNT_TEMPORARILY_LOCKED` có `errors.lockedUntil`, không có dòng audit nào.
+6. **TC-AP-06**: `POST /api/v1/admin/profile/avatar` với ảnh JPEG 1,5 MB 1200×800 có EXIF GPS: `200`, `data` đủ 12 trường, `avatarUrl` dạng `/media/avatars/<uuid>.jpg`; file trên đĩa 256×256, không còn EXIF; `GET` đường dẫn đó qua Nginx trả ảnh với `X-Content-Type-Options: nosniff`; một dòng `audit_logs` `ADMIN / UPDATE` `changedFields = ["avatarUrl"]`; tải ảnh PNG kế tiếp thì file JPEG cũ bị xóa, header đổi ảnh ngay. File 2,1 MB, file `.png` thực chất là PDF, thiếu phần `file`, thêm phần `fullName`, gửi JSON đều trả `400 VALIDATION_ERROR` và không có file mới trong `AVATAR_STORAGE_DIR`; token `PASSWORD_CHANGE_ONLY` trả `403`; tài khoản bị khóa trong lúc token còn hạn trả `401` và không còn file mồ côi.

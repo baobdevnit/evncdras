@@ -48,7 +48,7 @@ Bảng MariaDB: `users` và `user_settings`.
     "fullName": "Trần Thị B",
     "jobTitle": "Trưởng nhóm Kỹ thuật Vận hành",
     "phoneNumber": "0912345678",
-    "avatarUrl": "https://ui-avatars.com/api/?name=Tran+B",
+    "avatarUrl": "/media/avatars/8a1d2c3e-5b6f-4a7d-9e0f-1b2c3d4e5f60.jpg",
     "userGroup": {
       "id": 1,
       "name": "Khối Công nghệ Thông tin",
@@ -73,8 +73,10 @@ Bảng MariaDB: `users` và `user_settings`.
 
 ### 3.3. `POST /api/v1/profile/avatar`
 
-- **Content-Type**: `multipart/form-data` (File ảnh `.png`, `.jpg`, dung lượng $\le 2\text{ MB}$).
-- Lưu file rồi ghi luôn `users.avatar_url` của chính người gọi; response trả `avatarUrl` mới. Đây là cách duy nhất đổi ảnh đại diện. Ghi `audit_logs` `USER / UPDATE` (`action_details = { "changedFields": ["avatarUrl"] }`).
+- Body, lưu trữ (`AVATAR_STORAGE_DIR`, `/media/avatars/<uuid>.<png|jpg>`), xử lý ảnh, lỗi và hành vi frontend theo đặc tả chung `docs/modules/09_admin_profile.md` mục 3.2.1 (một phần `file` ≤ 2 MB, PNG/JPEG theo magic bytes, cắt vuông 256×256, bỏ metadata, xóa file cũ sau commit). Đây là cách duy nhất đổi ảnh đại diện. Khác bản Admin:
+  - Guard `UserAuthGuard`; bảng `users`; `audit_logs` `actor_type = 'USER'`, `resource_name = 'USER'`, `action = 'UPDATE'`, `action_details = { "changedFields": ["avatarUrl"] }`.
+  - `data` = hồ sơ đủ trường như `GET /api/v1/profile` (mục 3.1).
+  - *(Còn rà ở U08: nhóm `INACTIVE`, chế độ bảo trì `503`, mẫu `templates/member/profile.*`.)*
 
 ### 3.4. `PUT /api/v1/profile/change-password`
 

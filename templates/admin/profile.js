@@ -148,38 +148,121 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnRetry) btnRetry.addEventListener('click', loadProfile);
 
     // ------------------------------------------------------------
-    // Ảnh đại diện – POST /api/v1/admin/profile/avatar (A08, chưa rà): xem trước cục bộ
+    // Ảnh đại diện – POST /api/v1/admin/profile/avatar (A08, M09 mục 3.2.1)
+    // multipart/form-data đúng một phần "file" (≤ 2 MB, PNG/JPEG). Backend cắt 256×256, bỏ metadata,
+    // lưu /media/avatars/<uuid>.<png|jpg> (Nginx phục vụ), trả data = hồ sơ đủ 12 trường như GET.
     // ------------------------------------------------------------
+    const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+    const AVATAR_TYPES = ['image/png', 'image/jpeg'];
     const btnChangeAvatar = document.getElementById('btnChangeAvatar');
     const avatarInput = document.getElementById('avatar-input');
+    const avatarWrapper = document.querySelector('.profile-avatar-wrapper');
+
+    // Kiểm tra trước ở client (backend kiểm tra lại bằng magic bytes và là nơi quyết định).
+    // Trả null hoặc errors = { file: [..] } cùng khóa với backend.
+    function checkAvatarFile(file) {
+        if (!file) return { file: ['Cần chọn một ảnh'] };
+        if (!AVATAR_TYPES.includes(file.type)) return { file: ['Chỉ nhận ảnh PNG hoặc JPEG'] };
+        if (file.size > AVATAR_MAX_BYTES) return { file: ['Ảnh tối đa 2 MB'] };
+        return null;
+    }
+
+    function uuidV4() {
+        if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+    }
+
+    // Giả lập backend POST /api/v1/admin/profile/avatar:
+    // 400 VALIDATION_ERROR (errors.file hoặc trường lạ); 401 UNAUTHORIZED (token/tài khoản không còn ACTIVE);
+    // 200 data = đúng 12 trường như GET, avatarUrl = /media/avatars/<uuid>.<png|jpg>;
+    // luôn ghi ADMIN / UPDATE { changedFields: ["avatarUrl"] } (in ra console để minh họa).
+    // Bản mock dùng object URL thay cho đường dẫn /media/avatars/ vì trang tĩnh không có Nginx.
+    function mockPostAdminAvatar(token, formData) {
+        return new Promise(resolve => setTimeout(resolve, 700)).then(() => {
+            if (!token) {
+                return Promise.reject({
+                    success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+                    message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: now()
+                });
+            }
+            const errors = {};
+            const files = formData.getAll('file');
+            for (const key of formData.keys()) {
+                if (key !== 'file') errors[key] = ['Trường không được nhận'];
+            }
+            if (files.length > 1) errors.file = ['Chỉ gửi một ảnh'];
+            else {
+                const fileErrors = checkAvatarFile(files[0]);
+                if (fileErrors) errors.file = fileErrors.file;
+            }
+            if (Object.keys(errors).length) return Promise.reject(validationError(errors));
+            const ext = files[0].type === 'image/png' ? 'png' : 'jpg';
+            const storedPath = '/media/avatars/' + uuidV4() + '.' + ext;
+            MOCK_PROFILE.avatarUrl = URL.createObjectURL(files[0]); // backend thật: storedPath
+            console.info('[mock] lưu ảnh', storedPath, '| audit_logs ADMIN / UPDATE', {
+                resourceId: String(MOCK_PROFILE.id), actionDetails: { changedFields: ['avatarUrl'] }
+            });
+            return {
+                success: true, statusCode: 200, message: 'Cập nhật ảnh đại diện thành công',
+                data: Object.assign({}, MOCK_PROFILE), timestamp: now()
+            };
+        });
+    }
+
+    function setAvatarUploading(uploading) {
+        if (btnChangeAvatar) {
+            btnChangeAvatar.disabled = uploading;
+            btnChangeAvatar.title = uploading ? 'Đang tải ảnh lên...' : 'Thay đổi ảnh đại diện';
+        }
+        if (avatarWrapper) {
+            avatarWrapper.classList.toggle('is-uploading', uploading);
+            avatarWrapper.setAttribute('aria-busy', uploading ? 'true' : 'false');
+        }
+    }
 
     if (btnChangeAvatar && avatarInput) {
         btnChangeAvatar.addEventListener('click', function() {
-            avatarInput.click();
+            if (!btnChangeAvatar.disabled) avatarInput.click();
         });
     }
 
     if (avatarInput) {
         avatarInput.addEventListener('change', function(e) {
             const file = e.target.files && e.target.files[0];
-            if (file) {
-                if (!file.type.startsWith('image/')) {
-                    notify('Vui lòng chọn tệp hình ảnh hợp lệ.', 'error');
-                    return;
-                }
-                const reader = new FileReader();
-                reader.onload = function(evt) {
-                    if (profileAvatarImg) {
-                        profileAvatarImg.src = evt.target.result;
+            // Xóa giá trị để chọn lại cùng file vẫn phát sinh "change"
+            avatarInput.value = '';
+            if (!file || !profile) return;
+            const clientErrors = checkAvatarFile(file);
+            if (clientErrors) { notify(clientErrors.file.join(' '), 'error'); return; }
+
+            // Không tự đặt Content-Type: trình duyệt thêm boundary. FormData dùng lại được khi request() gửi lại sau refresh.
+            const formData = new FormData();
+            formData.append('file', file);
+            setAvatarUploading(true);
+            callApi(token => mockPostAdminAvatar(token, formData))
+                .then(res => {
+                    profile = res.data;
+                    renderProfile(profile);
+                    // Header AdminLayout đổi ảnh ngay (Vue: cập nhật authAdmin.admin.avatarUrl, không gọi /auth/me)
+                    if (window.adminSession && window.adminSession.updateAccount) {
+                        window.adminSession.updateAccount({ avatarUrl: profile.avatarUrl });
                     }
-                    const sidebarFooterAvatar = document.querySelector('.sidebar-footer .user-profile .avatar');
-                    if (sidebarFooterAvatar) {
-                        sidebarFooterAvatar.src = evt.target.result;
+                    notify(res.message || 'Cập nhật ảnh đại diện thành công', 'success');
+                })
+                .catch(err => {
+                    // 401 sau khi refresh thất bại: request() đã chuyển về login.
+                    if (err && err.statusCode === 401) return;
+                    if (err && err.errorCode === 'VALIDATION_ERROR' && err.errors) {
+                        const msgs = Object.keys(err.errors).map(k => [].concat(err.errors[k]).join(' '));
+                        notify(msgs.join(' '), 'error');
+                        return;
                     }
-                    notify('Ảnh đại diện đã được cập nhật thành công.', 'success');
-                };
-                reader.readAsDataURL(file);
-            }
+                    notify((err && err.message) || 'Không tải được ảnh lên. Vui lòng thử lại.', 'error');
+                })
+                .finally(() => setAvatarUploading(false));
         });
     }
 

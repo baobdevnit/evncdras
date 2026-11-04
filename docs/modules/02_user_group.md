@@ -216,7 +216,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
         "id": 10,
         "fullName": "Trần Thị B",
         "email": "tran.b@71portal.vn",
-        "avatarUrl": "https://ui-avatars.com/api/?name=Tran+B",
+        "avatarUrl": "/media/avatars/8a1d2c3e-5b6f-4a7d-9e0f-1b2c3d4e5f60.jpg",
         "roleCode": "GROUP_ADMIN"
       },
       "admins": [
@@ -256,7 +256,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
         "id": 28,
         "fullName": "Nguyễn Văn D",
         "email": "nguyen.d@audit.evn.vn",
-        "avatarUrl": "https://ui-avatars.com/api/?name=Nguyen+D",
+        "avatarUrl": null,
         "roleCode": "GROUP_ADMIN"
       },
       "admins": [
@@ -447,7 +447,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
       "jobTitle": "Trưởng nhóm Kỹ thuật",
       "email": "tran.b@71portal.vn",
       "phoneNumber": "0905123456",
-      "avatarUrl": "https://ui-avatars.com/api/?name=Tran+B",
+      "avatarUrl": "/media/avatars/8a1d2c3e-5b6f-4a7d-9e0f-1b2c3d4e5f60.jpg",
       "roleCode": "GROUP_ADMIN"
     }
   ],

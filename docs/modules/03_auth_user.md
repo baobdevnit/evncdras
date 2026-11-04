@@ -85,7 +85,7 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
       "username": "cdr.evnit@evn.com.vn",
       "fullName": "Trần Thị B",
       "email": "tran.b@71portal.vn",
-      "avatarUrl": "https://ui-avatars.com/api/?name=Tran+B",
+      "avatarUrl": "/media/avatars/8a1d2c3e-5b6f-4a7d-9e0f-1b2c3d4e5f60.jpg",
       "userGroup": {
         "id": 1,
         "name": "Khối Công nghệ Thông tin",
