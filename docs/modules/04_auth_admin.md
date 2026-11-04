@@ -43,7 +43,7 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 - **Xử lý Backend**:
   1. Truy vấn `admins` theo `username_active` hoặc `email_active` (chỉ tài khoản chưa `INACTIVE`; không thấy thì ghi `LOGIN_FAILED` với `reason = UNKNOWN_USER`).
   2. Kiểm tra `status == 'ACTIVE'` (ngược lại `403`) và `locked_until` (còn hiệu lực thì `423` với body `{ "success": false, "statusCode": 423, "errorCode": "ACCOUNT_TEMPORARILY_LOCKED", "lockedUntil": "2026-10-26T09:45:00+07:00" }`).
-  3. Xác thực `bcrypt.compare(password, admin.password_hash)`. Sai: tăng `failed_login_count`; đạt `security_login_max_failed` thì đặt `locked_until`. Đúng: đặt `failed_login_count = 0`.
+  3. Xác thực `bcrypt.compare(password, admin.password_hash)`. Sai: tăng `failed_login_count` bằng một câu `UPDATE` nguyên tử; đạt `security_login_max_failed` thì đặt `locked_until` và đặt lại `failed_login_count = 0` trong cùng câu lệnh (`docs/01_database_schema.md` mục 6.1). Đúng: đặt `failed_login_count = 0`.
   4. Đọc vai trò từ `admin_roles` (join `roles`). Tạo Access Token (`security_access_token_minutes`, mặc định 15 phút) ký bằng `JWT_ADMIN_SECRET`, mang `sub`, `roleCode`; và Refresh Token (`security_refresh_token_days`, mặc định 7 ngày) lưu dạng băm vào `auth_sessions`. Chính sách đầy đủ tại `docs/01_database_schema.md` mục 6.1.
   5. Nếu `must_change_password = 1` hoặc mật khẩu quá hạn: chỉ cấp Access Token `scope: "PASSWORD_CHANGE_ONLY"` (không có Refresh Token, xem `docs/01_database_schema.md` mục 6.1), response có `"mustChangePassword": true`.
   6. Cập nhật `last_login_at = NOW()`.

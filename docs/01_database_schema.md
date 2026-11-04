@@ -608,6 +608,15 @@ CREATE TABLE IF NOT EXISTS `auth_sessions` (
 > - **Logout** thu hồi phiên hiện tại (`LOGOUT`). Người dùng tự thu hồi phiên khác (`REVOKED_BY_SELF`); Root Admin thu hồi phiên của admin khác, quản trị viên thu hồi phiên của user (`REVOKED_BY_ADMIN`).
 > - **Đổi mật khẩu, đặt lại mật khẩu, khóa hoặc ngừng hoạt động tài khoản** thu hồi toàn bộ phiên (`PASSWORD_CHANGED` / `ACCOUNT_LOCKED`). Access Token đã cấp hết hiệu lực tối đa sau 15 phút.
 > - **Khóa tạm khi sai mật khẩu**: sai `security_login_max_failed` (5) lần liên tiếp thì `locked_until = NOW() + security_lockout_minutes` (15 phút). Trong thời gian này API đăng nhập trả `423 LOCKED` cùng thời điểm mở khóa. Đăng nhập đúng thì đặt `failed_login_count = 0`. Khóa tạm tách biệt với `status = 'LOCKED'` do quản trị viên đặt.
+>   - **Đặt lại bộ đếm khi khóa**: lúc đặt `locked_until`, đồng thời đặt `failed_login_count = 0`, nên hết khóa thì người dùng lại có đủ 5 lần thử. Nếu giữ bộ đếm, mỗi lần sai sau khi hết khóa đều tăng tiếp và cột `tinyint unsigned` tràn ở 255, khi đó câu `UPDATE` lỗi và API đăng nhập trả `500` thay vì `423`.
+>   - **Tăng bộ đếm bằng một câu `UPDATE` nguyên tử**, không đọc lên rồi ghi lại giá trị từ code: nhiều request sai mật khẩu gửi song song cùng đọc `failed_login_count = 0` và cùng ghi `1`, nên kẻ tấn công thử được không giới hạn mà không bao giờ bị khóa. Câu lệnh (bảng `users` hoặc `admins`; MariaDB gán `SET` từ trái sang phải, nên `locked_until` phải đứng trước để còn đọc giá trị cũ của bộ đếm):
+>
+>     ```sql
+>     UPDATE users
+>        SET locked_until       = IF(failed_login_count + 1 >= :maxFailed, NOW() + INTERVAL :lockoutMinutes MINUTE, locked_until),
+>            failed_login_count = IF(failed_login_count + 1 >= :maxFailed, 0, failed_login_count + 1)
+>      WHERE id = :id;
+>     ```
 > - **Mật khẩu**: tối thiểu `security_password_min_length` (10) ký tự, có ít nhất 3 trong 4 loại (chữ hoa, chữ thường, chữ số, ký tự đặc biệt), băm `bcrypt` cost 10. Mật khẩu hết hạn sau `security_password_max_age_days` (90) ngày tính từ `password_changed_at`. Khi hết hạn hoặc `must_change_password = 1`, đăng nhập chỉ cấp một token giới hạn, chỉ được gọi API đổi mật khẩu.
 > - **Token giới hạn**: khi `must_change_password = 1` hoặc mật khẩu quá hạn, đăng nhập chỉ cấp Access Token có claim `scope: "PASSWORD_CHANGE_ONLY"` (không cấp Refresh Token). Token này chỉ được chấp nhận ở `change-password`, `logout` và `auth/me` của portal tương ứng; mọi endpoint khác trả `403` với mã `PASSWORD_CHANGE_REQUIRED`. Đổi mật khẩu thành công thì cấp cặp Access/Refresh Token đầy đủ.
 > - **Dọn dẹp**: job `src/apps/worker/session-cleanup` (tiến trình `backend-worker`, chạy hằng ngày) xóa phiên có `expires_at < NOW() - 30 ngày`.
@@ -1068,6 +1077,12 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | `notifications` | Phiên bản này không có API hay job xóa: thông báo giữ vĩnh viễn. DDL cho phép DBA xóa cứng thủ công thông báo cũ khi cần | — | — | `notification_recipients`: CASCADE |
 | `roles`, `permissions` | Không xóa (seed cố định) | — | — | `permission_roles`: CASCADE; `admin_roles`/`user_roles`.`role_id`: RESTRICT |
 
+- **Khóa dòng nhóm khi kiểm tra ràng buộc của nhóm**: quy tắc "nhóm `ACTIVE` có ít nhất 1 Quản trị viên nhóm `ACTIVE`" được kiểm tra bằng câu `SELECT COUNT(*)` thường, mà câu này đọc snapshot và không khóa dòng của người khác. Nhóm có 2 Quản trị viên A và B: request hạ quyền A và request khóa (hoặc hạ quyền, ngừng hoạt động) B chạy cùng lúc, mỗi bên đếm thấy người kia vẫn là Quản trị viên nên cả hai đều qua, và nhóm không còn Quản trị viên nào. Vì vậy câu đầu tiên trong transaction của các thao tác dưới đây là `SELECT id, status FROM user_groups WHERE id = :groupId FOR UPDATE` (nhóm của tài khoản đích, hoặc nhóm gắn với nhóm đầu số), rồi mới khóa/đọc `users`, `user_roles`, `phone_numbers`. Các thao tác cùng nhóm chạy tuần tự, và thứ tự khóa thống nhất (nhóm trước) tránh deadlock:
+  - `PUT /users/:id/role`, `PUT /users/:id/status`, `DELETE /users/:id` (kể cả bản `/admin`): đếm Quản trị viên nhóm còn lại sau khi đã giữ khóa nhóm.
+  - `POST /users`: kiểm tra nhóm còn `ACTIVE` sau khi giữ khóa, để không tạo tài khoản `ACTIVE` trong nhóm vừa ngừng hoạt động.
+  - `PUT /admin/user-groups/:id`: kiểm tra người đại diện mới còn là Quản trị viên nhóm `ACTIVE` sau khi giữ khóa.
+  - `DELETE /admin/user-groups/:id`: ngừng hoạt động nhóm, thành viên và thu hồi dải số.
+  - Cấp phát và sửa dải số cho nhóm đầu số đã gắn nhóm người dùng: kiểm tra nhóm còn `ACTIVE` sau khi giữ khóa (nhóm đầu số chưa gắn nhóm người dùng thì không có dòng để khóa).
 - **`INACTIVE` là trạng thái cuối** của `users`, `admins` và `user_groups`: không có API kích hoạt lại. `PUT /users/:id/status` và `PUT /admin/admins/:id/status` chỉ chuyển giữa `ACTIVE` và `LOCKED`, gọi trên tài khoản `INACTIVE` trả `409` (`ACCOUNT_INACTIVE`); `PUT /admin/user-groups/:id` không nhận `status` (`400`) và trả `409` (`GROUP_INACTIVE`) nếu nhóm đã `INACTIVE`. Lý do: kích hoạt lại tài khoản có thể đụng `UNIQUE` của `username_active`/`email_active` (tên đã được tài khoản mới dùng lại), và kích hoạt lại nhóm tạo ra nhóm `ACTIVE` không có Quản trị viên nhóm nào. Cần dùng lại thì tạo tài khoản/nhóm mới.
 - Tài khoản `INACTIVE` không đăng nhập được và bị ẩn khỏi danh sách mặc định (có bộ lọc "Đã ngừng hoạt động"). `username`/`email` của tài khoản `INACTIVE` được phép dùng lại cho tài khoản mới (UNIQUE chỉ áp cho tài khoản chưa `INACTIVE`, qua cột ảo `username_active`/`email_active`), phục vụ chuyển công tác.
 - Nhóm `INACTIVE` không cho đăng nhập thành viên, không nhận cấp phát dải số mới, nhưng vẫn xuất hiện trong báo cáo lịch sử.

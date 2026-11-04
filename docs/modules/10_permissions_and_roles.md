@@ -245,6 +245,7 @@ Không có API tạo/sửa/xóa vai trò, không có API sửa quyền của vai
 
 - `roleCode` chỉ nhận `GROUP_ADMIN`, `USER_RECORDING`, `REGULAR_USER` (`400` nếu khác).
 - **Xử lý Backend** (một transaction):
+  0. Khóa dòng nhóm của người dùng đích (`SELECT id, status FROM user_groups WHERE id = :groupId FOR UPDATE`) trước mọi câu khác, để hai request cùng nhóm (vd. hạ quyền 2 Quản trị viên nhóm cuối cùng cùng lúc) chạy tuần tự; thiếu bước này thì mỗi request đếm ở bước 3 vẫn thấy người kia là Quản trị viên và nhóm mất hết Quản trị viên (`docs/01_database_schema.md` mục 14).
   1. Khóa dòng `user_roles` của người dùng đích (`SELECT ... FOR UPDATE`); người dùng đích phải chưa `INACTIVE`.
   2. Bản User: người dùng đích phải cùng nhóm với người gọi (`403`).
   3. Kiểm tra quyền và điều kiện theo bảng mục 1.3 (`403` / `409`). Đếm Quản trị viên nhóm còn lại khi hạ quyền:

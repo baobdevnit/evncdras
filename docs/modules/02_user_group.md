@@ -341,7 +341,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
   - **Không nhận `status`**: body có `status` thì trả `400`. Ngừng hoạt động chỉ qua `DELETE` (mục 3.4).
   - Cho phép cập nhật `organizationId` (gán sang đơn vị khác hoặc gán về `null` để chuyển thành nhóm độc lập).
   - **Không cho đổi `phonePrefixGroupId`** sau khi tạo nhóm: request gửi giá trị khác giá trị hiện tại thì trả `409 CONFLICT`. Muốn chuyển số sang nhóm khác thì thu hồi dải ở nhóm cũ và cấp dải cho nhóm mới (`docs/01_database_schema.md` mục 8).
-  - Cập nhật tên, mô tả, người đại diện (người đại diện bắt buộc phải mang vai trò `GROUP_ADMIN` trong nhóm).
+  - Cập nhật tên, mô tả, người đại diện (người đại diện bắt buộc phải mang vai trò `GROUP_ADMIN` và `ACTIVE` trong nhóm; kiểm tra sau khi đã khóa dòng nhóm `SELECT ... FOR UPDATE`, quy tắc khóa tại `docs/01_database_schema.md` mục 14).
   - **Cập nhật quyền ghi âm nhóm (`allowRecordingAccess`)**: Chỉ Quản trị viên hệ thống (Admin Portal) mới có quyền sửa trường này. Tắt cờ không đổi vai trò của thành viên; quyền nghe/tải của cả nhóm bị chặn ngay ở request kế tiếp. Ghi `audit_logs` `TOGGLE_GROUP_RECORDING`.
 
 ```json
