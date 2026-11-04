@@ -22,6 +22,7 @@
   - `USER + ADMIN`: có **hai route cùng hành vi**. Route User là đường dẫn ghi trong bảng, ví dụ `GET /api/v1/cdr`. Route Admin là bản sao có tiền tố, ví dụ `GET /api/v1/admin/cdr`.
     - Bản User luôn tự áp cô lập nhóm (`group_id = nhóm của người dùng`).
     - Bản Admin có phạm vi toàn hệ thống và nhận thêm tham số riêng của Admin (`groupId`, `callType`, `includeArchive`…).
+    - DTO bản User không có các tham số riêng của Admin: gửi `groupId`, `includeArchive`… lên route User trả `400` (tham số không hợp lệ), không bỏ qua im lặng.
     - Hai bản dùng **chung service và DTO response** đặt trong `backend/src/core/<x>/`, chỉ khác controller (`backend/src/apps/member/<x>/` và `backend/src/apps/admin/<x>/`) và guard. Response giống hệt nhau.
   - `USER`: chỉ có bản User (`/api/v1/auth/*`, `/api/v1/profile/*`).
 - Tài liệu module ghi đường dẫn bản User cho các route `USER + ADMIN`; bản Admin suy ra theo quy tắc trên.
@@ -159,7 +160,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `POST` | `/api/v1/profile/avatar` | `UserAuthGuard` | Tải ảnh đại diện (multipart, tối đa 2 MB, `image/png`/`image/jpeg`), trả `avatarUrl` |
 | `GET` | `/api/v1/auth/sessions` | `UserAuthGuard` | Danh sách phiên đăng nhập đang hoạt động của chính User |
 | `DELETE` | `/api/v1/auth/sessions/:id` | `UserAuthGuard` | Thu hồi một phiên của chính mình (`REVOKED_BY_SELF`) |
-| `GET` | `/api/v1/profile/preferences` | `UserAuthGuard` | Lấy thiết lập giao diện (`theme`, `itemsPerPage`) |
+| `GET` | `/api/v1/profile/preferences` | `UserAuthGuard` | Lấy thiết lập giao diện (`theme`, `isSidebarCollapsed`, `itemsPerPage`, `emailNotificationEnabled`, `soundAlertEnabled`; `docs/modules/08_user_profile.md` mục 3.5) |
 | `PUT` | `/api/v1/profile/preferences` | `UserAuthGuard` | Cập nhật thiết lập giao diện người dùng |
 
 ### 3.3. Phân hệ Cây tổ chức EVN (Organizations)
@@ -254,7 +255,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 
 | Method | Endpoint | Quyền / Guard | Mô tả | Portal |
 | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/traffic/summary` | `cdr:view` | Thống kê sản lượng 3 chiều và tổng thời lượng đàm thoại thực tế theo kỳ theo Nhóm người dùng (đọc từ `stats_daily`/`stats_hourly`) | USER + ADMIN |
+| `GET` | `/api/v1/traffic/summary` | `cdr:view` | Thống kê sản lượng 3 chiều và tổng thời lượng đàm thoại thực tế theo kỳ theo Nhóm người dùng (đọc từ `stats_daily`/`stats_hourly`); bản Admin phân trang danh sách nhóm (`page`, `limit` ≤ 100, `sort`, `order`) | USER + ADMIN |
 | `GET` | `/api/v1/traffic/records` | `cdr:view` | Danh sách chi tiết cuộc gọi kèm phân loại lưu lượng và thời lượng (đọc `cdr_enriched` với `is_primary_leg = 1`: `caller_group_id`, `called_group_id`, `call_type`, `answered_duration_sec`) | USER + ADMIN |
 
 ### 3.10. Phân hệ Báo cáo & Xuất dữ liệu (Reports & Export - Zero CDR Scan)
@@ -284,7 +285,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/v1/notifications` | Authenticated | Danh sách thông báo của người dùng/admin | USER + ADMIN |
 | `PUT` | `/api/v1/notifications/:id/read` | Authenticated | Đánh dấu thông báo đã đọc | USER + ADMIN |
-| `POST` | `/api/v1/admin/notifications` | `system:manage` | Admin soạn thông báo `SYSTEM_MAINTENANCE`/`GENERAL` (`title`, `content`, `severity`, `target` = `ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` \| `EVERYONE`); tạo một dòng người nhận cho mỗi tài khoản | ADMIN |
+| `POST` | `/api/v1/admin/notifications` | `system:manage` | Admin soạn thông báo `SYSTEM_MAINTENANCE`/`GENERAL` (`title`, `content`, `severity`, `target` = `ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` \| `EVERYONE`); tạo một dòng người nhận cho mỗi tài khoản `ACTIVE` (người dùng chỉ thuộc nhóm `ACTIVE`); `GROUP:{id}` của nhóm `INACTIVE` trả `409 GROUP_INACTIVE` | ADMIN |
 | `PUT` | `/api/v1/notifications/mark-all-read` | Authenticated | Đánh dấu tất cả thông báo đã đọc | USER + ADMIN |
 | `GET` | `/api/v1/admin/settings/system` | `system:manage` | Lấy cấu hình hệ thống (Quy tắc phân tích, retention, bảo trì...) | ADMIN |
 | `PUT` | `/api/v1/admin/settings/system` | `system:manage` | Lưu cấu hình hệ thống. Giảm `retention_archive_months` phải kèm `confirmPurge: true`, thiếu thì `409 RETENTION_PURGE_CONFIRM_REQUIRED` (`docs/modules/07_system_settings.md` mục 3.2) | ADMIN |

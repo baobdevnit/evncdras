@@ -48,7 +48,7 @@ Hệ thống EVN CDRAS phân tách rõ ràng giao diện Bảng điều khiển 
 | :--- | :--- | :--- |
 | **Tổng Cuộc Gọi Đơn Vị** | Cuộc gọi phát sinh liên quan đến dải số của nhóm | `SUM(total_calls) WHERE group_id = :userGroupId` |
 | **Thời Lượng Đàm Thoại** | Tổng phút đàm thoại của nhóm | `ROUND(SUM(total_duration_sec) / 60) WHERE group_id = :userGroupId` |
-| **Tỉ Lệ Trả Lời (ASR) Đơn Vị**| Tỷ lệ bắt máy của đơn vị so với mức TB toàn EVN | `SUM(answered_calls) / SUM(total_calls) * 100%` (nhóm) |
+| **Tỉ Lệ Trả Lời (ASR) Đơn Vị**| Tỷ lệ bắt máy của đơn vị (không so với toàn EVN: bản User không đọc dòng toàn hệ thống) | `SUM(answered_calls) / NULLIF(SUM(total_calls), 0) * 100%` (nhóm) |
 | **Tỷ Trọng Gọi Nội Bộ (%)** | % cuộc gọi nội bộ nhóm / Tổng cuộc gọi phát sinh | `SUM(calls_intra_group) / SUM(total_calls) * 100%` |
 
 ---
@@ -125,7 +125,7 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
 
 ### 3.1. `GET /api/v1/dashboard/stats`
 
-- **Query params**: tham số `period` theo bộ giá trị chung tại `docs/02_api_contracts.md` mục 1.1 (mặc định `today`), `fromDate`, `toDate`, `groupId` (tùy chọn - chỉ Admin Portal được chọn; User Portal tự động ép `groupId = token.userGroupId`)
+- **Query params**: tham số `period` theo bộ giá trị chung tại `docs/02_api_contracts.md` mục 1.1 (mặc định `today`), `fromDate`, `toDate`, `groupId` (tùy chọn, chỉ bản Admin; bản User luôn dùng `token.userGroupId`, gửi `groupId` lên trả `400` theo `docs/02_api_contracts.md` mục 1.1)
 - **Response**:
 
 ```json
@@ -141,21 +141,21 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
       "value": 1245600,
       "formatted": "1,245,600",
       "trend": 12.0,
-      "trendLabel": "+12% so với tháng trước",
+      "trendLabel": "+12% so với kỳ trước",
       "trendType": "positive"
     },
     "durationMinutes": {
       "value": 3845200,
       "formatted": "3,845,200",
       "trend": 5.4,
-      "trendLabel": "+5.4% so với tuần trước",
+      "trendLabel": "+5.4% so với kỳ trước",
       "trendType": "positive"
     },
     "asr": {
       "value": 82.5,
       "formatted": "82.5%",
       "trend": 1.2,
-      "trendLabel": "+1.2% đạt chuẩn viễn thông EVN",
+      "trendLabel": "+1.2% so với kỳ trước",
       "trendType": "positive"
     },
     "avgMos": {
@@ -172,6 +172,8 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
   }
 }
 ```
+
+- **`trend`** = % thay đổi so với **kỳ liền trước cùng số ngày**, cùng phạm vi (toàn hệ thống hoặc cùng nhóm), đọc `stats_*` như kỳ đang xem: `today` so với hôm qua đến cùng giờ; `yesterday` so với hôm kia; `last_7_days` so với 7 ngày trước đó; `this_week`/`this_month` so với cùng số ngày đầu tuần/tháng trước; `last_month` so với tháng liền trước nữa; `custom` so với khoảng cùng số ngày ngay trước `fromDate`. `trend = null` (và không có `trendLabel`/`trendType`) khi kỳ trước không có dữ liệu (mẫu số bằng 0). `trendType` theo dấu của `trend`.
 
 ### 3.2. `GET /api/v1/dashboard/charts`
 
@@ -234,6 +236,7 @@ backend/src/
 async getDashboardData(user: CurrentUserPayload, query: DashboardStatsQueryDto) {
   // Claim token: roleCode (cả hai cổng); userGroupId chỉ có ở token User (docs/modules/03_auth_user.md)
   const isSystemAdmin = [Role.ROOT_ADMIN, Role.SYSTEM_ADMIN].includes(user.roleCode);
+  // DTO bản User không có groupId (gửi lên bị ValidationPipe trả 400), nên query.groupId chỉ có ở bản Admin
   const targetGroupId = isSystemAdmin ? (query.groupId || null) : user.userGroupId;
 
   return this.statsService.getAggregatedKPI({

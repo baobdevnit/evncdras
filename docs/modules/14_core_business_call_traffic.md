@@ -49,7 +49,7 @@ Module này **không có bảng riêng**. Bảng `call_duration_records` của t
 | `call_status` | Kết cục cuộc gọi (`ANSWERED`, `BUSY`, `NO_ANSWER`, `FAILED`) |
 | `Created` | Thời điểm khởi tạo cuộc gọi, dùng cho bộ lọc `fromDate`/`toDate` |
 
-Số liệu tổng hợp (`/traffic/summary`) đọc từ `stats_daily` theo nguyên tắc Zero CDR Scan. Danh sách chi tiết (`/traffic/records`) là truy vấn từng cuộc gọi, đọc `cdr_enriched` qua chỉ mục (`caller_group_id`, `Created`) / (`called_group_id`, `Created`) / (`call_type`, `Created`).
+Số liệu tổng hợp (`/traffic/summary`) đọc `stats_*` theo nguyên tắc Zero CDR Scan (`period = today` đọc `stats_hourly`, kỳ khác đọc `stats_daily`, `docs/02_api_contracts.md` mục 1.1). Danh sách chi tiết (`/traffic/records`) là truy vấn từng cuộc gọi, đọc `cdr_enriched` qua chỉ mục (`caller_group_id`, `Created`) / (`called_group_id`, `Created`) / (`call_type`, `Created`).
 
 ---
 
@@ -58,7 +58,7 @@ Số liệu tổng hợp (`/traffic/summary`) đọc từ `stats_daily` theo ngu
 ### 3.1. Báo cáo tổng hợp lưu lượng theo Nhóm người dùng (`GET /api/v1/traffic/summary`)
 
 - **Guard**: `UserAuthGuard` trên route User; bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1). `Permission: cdr:view`
-- **Query params**: tham số `period` theo bộ giá trị chung tại `docs/02_api_contracts.md` mục 1.1 (mặc định `this_month`), `groupId` (tùy chọn với Admin Portal; tự động gán theo token với Member Portal)
+- **Query params**: tham số `period` theo bộ giá trị chung tại `docs/02_api_contracts.md` mục 1.1 (mặc định `this_month`), `groupId` (chỉ bản Admin, tùy chọn; bản User dùng nhóm trong token, gửi `groupId` trả `400`). Bản Admin khi không truyền `groupId` nhận thêm `page`, `limit` (≤ 100), `sort` = `totalCalls` | `totalDurationSec`, `order`, như `GET /api/v1/admin/dashboard/groups`.
 - **Response**:
 
 ```json
@@ -71,14 +71,15 @@ Số liệu tổng hợp (`/traffic/summary`) đọc từ `stats_daily` theo ngu
       "groupCode": "UMO-IT-01",
       "groupName": "Khối Công nghệ Thông tin - Nhóm Vận hành",
       "totalCalls": 4520,
-      "totalDurationSeconds": 747000,
+      "totalDurationSec": 747000,
       "totalDurationMinutes": 12450,
       "callsOutbound": 1820,
       "callsInbound": 1450,
       "callsIntraGroup": 1250,
-      "averageDurationPerCallSec": 165
+      "avgDurationSec": 165
     }
   ],
+  "pagination": { "page": 1, "limit": 20, "total": 48, "totalPages": 3, "hasNext": true, "hasPrev": false },
   "systemTotal": {
     "totalCalls": 31840,
     "callsIntraGroup": 9120,
@@ -89,13 +90,14 @@ Số liệu tổng hợp (`/traffic/summary`) đọc từ `stats_daily` theo ngu
 ```
 
 - `data[]`: một phần tử cho mỗi nhóm (dòng `group_id = g`), dùng `callsOutbound`/`callsInbound`/`callsIntraGroup`.
+- `pagination`: chỉ có ở bản Admin khi không truyền `groupId` (danh sách nhóm có dòng `stats_*` trong kỳ); khi có `groupId` và ở bản User, `data[]` có đúng 1 phần tử, không có `pagination`.
 - `systemTotal`: chỉ trả về cho Admin Portal khi không truyền `groupId`, đọc từ dòng `group_id IS NULL`. **Không** tính bằng cách cộng `data[]`.
-- Thời lượng trung bình mỗi cuộc: `averageDurationPerCallSec = total_duration_sec / NULLIF(answered_calls, 0)`.
+- Thời lượng trung bình mỗi cuộc (ALOC): `avgDurationSec = SUM(total_duration_sec) / NULLIF(SUM(answered_calls), 0)` (quy tắc ACD `docs/01_database_schema.md` mục 15); `null` khi không có cuộc nhấc máy.
 
 ### 3.2. Tra cứu chi tiết bản ghi phân loại thời lượng cuộc gọi (`GET /api/v1/traffic/records`)
 
 - **Guard**: `UserAuthGuard` trên route User; bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1). `Permission: cdr:view`
-- **Query params**: `fromDate`, `toDate` (bắt buộc, tối đa 31 ngày), `groupId` (chỉ bản Admin), `callerId`, `calledId` (khớp đúng, như `GET /cdr`), `callType`, `page`, `limit` (≤ 100)
+- **Query params**: `fromDate`, `toDate` (bắt buộc, tối đa 31 ngày, trong cửa sổ `retention_online_months`: `fromDate` cũ hơn cửa sổ trả `400` ở cả hai bản, dữ liệu lưu trữ chỉ tra qua `GET /api/v1/admin/cdr?includeArchive=true`, `docs/01_database_schema.md` mục 2.1), `groupId` (chỉ bản Admin), `callerId`, `calledId` (khớp đúng, như `GET /cdr`), `callType`, `page`, `limit` (≤ 100)
 - **Nguồn**: `cdr_enriched WHERE is_primary_leg = 1 AND Created BETWEEN :fromDate AND :toDate` (cô lập nhóm: `caller_group_id = :g OR called_group_id = :g`).
 - **Response**: Danh sách cuộc gọi kèm `cdrId` (`cdr_enriched.id` của leg chính, dạng chuỗi theo `docs/02_api_contracts.md` mục 2), số gọi, số nhận, nhóm bên gọi, nhóm bên nhận, `callType` (`INTRA_GROUP`, `INTER_GROUP`, `UNASSIGNED`), `callStatus` và `durationSec` (= `answered_duration_sec`).
 
@@ -171,6 +173,6 @@ export class TrafficClassifierService {
 1. **TC-TRAF-01**: Cuộc gọi nội bộ giữa hai máy 5 số cùng thuộc nhóm `UMO-IT-01` (`caller_group_id = 1` và `called_group_id = 1`), kiểm tra bản ghi `cdr_enriched` của leg chính có `call_type = 'INTRA_GROUP'`.
 2. **TC-TRAF-02**: Cuộc gọi từ máy thuộc nhóm `UMO-IT-01` (`caller_group_id = 1`) sang máy thuộc nhóm EVNICT Đà Nẵng (`called_group_id = 2`), kiểm tra bản ghi sinh ra với `call_type = 'INTER_GROUP'`.
 3. **TC-TRAF-03**: Cuộc gọi bị nhỡ (`call_status = 'NO_ANSWER'`, ví dụ SIP 487, `Answered_Duration IS NULL`), kiểm tra hệ thống ghi nhận `answered_duration_sec = 0` và không cộng dồn vào tổng thời lượng đàm thoại thực tế.
-4. **TC-TRAF-04**: Xác nhận `/traffic/summary` đọc từ `stats_daily`, hoàn toàn không tính toán tiền tệ và không có bất kỳ cấu hình giá cước nào.
+4. **TC-TRAF-04**: Xác nhận `/traffic/summary` đọc từ `stats_daily` (`period = today`: `stats_hourly`), hoàn toàn không tính toán tiền tệ và không có bất kỳ cấu hình giá cước nào.
 5. **TC-TRAF-05**: Cuộc gọi đã nhấc máy có `Answered_Duration = 26102` (ms), kiểm tra `answered_duration_sec = 26` và `/traffic/records` trả về `durationSec = 26`.
 6. **TC-TRAF-06**: Cuộc gọi 2 leg (leg A + leg B), kiểm tra `/traffic/records` chỉ trả về 1 dòng (leg A) và `total_calls` tăng 1.

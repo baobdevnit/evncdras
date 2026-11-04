@@ -911,7 +911,7 @@ ON DUPLICATE KEY UPDATE `metric_name` = VALUES(`metric_name`);
 > - **Người nhận** (luôn tạo **một dòng `notification_recipients` cho mỗi tài khoản**):
 >   - Cảnh báo toàn hệ thống và `PABX_OFFLINE`: mọi Admin `ACTIVE`.
 >   - Cảnh báo của một nhóm: mọi Admin `ACTIVE` và các Quản trị viên nhóm `ACTIVE` của nhóm đó.
->   - Thông báo do Admin soạn (`POST /api/v1/admin/notifications`): theo `target` = `ALL_ADMINS` | `ALL_USERS` | `GROUP:{id}` | `EVERYONE`.
+>   - Thông báo do Admin soạn (`POST /api/v1/admin/notifications`): theo `target` = `ALL_ADMINS` | `ALL_USERS` | `GROUP:{id}` | `EVERYONE`, chỉ tài khoản `ACTIVE` (người dùng chỉ thuộc nhóm `ACTIVE`). `GROUP:{id}` của nhóm `INACTIVE` trả `409 GROUP_INACTIVE`, không tạo thông báo.
 > - **Email**: chỉ gửi thông báo `CRITICAL`, tới người nhận có `user_settings.email_notification_enabled = 1` (thiếu dòng `user_settings` thì coi là bật, mục 12), qua SMTP cấu hình ở `system_settings` (`smtp_host`, `smtp_port`, `smtp_user`, `smtp_password` (secret), `smtp_from`). Gửi lỗi thì ghi log và để `is_emailed = 0`, không chặn việc tạo thông báo.
 > - **WebSocket**: một sự kiện duy nhất `notification:new`, phát tới room của từng người nhận.
 
@@ -1149,7 +1149,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 > | `total_calls` | `calls_outbound + calls_inbound + calls_intra_group` | `calls_intra_group + calls_inter_group + calls_unassigned` (mọi cuộc gọi leg chính, kể cả cuộc mà cả hai phía đều không có nhóm) |
 >
 > - Dòng nhóm chỉ đếm cuộc gọi mà nhóm `g` tham gia. Cuộc gọi tới hoặc từ số chưa quy hoạch hay số ngoài kho vẫn là cuộc đi/đến của nhóm.
-> - **Không bao giờ cộng các dòng nhóm để ra số liệu toàn hệ thống**: một cuộc `INTER_GROUP` xuất hiện ở 2 dòng nhóm (đi của nhóm gọi, đến của nhóm nhận). Số liệu toàn hệ thống chỉ đọc từ dòng `group_id IS NULL`. Báo cáo so sánh nhiều nhóm hiển thị từng dòng nhóm, không có dòng "Tổng cộng" cộng dồn các nhóm.
+> - **Không bao giờ cộng các dòng nhóm để ra số liệu toàn hệ thống**: một cuộc `INTER_GROUP` xuất hiện ở 2 dòng nhóm (đi của nhóm gọi, đến của nhóm nhận). Số liệu toàn hệ thống chỉ đọc từ dòng `group_id IS NULL`. Danh sách so sánh nhiều nhóm (`GET /api/v1/admin/dashboard/groups`, `GET /api/v1/admin/traffic/summary`) hiển thị từng dòng nhóm, không có dòng "Tổng cộng" cộng dồn các nhóm. Báo cáo xuất file (`docs/modules/15_core_business_reports_export.md`) luôn một phạm vi.
 
 ### 15.0. Thuật toán tổng hợp (Stats Aggregation Job)
 

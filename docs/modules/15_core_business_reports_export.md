@@ -10,14 +10,14 @@
 Báo cáo định kỳ là căn cứ quan trọng để Lãnh đạo Tập đoàn EVN, Ban Viễn thông & CNTT, cùng các Tổng công ty đánh giá hiệu quả vận hành mạng thoại IP dùng riêng:
 1. **Các biểu mẫu báo cáo tiêu chuẩn (theo Nhóm người dùng)**:
    - **Báo cáo Tổng hợp Hiệu năng (General Performance Report)**: Thống kê tổng số lượng cuộc gọi, cuộc gọi thành công (SIP 200 OK), tổng thời lượng đàm thoại thực tế, tỷ lệ kết nối thành công ASR, tỷ lệ hiệu quả mạng NER và điểm MOS ITU-T G.107 trung bình theo từng Đơn vị/Nhóm người dùng.
-   - **Báo cáo Lưu lượng 3 Hướng gọi (3-Way Traffic Report)**: Thống kê chi tiết 3 luồng cuộc gọi viễn thông. Phạm vi nhóm: Nội bộ nhóm (`calls_intra_group`), Gọi đi (`calls_outbound`), Gọi đến (`calls_inbound`). Phạm vi toàn hệ thống: Nội bộ nhóm (`calls_intra_group`), Liên nhóm (`calls_inter_group`), Chưa xác định nhóm (`calls_unassigned`). Báo cáo nhiều nhóm không có dòng "Tổng cộng" cộng dồn các nhóm; số tổng lấy từ dòng toàn hệ thống (quy tắc tại `docs/01_database_schema.md` mục 15), tính toán tỷ trọng gọi nội bộ phục vụ tối ưu phân bổ lưu lượng thoại và năng lực trung kế SIP.
+   - **Báo cáo Lưu lượng 3 Hướng gọi (3-Way Traffic Report)**: Thống kê chi tiết 3 luồng cuộc gọi viễn thông. Phạm vi nhóm: Nội bộ nhóm (`calls_intra_group`), Gọi đi (`calls_outbound`), Gọi đến (`calls_inbound`). Phạm vi toàn hệ thống: Nội bộ nhóm (`calls_intra_group`), Liên nhóm (`calls_inter_group`), Chưa xác định nhóm (`calls_unassigned`). Số toàn hệ thống luôn lấy từ dòng `group_id IS NULL`, không cộng các dòng nhóm (quy tắc tại `docs/01_database_schema.md` mục 15), tính toán tỷ trọng gọi nội bộ phục vụ tối ưu phân bổ lưu lượng thoại và năng lực trung kế SIP.
    - **Báo cáo Phân tích Chất lượng Thoại QoS (Voice Quality QoS Report)**: Thống kê phân bố điểm MOS ITU-T G.107 của các leg (cả leg A và leg B, `docs/01_database_schema.md` mục 15) theo 4 dải (`mos_excellent_count` $\ge 4.0$, `mos_good_count` $3.5 - <4.0$, `mos_fair_count` $3.0 - <3.5$, `mos_poor_count` $<3.0$; bảng dải tại `docs/01_database_schema.md` mục 2.1), tỷ lệ mất gói Packet Loss trung bình (tính từ `rtp_lost_packets_total / rtp_packets_total`) và độ trễ Jitter RFC 3550. Không có chỉ số RTCP RTT (dữ liệu PABX luôn NULL).
    - **Báo cáo Sự cố & Mã lỗi SIP (SIP Telephony Failure Report)**: Thống kê chi tiết các sự cố tổng đài (SIP 503 Service Unavailable, 408 Timeout, 486 Busy, 487 Cancel) và phân tích tỷ trọng lỗi hạ tầng mạng viễn thông.
 2. **Quy tắc Hiệu năng Zero CDR Scan**:
    - **Tuyệt đối không quét bảng CDR thô**: Toàn bộ dữ liệu hiển thị xem trước và kết xuất file Excel/PDF đều được đọc trực tiếp từ bảng số liệu tổng hợp sẵn `stats_daily` (hoặc `stats_hourly`).
    - **Tốc độ kết xuất tức thì**: Thời gian sinh file Excel/PDF luôn $< 1\text{ giây}$ (thực tế $\approx 400-600\text{ms}$) ngay cả khi xuất báo cáo của cả quý hoặc cả năm, loại bỏ hoàn toàn nguy cơ nghẽn DB hoặc timeout.
 3. **Yêu cầu kỹ thuật xuất dữ liệu**:
-   - **Định dạng Microsoft Excel (`.xlsx`)**: Áp dụng thư viện `exceljs`, tạo bảng tính có tiêu đề Quốc hiệu, Tên Tập đoàn EVN, logo, kẻ viền (border), định dạng số. **Quy tắc dòng tổng**: báo cáo theo thời gian của **một phạm vi** (toàn hệ thống hoặc một nhóm) có dòng "Tổng" cộng các cột số đếm và thời lượng qua các ngày, còn các cột tỷ lệ (ASR, NER) và trung bình (MOS, ACD) ở dòng tổng **tính lại từ bộ đếm** theo quy tắc roll-up `docs/01_database_schema.md` mục 15 (không dùng `AVERAGE`). Báo cáo **so sánh nhiều nhóm** liệt kê từng nhóm và **không có dòng tổng cộng các nhóm**; nếu cần số toàn hệ thống thì in thêm dòng "Toàn hệ thống" lấy từ dòng `group_id IS NULL`, ghi rõ nhãn.
+   - **Định dạng Microsoft Excel (`.xlsx`)**: Áp dụng thư viện `exceljs`, tạo bảng tính có tiêu đề Quốc hiệu, Tên Tập đoàn EVN, logo, kẻ viền (border), định dạng số. **Mỗi báo cáo đúng một phạm vi** (toàn hệ thống hoặc một nhóm, theo `groupId`); không có báo cáo so sánh nhiều nhóm (so sánh nhóm xem ở `GET /api/v1/admin/dashboard/groups` và `GET /api/v1/admin/traffic/summary`). **Quy tắc dòng tổng**: dòng "Tổng" cộng các cột số đếm và thời lượng qua các ngày (giờ), còn các cột tỷ lệ (ASR, NER) và trung bình (MOS, ACD) ở dòng tổng **tính lại từ bộ đếm** theo quy tắc roll-up `docs/01_database_schema.md` mục 15 (không dùng `AVERAGE`).
    - **Định dạng PDF (`.pdf`)**: Áp dụng thư viện `pdfmake` / `puppeteer`, tạo tài liệu PDF khổ A4 ngang/dọc, chuẩn font Unicode tiếng Việt không bị lỗi dấu, có phần ký tên của Người lập biểu, Trực ban vận hành và Lãnh đạo duyệt.
 
 ### 1.2. Phân quyền Truy cập Module Báo cáo (Group-Based Data Isolation)
@@ -39,7 +39,7 @@ Báo cáo định kỳ là căn cứ quan trọng để Lãnh đạo Tập đoà
   - `reportType`: `general` | `traffic` | `quality` | `failure`
   - `period`: bộ giá trị chung tại `docs/02_api_contracts.md` mục 1.1
   - `fromDate`, `toDate`: khi `period = custom`
-  - `groupId`: `number | null` — `user_groups.id`; bỏ trống hoặc `null` = toàn hệ thống (chỉ Admin Portal). User Portal không gửi tham số này; backend tự dùng nhóm trong token.
+  - `groupId`: `number | null` — `user_groups.id`; bỏ trống hoặc `null` = toàn hệ thống (chỉ Admin Portal). Bản User không có tham số này (gửi lên trả `400`, `docs/02_api_contracts.md` mục 1.1); backend tự dùng nhóm trong token. Áp dụng cả body của mục 2.2, 2.3.
 - **Response** (khung chung cho 4 loại báo cáo; nguồn `stats_daily`, riêng `period=today` đọc `stats_hourly` và `rows` theo giờ):
 
 ```json
@@ -58,6 +58,7 @@ Báo cáo định kỳ là căn cứ quan trọng để Lãnh đạo Tập đoà
 }
 ```
 
+- **Khóa dòng**: mọi phần tử `rows` có `date` (`YYYY-MM-DD`); khi `period = today`, mỗi dòng là một khung giờ của `stats_hourly` và có thêm `hour` (0–23, khớp `stat_hour`), `chart.labels` là giờ. Kỳ khác mỗi dòng là một ngày của `stats_daily`, không có `hour`.
 - `scope = null` khi xem toàn hệ thống. `totals` = `kpis`, tính lại từ bộ đếm theo quy tắc roll-up (`docs/01_database_schema.md` mục 15), không lấy trung bình các dòng.
 - **Bộ chỉ số của `kpis` / `rows` / `totals` theo `reportType`** (chỉ số không có mẫu trả `null`):
 
@@ -157,8 +158,8 @@ export class ExcelExporterService {
 
     // 3. Bảng Dữ liệu (Columns)
     const headerRow = sheet.addRow([
-      'STT', 'Ngày / Thời gian', 'Nhóm người dùng', 'Tổng cuộc gọi', 'Thành công (200 OK)', 'Thời lượng (Phút)', 'ASR (%)', 'NER (%)', 'Điểm MOS TB'
-    ]);
+      'STT', 'Ngày / Giờ', 'Tổng cuộc gọi', 'Thành công (200 OK)', 'Thời lượng (Phút)', 'ASR (%)', 'NER (%)', 'Điểm MOS TB'
+    ]);   // phạm vi (toàn hệ thống / tên nhóm) in ở dòng tiêu đề, không phải cột: mỗi báo cáo một phạm vi
     headerRow.font = { bold: true, color: { argb: 'FFFFFF' } };
     headerRow.eachCell((cell) => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0033A0' } }; // Xanh EVN
@@ -166,10 +167,11 @@ export class ExcelExporterService {
       cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
     });
 
-    // 4. Fill Data Rows
+    // 4. Fill Data Rows: item là phần tử rows của GET /reports/summary (mục 2.1); null hiển thị "--"
     data.forEach((item, index) => {
       const row = sheet.addRow([
-        index + 1, item.date, item.groupName, item.totalCalls, item.answered, item.durationMinutes, `${item.asr}%`, `${item.ner}%`, item.mosAvg
+        index + 1, item.hour ?? item.date, item.totalCalls, item.answeredCalls, Math.round(item.totalDurationSec / 60),
+        item.asrPercentage ?? '--', item.nerPercentage ?? '--', item.avgMos ?? '--'
       ]);
       row.eachCell(c => c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } });
     });
@@ -232,7 +234,7 @@ export class ExcelExporterService {
 
 ## 5. Kịch bản kiểm thử (Test Plan for Agent)
 1. **TC-REP-01**: Chuyển đổi giữa 4 loại báo cáo, xác nhận 4 Thẻ KPI, 2 Biểu đồ (Cột và Doughnut) cùng cấu trúc cột Bảng dữ liệu tự động thay đổi tương ứng.
-2. **TC-REP-02**: Đăng nhập User Portal (thành viên nhóm id 2), mở báo cáo: không có bộ chọn nhóm, số liệu chỉ của nhóm 2; gửi thêm `groupId=5` lên API User thì bị bỏ qua hoặc trả `403`.
-3. **TC-REP-03**: Đăng nhập Admin Portal, chọn "Toàn hệ thống" (`groupId = null`) rồi chọn nhóm id 2; xác nhận số liệu toàn hệ thống lấy từ dòng `group_id IS NULL`, và báo cáo so sánh nhiều nhóm không có dòng tổng cộng các nhóm.
+2. **TC-REP-02**: Đăng nhập User Portal (thành viên nhóm id 2), mở báo cáo: không có bộ chọn nhóm, số liệu chỉ của nhóm 2; gửi thêm `groupId=5` lên API User thì trả `400`.
+3. **TC-REP-03**: Đăng nhập Admin Portal, chọn "Toàn hệ thống" (`groupId = null`) rồi chọn nhóm id 2; xác nhận số liệu toàn hệ thống lấy từ dòng `group_id IS NULL` (không bằng tổng các dòng nhóm khi có cuộc `INTER_GROUP`), số liệu nhóm lấy từ dòng `group_id = 2`.
 4. **TC-REP-04**: Chọn khoảng thời gian "Tùy chỉnh khoảng ngày...", xác nhận 2 ô nhập "Từ ngày" và "Đến ngày" tự động hiển thị mượt mà.
 5. **TC-REP-05**: Nhấn nút "Xuất Excel" và "Xuất PDF", kiểm tra hiệu ứng nút xoay loading trong 600ms, thông báo Toast hiện lên và trình duyệt tự động kích hoạt tải xuống tệp tin với tên chuẩn hóa `BaoCao_[LOAI]_[DONVI]_[NGAY].[xlsx/pdf]`.

@@ -20,7 +20,7 @@ Hệ thống giám sát viễn thông EVN đòi hỏi khả năng cảnh báo s�
 
 - **In-App Realtime Notification**: Bắn tín hiệu tức thời qua WebSocket (Socket.IO). Cập nhật số đếm badge chưa đọc (`.notification-badge-global`) trên thanh Sidebar mà không cần F5 trình duyệt.
 - **Email Notification**: chỉ với thông báo `CRITICAL`, gửi qua SMTP cấu hình trong `system_settings` (`smtp_*`) tới người nhận đã bật `email_notification_enabled`. Gửi lỗi không chặn việc tạo thông báo.
-- **Người nhận**: luôn tạo một dòng `notification_recipients` cho mỗi tài khoản nhận (không có thông báo "global" không có người nhận). Admin soạn thông báo qua `POST /api/v1/admin/notifications` với `target` = `ALL_ADMINS` | `ALL_USERS` | `GROUP:{id}` | `EVERYONE`.
+- **Người nhận**: luôn tạo một dòng `notification_recipients` cho mỗi tài khoản nhận (không có thông báo "global" không có người nhận). Admin soạn thông báo qua `POST /api/v1/admin/notifications` với `type` = `SYSTEM_MAINTENANCE` | `GENERAL` và `target` = `ALL_ADMINS` | `ALL_USERS` | `GROUP:{id}` | `EVERYONE`. Người nhận chỉ gồm tài khoản `ACTIVE` (người dùng chỉ thuộc nhóm `ACTIVE`); `GROUP:{id}` của nhóm `INACTIVE` trả `409 GROUP_INACTIVE` (`docs/01_database_schema.md` mục 10).
 
 ---
 
@@ -49,7 +49,7 @@ Bảng MariaDB: `notifications` và `notification_recipients` (Mô tả chi ti�
       "title": "MOS khung 09:00–10:00 dưới ngưỡng nghiêm trọng",
       "content": "Nhóm UMO-IT-01: MOS trung bình 2.85 (ngưỡng critical 3.0), 42 cuộc gọi",
       "isRead": false,
-      "createdAt": "2026-10-12T09:30:00+07:00",
+      "createdAt": "2026-10-12T11:00:00+07:00",
       "timeAgo": "15 phút trước",
       "metadata": {
         "userGroupId": 1,
@@ -61,9 +61,13 @@ Bảng MariaDB: `notifications` và `notification_recipients` (Mô tả chi ti�
       }
     }
   ],
+  "pagination": { "page": 1, "limit": 20, "total": 42, "totalPages": 3, "hasNext": true, "hasPrev": false },
   "unreadCount": 3
 }
 ```
+
+- `createdAt` của `QOS_ALERT` luôn sau khi khung giờ kết thúc ít nhất 60 phút (khung 09:00–10:00 được đánh giá sớm nhất ở lần chạy 11:00, `docs/01_database_schema.md` mục 10).
+- `pagination` theo khung chung `docs/02_api_contracts.md` mục 2.2.
 
 ### 3.2. Đánh dấu đã đọc 1 thông báo (`PUT /api/v1/notifications/:id/read`)
 
@@ -208,7 +212,7 @@ export class MailerService {
 ### 5.2. Soạn thông báo (chỉ khu vực Admin)
 
 - Nút "Soạn thông báo" trên header `NotificationsView` của khu vực Admin, chỉ hiện khi tài khoản có `system:manage`. Template `notifications.html` chưa có nút này: dựng modal theo kiểu `.modal` chung.
-- Modal gồm `title`, `content`, `severity`, `target` (`ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` với dropdown nhóm từ `GET /api/v1/admin/user-groups` \| `EVERYONE`); gửi `POST /api/v1/admin/notifications`, thành công thì đóng modal và hiện toast.
+- Modal gồm `type` (`SYSTEM_MAINTENANCE` \| `GENERAL`), `title`, `content`, `severity`, `target` (`ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` với dropdown chỉ liệt kê nhóm `ACTIVE` từ `GET /api/v1/admin/user-groups` \| `EVERYONE`); gửi `POST /api/v1/admin/notifications`, thành công thì đóng modal và hiện toast.
 - Khu vực Member không có chức năng này.
 
 ### 5.3. Quản lý trạng thái Pinia Store (`useNotificationStore`)
