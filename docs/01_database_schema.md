@@ -1018,7 +1018,7 @@ CREATE TABLE IF NOT EXISTS `user_settings` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `user_type` enum('ADMIN','USER') NOT NULL,
   `user_id` int(11) unsigned NOT NULL,
-  `theme` enum('light','dark','system') NOT NULL DEFAULT 'system',
+  `theme` enum('LIGHT','DARK','SYSTEM') NOT NULL DEFAULT 'SYSTEM',
   `is_sidebar_collapsed` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0: Mở rộng, 1: Thu gọn thanh sidebar',
   `sound_alert_enabled` tinyint(1) NOT NULL DEFAULT 1 COMMENT '0: Tắt chuông, 1: Bật chuông cảnh báo sự cố',
   `email_notification_enabled` tinyint(1) NOT NULL DEFAULT 1,

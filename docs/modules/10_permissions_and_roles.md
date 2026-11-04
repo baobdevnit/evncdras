@@ -45,7 +45,7 @@ Vai trò người dùng thay đổi qua `PUT /api/v1/users/:id/role` (mục 3.2)
 - Mọi chuyển đổi có vai trò đích `USER_RECORDING` (kể cả hạ quyền từ `GROUP_ADMIN`) cần nhóm có `allow_recording_access = 1`, ngược lại `409 GROUP_RECORDING_DISABLED`.
 - Đích trùng vai trò hiện tại: trả `200`, không ghi gì.
 
-- Quản trị viên nhóm chỉ đổi vai trò của thành viên trong nhóm mình (ngược lại `403`). Admin đổi được ở mọi nhóm.
+- Quản trị viên nhóm chỉ đổi vai trò của thành viên trong nhóm mình (ngược lại `403 FORBIDDEN_SCOPE_ACCESS`). Admin đổi được ở mọi nhóm.
 - Khi Tầng 1 của nhóm bị tắt, vai trò `USER_RECORDING` được giữ nguyên nhưng mất quyền nghe/tải ngay (bước 1 của mục 2.3). Bật lại Tầng 1 thì quyền trở lại, không cần cấp lại.
 - Mỗi lần đổi vai trò ghi `audit_logs` (`resource_name = 'USER'`, `action = 'CHANGE_ROLE'`, `action_details = { "from": "<code>", "to": "<code>" }`).
 
@@ -211,8 +211,8 @@ export const GROUP_GATED_PERMISSIONS: Record<string, keyof UserGroup> = {
       "scope": "ADMIN",
       "accountCount": 1,
       "permissions": [
-        { "code": "cdr:view", "name": "Xem log CDR", "category": "DATA" },
-        { "code": "admin:manage", "name": "Quản lý tài khoản quản trị viên", "category": "SPECIAL" }
+        { "code": "cdr:view", "name": "Xem log CDR", "category": "DATA", "groupGated": false },
+        { "code": "admin:manage", "name": "Quản lý tài khoản quản trị viên", "category": "SPECIAL", "groupGated": false }
       ]
     },
     {
@@ -223,7 +223,7 @@ export const GROUP_GATED_PERMISSIONS: Record<string, keyof UserGroup> = {
       "scope": "USER",
       "accountCount": 37,
       "permissions": [
-        { "code": "cdr:view", "name": "Xem log CDR", "category": "DATA" },
+        { "code": "cdr:view", "name": "Xem log CDR", "category": "DATA", "groupGated": false },
         { "code": "cdr:listen_audio", "name": "Nghe ghi âm", "category": "SPECIAL", "groupGated": true }
       ]
     }
@@ -247,7 +247,7 @@ Không có API tạo/sửa/xóa vai trò, không có API sửa quyền của vai
 - **Xử lý Backend** (một transaction):
   0. Khóa dòng nhóm của người dùng đích (`SELECT id, status FROM user_groups WHERE id = :groupId FOR UPDATE`) trước mọi câu khác, để hai request cùng nhóm (vd. hạ quyền 2 Quản trị viên nhóm cuối cùng cùng lúc) chạy tuần tự; thiếu bước này thì mỗi request đếm ở bước 3 vẫn thấy người kia là Quản trị viên và nhóm mất hết Quản trị viên (`docs/01_database_schema.md` mục 14).
   1. Khóa dòng `user_roles` của người dùng đích (`SELECT ... FOR UPDATE`); người dùng đích phải chưa `INACTIVE`.
-  2. Bản User: người dùng đích phải cùng nhóm với người gọi (`403`).
+  2. Bản User: người dùng đích phải cùng nhóm với người gọi (`403 FORBIDDEN_SCOPE_ACCESS`).
   3. Kiểm tra quyền và điều kiện theo bảng mục 1.3 (`403` / `409`). Đếm Quản trị viên nhóm còn lại khi hạ quyền:
 
      ```sql
@@ -379,5 +379,5 @@ export class PermissionsGuard implements CanActivate {
 3. **TC-PERM-03**: Thành viên `USER_RECORDING` trong nhóm có `allow_recording_access = 1` nghe ghi âm thành công. Admin tắt Tầng 1 của nhóm; ngay request kế tiếp API nghe/tải trả `403 GROUP_RECORDING_DISABLED`, `GET /auth/me` không còn `cdr:listen_audio`; `user_roles` vẫn giữ `USER_RECORDING`.
 4. **TC-PERM-04**: Thành viên `REGULAR_USER` gọi API nghe ghi âm khi Tầng 1 mở, nhận `403 FORBIDDEN_PERMISSION`.
 5. **TC-PERM-05**: Quản trị viên nhóm đổi một thành viên `REGULAR_USER` → `USER_RECORDING` khi nhóm có `allow_recording_access = 0`, nhận `409 GROUP_RECORDING_DISABLED`.
-6. **TC-PERM-06**: Nhóm chỉ còn 1 `GROUP_ADMIN` đang hoạt động; đổi người đó sang `REGULAR_USER`, nhận `409`. Quản trị viên nhóm đổi vai trò của người dùng nhóm khác, nhận `403`.
+6. **TC-PERM-06**: Nhóm chỉ còn 1 `GROUP_ADMIN` đang hoạt động; đổi người đó sang `REGULAR_USER`, nhận `409 LAST_GROUP_ADMIN`. Quản trị viên nhóm đổi vai trò của người dùng nhóm khác, nhận `403 FORBIDDEN_SCOPE_ACCESS`.
 7. **TC-PERM-07**: Thử chèn `admin_roles` với `role_id = 3` hoặc `user_roles` với `role_id = 1` trực tiếp bằng SQL, xác nhận CSDL từ chối (vi phạm khóa ngoại phạm vi vai trò).

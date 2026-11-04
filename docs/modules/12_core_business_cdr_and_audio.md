@@ -28,7 +28,7 @@ Hệ thống tổng đài IP PABX của EVN ghi nhận hàng ngày hàng chục 
       + Cột "File ghi âm" hoàn toàn không xuất hiện trên bảng lịch sử cuộc gọi (`cdr-history.html`) của toàn bộ người dùng nhóm đó (bảng tự động co lại còn 6 cột).
       + Trong Modal chi tiết cuộc gọi, khối Audio Player được thay thế hoàn toàn bằng thông báo trang nhã: *"Tính năng ghi âm chưa được kích hoạt cho đơn vị của bạn"*.
       + Trên giao diện Quản trị nhóm (`group-admin.html`), các nút bấm, cột và switch phân quyền ghi âm cho thành viên bị ẩn triệt để; Quản trị viên nhóm không có quyền nghe/tải và không thể cấp quyền cho ai.
-      + Backend API chặn tức thì mọi yêu cầu stream và download với mã lỗi `403 Forbidden` (`Tổ chức/Nhóm người dùng của bạn chưa được cấp phép sử dụng tính năng ghi âm`).
+      + Backend API chặn tức thì mọi yêu cầu stream và download với mã lỗi `403 GROUP_RECORDING_DISABLED` (`Tổ chức/Nhóm người dùng của bạn chưa được cấp phép sử dụng tính năng ghi âm`).
     - **Khi nhóm được cấp phép (`allow_recording_access = 1`)**: Kích hoạt phân quyền Tầng 2.
   - **Tầng 2 (Vai trò - Do Quản trị viên nhóm đổi vai trò thành viên khi Tầng 1 đã mở)**: quyền `cdr:listen_audio`/`cdr:download_audio` thuộc vai trò (`permission_roles`), không lưu cờ trên người dùng.
     - **Quản trị viên nhóm (`GROUP_ADMIN`)**: Vai trò có sẵn hai quyền này, nên mặc định nghe/tải được ghi âm của nhóm.
@@ -94,7 +94,7 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
   - `includeArchive`: (Chỉ dành cho Admin Scope, mặc định `false`) cho phép tra cứu dữ liệu cũ hơn `retention_online_months`. Khi `true`, bắt buộc `fromDate`/`toDate`, khoảng tối đa 31 ngày. Người dùng nhóm luôn bị giới hạn trong cửa sổ trực tuyến; `fromDate` cũ hơn cửa sổ trả `400`.
   - `fromDate`/`toDate` luôn được áp dụng (mặc định 7 ngày gần nhất) để truy vấn chỉ quét đúng partition (`docs/01_database_schema.md` mục 2.1).
   - `groupId`: (Chỉ dành cho Admin Scope) Lọc theo ID nhóm người dùng (cả gọi đi hoặc nhận)
-  - Bộ lọc nâng cao (yêu cầu quyền `cdr:filter_advanced`; gửi các tham số này khi thiếu quyền thì trả `403`): `callerIp`, `calledIp`, `disconnectionCode` (một hoặc nhiều mã, phân tách dấu phẩy), `codec` (`G711U`, `G711A`...), `releasedBy` (`caller` | `called`), `minMos`/`maxMos` (thang thập phân).
+  - Bộ lọc nâng cao (yêu cầu quyền `cdr:filter_advanced`; gửi các tham số này khi thiếu quyền thì trả `403 FORBIDDEN_PERMISSION`): `callerIp`, `calledIp`, `disconnectionCode` (một hoặc nhiều mã, phân tách dấu phẩy), `codec` (`G711U`, `G711A`...), `releasedBy` (`caller` | `called`), `minMos`/`maxMos` (thang thập phân).
   - Trường `direction` trong response được tính theo nhóm đang xem; bằng `null` khi Admin không chọn `groupId`.
   - `page`: Số trang (mặc định 1)
   - `limit`: Số dòng mỗi trang (10, 20, 50 - mặc định 10)
@@ -463,7 +463,7 @@ export class CdrEnrichmentService {
    - Đăng nhập cả tài khoản Quản trị viên nhóm và Thành viên thường của nhóm này.
    - Xác nhận bảng CDR chỉ hiển thị 6 cột (không có cột "File ghi âm").
    - Mở modal xem chi tiết cuộc gọi: Xác nhận khối audio player được thay thế bằng thông báo: *"Tính năng ghi âm chưa được kích hoạt cho đơn vị của bạn"*.
-   - Gửi request trực tiếp đến `GET /api/v1/cdr/:id/audio/stream` và `GET /api/v1/cdr/:id/audio/download`, xác nhận nhận mã lỗi `403 Forbidden` với message: `Tổ chức/Nhóm người dùng của bạn chưa được cấp phép sử dụng tính năng ghi âm`.
+   - Gửi request trực tiếp đến `GET /api/v1/cdr/:id/audio/stream` và `GET /api/v1/cdr/:id/audio/download`, xác nhận nhận mã lỗi `403 GROUP_RECORDING_DISABLED` với message: `Tổ chức/Nhóm người dùng của bạn chưa được cấp phép sử dụng tính năng ghi âm`.
 6. **TC-CDR-06 (Recording Access Delegation khi Tầng 1 đã mở)**: 
    - Quản trị viên hệ thống bật `allow_recording_access = 1` cho nhóm.
    - Đăng nhập Quản trị viên nhóm: Xác nhận tự động thấy cột ghi âm và nghe/tải trực tiếp bình thường (mặc định có quyền).

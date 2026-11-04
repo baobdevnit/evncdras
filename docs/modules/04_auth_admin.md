@@ -94,7 +94,7 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 ### 3.4. Khóa / Mở khóa Admin (`PUT /api/v1/admin/admins/:id/status`)
 - **Guard**: `AdminAuthGuard`, `Permission: admin:manage`
 - Body `{ "status": "ACTIVE" | "LOCKED" }`. Khóa thu hồi mọi phiên của admin đó (`ACCOUNT_LOCKED`).
-- Chặn không cho phép khóa tài khoản chính mình hoặc tài khoản mang vai trò `ROOT_ADMIN`.
+- Chặn không cho phép khóa tài khoản chính mình (`403 SELF_ACTION_FORBIDDEN`) hoặc tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`).
 - Tài khoản đã `INACTIVE` trả `409` (`ACCOUNT_INACTIVE`): `INACTIVE` là trạng thái cuối, không kích hoạt lại (`docs/01_database_schema.md` mục 14).
 
 ---
@@ -137,7 +137,7 @@ Không có guard riêng cho Root Admin. Controller quản lý Admin dùng `Permi
 export class AdminsController { /* ... */ } // backend/src/apps/admin/admins/admins.controller.ts
 ```
 
-Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN` (`403`, ghi `audit_logs` `ACCESS_DENIED`).
+Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`, ghi `audit_logs` `ACCESS_DENIED`) và tự khóa/tự xóa chính mình (`403 SELF_ACTION_FORBIDDEN`).
 
 ---
 
@@ -161,5 +161,5 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 1. **TC-ADM-01**: Đăng nhập bằng tài khoản Root Admin, xác nhận nhận được `roleCode: "ROOT_ADMIN"`, `permissions` có `admin:manage` và truy cập được danh sách Quản trị viên.
 2. **TC-ADM-02**: Đăng nhập bằng `SYSTEM_ADMIN`, thử gọi API `POST /api/v1/admin/admins`, xác nhận hệ thống trả về lỗi `403 FORBIDDEN_PERMISSION`.
 3. **TC-ADM-03**: Dùng Token của User để gọi API `GET /api/v1/admin/auth/me`, xác nhận hệ thống từ chối với lỗi `401 UNAUTHORIZED`.
-4. **TC-ADM-04**: Thử xóa tài khoản Root Admin, xác nhận hệ thống từ chối và ghi nhận cảnh báo an ninh vào `audit_logs` (`action = ACCESS_DENIED`, `resource_name = ADMIN`).
+4. **TC-ADM-04**: Thử xóa tài khoản Root Admin, xác nhận hệ thống từ chối với `403 ROOT_ADMIN_PROTECTED` và ghi nhận cảnh báo an ninh vào `audit_logs` (`action = ACCESS_DENIED`, `resource_name = ADMIN`).
 

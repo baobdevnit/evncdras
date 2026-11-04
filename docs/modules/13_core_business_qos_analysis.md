@@ -73,7 +73,7 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 ### 3.1. Bảng phân tích QoS chi tiết (`GET /api/v1/qos/debug-table`)
 
 - **Query params**: `fromDate`, `toDate` (bắt buộc, tối đa 31 ngày, trong cửa sổ `retention_online_months`: `fromDate` cũ hơn cửa sổ trả `400` ở cả hai bản; `docs/01_database_schema.md` mục 2.1, 15), `callerId`, `calledId` (khớp đúng, như `GET /cdr`), `status` (enum `call_status`), `minMos`/`maxMos` (thang thập phân, so với `mos_x100 / 100`), `disconnectionCode`, `codec`, `packetLoss` (`NONE` | `WARNING` | `CRITICAL`, so với ngưỡng `PACKET_LOSS_PERCENT`), `groupId` (chỉ bản Admin, tùy chọn: chỉ truyền khi xem một nhóm, lọc `caller_group_id = :groupId OR called_group_id = :groupId`; không truyền là toàn hệ thống; bản User gửi lên trả `400`), `page`, `limit` (≤ 100)
-- **Bộ lọc nâng cao**: `disconnectionCode`, `codec`, `minMos`/`maxMos` cần thêm quyền `cdr:filter_advanced`, như `GET /cdr` (`docs/modules/12_core_business_cdr_and_audio.md` mục 3.1); gửi các tham số này khi thiếu quyền thì trả `403`.
+- **Bộ lọc nâng cao**: `disconnectionCode`, `codec`, `minMos`/`maxMos` cần thêm quyền `cdr:filter_advanced`, như `GET /cdr` (`docs/modules/12_core_business_cdr_and_audio.md` mục 3.1); gửi các tham số này khi thiếu quyền thì trả `403 FORBIDDEN_PERMISSION`.
 - **Đơn vị dòng**: mỗi dòng là **một leg** (`cdr_enriched`), kể cả leg phụ; các leg cùng cuộc gọi có cùng `callGroupKey` và được sắp liền nhau (leg chính trước). `durationSec` = `answered_duration_sec` (giây); `mos` = `mos_*_x100 / 100` (2 chữ số), `mosRaw` = giá trị số nguyên thô của PABX.
 - **Response**:
 
