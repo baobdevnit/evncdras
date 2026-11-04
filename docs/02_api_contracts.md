@@ -39,7 +39,7 @@
   | `custom` | `fromDate`..`toDate` (`YYYY-MM-DD`, bắt buộc, tối đa 366 ngày) |
 
   Kỳ khác `today` đọc `stats_daily`. Không dùng tên tham số nào khác (`dateRange`, `month`, `week`…).
-- Định dạng dữ liệu trao đổi: `application/json; charset=utf-8` (Trừ audio streaming sử dụng `audio/wav` và file export sử dụng `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `application/pdf`).
+- Định dạng dữ liệu trao đổi: `application/json; charset=utf-8` (Trừ audio streaming sử dụng `audio/wav` và file export sử dụng `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `text/csv; charset=utf-8`, `application/pdf`).
 
 ### 1.2. Tiêu chuẩn xác thực (Authentication Headers)
 
@@ -122,7 +122,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-- Lỗi `403` do cô lập nhóm (route User truy cập bản ghi không thuộc nhóm mình, vd. `GET /cdr/:id`, `/cdr/:id/audio/*`) dùng `errorCode = "FORBIDDEN_SCOPE_ACCESS"` như ví dụ trên; thiếu mã quyền dùng `FORBIDDEN_PERMISSION`.
+- Lỗi `403` do cô lập nhóm (route User truy cập bản ghi không thuộc nhóm mình, vd. `GET /cdr/:id`, `/cdr/:id/audio/*`) dùng `errorCode = "FORBIDDEN_SCOPE_ACCESS"` như ví dụ trên; thiếu mã quyền dùng `FORBIDDEN_PERMISSION`. Đăng nhập bằng tài khoản quản trị viên đã khóa (`status = LOCKED`) trả `403 ACCOUNT_LOCKED`, khác với khóa tạm do sai mật khẩu (`423 ACCOUNT_TEMPORARILY_LOCKED`).
 - Dữ liệu chi tiết của lỗi nằm trong `errors`, không thêm khóa cấp cao, vd. `423 ACCOUNT_TEMPORARILY_LOCKED` có `errors = { "lockedUntil": "..." }` (`docs/01_database_schema.md` mục 6.1), `409 RETENTION_PURGE_CONFIRM_REQUIRED` có `errors = { currentMonths, newMonths, monthsToPurge }`.
 
 ---
@@ -151,9 +151,9 @@ Toàn bộ endpoint của mục này thuộc portal **ADMIN**.
 | `DELETE` | `/api/v1/admin/admins/:id/sessions` | `admin:manage` | Thu hồi mọi phiên của một Admin khác (`REVOKED_BY_ADMIN`) |
 | `GET` | `/api/v1/admin/admins` | `admin:manage` | Danh sách các quản trị viên hệ thống, kèm `roleCode` |
 | `POST` | `/api/v1/admin/admins` | `admin:manage` | Tạo mới quản trị viên; luôn gán vai trò `SYSTEM_ADMIN` vào `admin_roles` (chỉ vai trò `ROOT_ADMIN` có `admin:manage`) |
-| `PUT` | `/api/v1/admin/admins/:id/status` | `admin:manage` | Khóa / Mở khóa tài khoản Admin, body `{ "status": "ACTIVE" \| "LOCKED" }`; `409` nếu tài khoản đã `INACTIVE` |
+| `PUT` | `/api/v1/admin/admins/:id/status` | `admin:manage` | Khóa / Mở khóa tài khoản Admin, body `{ "status": "ACTIVE" \| "LOCKED" }`; khóa thu hồi mọi phiên (`ACCOUNT_LOCKED`); chặn khóa tài khoản mang vai trò `ROOT_ADMIN` và tự khóa chính mình (`403`, `docs/01_database_schema.md` mục 14); `409` nếu tài khoản đã `INACTIVE` |
 | `PUT` | `/api/v1/admin/admins/:id` | `admin:manage` | Sửa họ tên, email, số điện thoại của Admin khác (không đổi vai trò; không có API đổi vai trò Admin) |
-| `PUT` | `/api/v1/admin/admins/:id/reset-password` | `admin:manage` | Đặt lại mật khẩu Admin khác: `must_change_password = 1`, thu hồi mọi phiên, trả mật khẩu tạm một lần |
+| `PUT` | `/api/v1/admin/admins/:id/reset-password` | `admin:manage` | Đặt lại mật khẩu Admin khác, giống `PUT /users/:id/reset-password` (mục 3.5): sinh mật khẩu tạm 16 ký tự trả **một lần** (`temporaryPassword`), đặt `must_change_password = 1`, thu hồi mọi phiên (`PASSWORD_CHANGED`), ghi `audit_logs` `AUTH / PASSWORD_RESET` |
 | `GET` | `/api/v1/admin/audit-logs` | `audit:view` | Tra cứu `audit_logs` (lọc `actorType`, `actorId`, `action`, `resourceName`, `fromDate`/`toDate` bắt buộc, phân trang) |
 | `DELETE` | `/api/v1/admin/admins/:id` | `admin:manage` | Ngừng hoạt động tài khoản Admin (xóa mềm `status = INACTIVE`; chặn tài khoản mang vai trò `ROOT_ADMIN` và tự xóa chính mình) |
 
@@ -208,7 +208,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `POST` | `/api/v1/users` | `user:create` | Tạo mới tài khoản người dùng trong nhóm, kèm `roleCode`. Bản Admin bắt buộc `userGroupId`; bản User luôn tạo trong nhóm của người gọi và không nhận `userGroupId` (`400`, mục 1.1) (mặc định `REGULAR_USER`; gán `GROUP_ADMIN` cần thêm `group:manage_admin`, gán `USER_RECORDING` cần thêm `group:toggle_recording` và nhóm có `allowRecordingAccess = true`); tạo dòng `user_roles` cùng transaction | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id` | `user:edit` | Cập nhật thông tin tài khoản người dùng (họ tên, chức danh, số điện thoại); không nhận `status`, `roleCode`, `userGroupId`, `avatarUrl` (`400`) | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/status` | `user:edit` | Khóa / Mở khóa tài khoản, body `{ "status": "ACTIVE" \| "LOCKED" }`; khóa thu hồi mọi phiên (`ACCOUNT_LOCKED`); `409` nếu khóa Quản trị viên nhóm đang hoạt động cuối cùng hoặc tài khoản đã `INACTIVE` | USER + ADMIN |
-| `PUT` | `/api/v1/users/:id/reset-password` | `user:edit` | Đặt lại mật khẩu người dùng: sinh mật khẩu tạm 16 ký tự trả **một lần** (`temporaryPassword`), đặt `must_change_password = 1`, thu hồi mọi phiên của user | USER + ADMIN |
+| `PUT` | `/api/v1/users/:id/reset-password` | `user:edit` | Đặt lại mật khẩu người dùng: sinh mật khẩu tạm 16 ký tự trả **một lần** (`temporaryPassword`), đặt `must_change_password = 1`, thu hồi mọi phiên của user (`PASSWORD_CHANGED`), ghi `audit_logs` `AUTH / PASSWORD_RESET` | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/role` | `group:manage_admin` hoặc `group:toggle_recording` | Đổi vai trò người dùng `{ "roleCode": "GROUP_ADMIN" \| "USER_RECORDING" \| "REGULAR_USER" }`: chuyển sang/khỏi `GROUP_ADMIN` cần `group:manage_admin` (chặn `409` hạ quyền Quản trị viên nhóm đang hoạt động cuối cùng); `REGULAR_USER` ↔ `USER_RECORDING` cần `group:toggle_recording` (sang `USER_RECORDING` cần nhóm có `allowRecordingAccess = true`, ngược lại `409`). Đặc tả `docs/modules/10_permissions_and_roles.md` mục 1.3, 3.2 | USER + ADMIN |
 | `DELETE` | `/api/v1/admin/users/:id/sessions` | `user:edit` | Thu hồi mọi phiên đăng nhập của một người dùng (`REVOKED_BY_ADMIN`) | ADMIN |
 | `DELETE` | `/api/v1/users/:id` | `user:delete` | Ngừng hoạt động tài khoản (xóa mềm `status = INACTIVE`; `409` nếu là Quản trị viên nhóm cuối cùng còn hoạt động; không xóa cứng) | USER + ADMIN |
@@ -244,7 +244,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/v1/cdr` | `cdr:view` | Tra cứu lịch sử cuộc gọi từ `cdr_enriched` (luôn lọc theo `fromDate`/`toDate`, thiếu thì mặc định 7 ngày gần nhất, tối đa 31 ngày; mặc định trong `retention_online_months`, Admin dùng `includeArchive=true` để xem dữ liệu lưu trữ; Cô lập dữ liệu nhóm; nếu nhóm chưa cấp quyền ghi âm thì ẩn cột và trả về hasAudio=false; Admin xem toàn bộ kèm badge nhóm và lọc `groupId`) | USER + ADMIN |
 | `GET` | `/api/v1/cdr/:id` | `cdr:view` | Xem chi tiết 87 tham số kỹ thuật + thông tin nhóm (Kiểm tra cô lập nhóm với User Portal; nếu nhóm chưa kích hoạt ghi âm thì thay player bằng thông báo) | USER + ADMIN |
-| `GET` | `/api/v1/cdr/export` | `cdr:export` | Xuất danh sách cuộc gọi (Excel / CSV) theo đúng bộ lọc của `GET /api/v1/cdr` (chỉ leg chính, cô lập nhóm; không kèm file ghi âm) | USER + ADMIN |
+| `GET` | `/api/v1/cdr/export` | `cdr:export` | Xuất danh sách cuộc gọi (Excel / CSV, query `format=xlsx\|csv`, thiếu thì `xlsx`) theo đúng bộ lọc của `GET /api/v1/cdr` (chỉ leg chính, cô lập nhóm; không kèm file ghi âm) | USER + ADMIN |
 | `GET` | `/api/v1/cdr/:id/audio/stream` | `cdr:listen_audio` | Stream phát âm thanh HTTP 206 (`PermissionsGuard`: quyền nhóm `allowRecordingAccess` rồi quyền vai trò; service kiểm tra cô lập nhóm) | USER + ADMIN |
 | `GET` | `/api/v1/cdr/:id/audio/download` | `cdr:download_audio` | Tải về file ghi âm (.wav) (`PermissionsGuard`: quyền nhóm `allowRecordingAccess` rồi quyền vai trò; service kiểm tra cô lập nhóm) | USER + ADMIN |
 
@@ -279,8 +279,8 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | Method | Endpoint | Quyền / Guard | Mô tả | Portal |
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/v1/reports/summary` | `report:view` | Xem trước dữ liệu báo cáo tổng hợp lưu lượng & chất lượng (đọc tức thì từ `stats_daily`, riêng `period=today` đọc `stats_hourly`; lọc theo `groupId`). Đặc tả `docs/modules/15_core_business_reports_export.md` mục 2.1 | USER + ADMIN |
-| `POST` | `/api/v1/reports/export/excel` | `report:export` | Xuất file Excel (.xlsx) chuẩn biểu mẫu EVN từ dữ liệu `stats_daily` theo `groupId` (thời gian xử lý $< 1\text{s}$) | USER + ADMIN |
-| `POST` | `/api/v1/reports/export/pdf` | `report:export` | Xuất file PDF chuẩn khổ A4 từ dữ liệu `stats_daily` theo `groupId` (thời gian xử lý $< 1\text{s}$) | USER + ADMIN |
+| `POST` | `/api/v1/reports/export/excel` | `report:export` | Xuất file Excel (.xlsx) chuẩn biểu mẫu EVN từ cùng dữ liệu của `/reports/summary` (`stats_daily`, riêng `period=today` đọc `stats_hourly`) theo `groupId` (thời gian xử lý $< 1\text{s}$) | USER + ADMIN |
+| `POST` | `/api/v1/reports/export/pdf` | `report:export` | Xuất file PDF chuẩn khổ A4 từ cùng dữ liệu của `/reports/summary` (`stats_daily`, riêng `period=today` đọc `stats_hourly`) theo `groupId` (thời gian xử lý $< 1\text{s}$) | USER + ADMIN |
 
 ### 3.11. Phân hệ Bảng điều khiển & Tái tính toán Thống kê (Dashboard & Stats Management)
 

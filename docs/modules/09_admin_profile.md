@@ -53,7 +53,7 @@ Dữ liệu lưu tại bảng `admins`, `user_settings` (`user_type = 'ADMIN'`) 
 
 ### 3.3. `PUT /api/v1/admin/profile/change-password`
 - Đổi mật khẩu Quản trị viên. Body và quy tắc giống `PUT /api/v1/profile/change-password` (`docs/modules/08_user_profile.md` mục 3.4).
-- **Response thành công** `200`: `{ "accessToken": "...", "expiresIn": 900 }` (token đầy đủ, kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`), đặt cookie Refresh Token mới (phiên mới, hạn tuyệt đối 7 ngày), thu hồi mọi phiên khác (`PASSWORD_CHANGED`), cập nhật `password_changed_at = NOW()`, `must_change_password = 0`, ghi `audit_logs` `AUTH / PASSWORD_CHANGED`. Mật khẩu mới phải đạt chính sách và khác mật khẩu hiện tại (sai thì `400`). Mọi phiên cũ, kể cả phiên đang dùng, bị thu hồi (`PASSWORD_CHANGED`) trước khi tạo phiên mới, như `docs/modules/08_user_profile.md` mục 3.4.
+- **Response thành công** `200`: `{ "accessToken": "...", "expiresIn": 900 }` (token đầy đủ, kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`), đặt cookie Refresh Token mới (phiên mới, hạn tuyệt đối 7 ngày), thu hồi mọi phiên cũ, kể cả phiên đang dùng (`PASSWORD_CHANGED`), cập nhật `password_changed_at = NOW()`, `must_change_password = 0`, ghi `audit_logs` `AUTH / PASSWORD_CHANGED`. Mật khẩu mới phải đạt chính sách và khác mật khẩu hiện tại (sai thì `400`). Mọi phiên cũ, kể cả phiên đang dùng, bị thu hồi (`PASSWORD_CHANGED`) trước khi tạo phiên mới, như `docs/modules/08_user_profile.md` mục 3.4.
 
 ### 3.4. `GET /api/v1/admin/profile/recent-activity`
 - **Mục đích**: Lấy 20 hành động gần nhất của Admin từ bảng `audit_logs`.

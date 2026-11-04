@@ -77,7 +77,7 @@ Bảng MariaDB: `users` và `user_settings`.
 
 ### 3.4. `PUT /api/v1/profile/change-password`
 
-- **Response thành công** `200`: `{ "accessToken": "...", "expiresIn": 900 }` (token đầy đủ, kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`), đặt cookie Refresh Token mới (phiên mới, hạn tuyệt đối 7 ngày), thu hồi mọi phiên khác (`PASSWORD_CHANGED`), cập nhật `password_changed_at = NOW()`, `must_change_password = 0`, ghi `audit_logs` `AUTH / PASSWORD_CHANGED`. Mật khẩu mới phải đạt chính sách và khác mật khẩu hiện tại (sai thì `400`).
+- **Response thành công** `200`: `{ "accessToken": "...", "expiresIn": 900 }` (token đầy đủ, kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`), đặt cookie Refresh Token mới (phiên mới, hạn tuyệt đối 7 ngày), thu hồi mọi phiên cũ, kể cả phiên đang dùng (`PASSWORD_CHANGED`), cập nhật `password_changed_at = NOW()`, `must_change_password = 0`, ghi `audit_logs` `AUTH / PASSWORD_CHANGED`. Mật khẩu mới phải đạt chính sách và khác mật khẩu hiện tại (sai thì `400`).
 - **Phiên**: mọi phiên cũ của tài khoản, **kể cả phiên đang dùng** để gọi API, bị thu hồi với `revoked_reason = 'PASSWORD_CHANGED'`; sau đó tạo đúng một phiên mới và trả cookie của phiên đó (`docs/01_database_schema.md` mục 6.1). Gọi bằng token `PASSWORD_CHANGE_ONLY` (chưa có phiên) thì chỉ tạo phiên mới.
 
 - **Body**:

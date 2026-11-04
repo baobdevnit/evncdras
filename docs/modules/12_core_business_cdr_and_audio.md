@@ -161,7 +161,7 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
 ### 3.1.1. Xuất danh sách CDR (`GET /api/v1/cdr/export`)
 
 - **Guard**: `UserAuthGuard` trên route User; bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1). `Permission: cdr:export`
-- **Query params**: giống `GET /api/v1/cdr` (trừ `page`, `limit`), thêm `format=xlsx|csv`.
+- **Query params**: giống `GET /api/v1/cdr` (trừ `page`, `limit`), thêm `format=xlsx|csv` (tùy chọn, thiếu thì `xlsx`).
 - **Phạm vi**: chỉ leg chính (`is_primary_leg = 1`), cô lập nhóm như API danh sách. File không kèm ghi âm. Tối đa 100.000 dòng; kết quả vượt mức này trả `400` kèm yêu cầu thu hẹp bộ lọc (`docs/01_database_schema.md` mục 15). Mỗi lần xuất ghi `audit_logs` (`resource_name = CDR`, `action = EXPORT_CDR`).
 - **Lưu ý route**: khai báo `/cdr/export` trước `/cdr/:id` trong controller để không bị bắt nhầm thành `:id = 'export'`.
 

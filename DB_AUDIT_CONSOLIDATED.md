@@ -16,6 +16,7 @@
 - **Lần 15 (2026-11-04)**: 8 Minor, đã sửa; 4 điểm thiếu quy định chốt theo phỏng vấn chủ dự án (mục 3.5, R15-*).
 - **Lần 16 (2026-11-04)**: 13 Minor, tập trung vào API (M03, M05, M06, M08–M10, M13, M14 so với `02`), đã sửa; 7 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R16-07…R16-13). Không đổi DDL.
 - **Lần 17 (2026-11-04)**: 12 Minor, tập trung vào M01, M02, M04, M07, M11, M12, M15 so với `01`/`02`, đã sửa; 5 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R17-01…R17-05) và xác nhận C-01. Không đổi DDL.
+- **Lần 18 (2026-11-04)**: 8 Minor, tập trung vào xác thực/phiên (M03, M04, M08, M09), xuất CDR (M12) và xuất báo cáo (M15) so với `01`/`02`, đã sửa; 4 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R18-05…R18-08). Không đổi DDL.
 - **Sẵn sàng sinh migration/entity** sau khi chạy xong DDL trên MariaDB 10.6 (mục 2.1).
 
 ## 1. Các lần rà soát
@@ -40,6 +41,7 @@
 | 15 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `104660f` | 8 Minor | ✅ |
 | 16 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `eeda0b6` | 13 Minor | ✅ |
 | 17 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `c13212d` | 12 Minor | ✅ |
+| 18 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (chưa commit) | 8 Minor | ✅ |
 
 ---
 
@@ -47,7 +49,7 @@
 
 ### 2.1. Kiểm chứng DDL trên đúng phiên bản
 
-- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`). Lần 16 không đổi DDL (chỉ thêm một câu chính sách phiên ở `01` §6.1). Lần 17 không đổi DDL (chỉ sửa câu mã lỗi `423` ở `01` §6.1).
+- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`). Lần 16 không đổi DDL (chỉ thêm một câu chính sách phiên ở `01` §6.1). Lần 17 không đổi DDL (chỉ sửa câu mã lỗi `423` ở `01` §6.1). Lần 18 không đổi DDL (chỉ sửa câu chính sách phiên ở `01` §6.1).
 - **Việc cần làm**: trích toàn bộ khối ```` ```sql ```` của `01` và seed `M10` §2.1, chạy trên MariaDB 10.6, kiểm tra:
   - 27 bảng + 1 view tạo không lỗi; partition `cdr_enriched` đúng.
   - Seed: 25 mã quyền; `permission_roles` ROOT_ADMIN 25, SYSTEM_ADMIN 24, GROUP_ADMIN 17, USER_RECORDING 11, REGULAR_USER 9; 19 key `system_settings`; 5 ngưỡng QoS.
@@ -102,6 +104,9 @@ Các quy tắc sau đã ghi trong `docs/` nhưng chỉ kiểm chứng được b
 | Khóa tạm đăng nhập trả `423 ACCOUNT_TEMPORARILY_LOCKED`, `errors.lockedUntil` | `01` §6.1, M03 §3.1, M04 §3.1 | R17-04 |
 | `PUT /admin/settings/system` có `smtp_password` thiếu hoặc `********` giữ giá trị cũ; `""` xóa | M07 §3.2, `02` §3.12 | R17-05 |
 | Route User đọc CDR/ghi âm của nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS` | `02` §2.3, M12 §3.2–3.3 | R17-08 |
+| Đăng nhập tài khoản `LOCKED` trả `403 ACCOUNT_LOCKED` (Admin và User) | `01` §6.1, `02` §2.3, M03 §3.1, M04 §3.1 | R18-05 |
+| `reset-password` (User và Admin) thu hồi phiên với `PASSWORD_CHANGED`, trả `temporaryPassword` 16 ký tự, ghi `AUTH / PASSWORD_RESET` | `01` §6.1, `02` §3.1, §3.5 | R18-06, R18-07 |
+| `GET /cdr/export` thiếu `format` xuất `xlsx` | `02` §3.7, M12 §3.1.1 | R18-08 |
 
 ### 2.4. Cần xác nhận / ghi nhận rủi ro
 
@@ -312,6 +317,14 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 | R17-10 | Minor | M04 §3.1 không nêu mã HTTP khi không tìm thấy tài khoản Admin; M03 §3.1 trả `401` | `401` như M03 |
 | R17-11 | Minor | M02 BR-UG-02 chỉ chặn hạ quyền/xóa Quản trị viên nhóm cuối cùng; `01` §14 chặn cả khóa (`LOCKED`) | Thêm khóa, dẫn `01` §14 |
 | R17-12 | Minor | M11 §3.1 thông báo `409` "trùng lặp với dải số của đơn vị khác", trong khi dải trùng có thể cùng nhóm (M11 §1.2, `01` §8) | "trùng lặp với dải số đã cấp" |
+| R18-01 | Minor | M08 §3.4 và M09 §3.3 dòng Response còn ghi "thu hồi mọi phiên khác", trái câu ngay sau và R16-11 (thu hồi cả phiên đang dùng) | Sửa thành "mọi phiên cũ, kể cả phiên đang dùng" |
+| R18-02 | Minor | `02` §1.1 liệt kê kiểu nội dung file xuất chỉ có xlsx và pdf, trong khi `GET /cdr/export` nhận `format=xlsx\|csv` (M12 §3.1.1, `02` §3.7) | Thêm `text/csv; charset=utf-8` |
+| R18-03 | Minor | `02` §3.10 ghi `export/excel`, `export/pdf` chỉ đọc `stats_daily`; M15 §2.1 ghi Excel/PDF dùng đúng dữ liệu của `/reports/summary` (`period=today` đọc `stats_hourly`, cùng lỗi với R17-07) | Sửa `02` §3.10 theo M15 |
+| R18-04 | Minor | `02` §3.1 `PUT /admin/admins/:id/status` không nêu chặn khóa `ROOT_ADMIN`/tự khóa và thu hồi phiên, M04 §3.4 và `01` §14 có | Bổ sung vào `02` §3.1 |
+| R18-05 | Minor | Đăng nhập tài khoản `status = LOCKED`: M03 §3.1 ghi `403 FORBIDDEN`, M04 §3.1 chỉ ghi `403`, không có `errorCode` | Chủ dự án chốt: `403 ACCOUNT_LOCKED` cho cả hai cổng. Sửa `01` §6.1, `02` §2.3, M03 §3.1, M04 §3.1 |
+| R18-06 | Minor | `01` §6.1 ghi gộp "đổi mật khẩu, đặt lại mật khẩu, khóa hoặc ngừng hoạt động ... (`PASSWORD_CHANGED` / `ACCOUNT_LOCKED`)", không nói đặt lại mật khẩu dùng lý do nào | Chủ dự án chốt: đổi và đặt lại mật khẩu ghi `PASSWORD_CHANGED`; khóa và ngừng hoạt động ghi `ACCOUNT_LOCKED`. Sửa `01` §6.1, `02` §3.1, §3.5 |
+| R18-07 | Minor | `PUT /admin/admins/:id/reset-password` chỉ ghi "trả mật khẩu tạm một lần", M04 không có đặc tả; bản User ghi rõ `temporaryPassword` 16 ký tự | Chủ dự án chốt: giống bản User, ghi `AUTH / PASSWORD_RESET`. Sửa `02` §3.1, §3.5 |
+| R18-08 | Minor | `GET /cdr/export` có `format=xlsx\|csv` nhưng không nói bắt buộc hay mặc định | Chủ dự án chốt: tùy chọn, thiếu thì `xlsx`. Sửa M12 §3.1.1, `02` §3.7 |
 
 Đề xuất làm gọn **bị từ chối** ở lần 10 (giữ nguyên, không đề xuất lại): gộp `phone_prefix_groups` vào `user_groups`; thay 5 bảng RBAC bằng cột `role`; bỏ `stats_daily`; bỏ dòng `phone_number_range_history` cho từng số.
 
