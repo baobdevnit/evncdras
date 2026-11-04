@@ -184,9 +184,82 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ------------------------------------------------------------
-    // Form thông tin – PUT /api/v1/admin/profile (A06, chưa rà)
+    // Form thông tin – PUT /api/v1/admin/profile (A06, M09 mục 3.2)
     // ------------------------------------------------------------
+    const PHONE_PATTERN = /^(?=.*[0-9])[0-9+\-.() ]{1,30}$/; // 02 mục 2 "Số điện thoại liên hệ"
+    const ALLOWED_FIELDS = ['fullName', 'phoneNumber'];
+
+    function validationError(errors) {
+        return {
+            success: false, statusCode: 400, errorCode: 'VALIDATION_ERROR',
+            message: 'Dữ liệu không hợp lệ', errors: errors, timestamp: now()
+        };
+    }
+
+    // Quy tắc body dùng chung cho kiểm tra ở client và mock backend.
+    // Trả { body: giá trị đã chuẩn hóa, errors: null | { field: [..] } }.
+    function normalizeBody(raw) {
+        const errors = {};
+        const body = {};
+        const keys = Object.keys(raw || {});
+        if (keys.length === 0) {
+            const msg = ['Cần gửi ít nhất một trường'];
+            return { body, errors: { fullName: msg, phoneNumber: msg } };
+        }
+        keys.filter(k => !ALLOWED_FIELDS.includes(k))
+            .forEach(k => { errors[k] = ['Trường không được nhận']; });
+        if ('fullName' in raw) {
+            const v = typeof raw.fullName === 'string' ? raw.fullName.trim() : '';
+            if (!v) errors.fullName = ['Họ và tên không được để trống'];
+            else if (v.length > 150) errors.fullName = ['Họ và tên tối đa 150 ký tự'];
+            else body.fullName = v;
+        }
+        if ('phoneNumber' in raw) {
+            const r = raw.phoneNumber;
+            if (r !== null && typeof r !== 'string') {
+                errors.phoneNumber = ['Số điện thoại phải là chuỗi hoặc null'];
+            } else {
+                const v = r === null ? '' : r.trim();
+                if (v === '') body.phoneNumber = null;
+                else if (v.length > 30) errors.phoneNumber = ['Số điện thoại tối đa 30 ký tự'];
+                else if (!PHONE_PATTERN.test(v)) errors.phoneNumber = ['Số điện thoại chỉ gồm chữ số, khoảng trắng và các ký tự + - . ( )'];
+                else body.phoneNumber = v;
+            }
+        }
+        return { body, errors: Object.keys(errors).length ? errors : null };
+    }
+
+    // Giả lập backend PUT /api/v1/admin/profile:
+    // 400 VALIDATION_ERROR (errors theo trường); 401 UNAUTHORIZED (token/tài khoản không còn ACTIVE);
+    // 200 data = đúng 12 trường như GET. changedFields rỗng → không UPDATE, không ghi audit_logs;
+    // ngược lại ghi ADMIN / UPDATE { changedFields } (in ra console để minh họa).
+    function mockPutAdminProfile(token, rawBody) {
+        return new Promise(resolve => setTimeout(resolve, 500)).then(() => {
+            if (!token) {
+                return Promise.reject({
+                    success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+                    message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: now()
+                });
+            }
+            const checked = normalizeBody(rawBody);
+            if (checked.errors) return Promise.reject(validationError(checked.errors));
+            const changedFields = ALLOWED_FIELDS.filter(k => k in checked.body && checked.body[k] !== MOCK_PROFILE[k]);
+            if (changedFields.length) {
+                changedFields.forEach(k => { MOCK_PROFILE[k] = checked.body[k]; });
+                console.info('[mock] audit_logs ADMIN / UPDATE', {
+                    resourceId: String(MOCK_PROFILE.id), actionDetails: { changedFields: changedFields }
+                });
+            }
+            return {
+                success: true, statusCode: 200, message: 'Cập nhật hồ sơ thành công',
+                data: Object.assign({}, MOCK_PROFILE), timestamp: now()
+            };
+        });
+    }
+
     const btnResetInfo = document.getElementById('btnResetInfo');
+    const formGeneralInfo = document.getElementById('formGeneralInfo');
+    const btnSubmitInfo = document.getElementById('btnSubmitInfo');
 
     function updateFullNamePreview() {
         const display = (fullNameInput ? fullNameInput.value.trim() : '') || (profile && profile.fullName) || '';
@@ -194,39 +267,91 @@ document.addEventListener('DOMContentLoaded', function() {
         if (profileDisplayName) profileDisplayName.textContent = display;
     }
 
-    if (fullNameInput) fullNameInput.addEventListener('input', updateFullNamePreview);
+    function clearFieldErrors(field) {
+        if (!formGeneralInfo) return;
+        formGeneralInfo.querySelectorAll('[data-error-for]').forEach(slot => {
+            if (field && slot.dataset.errorFor !== field) return;
+            slot.hidden = true;
+            slot.textContent = '';
+            const input = document.getElementById(slot.dataset.errorFor);
+            if (input) input.classList.remove('is-invalid');
+        });
+    }
 
+    // Hiện errors[field] dưới ô tương ứng; trả về các thông điệp không có ô để hiện ở toast.
+    function showFieldErrors(errors) {
+        const unmatched = [];
+        clearFieldErrors();
+        Object.keys(errors || {}).forEach(field => {
+            const slot = formGeneralInfo && formGeneralInfo.querySelector('[data-error-for="' + field + '"]');
+            const msg = [].concat(errors[field]).join(' ');
+            if (!slot) { unmatched.push(msg); return; }
+            slot.textContent = msg;
+            slot.hidden = false;
+            const input = document.getElementById(field);
+            if (input) input.classList.add('is-invalid');
+        });
+        return unmatched;
+    }
+
+    if (fullNameInput) {
+        fullNameInput.addEventListener('input', function() {
+            updateFullNamePreview();
+            clearFieldErrors('fullName');
+        });
+    }
+    if (phoneInput) phoneInput.addEventListener('input', () => clearFieldErrors('phoneNumber'));
+
+    // Khôi phục: điền lại giá trị của lần tải/lưu gần nhất, không gọi API.
     if (btnResetInfo) {
         btnResetInfo.addEventListener('click', function() {
             if (!profile) return;
+            clearFieldErrors();
             fillForm(profile);
             notify('Đã khôi phục thông tin ban đầu.', 'success');
         });
     }
 
-    const formGeneralInfo = document.getElementById('formGeneralInfo');
-
-    if (formGeneralInfo) {
+    if (formGeneralInfo && btnSubmitInfo) {
         formGeneralInfo.addEventListener('submit', function(e) {
             e.preventDefault();
-            if (!profile) return;
-            const btn = document.getElementById('btnSubmitInfo') || this.querySelector('button[type="submit"]');
-            const originalHtml = btn.innerHTML;
-            // Body chỉ gồm fullName, phoneNumber (ô trống → null)
-            const body = {
-                fullName: fullNameInput.value.trim(),
+            if (!profile || btnSubmitInfo.disabled) return;
+            // Body chỉ gồm fullName, phoneNumber (ô trống → null); kiểm tra trước cùng quy tắc với backend
+            const checked = normalizeBody({
+                fullName: fullNameInput.value,
                 phoneNumber: phoneInput.value.trim() || null
-            };
+            });
+            if (checked.errors) { showFieldErrors(checked.errors); return; }
 
-            btn.disabled = true;
-            btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> Đang lưu...`;
+            const originalHtml = btnSubmitInfo.innerHTML;
+            btnSubmitInfo.disabled = true;
+            btnSubmitInfo.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> Đang lưu...`;
 
-            setTimeout(() => {
-                profile = Object.assign({}, profile, body);
-                notify('Thông tin hồ sơ đã được lưu thành công.', 'success');
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
-            }, 600);
+            callApi(token => mockPutAdminProfile(token, checked.body))
+                .then(res => {
+                    profile = res.data;
+                    clearFieldErrors();
+                    renderProfile(profile);
+                    // Header AdminLayout đổi tên ngay (Vue: cập nhật authAdmin.admin, không gọi /auth/me)
+                    if (window.adminSession && window.adminSession.updateAccount) {
+                        window.adminSession.updateAccount({ fullName: profile.fullName });
+                    }
+                    notify(res.message || 'Cập nhật hồ sơ thành công', 'success');
+                })
+                .catch(err => {
+                    // 401 sau khi refresh thất bại: request() đã chuyển về login.
+                    if (err && err.statusCode === 401) return;
+                    if (err && err.errorCode === 'VALIDATION_ERROR') {
+                        const rest = showFieldErrors(err.errors);
+                        if (rest.length) notify(rest.join(' '), 'error');
+                        return;
+                    }
+                    notify((err && err.message) || 'Không lưu được hồ sơ. Vui lòng thử lại.', 'error');
+                })
+                .finally(() => {
+                    btnSubmitInfo.disabled = false;
+                    btnSubmitInfo.innerHTML = originalHtml;
+                });
         });
     }
 

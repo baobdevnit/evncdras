@@ -82,7 +82,76 @@ Không trả `password_hash`, `must_change_password`, `failed_login_count`, `loc
 - Index phục vụ: khóa chính `admins`, `admin_roles`, `roles`.
 
 ### 3.2. `PUT /api/v1/admin/profile`
-- Cập nhật `fullName`, `phoneNumber`. Không nhận `email`, `avatarUrl` (gửi lên trả `400`); ảnh đại diện chỉ đổi qua `POST /api/v1/admin/profile/avatar`, API này lưu file, ghi luôn `admins.avatar_url` và trả `avatarUrl` mới. Cả hai API ghi `audit_logs` `ADMIN / UPDATE` (`action_details = { "changedFields": [...] }`); `PUT .../preferences` không ghi.
+- **Guard**: `AdminAuthGuard`; không cần mã quyền. Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`. Chế độ bảo trì không áp dụng cho cổng Admin. Không có query (có thì `400`).
+- **Body** (`application/json`, cập nhật một phần, **ít nhất một trường**):
+
+| Trường | Kiểu | Bắt buộc | Quy tắc | Cột đích |
+|---|---|---|---|---|
+| `fullName` | string | Không | Cắt khoảng trắng hai đầu; sau khi cắt dài 1–150 ký tự; `null` hoặc chuỗi rỗng trả `400` | `admins.full_name` |
+| `phoneNumber` | string \| null | Không | Cắt khoảng trắng hai đầu; `null` hoặc chuỗi rỗng sau khi cắt = xóa số (`NULL`); còn lại theo quy tắc số điện thoại `docs/02_api_contracts.md` mục 2 (≤ 30 ký tự, chỉ chữ số, khoảng trắng, `+ - . ( )`, có ít nhất một chữ số) | `admins.phone_number` |
+
+  Body rỗng `{}` trả `400` (`errors` có khóa `fullName` và `phoneNumber`, thông điệp "Cần gửi ít nhất một trường"). Mọi trường khác (`email`, `username`, `avatarUrl`, `status`, `roleCode`, `password`…) trả `400`, `errors` theo tên trường đó: email Admin chỉ sửa qua `PUT /api/v1/admin/admins/:id` (`docs/modules/04_auth_admin.md` mục 3.8), ảnh đại diện chỉ đổi qua `POST /api/v1/admin/profile/avatar` (API đó lưu file, ghi luôn `admins.avatar_url` và trả `avatarUrl` mới).
+- **Xử lý** (một transaction):
+  1. Validate body như bảng trên (lỗi trả `400`, không đọc CSDL).
+  2. `SELECT ... FROM admins WHERE id = sub FOR UPDATE`. Không thấy dòng hoặc `status` khác `ACTIVE` trả `401 UNAUTHORIZED` (cùng quy tắc mục 3.1).
+  3. So từng trường đã gửi (sau chuẩn hóa) với giá trị hiện tại; `changedFields` = các trường khác giá trị, theo thứ tự `fullName`, `phoneNumber`.
+  4. `changedFields` rỗng: không `UPDATE`, không ghi `audit_logs`, trả `200` như bước 6.
+  5. Ngược lại: `UPDATE admins` chỉ các cột đổi; ghi `audit_logs` `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `full_name` sau khi sửa, `resource_name = 'ADMIN'`, `action = 'UPDATE'`, `resource_id` = id Admin, `ip_address`, `user_agent` của request, `action_details = { "changedFields": [...] }` (không ghi giá trị cũ/mới). Không thu hồi phiên, không gửi thông báo.
+  6. Trả `200`, `data` = hồ sơ sau khi sửa, **đúng 12 trường** của mục 3.1 (đọc lại cùng transaction).
+- **Ví dụ**:
+
+```http
+PUT /api/v1/admin/profile
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{ "fullName": "Quản trị viên Tối cao EVNICT", "phoneNumber": "024 2222 2223" }
+```
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Cập nhật hồ sơ thành công",
+  "data": {
+    "id": 1,
+    "username": "root.admin@evnict.vn",
+    "email": "root.admin@evnict.vn",
+    "fullName": "Quản trị viên Tối cao EVNICT",
+    "phoneNumber": "024 2222 2223",
+    "avatarUrl": null,
+    "status": "ACTIVE",
+    "roleCode": "ROOT_ADMIN",
+    "roleName": "Quản trị viên tối cao",
+    "lastLoginAt": "2026-10-12T08:15:00+07:00",
+    "passwordChangedAt": "2026-09-01T10:20:00+07:00",
+    "createdAt": "2026-08-15T09:00:00+07:00"
+  },
+  "timestamp": "2026-10-12T09:50:00+07:00"
+}
+```
+
+```json
+{
+  "success": false,
+  "statusCode": 400,
+  "errorCode": "VALIDATION_ERROR",
+  "message": "Dữ liệu không hợp lệ",
+  "errors": { "phoneNumber": ["Số điện thoại chỉ gồm chữ số, khoảng trắng và các ký tự + - . ( )"] },
+  "timestamp": "2026-10-12T09:50:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Body rỗng, sai kiểu, `fullName` rỗng/quá 150 ký tự, `phoneNumber` sai định dạng/quá 30 ký tự, có trường không được nhận, có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản không còn `ACTIVE` |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+
+- **Frontend** (`AdminProfileView`, form "Thông tin cá nhân"): giá trị ban đầu lấy từ `GET` (mục 3.1); gửi `fullName`, `phoneNumber` (ô trống → `null`) qua API client của cổng (`401` → refresh một lần rồi gửi lại), kiểm tra trước ở client cùng quy tắc của bảng body. Đang gửi thì khóa nút "Lưu thay đổi". Thành công: thay hồ sơ bằng `data`, điền lại form, cập nhật `fullName` của `authAdmin.admin` để header `AdminLayout` đổi theo ngay (không gọi lại `/auth/me`). `400` thì hiện `errors[field]` dưới ô tương ứng (khóa không ứng với ô nào thì hiện ở toast). Nút "Khôi phục" điền lại giá trị của lần tải/lưu gần nhất, không gọi API. Mẫu: `templates/admin/profile.js`, `window.adminSession.updateAccount` trong `templates/admin/main.js`.
+- Index phục vụ: khóa chính `admins`, `admin_roles`, `roles`.
 
 ### 3.3. `PUT /api/v1/admin/profile/change-password`
 - Đổi mật khẩu Quản trị viên. Body và quy tắc giống `PUT /api/v1/profile/change-password` (`docs/modules/08_user_profile.md` mục 3.4).
@@ -139,4 +208,5 @@ Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView
 1. **TC-AP-01**: Admin đổi mật khẩu thành chuỗi dưới 10 ký tự, xác nhận hệ thống báo lỗi validation `Mật khẩu quản trị phải từ 10 ký tự trở lên`.
 2. **TC-AP-02**: Xem tab "Nhật ký kiểm toán cá nhân", xác nhận hiển thị đúng lịch sử đăng nhập vừa thực hiện kèm IP client.
 3. **TC-AP-03**: `GET /api/v1/admin/profile` trả đủ 12 trường của mục 3.1, không có `permissions`, `password_hash`, `locked_until`; gửi `?x=1` trả `400`; gọi bằng token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`; Root Admin khóa tài khoản trong lúc Access Token còn hạn thì lần gọi kế tiếp trả `401 UNAUTHORIZED`.
+4. **TC-AP-04**: `PUT /api/v1/admin/profile` với `{ "fullName": "  Nguyễn Văn A  " }` lưu `Nguyễn Văn A`, trả đủ 12 trường của mục 3.1, ghi một dòng `audit_logs` `ADMIN / UPDATE` với `changedFields = ["fullName"]`, header đổi tên ngay; gửi lại đúng giá trị đó trả `200` và không ghi thêm dòng audit; `{}`, `{ "fullName": "" }`, `{ "phoneNumber": "abc" }`, `{ "email": "x@evn.vn" }` đều trả `400 VALIDATION_ERROR`; `{ "phoneNumber": null }` xóa số.
 

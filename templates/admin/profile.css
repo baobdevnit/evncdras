@@ -367,3 +367,19 @@ textarea.form-control {
         gap: 20px;
     }
 }
+
+/* Lỗi theo trường của 400 VALIDATION_ERROR (PUT /admin/profile) */
+.field-error {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--secondary);
+}
+
+.field-error[hidden] {
+    display: none;
+}
+
+.form-control.is-invalid {
+    border-color: var(--secondary);
+}

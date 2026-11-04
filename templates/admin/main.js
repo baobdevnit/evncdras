@@ -373,10 +373,19 @@ window.adminSession = (function () {
         }
     }
 
+    // Sau khi tự sửa hồ sơ (PUT /admin/profile, A06) hoặc đổi ảnh: gộp các trường hiển thị
+    // vào store rồi vẽ lại header, không gọi lại /auth/me. Vue: Object.assign(authAdmin.admin, patch).
+    function updateAccount(patch) {
+        const target = currentAdmin || MOCK_ADMIN;
+        ['fullName', 'avatarUrl'].forEach(k => { if (patch && k in patch) target[k] = patch[k]; });
+        renderAccount(target);
+        return target;
+    }
+
     // Trang tĩnh: chỉ đổ dữ liệu mẫu vào header (không chạy guard, để mở từng trang HTML được).
     document.addEventListener('DOMContentLoaded', () => renderAccount(MOCK_ADMIN));
 
-    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount };
+    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, updateAccount };
 })();
 
 // ----------------------------------------

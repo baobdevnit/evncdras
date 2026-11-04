@@ -129,13 +129,14 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | 2026-11-04 | A02 | Mọi `401` của `refresh` (và `logout`) xóa cookie; cookie Refresh Token `Max-Age` = số giây còn lại tới `expires_at` khi `auth_sessions.remember_me = 1`; client không áp refresh-khi-`401` cho `/auth/login`, `/auth/refresh`, chỉ gửi lại một lần. Mẫu client phiên: `window.adminSession` | `01` §6.1, M03 §3.2.1, `00` §5.3.2, `templates/admin/main.js` |
 | 2026-11-04 | A03 | Đăng xuất phía client luôn xóa store, ngắt Socket.IO và về login của cổng dù API lỗi; mẫu `window.adminSession.logout()`. Endpoint thu hồi phiên theo cookie phải khớp `actor_type`/`actor_id` của token và đi theo chuỗi `ROTATED` | M03 §3.2.1, `templates/admin/main.js` |
 | 2026-11-04 | A04 | Header `AdminLayout`/`MemberLayout` đọc `fullName`, `roleName`, `avatarUrl` từ store (`/auth/me` hoặc response đăng nhập), không cứng chữ; `/auth/me` chỉ gọi khi store chưa có tài khoản; tài khoản không còn `ACTIVE` → `401 UNAUTHORIZED` (áp cho U04). Mẫu `window.adminSession.loadMe`/`renderAccount` | M04 §3.1.1, `templates/admin/main.js` |
+| 2026-11-04 | A06 | `phoneNumber` của `admins`/`users` ở mọi API: cắt khoảng trắng, rỗng/`null` → `NULL`, còn lại khớp `^(?=.*[0-9])[0-9+\-.() ]{1,30}$`, sai `400`. Tự sửa hồ sơ: cập nhật một phần (ít nhất một trường), response = hồ sơ đủ trường như `GET`, không có trường nào đổi thì `200` không ghi CSDL/audit, `changedFields` chỉ gồm trường thực sự đổi. Sau khi lưu, frontend cập nhật `fullName`/`avatarUrl` trong store để header đổi ngay (mẫu `adminSession.updateAccount`); lỗi `400` hiện dưới ô theo `errors[field]` | `02` §2, M09 §3.2, `templates/admin/{main,profile}.js` |
 | 2026-11-04 | A05 | API hồ sơ (`GET .../profile`) không trả `permissions` (quyền chỉ từ store của `/auth/me`/đăng nhập), trả thêm `lastLoginAt`, `passwordChangedAt`, `createdAt`; cùng quy tắc `401` khi không còn `ACTIVE`, token `PASSWORD_CHANGE_ONLY` → `403`. Màn hình tải dữ liệu có trạng thái tải/lỗi + nút thử lại, mock gọi qua `adminSession.request` và đổ vào phần tử `data-field`; template không có ô cho trường không có cột/API | M09 §3.1, `templates/admin/profile.js` |
 
 ---
 
 ## 5. Bảng tiến độ
 
-**Tiến độ**: 5 / 99 ✅ · 0 ⏸ · 0 🔁
+**Tiến độ**: 6 / 99 ✅ · 0 ⏸ · 0 🔁
 
 - Một dòng `USER + ADMIN` gồm **cả hai route** (bản User và bản `/api/v1/admin/...`) và cả hai template: rà trong cùng một hội thoại.
 - Cột **Module**: `Mxx` = `docs/modules/xx_*.md`. Cột **Template**: `A/` = `templates/admin/`, `M/` = `templates/member/` (tên file HTML; JS/CSS cùng tên). Cột **CSDL chính**: gợi ý điểm bắt đầu, phải tự grep đủ.
@@ -150,7 +151,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | A03 | POST | `/api/v1/admin/auth/logout` | ADMIN | M04 | `auth_sessions` | A/main.js | ✅ | `85e7b8c` | 2026-11-04; đặc tả chung ở M03 §3.2.1 (U03 chỉ còn rà bản User) |
 | A04 | GET | `/api/v1/admin/auth/me` | ADMIN | M04, M10 | `admins`, `admin_roles`, `permission_roles` | A/main.js | ✅ | `74e3b1d` | 2026-11-04; đặc tả M04 §3.1.1; U04 áp cùng quy tắc `401` khi tài khoản không còn `ACTIVE` |
 | A05 | GET | `/api/v1/admin/profile` | ADMIN | M09 | `admins` | A/profile | ✅ | `8c8da4c` | 2026-11-04; đặc tả M09 §3.1; bỏ `permissions`, thêm `passwordChangedAt`, `createdAt`; A06 dùng form đã dọn (`fullName`, `phoneNumber`) |
-| A06 | PUT | `/api/v1/admin/profile` | ADMIN | M09 | `admins`, `audit_logs` | A/profile | ⬜ | | |
+| A06 | PUT | `/api/v1/admin/profile` | ADMIN | M09 | `admins`, `audit_logs` | A/profile | ✅ | | 2026-11-04; đặc tả M09 §3.2; quy tắc số điện thoại chung `02` §2; mẫu `adminSession.updateAccount` |
 | A07 | PUT | `/api/v1/admin/profile/change-password` | ADMIN | M09 | `admins`, `auth_sessions` | A/change-password | ⬜ | | Phiên mới chép `remember_me` (A02, `01` §6.1); cookie `Max-Age` theo quy tắc chung |
 | A08 | POST | `/api/v1/admin/profile/avatar` | ADMIN | M09 | `admins.avatar_url`, `audit_logs` | A/profile | ⬜ | | |
 | A09 | GET | `/api/v1/admin/profile/preferences` | ADMIN | M09 | `user_settings` | A/user-settings | ⬜ | | |
@@ -162,7 +163,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | A15 | GET | `/api/v1/admin/admins` | ADMIN | M04 | `admins`, `admin_roles`, `roles` | A/system-settings (tab admins) | ⬜ | | |
 | A16 | POST | `/api/v1/admin/admins` | ADMIN | M04 | `admins`, `admin_roles`, `user_settings`, `audit_logs` | A/system-settings (tab admins) | ⬜ | | |
 | A17 | PUT | `/api/v1/admin/admins/:id/status` | ADMIN | M04 | `admins`, `auth_sessions`, `audit_logs` | A/system-settings (tab admins) | ⬜ | | |
-| A18 | PUT | `/api/v1/admin/admins/:id` | ADMIN | M04 | `admins`, `audit_logs` | A/system-settings (tab admins) | ⬜ | | |
+| A18 | PUT | `/api/v1/admin/admins/:id` | ADMIN | M04 | `admins`, `audit_logs` | A/system-settings (tab admins) | ⬜ | | Áp quy tắc `phoneNumber` `02` §2 (A06); cân nhắc cùng cách xử lý "không có gì đổi" như M09 §3.2 |
 | A19 | PUT | `/api/v1/admin/admins/:id/reset-password` | ADMIN | M04 | `admins`, `auth_sessions`, `audit_logs` | A/system-settings (tab admins) | ⬜ | | |
 | A20 | GET | `/api/v1/admin/audit-logs` | ADMIN | M07 | `audit_logs` | A/system-settings (tab audit-logs) | ⬜ | | |
 | A21 | DELETE | `/api/v1/admin/admins/:id` | ADMIN | M04 | `admins`, `auth_sessions`, `audit_logs` | A/system-settings (tab admins) | ⬜ | | |
@@ -176,7 +177,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | U03 | POST | `/api/v1/auth/logout` | USER | M03 | `auth_sessions` | M/main.js | ⬜ | | Đặc tả M03 §3.2.1 đã viết ở A03; còn rà: chế độ bảo trì (`02` §1.2 trả `503` cho mọi API User trừ `/auth/me`, nên không đăng xuất được, cookie không bị xóa; `503 MAINTENANCE` chưa có trong danh mục lỗi `02` §2.3), mock `member/main.js` theo `adminSession.logout` |
 | U04 | GET | `/api/v1/auth/me` | USER | M03, M10 | `users`, `user_roles`, `permission_roles`, `user_groups` | M/main.js | ⬜ | | Theo mẫu A04 (M04 §3.1.1): `401` khi tài khoản/nhóm không còn `ACTIVE`, không ghi audit, header member đổ từ store; còn rà: `permissions` hiệu lực theo cờ nhóm, ngoại lệ chế độ bảo trì |
 | U05 | GET | `/api/v1/profile` | USER | M08 | `users`, `user_groups` | M/profile | ⬜ | | Theo mẫu A05 (M09 §3.1): không query, `401` khi không còn `ACTIVE`, không trả `permissions`, bảng nguồn trường, trạng thái tải/lỗi |
-| U06 | PUT | `/api/v1/profile` | USER | M08 | `users`, `audit_logs` | M/profile | ⬜ | | |
+| U06 | PUT | `/api/v1/profile` | USER | M08 | `users`, `audit_logs` | M/profile | ⬜ | | Theo mẫu A06 (M09 §3.2): cập nhật một phần, trả hồ sơ đủ trường như `GET`, không đổi gì thì không ghi audit, `phoneNumber` theo `02` §2, header đổi tên từ store |
 | U07 | PUT | `/api/v1/profile/change-password` | USER | M08 | `users`, `auth_sessions` | M/change-password | ⬜ | | Phiên mới chép `remember_me` (A02) |
 | U08 | POST | `/api/v1/profile/avatar` | USER | M08 | `users.avatar_url`, `audit_logs` | M/profile | ⬜ | | |
 | U09 | GET | `/api/v1/auth/sessions` | USER | M08 | `auth_sessions` | M/profile | ⬜ | | |
@@ -214,7 +215,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | N01 | GET | `/api/v1/users` | USER + ADMIN | M03 | `users`, `user_roles`, `user_groups` | A/users; M/group-admin | ⬜ | | |
 | N02 | GET | `/api/v1/users/:id` | USER + ADMIN | M03 | `users`, `user_roles` | A/users; M/group-admin | ⬜ | | |
 | N03 | POST | `/api/v1/users` | USER + ADMIN | M03 | `users`, `user_roles`, `user_settings`, `audit_logs` | A/users; M/group-admin | ⬜ | | |
-| N04 | PUT | `/api/v1/users/:id` | USER + ADMIN | M03 | `users`, `audit_logs` | A/users; M/group-admin | ⬜ | | |
+| N04 | PUT | `/api/v1/users/:id` | USER + ADMIN | M03 | `users`, `audit_logs` | A/users; M/group-admin | ⬜ | | Áp quy tắc `phoneNumber` `02` §2 (A06) |
 | N05 | PUT | `/api/v1/users/:id/status` | USER + ADMIN | M03 | `users`, `auth_sessions`, `audit_logs` | A/users; M/group-admin | ⬜ | | |
 | N06 | PUT | `/api/v1/users/:id/reset-password` | USER + ADMIN | M03 | `users`, `auth_sessions`, `audit_logs` | A/users; M/group-admin | ⬜ | | |
 | N07 | PUT | `/api/v1/users/:id/role` | USER + ADMIN | M10, M03 | `user_roles`, `user_groups`, `audit_logs` | A/users; M/group-admin | ⬜ | | |
@@ -319,6 +320,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | 2026-11-04 | A03 | ✅ Xong 3 lớp; không đổi DDL; 4 câu hỏi chốt ngay trong phiên (audit chỉ khi thu hồi được, cookie `ROTATED` đi theo chuỗi, idempotent `200` + không thu hồi phiên người khác, giữ guard) | E-A03-01…04 | `01`, `02`, M03, M04, `templates/admin/main.js`, `templates/admin/data-permissions.html`, `templates/admin/user_group.html`, `DB_AUDIT_CONSOLIDATED.md`, file này | `85e7b8c` |
 | 2026-11-04 | A04 | ✅ Xong 3 lớp; không đổi DDL; 3 câu hỏi chốt ngay trong phiên (`status` khác `ACTIVE` → `401`, token giới hạn trả đúng cấu trúc `admin`, mock `/me` + đổ header); chuyển dòng nhật ký A03 bị đặt nhầm ở mục 4 về mục 6 | E-A04-01…04 | `02`, M04, `templates/admin/main.js`, `DB_AUDIT_CONSOLIDATED.md`, file này | `74e3b1d` |
 | 2026-11-04 | A05 | ✅ Xong 3 lớp; không đổi DDL; 2 câu hỏi chốt ngay trong phiên (bỏ `permissions` + thêm `passwordChangedAt`/`createdAt`; xóa ô `department`/`bio` khỏi template) | E-A05-01…03 | `02`, M09, `templates/admin/profile.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | `8c8da4c` |
+| 2026-11-04 | A06 | ✅ Xong 3 lớp; không đổi DDL; 4 câu hỏi chốt ngay trong phiên (cập nhật một phần, response = hồ sơ đủ 12 trường, không đổi gì thì không ghi audit, quy tắc định dạng `phoneNumber` chung) | E-A06-01…04 | `02`, M09, `templates/admin/main.js`, `templates/admin/profile.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | |
 
 ---
 
