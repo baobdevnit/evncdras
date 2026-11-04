@@ -443,12 +443,165 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ------------------------------------------------------------
+    // Phiên đăng nhập của tôi – GET /api/v1/admin/auth/sessions (A12, M09 mục 3.5.1, 5.1)
+    // Không query (có → 400). data = mảng phiên còn hiệu lực (revoked_at IS NULL AND expires_at > NOW())
+    // của chính mình; phần tử đúng 7 trường; phiên hiện tại theo claim sid (không theo cookie), đứng đầu.
+    // ------------------------------------------------------------
+    const UA_CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+    const UA_SAFARI_MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
+    const UA_EDGE_WIN = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Edg/130.0';
+
+    // MOCK_AUTH_SESSIONS đóng vai các dòng auth_sessions (đủ cột để minh họa WHERE và chuỗi xoay vòng).
+    // 4801 → 4821: phiên của trình duyệt này đã xoay vòng lúc 09:42 (logged_in_at chép nguyên).
+    const MOCK_AUTH_SESSIONS = [
+        { id: 4801, actorType: 'ADMIN', actorId: 1, ipAddress: '10.0.12.34', userAgent: UA_CHROME, loggedInAt: '2026-11-05T08:15:00+07:00', createdAt: '2026-11-05T08:15:00+07:00', lastUsedAt: null, expiresAt: '2026-11-12T08:15:00+07:00', revokedAt: '2026-11-05T09:42:10+07:00', revokedReason: 'ROTATED', replacedBySessionId: 4821 },
+        { id: 4821, actorType: 'ADMIN', actorId: 1, ipAddress: '10.0.12.34', userAgent: UA_CHROME, loggedInAt: '2026-11-05T08:15:00+07:00', createdAt: '2026-11-05T09:42:10+07:00', lastUsedAt: '2026-11-05T09:42:10+07:00', expiresAt: '2026-11-12T08:15:00+07:00', revokedAt: null, revokedReason: null, replacedBySessionId: null },
+        { id: 4790, actorType: 'ADMIN', actorId: 1, ipAddress: '10.0.40.7', userAgent: UA_SAFARI_MAC, loggedInAt: '2026-11-03T14:02:00+07:00', createdAt: '2026-11-04T17:30:45+07:00', lastUsedAt: '2026-11-04T17:30:45+07:00', expiresAt: '2026-11-10T14:02:00+07:00', revokedAt: null, revokedReason: null, replacedBySessionId: null },
+        { id: 4755, actorType: 'ADMIN', actorId: 1, ipAddress: null, userAgent: 'curl/8.4.0', loggedInAt: '2026-11-02T07:30:00+07:00', createdAt: '2026-11-02T07:30:00+07:00', lastUsedAt: null, expiresAt: '2026-11-09T07:30:00+07:00', revokedAt: null, revokedReason: null, replacedBySessionId: null },
+        // Không được trả: đã thu hồi, đã hết hạn, của Admin khác
+        { id: 4700, actorType: 'ADMIN', actorId: 1, ipAddress: '10.0.12.34', userAgent: UA_EDGE_WIN, loggedInAt: '2026-11-01T09:00:00+07:00', createdAt: '2026-11-01T09:00:00+07:00', lastUsedAt: null, expiresAt: '2026-11-08T09:00:00+07:00', revokedAt: '2026-11-01T18:00:00+07:00', revokedReason: 'LOGOUT', replacedBySessionId: null },
+        { id: 4410, actorType: 'ADMIN', actorId: 1, ipAddress: '10.0.12.34', userAgent: UA_CHROME, loggedInAt: '2026-10-20T08:00:00+07:00', createdAt: '2026-10-20T08:00:00+07:00', lastUsedAt: null, expiresAt: '2026-10-27T08:00:00+07:00', revokedAt: null, revokedReason: null, replacedBySessionId: null },
+        { id: 4815, actorType: 'ADMIN', actorId: 2, ipAddress: '10.0.12.9', userAgent: UA_CHROME, loggedInAt: '2026-11-05T09:10:00+07:00', createdAt: '2026-11-05T09:10:00+07:00', lastUsedAt: null, expiresAt: '2026-11-12T09:10:00+07:00', revokedAt: null, revokedReason: null, replacedBySessionId: null }
+    ];
+    // Claim sid của Access Token tab này: còn trỏ 4801 vì tab khác vừa refresh (minh họa đi theo chuỗi).
+    const MOCK_TOKEN_SID = 4801;
+    const MOCK_NOW = Date.parse('2026-11-05T09:45:00+07:00'); // thay cho NOW() để dữ liệu mẫu ổn định
+
+    function isLiveSession(row) {
+        return row.revokedAt === null && Date.parse(row.expiresAt) > MOCK_NOW;
+    }
+
+    // Phiên hiện tại: id = sid của chính mình; ROTATED thì theo replaced_by_session_id tối đa 5 bước (01 mục 6.1)
+    function resolveCurrentSessionId(sid, actorId) {
+        let row = MOCK_AUTH_SESSIONS.find(r => r.id === sid && r.actorType === 'ADMIN' && r.actorId === actorId);
+        for (let step = 0; row && step <= 5; step++) {
+            if (isLiveSession(row)) return row.id;
+            if (row.revokedReason !== 'ROTATED' || !row.replacedBySessionId) return null;
+            const nextId = row.replacedBySessionId;
+            row = MOCK_AUTH_SESSIONS.find(r => r.id === nextId && r.actorType === 'ADMIN' && r.actorId === actorId);
+        }
+        return null;
+    }
+
+    function mockGetMySessions(token, query) {
+        return new Promise(resolve => setTimeout(resolve, 350)).then(() => {
+            if (!token) {
+                return Promise.reject({
+                    success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+                    message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: now()
+                });
+            }
+            const keys = Object.keys(query || {});
+            if (keys.length) {
+                const errors = {};
+                keys.forEach(k => { errors[k] = ['Tham số không được nhận']; });
+                return Promise.reject(validationError(errors));
+            }
+            const currentId = resolveCurrentSessionId(MOCK_TOKEN_SID, MOCK_PROFILE.id);
+            const lastActive = r => r.lastUsedAt || r.createdAt; // COALESCE(last_used_at, created_at)
+            const rows = MOCK_AUTH_SESSIONS
+                .filter(r => r.actorType === 'ADMIN' && r.actorId === MOCK_PROFILE.id && isLiveSession(r))
+                .sort((a, b) => ((b.id === currentId) - (a.id === currentId))
+                    || (Date.parse(lastActive(b)) - Date.parse(lastActive(a))) || (b.id - a.id))
+                .map(r => ({
+                    id: r.id, ipAddress: r.ipAddress, userAgent: r.userAgent, loggedInAt: r.loggedInAt,
+                    lastActiveAt: lastActive(r), expiresAt: r.expiresAt, isCurrent: r.id === currentId
+                }));
+            return {
+                success: true, statusCode: 200, message: 'Lấy danh sách phiên đăng nhập thành công',
+                data: rows, timestamp: now()
+            };
+        });
+    }
+
+    // Rút tên trình duyệt + hệ điều hành từ userAgent (hàm nội bộ, không thư viện ngoài; API không trả tên ghép sẵn).
+    // Thứ tự kiểm tra quan trọng: Edge/Opera chứa "Chrome", Chrome chứa "Safari".
+    function describeUserAgent(ua) {
+        if (!ua) return null;
+        const browsers = [[/Edg\//, 'Edge'], [/OPR\//, 'Opera'], [/Firefox\//, 'Firefox'], [/Chrome\//, 'Chrome'], [/Version\/[\d.]+.*Safari\//, 'Safari']];
+        const systems = [[/Windows NT/, 'Windows'], [/Android/, 'Android'], [/iPhone|iPad/, 'iOS'], [/Mac OS X/, 'macOS'], [/Linux/, 'Linux']];
+        const browser = (browsers.find(([re]) => re.test(ua)) || [])[1];
+        const os = (systems.find(([re]) => re.test(ua)) || [])[1];
+        if (browser && os) return browser + ' trên ' + os;
+        return browser || os || null;
+    }
+
+    const sessionsState = document.getElementById('sessionsState');
+    const sessionsMessage = document.getElementById('sessionsMessage');
+    const btnRetrySessions = document.getElementById('btnRetrySessions');
+    const sessionList = document.getElementById('sessionList');
+
+    function setSessionsState(state, message) {
+        if (sessionsState) {
+            sessionsState.hidden = state === 'ready';
+            sessionsState.classList.toggle('is-error', state === 'error');
+        }
+        if (sessionsMessage && message) sessionsMessage.textContent = message;
+        if (btnRetrySessions) btnRetrySessions.hidden = state !== 'error';
+        if (sessionList) sessionList.hidden = state !== 'ready';
+    }
+
+    // Dựng bằng textContent: userAgent, ipAddress do client gửi lên
+    function renderSessions(rows) {
+        if (!sessionList) return;
+        sessionList.replaceChildren();
+        rows.forEach(row => {
+            const li = document.createElement('li');
+            li.className = 'session-item' + (row.isCurrent ? ' session-item--current' : '');
+            li.dataset.sessionId = String(row.id); // A13: nút thu hồi gửi id này
+            if (row.userAgent) li.title = row.userAgent;
+            const body = document.createElement('div');
+            const device = document.createElement('p');
+            device.className = 'session-device';
+            device.append(describeUserAgent(row.userAgent) || 'Thiết bị không xác định');
+            if (row.isCurrent) {
+                const tag = document.createElement('span');
+                tag.className = 'session-current-tag';
+                tag.textContent = 'Phiên này';
+                device.appendChild(tag);
+            }
+            body.appendChild(device);
+            const meta = document.createElement('p');
+            meta.className = 'session-meta';
+            meta.textContent = [
+                row.ipAddress ? 'IP: ' + row.ipAddress : null,
+                'Đăng nhập: ' + formatValue(row.loggedInAt, 'datetime'),
+                'Hoạt động gần nhất: ' + formatValue(row.lastActiveAt, 'datetime')
+            ].filter(Boolean).join(' · ');
+            body.appendChild(meta);
+            const expiry = document.createElement('time');
+            expiry.className = 'session-expiry';
+            expiry.dateTime = row.expiresAt;
+            expiry.textContent = 'Hết hạn ' + formatValue(row.expiresAt, 'datetime');
+            li.appendChild(body);
+            li.appendChild(expiry);
+            sessionList.appendChild(li);
+        });
+    }
+
+    function loadSessions() {
+        setSessionsState('loading', 'Đang tải phiên đăng nhập...');
+        return callApi(token => mockGetMySessions(token))
+            .then(res => {
+                if (!res.data.length) { setSessionsState('empty', 'Không có phiên nào đang hoạt động'); return; }
+                renderSessions(res.data);
+                setSessionsState('ready');
+            })
+            .catch(err => {
+                // 401 sau khi refresh thất bại: request() đã chuyển về login.
+                if (err && err.statusCode === 401) return;
+                setSessionsState('error', (err && err.message) || 'Không tải được phiên đăng nhập. Vui lòng thử lại.');
+            });
+    }
+
+    if (btnRetrySessions) btnRetrySessions.addEventListener('click', loadSessions);
+
+    // ------------------------------------------------------------
     // Hoạt động gần đây – GET /api/v1/admin/profile/recent-activity (A11, M09 mục 3.4, 5.1)
     // Không query (có → 400). data = mảng ≤ 20 dòng audit_logs có actor_type = 'ADMIN', actor_id = mình,
     // sắp created_at rồi id giảm dần; mỗi phần tử đúng 8 trường, không có actorType/actorId/actorName.
     // ------------------------------------------------------------
     const ACTIVITY_LIMIT = 20;
-    const UA_CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 
     // MOCK_AUDIT_LOGS đóng vai các dòng audit_logs (đủ cột tác nhân để minh họa câu WHERE của backend).
     // Gồm cả LOGIN_FAILED do người khác gõ sai mật khẩu (actor_id vẫn là tài khoản bị thử).
@@ -619,5 +772,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnRetryActivity) btnRetryActivity.addEventListener('click', loadActivity);
 
     loadProfile();
+    loadSessions();
     loadActivity();
 });

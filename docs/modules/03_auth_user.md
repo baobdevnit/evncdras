@@ -68,7 +68,7 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
   - Nếu `locked_until > NOW()` (khóa tạm do sai mật khẩu), trả về `423` với body `{ "success": false, "statusCode": 423, "errorCode": "ACCOUNT_TEMPORARILY_LOCKED", "message": "...", "errors": { "lockedUntil": "2026-10-26T09:45:00+07:00" }, "timestamp": "..." }` (khung lỗi `docs/02_api_contracts.md` mục 2.3).
   - Sai mật khẩu: tăng `failed_login_count` bằng một câu `UPDATE` nguyên tử; đạt `security_login_max_failed` (mặc định 5) thì `locked_until = NOW() + security_lockout_minutes` (mặc định 15 phút) và đặt lại `failed_login_count = 0` trong cùng câu lệnh (câu SQL tại `docs/01_database_schema.md` mục 6.1). Đúng: đặt `failed_login_count = 0`.
 - **`rememberMe`**: `false` thì cookie Refresh Token không đặt `Max-Age` (mất khi đóng trình duyệt); hạn phiên phía server vẫn là 7 ngày.
-- **Token**: Access Token 15 phút (ký `JWT_USER_SECRET`, mang `sub`, `userGroupId`, `roleCode` đọc từ `user_roles` lúc cấp, `sid` = id dòng `auth_sessions` vừa tạo), Refresh Token 7 ngày lưu dạng băm trong `auth_sessions` (`remember_me` = `rememberMe`) và gửi qua cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`, không nằm trong body. Nếu `must_change_password = 1` hoặc mật khẩu quá 90 ngày: chỉ cấp Access Token `scope: "PASSWORD_CHANGE_ONLY"` (không có Refresh Token), `mustChangePassword: true`. Chính sách đầy đủ tại `docs/01_database_schema.md` mục 6.1.
+- **Token**: Access Token 15 phút (ký `JWT_USER_SECRET`, mang `sub`, `userGroupId`, `roleCode` đọc từ `user_roles` lúc cấp, `sid` = id dòng `auth_sessions` vừa tạo), Refresh Token 7 ngày lưu dạng băm trong `auth_sessions` (`remember_me` = `rememberMe`, `logged_in_at = NOW()`) và gửi qua cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`, không nằm trong body. Nếu `must_change_password = 1` hoặc mật khẩu quá 90 ngày: chỉ cấp Access Token `scope: "PASSWORD_CHANGE_ONLY"` (không có Refresh Token), `mustChangePassword: true`. Chính sách đầy đủ tại `docs/01_database_schema.md` mục 6.1.
 - **Response**:
 
 ```json
@@ -120,7 +120,7 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
        - Lý do thu hồi khác: `401`.
     4. `expires_at <= NOW()`: `401`.
     5. Tài khoản `status` khác `ACTIVE` hoặc nhóm `INACTIVE`: `401` (bình thường phiên đã bị thu hồi khi khóa/ngừng hoạt động). Không xét `locked_until`, `must_change_password`, tuổi mật khẩu.
-    6. Xoay vòng: tạo phiên mới (`refresh_token_hash` của Refresh Token mới, `ip_address`/`user_agent` của request, `last_used_at = NOW()`, chép `actor_type`, `actor_id`, `remember_me`, `expires_at` của phiên cũ); phiên cũ `revoked_at = NOW()`, `revoked_reason = 'ROTATED'`, `replaced_by_session_id` = id phiên mới. Ký Access Token mới với `roleCode` (và `userGroupId`) đọc lại từ CSDL lúc cấp, `sid` = id phiên mới.
+    6. Xoay vòng: tạo phiên mới (`refresh_token_hash` của Refresh Token mới, `ip_address`/`user_agent` của request, `last_used_at = NOW()`, chép `actor_type`, `actor_id`, `remember_me`, `logged_in_at`, `expires_at` của phiên cũ); phiên cũ `revoked_at = NOW()`, `revoked_reason = 'ROTATED'`, `replaced_by_session_id` = id phiên mới. Ký Access Token mới với `roleCode` (và `userGroupId`) đọc lại từ CSDL lúc cấp, `sid` = id phiên mới.
   - **Response** `200`, `Set-Cookie` cookie mới (`Max-Age` = số giây còn lại tới `expires_at` khi `remember_me = 1`, không có `Max-Age` khi `0`; trừ nhánh ân hạn):
 
     ```json

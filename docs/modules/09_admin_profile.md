@@ -258,7 +258,7 @@ Content-Type: image/jpeg
   5. Đúng: `UPDATE admins SET password_hash = bcrypt(newPassword, 10), password_changed_at = NOW(), must_change_password = 0, failed_login_count = 0, locked_until = NULL`.
   6. `remember_me` của phiên mới = `remember_me` của phiên có `id` = claim `sid` của Access Token, `actor_type = 'ADMIN'`, `actor_id = sub` (đọc trước khi thu hồi, không xét phiên đó còn hiệu lực hay không); token `PASSWORD_CHANGE_ONLY` không có `sid` (chưa có phiên) thì `0`.
   7. Thu hồi mọi phiên còn lại: `UPDATE auth_sessions SET revoked_at = NOW(), revoked_reason = 'PASSWORD_CHANGED' WHERE actor_type = 'ADMIN' AND actor_id = sub AND revoked_at IS NULL` (kể cả phiên đang dùng), `n` = số dòng bị ảnh hưởng.
-  8. Tạo đúng một phiên mới: `refresh_token_hash` của Refresh Token mới, `ip_address`/`user_agent` của request, `remember_me` của bước 6, `expires_at = NOW() + security_refresh_token_days` (hạn tuyệt đối mới, như đăng nhập), `last_used_at = NULL`.
+  8. Tạo đúng một phiên mới: `refresh_token_hash` của Refresh Token mới, `ip_address`/`user_agent` của request, `remember_me` của bước 6, `logged_in_at = NOW()`, `expires_at = NOW() + security_refresh_token_days` (hạn tuyệt đối mới, như đăng nhập), `last_used_at = NULL`.
   9. Ghi `audit_logs` `AUTH / PASSWORD_CHANGED`: `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `full_name`, `resource_id` = id Admin, `ip_address`, `user_agent` của request, `action_details = { "revokedCount": n, "forced": true|false }` (`forced` = gọi bằng token `PASSWORD_CHANGE_ONLY`). Không ghi mật khẩu hay bản băm.
   10. Commit; ký Access Token **đầy đủ** (không có `scope`) bằng `JWT_ADMIN_SECRET`, mang `sub`, `roleCode` (đọc lại từ `admin_roles`), `sid` = id phiên mới; trả `200` kèm `Set-Cookie` Refresh Token mới (`HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth`, `Max-Age` = số giây còn lại tới `expires_at` khi `remember_me = 1`, không có `Max-Age` khi `0`).
 
@@ -404,7 +404,75 @@ Content-Type: application/json
 
 ### 3.5. Phiên đăng nhập của chính mình (`GET /api/v1/admin/auth/sessions`, `DELETE /api/v1/admin/auth/sessions/:id`)
 
-- Giống bản User (`docs/modules/08_user_profile.md` mục 3.6), khác ở `AdminAuthGuard`, cookie `Path=/api/v1/admin/auth` và `actor_type = 'ADMIN'`. Thu hồi mọi phiên của Admin khác dùng `DELETE /api/v1/admin/admins/:id/sessions` (`docs/modules/04_auth_admin.md` mục 3.7).
+Đặc tả chung cho hai cổng: bản User (`GET /api/v1/auth/sessions`, `docs/modules/08_user_profile.md` mục 3.6) khác ở `UserAuthGuard` và `actor_type = 'USER'`. Thu hồi mọi phiên của Admin khác dùng `DELETE /api/v1/admin/admins/:id/sessions` (`docs/modules/04_auth_admin.md` mục 3.7).
+
+- **Phiên hiện tại** (dùng cho `isCurrent` của `GET` và chặn thu hồi phiên hiện tại ở `DELETE`): xác định từ claim `sid` của Access Token, **không** từ cookie (cookie dùng chung giữa các tab có thể là của tài khoản khác vừa đăng nhập; cách này cũng dùng được ở API ngoài `Path` cookie, như `change-password`). Đọc phiên `id = sid` có `actor_type = 'ADMIN'`, `actor_id = sub`; còn hiệu lực (`revoked_at IS NULL AND expires_at > NOW()`) thì đó là phiên hiện tại; đã `ROTATED` (tab khác vừa refresh, Access Token của tab này còn mang `sid` cũ) thì đi theo chuỗi `replaced_by_session_id` tối đa 5 bước tới phiên còn hiệu lực, như `docs/01_database_schema.md` mục 6.1; không tới được thì không có phiên hiện tại.
+
+#### 3.5.1. `GET /api/v1/admin/auth/sessions`
+
+- **Guard**: `AdminAuthGuard`; không cần mã quyền. Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED` (token này không có phiên). Cookie Refresh Token (`Path=/api/v1/admin/auth`) được trình duyệt gửi kèm nhưng API **không** đọc.
+- **Request**: không có query, không có body. Gửi query param bất kỳ trả `400 VALIDATION_ERROR`.
+- **Xử lý** (chỉ đọc, không ghi CSDL, không ghi `audit_logs`, không cập nhật `last_used_at`):
+  1. Đọc `admins` theo khóa chính `id = sub`; không thấy dòng hoặc `status` khác `ACTIVE` trả `401 UNAUTHORIZED` (cùng quy tắc mục 3.1).
+  2. Xác định phiên hiện tại như trên.
+  3. Đọc các phiên `actor_type = 'ADMIN' AND actor_id = sub AND revoked_at IS NULL AND expires_at > NOW()` (`idx_session_actor`), sắp: phiên hiện tại đứng đầu, sau đó `COALESCE(last_used_at, created_at)` giảm dần, rồi `id` giảm dần. Không phân trang, không giới hạn số dòng (mỗi lần đăng nhập đầy đủ thêm một phiên, phiên hết hạn sau `security_refresh_token_days` ngày).
+- **Response** `200`: `data` là **mảng** (không có khung phân trang `docs/02_api_contracts.md` mục 2.2), mỗi phần tử:
+
+| Trường | Kiểu | Nguồn | Ghi chú |
+|---|---|---|---|
+| `id` | number | `auth_sessions.id` | Id đổi sau mỗi lần xoay vòng; `DELETE` nhận cả id cũ (mục 3.5 bản User) |
+| `ipAddress` | string \| `null` | `ip_address` | IP của lần đăng nhập/refresh gần nhất |
+| `userAgent` | string \| `null` | `user_agent` | Chuỗi gốc; frontend tự rút tên trình duyệt/hệ điều hành, API không trả tên ghép sẵn (`docs/02_api_contracts.md` mục 2) |
+| `loggedInAt` | string (ISO 8601) | `logged_in_at` | Lúc đăng nhập (giữ nguyên qua các lần xoay vòng) |
+| `lastActiveAt` | string (ISO 8601) | `COALESCE(last_used_at, created_at)` | Lần cấp token gần nhất (đăng nhập hoặc refresh); sai lệch tới `security_access_token_minutes` phút vì gọi API bằng Access Token còn hạn không ghi CSDL |
+| `expiresAt` | string (ISO 8601) | `expires_at` | Hạn tuyệt đối, phải đăng nhập lại sau thời điểm này |
+| `isCurrent` | boolean | so `id` với phiên hiện tại | Tối đa một phần tử `true` |
+
+Không trả `actor_type`, `actor_id`, `refresh_token_hash`, `remember_me`, `revoked_*`, `replaced_by_session_id`. Phiên `remember_me = 0` mà trình duyệt đã đóng (cookie mất) vẫn được liệt kê tới `expiresAt` vì máy chủ không biết cookie đã mất; người dùng thu hồi bằng `DELETE`.
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách phiên đăng nhập thành công",
+  "data": [
+    {
+      "id": 4821,
+      "ipAddress": "10.0.12.34",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+      "loggedInAt": "2026-11-05T08:15:00+07:00",
+      "lastActiveAt": "2026-11-05T09:42:10+07:00",
+      "expiresAt": "2026-11-12T08:15:00+07:00",
+      "isCurrent": true
+    },
+    {
+      "id": 4790,
+      "ipAddress": "10.0.40.7",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
+      "loggedInAt": "2026-11-03T14:02:00+07:00",
+      "lastActiveAt": "2026-11-04T17:30:45+07:00",
+      "expiresAt": "2026-11-10T14:02:00+07:00",
+      "isCurrent": false
+    }
+  ],
+  "timestamp": "2026-11-05T09:45:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản không còn `ACTIVE` (bước 1) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+
+- **Frontend** (`AdminProfileView`, khối "Phiên đăng nhập của tôi", mục 5.1): gọi mỗi lần vào màn hình, độc lập với `GET /admin/profile` và khối "Hoạt động gần đây" (lỗi khối này không ẩn khối khác), qua API client của cổng (`401` → refresh một lần rồi gửi lại). Có trạng thái đang tải, lỗi + nút "Thử lại", rỗng ("Không có phiên nào đang hoạt động", chỉ xảy ra khi phiên hiện tại vừa bị thu hồi). Mỗi dòng: tên trình duyệt + hệ điều hành rút từ `userAgent` bằng hàm nội bộ (không thư viện ngoài; không nhận ra thì "Thiết bị không xác định", chuỗi gốc ở `title`), nhãn "Phiên này" khi `isCurrent`, `ipAddress`, "Đăng nhập" `loggedInAt`, "Hoạt động gần nhất" `lastActiveAt`, "Hết hạn" `expiresAt` (frontend định dạng). Nút thu hồi từng phiên (`DELETE`, mục 3.5 bản User) do A13 thêm; không có nút "Đăng xuất khỏi tất cả thiết bị khác" (không có API). Mẫu: `templates/admin/profile.js`.
+- Index phục vụ: khóa chính `admins`, khóa chính `auth_sessions` (đi chuỗi `sid`); `idx_session_actor` (`actor_type`, `actor_id`, `revoked_at`) lọc phiên còn mở của tài khoản, `expires_at` lọc trên các dòng đó; sắp xếp trong bộ nhớ trên vài dòng.
+
+#### 3.5.2. `DELETE /api/v1/admin/auth/sessions/:id`
+
+- Theo bản User (`docs/modules/08_user_profile.md` mục 3.6), khác ở `AdminAuthGuard` và `actor_type = 'ADMIN'`; phiên hiện tại xác định như trên. *(Còn rà ở A13.)*
 
 ### 3.6. `GET /api/v1/admin/profile/preferences`
 - **Guard**: `AdminAuthGuard`; không cần mã quyền. Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`. Chế độ bảo trì không áp dụng cho cổng Admin.
@@ -596,7 +664,7 @@ Mẫu tĩnh: `templates/admin/change-password.html` (chế độ thường), `ch
   - **Thẻ trái**: ảnh đại diện (nút đổi ảnh, mục 3.2.1), `fullName`, huy hiệu vai trò hiển thị `roles.name` (seed: `ROOT_ADMIN` "Quản trị viên tối cao" màu vàng, `SYSTEM_ADMIN` "Quản trị viên hệ thống" màu xanh dương), `email`, khối chỉ đọc `lastLoginAt`/`passwordChangedAt`/`createdAt` (mục 3.1).
   - **Thông tin cá nhân**: form `PUT /admin/profile` (mục 3.2).
   - **Hoạt động gần đây**: 20 dòng của `GET /admin/profile/recent-activity` (mục 3.4), trạng thái tải/lỗi/rỗng riêng. Nhãn hành động do frontend ánh xạ từ `resourceName` + `action`: `AUTH` `LOGIN` "Đăng nhập", `LOGIN_FAILED` "Đăng nhập thất bại" (lý do `BAD_PASSWORD` "sai mật khẩu", `ACCOUNT_LOCKED` "tài khoản bị khóa", `TEMPORARILY_LOCKED` "đang khóa tạm"), `LOGOUT` "Đăng xuất", `SESSION_REVOKED` "Thu hồi phiên đăng nhập", `TOKEN_REUSE_DETECTED` "Phát hiện dùng lại phiên", `PASSWORD_CHANGED` "Đổi mật khẩu", `PASSWORD_RESET` "Đặt lại mật khẩu"; `AUDIO` `LISTEN_AUDIO` "Nghe ghi âm", `DOWNLOAD_AUDIO` "Tải ghi âm"; `CDR` `EXPORT_CDR` "Xuất CDR"; `REPORT` `EXPORT_REPORT` "Xuất báo cáo"; `CREATE`/`UPDATE`/`LOCK`/`UNLOCK`/`DEACTIVATE`/`DELETE`/`CHANGE_ROLE` "Tạo"/"Cập nhật"/"Khóa"/"Mở khóa"/"Ngừng hoạt động"/"Xóa"/"Đổi vai trò" + đối tượng (`ADMIN` "quản trị viên" — riêng `resourceId` = id của chính mình là "Cập nhật hồ sơ của tôi", `USER` "người dùng", `USER_GROUP` "nhóm người dùng", `ORGANIZATION` "đơn vị"); `TOGGLE_GROUP_RECORDING` "Đổi quyền nghe ghi âm của nhóm"; `PREFIX` `UPDATE_PREFIX_GROUP` "Sửa nhóm đầu số", `ALLOCATE_RANGE` "Cấp dải số", `UPDATE_RANGE` "Sửa dải số", `REVOKE_RANGE` "Thu hồi dải số", `UPDATE_NUMBER` "Sửa thông tin số"; `SYSTEM` `UPDATE_SETTINGS` "Cập nhật cài đặt hệ thống", `RECALCULATE_STATS` "Tính lại thống kê", `CREATE_NOTIFICATION` "Gửi thông báo", `RETRY_ENRICHMENT` "Xử lý lại CDR lỗi"; `ACCESS_DENIED` "Thao tác bị từ chối". Mã chưa có nhãn hiện nguyên mã.
-  - **Phiên đăng nhập của tôi** (mục 3.5): chưa có trong template, dựng khi rà `GET`/`DELETE /admin/auth/sessions*`.
+  - **Phiên đăng nhập của tôi** (mục 3.5.1): danh sách `GET /admin/auth/sessions`, nằm giữa "Thông tin cá nhân" và "Hoạt động gần đây", trạng thái tải/lỗi/rỗng riêng; mỗi dòng tên trình duyệt + hệ điều hành rút từ `userAgent`, nhãn "Phiên này" (`isCurrent`), IP, "Đăng nhập", "Hoạt động gần nhất", "Hết hạn". Nút thu hồi (`DELETE`) dựng khi rà A13.
 
 ### 5.2. Bố cục Giao diện (`AccountSettingsView.vue`, ánh xạ `templates/admin/user-settings.html`)
 - Thẻ trái: `avatarUrl`, `fullName`, `roleName`, `email` đọc từ store `authAdmin` (không cứng chữ), cùng nút điều hướng hai nhóm và liên kết sang `admin.profile` (phiên đăng nhập, đổi mật khẩu nằm ở hồ sơ, không lặp lại ở đây).
@@ -616,3 +684,4 @@ Mẫu tĩnh: `templates/admin/change-password.html` (chế độ thường), `ch
 6. **TC-AP-06**: `POST /api/v1/admin/profile/avatar` với ảnh JPEG 1,5 MB 1200×800 có EXIF GPS: `200`, `data` đủ 12 trường, `avatarUrl` dạng `/media/avatars/<uuid>.jpg`; file trên đĩa 256×256, không còn EXIF; `GET` đường dẫn đó qua Nginx trả ảnh với `X-Content-Type-Options: nosniff`; một dòng `audit_logs` `ADMIN / UPDATE` `changedFields = ["avatarUrl"]`; tải ảnh PNG kế tiếp thì file JPEG cũ bị xóa, header đổi ảnh ngay. File 2,1 MB, file `.png` thực chất là PDF, thiếu phần `file`, thêm phần `fullName`, gửi JSON đều trả `400 VALIDATION_ERROR` và không có file mới trong `AVATAR_STORAGE_DIR`; token `PASSWORD_CHANGE_ONLY` trả `403`; tài khoản bị khóa trong lúc token còn hạn trả `401` và không còn file mồ côi.
 7. **TC-AP-07**: Admin mới tạo bằng `npm run seed:root` rồi xóa dòng `user_settings` của mình: `GET /api/v1/admin/profile/preferences` trả `200` với `theme = "SYSTEM"`, `isSidebarCollapsed = false`, `itemsPerPage = 10`, hai cờ thông báo `true`, `dashboardWidgets` đủ 6 phần tử theo thứ tự mặc định đều `visible = true`; sau lời gọi vẫn không có dòng `user_settings` mới, không có dòng `audit_logs`. Sửa tay `custom_preferences = '{"dashboardWidgets":[{"key":"groupMonitorTable","visible":true,"order":1},{"key":"foo","visible":true,"order":2},{"key":"kpiCards","visible":"no","order":3}]}'` và `items_per_page = 30`: response có `itemsPerPage = 10`, `dashboardWidgets` 6 phần tử, `groupMonitorTable` thứ 1, `kpiCards` thứ 2 `visible = true`, không có `foo`, 4 key còn lại theo thứ tự mặc định, `order` liên tục 1…6. Gửi `?x=1` trả `400`; token `PASSWORD_CHANGE_ONLY` trả `403`; tài khoản bị khóa trong lúc token còn hạn trả `401`. Đăng nhập lại ở trình duyệt khác: giao diện, sidebar, số dòng mỗi trang và thứ tự widget Dashboard giữ đúng giá trị CSDL.
 8. **TC-AP-08**: Admin chưa có dòng `user_settings`: `PUT /api/v1/admin/profile/preferences` với `{ "theme": "DARK" }` trả `200`, `data` đủ 6 trường (`theme = "DARK"`, còn lại mặc định, `dashboardWidgets` 6 phần tử mặc định); CSDL có đúng một dòng `user_settings` mới `user_type = 'ADMIN'`, `custom_preferences = NULL`; không có dòng `audit_logs`. Gửi `dashboardWidgets` đủ 6 phần tử hợp lệ: `custom_preferences.dashboardWidgets` lưu đúng thứ tự, khóa khác đã có trong `custom_preferences` (sửa tay) vẫn còn. Mỗi body sau trả `400 VALIDATION_ERROR` và CSDL không đổi: `{}`, `{ "theme": "dark" }`, `{ "theme": null }`, `{ "itemsPerPage": 100 }`, `{ "itemsPerPage": "20" }`, `{ "isSidebarCollapsed": 1 }`, `dashboardWidgets` 5 phần tử, có `key` lặp, có `key` lạ, `order` 1,2,3,4,5,5, phần tử thừa khóa `label`, `{ "customPreferences": {} }`; gửi `?x=1` trả `400`; token `PASSWORD_CHANGE_ONLY` trả `403`; tài khoản bị khóa trong lúc token còn hạn trả `401`. Ở màn hình cài đặt, giả lập `PUT` lỗi: điều khiển và giao diện trở về giá trị cũ, có toast lỗi.
+9. **TC-AP-09**: Admin A đăng nhập ở trình duyệt X (08:15) rồi Y (09:00); ở X refresh lúc 09:40. `GET /api/v1/admin/auth/sessions` từ X trả `200`, `data` là mảng 2 phần tử, phần tử đầu là phiên của X (`isCurrent = true`, `id` = phiên mới sau xoay vòng, `loggedInAt` = 08:15, `lastActiveAt` = 09:40, `expiresAt` = 08:15 + 7 ngày), phần tử sau là Y (`isCurrent = false`); mỗi phần tử đúng 7 trường, không có `refresh_token_hash`/`rememberMe`. Tab thứ hai của X vừa refresh (Access Token tab đầu còn `sid` cũ): gọi từ tab đầu vẫn đánh dấu đúng phiên mới của X. Gọi bằng token của Admin B (cookie trình duyệt là của A) chỉ trả phiên của B. Phiên đã thu hồi, đã hết hạn và phiên của Admin khác không có trong danh sách. Gọi xong không phát sinh dòng `audit_logs`, `last_used_at` không đổi. Gửi `?x=1` trả `400`; token `PASSWORD_CHANGE_ONLY` trả `403`; tài khoản bị khóa trong lúc token còn hạn trả `401`. Phiên mới sau xoay vòng có `logged_in_at` bằng phiên cũ; sau tự đổi mật khẩu có `logged_in_at` mới.
