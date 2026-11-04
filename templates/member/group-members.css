@@ -1,0 +1,1062 @@
+/* templates/group-members.css - EVN CDR AS (Giao diện Danh bạ Thành viên nhóm) */
+
+/* ==========================================================================
+   1. Member Directory Header & Toolbar
+   ========================================================================== */
+.directory-banner {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    box-shadow: var(--shadow-sm);
+    flex-wrap: wrap;
+}
+
+.directory-banner-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.directory-badge-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 51, 160, 0.08);
+    color: var(--primary);
+    flex-shrink: 0;
+}
+
+.directory-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.directory-role-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    font-size: 0.775rem;
+    font-weight: 600;
+    border-radius: 6px;
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.directory-subtitle {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.directory-banner-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.group-select-inline {
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-main);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    min-width: 260px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.group-select-inline:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.btn-admin-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border-radius: 8px;
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.btn-admin-link:hover {
+    background: rgba(245, 158, 11, 0.18);
+    border-color: #d97706;
+}
+
+/* ==========================================================================
+   2. Group Hero Card & 2-Column Split Layout
+   ========================================================================== */
+.group-page-grid {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+.group-sidebar-col {
+    position: sticky;
+    top: 20px;
+    z-index: 10;
+}
+
+.group-main-col {
+    min-width: 0;
+}
+
+.group-hero-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+}
+
+.group-hero-top {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.group-hero-brand {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    width: 100%;
+}
+
+.group-hero-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--primary-light);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.group-hero-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.group-hero-headings {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+
+.group-hero-title-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.group-hero-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 0;
+    line-height: 1.35;
+}
+
+.group-hero-badges-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.badge-code {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 0.775rem;
+    font-weight: 600;
+    border-radius: 6px;
+    background: rgba(100, 116, 139, 0.12);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+.badge-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 12px;
+}
+
+.badge-status.active {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.group-hero-desc {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Meta Grid (4 Thẻ tóm tắt thông tin quan trọng) */
+.group-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.group-meta-item {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.group-meta-label {
+    font-size: 0.725rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.group-meta-value {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    word-break: break-word;
+}
+
+.hierarchy-step {
+    color: var(--text-main);
+    font-weight: 500;
+}
+
+.hierarchy-sep {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.standalone-group-pill {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+/* Dải số điện thoại EVN (Nhiều dải from - to) */
+.prefix-ranges-box {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.prefix-ranges-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 0.775rem;
+}
+
+.prefix-group-badge {
+    font-weight: 700;
+    color: var(--primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    background: var(--primary-light);
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 51, 160, 0.18);
+}
+
+.prefix-total-nums {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.prefix-ranges-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.prefix-range-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.775rem;
+    transition: all 0.15s ease;
+}
+
+.prefix-range-item:hover {
+    border-color: var(--primary);
+    background: var(--bg-hover);
+}
+
+.prefix-range-item .range-text {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 600;
+    color: var(--text-main);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.prefix-range-item .range-val {
+    color: var(--text-main);
+    letter-spacing: 0.3px;
+}
+
+.prefix-range-item .range-sep {
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.prefix-range-item .range-pill {
+    font-size: 0.7rem;
+    color: var(--primary);
+    background: var(--bg-hover);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+}
+
+/* Danh sách Quản trị viên nhóm trên Card bên trái (Thông tin vắn tắt) */
+.group-admin-cards-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.group-admin-card-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.group-admin-card-item:hover {
+    border-color: var(--primary);
+    background: var(--bg-hover);
+}
+
+.group-admin-card-item.representative {
+    border-color: rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.04);
+}
+
+.group-admin-card-item.representative:hover {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+}
+
+.admin-brief-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.admin-brief-name-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 6px;
+}
+
+.admin-brief-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.badge-admin-rep-mini {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #b45309;
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+    padding: 1px 5px;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1.2;
+}
+
+.admin-brief-phone-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.admin-brief-phone-row svg {
+    flex-shrink: 0;
+    color: var(--text-muted);
+}
+
+.admin-brief-phones {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+    font-size: 0.75rem;
+}
+
+.admin-brief-ext {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-weight: 600;
+    color: var(--primary);
+    font-size: 0.775rem;
+}
+
+.admin-brief-phone-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.75rem;
+    transition: color 0.15s;
+}
+
+.admin-brief-phone-link:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
+.phone-sep {
+    color: var(--text-muted);
+    opacity: 0.45;
+    font-size: 0.7rem;
+}
+
+.admin-chip-list {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.admin-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-main);
+}
+
+.admin-chip img {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+}
+
+/* KPI Summary Bar */
+.kpi-summary-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+}
+
+.kpi-summary-bar div {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.kpi-summary-bar div .text-muted {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.kpi-summary-bar div strong {
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+/* ==========================================================================
+   3. Directory Container & Controls (Card View vs Table View)
+   ========================================================================== */
+.directory-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.directory-header {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+}
+
+.directory-header-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.directory-header-title h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.badge-count {
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 10px;
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.directory-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.directory-search-box {
+    position: relative;
+    min-width: 260px;
+}
+
+.directory-search-box .search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+}
+
+.directory-search-box input {
+    padding-left: 32px;
+    font-size: 0.8125rem;
+}
+
+.filter-select {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-main);
+    font-size: 0.8125rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.filter-select:focus {
+    border-color: var(--primary);
+}
+
+/* View Mode Switcher (Grid vs Table) */
+.view-mode-toggle {
+    display: inline-flex;
+    background: var(--bg-hover);
+    padding: 3px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    gap: 2px;
+}
+
+.view-mode-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    font-size: 0.775rem;
+    font-weight: 500;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.view-mode-btn.active {
+    background: var(--surface);
+    color: var(--primary);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+}
+
+.view-mode-btn:hover:not(.active) {
+    color: var(--text-main);
+}
+
+/* ==========================================================================
+   4. Contact Cards Grid Layout (Giao diện Thẻ danh bạ)
+   ========================================================================== */
+.contact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    padding: 18px;
+}
+
+.contact-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    position: relative;
+    box-shadow: var(--shadow-sm);
+}
+
+.contact-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: rgba(0, 51, 160, 0.3);
+}
+
+.contact-card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.contact-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid var(--surface);
+    box-shadow: 0 0 0 1px var(--border);
+}
+
+.contact-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.contact-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin: 0 0 3px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contact-title {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0 0 6px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contact-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.badge-group-role {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    font-size: 0.725rem;
+    font-weight: 600;
+    border-radius: 4px;
+}
+
+.badge-group-role.admin {
+    background: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-group-role.member {
+    background: rgba(100, 116, 139, 0.1);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+/* Extension Highlight Box */
+.contact-ext-box {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.contact-ext-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.contact-ext-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--primary-light);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.contact-ext-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.contact-ext-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.contact-ext-val {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary);
+    font-family: monospace;
+    letter-spacing: 0.5px;
+}
+
+.btn-copy-ext {
+    padding: 4px 8px;
+    font-size: 0.725rem;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-copy-ext:hover {
+    background: var(--bg-hover);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+/* Contact Details Rows */
+.contact-meta-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    font-size: 0.8125rem;
+    margin-bottom: 14px;
+}
+
+.contact-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contact-meta-row svg {
+    flex-shrink: 0;
+    color: var(--text-muted);
+}
+
+.contact-meta-row a {
+    color: var(--text-main);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.contact-meta-row a:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
+/* Card Footer Actions */
+.contact-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.btn-card-action {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 0.775rem;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-main);
+    cursor: pointer;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    text-decoration: none;
+    transition: all 0.15s;
+}
+
+.btn-card-action:hover {
+    background: var(--primary-light);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+/* ==========================================================================
+   5. Compact Table View Layout (Giao diện Bảng rút gọn)
+   ========================================================================== */
+.directory-table-view {
+    display: none;
+    overflow-x: auto;
+}
+
+.directory-table-view.active {
+    display: block;
+}
+
+.contact-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.contact-data-table th {
+    background: var(--table-header-bg);
+    padding: 12px 18px;
+    text-align: left;
+    font-size: 0.775rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+}
+
+.contact-data-table td {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-main);
+    vertical-align: middle;
+}
+
+.contact-data-table tr:hover td {
+    background: var(--row-hover-bg);
+}
+
+.btn-icon-detail {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.btn-icon-detail:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+/* Empty State */
+.table-empty-state {
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.table-empty-state svg {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+
+/* Toast */
+.member-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--primary);
+    border-radius: 8px;
+    padding: 12px 18px;
+    box-shadow: var(--shadow-lg);
+    z-index: 9999;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideInToast 0.3s ease;
+}
+
+.member-toast.info { border-left-color: var(--primary); }
+.member-toast.success { border-left-color: #10b981; }
+
+@keyframes slideInToast {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Responsive Layout */
+@media (max-width: 1100px) {
+    .group-page-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    .group-sidebar-col {
+        position: static;
+    }
+    .group-meta-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .group-hero-brand {
+        max-width: 100%;
+    }
+    .contact-grid {
+        grid-template-columns: 1fr;
+        padding: 14px;
+    }
+    .directory-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .directory-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .directory-search-box {
+        min-width: 100%;
+    }
+    .filter-select {
+        width: 100%;
+    }
+    .group-select-inline {
+        min-width: 100%;
+    }
+}

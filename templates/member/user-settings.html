@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cài đặt tài khoản - EVN CDR AS</title>
+    <meta name="description" content="Trang cài đặt và thiết lập tài khoản cá nhân người dùng">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="user-settings.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="main.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Mobile Header -->
+        <div class="mobile-header">
+            <div class="mobile-logo-brand">
+                <img src="logo_evn.svg" alt="EVN Logo" class="mobile-logo">
+                <div class="brand-text">
+                    <h2 class="mobile-brand">EVN CDRAS</h2>
+                    <p class="mobile-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+            <button id="mobileMenuToggle" class="mobile-menu-btn" title="Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="mobile-overlay" id="mobileOverlay"></div>
+
+                <!-- Sidebar Menu -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-small">
+                    <img src="logo_evn.svg" alt="EVN Logo" style="width: 40px; height: 40px; object-fit: contain;">
+                </div>
+                <div class="brand-text">
+                    <h2 class="brand-name">EVN CDRAS</h2>
+                    <p class="brand-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-menu">
+                <ul>
+                    <li>
+                        <a href="dashboard.html" title="Tổng quan đơn vị">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                            <span class="menu-text">Tổng quan đơn vị</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="notifications.html" title="Thông báo">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                            <span class="menu-text">Thông báo</span>
+                            <span class="menu-badge notification-badge-global">0</span>
+                        </a>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            <span class="menu-text">Nhật ký cuộc gọi</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="cdr-history.html" title="Tra cứu CDR">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    <span class="menu-text">Tra cứu CDR</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="qos-debug.html" title="Phân tích QoS">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                    <span class="menu-text">Phân tích QoS</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="reports.html" title="Báo cáo">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                                    <span class="menu-text">Báo cáo</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                            <span class="menu-text">Đầu số & Đơn vị</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="org-prefix.html" title="Đầu số nội bộ đơn vị">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M7 15h0M2 9.5h20"></path></svg>
+                                    <span class="menu-text">Đầu số đơn vị</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Thành viên đơn vị</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="group-admin.html" title="Quản trị nhóm">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                    </svg>
+                                    <span class="menu-text">Quản trị nhóm</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="group-members.html" title="Danh bạ nhóm">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="8.5" cy="7" r="4"></circle>
+                                        <polyline points="17 11 19 13 23 9"></polyline>
+                                    </svg>
+                                    <span class="menu-text">Danh bạ nhóm</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+                
+                <div class="menu-divider"></div>
+                
+                <ul>
+                    <li class="menu-group expanded">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Tài khoản</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="profile.html" title="Hồ sơ của tôi">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    <span class="menu-text">Hồ sơ của tôi</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="change-password.html" title="Đổi mật khẩu">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <span class="menu-text">Đổi mật khẩu</span>
+                                </a>
+                            </li>
+                            <li class="active">
+                                <a href="user-settings.html" title="Cài đặt tài khoản">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
+                                    <span class="menu-text">Cài đặt tài khoản</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-profile" id="userProfileBtn">
+                    <img src="https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff" alt="User Avatar" class="avatar">
+                    <div class="user-info">
+                        <span class="user-name">Quản trị viên Nhóm</span>
+                        <span class="user-role">EVNICT Đà Nẵng (51xxx)</span>
+                    </div>
+                    
+                    <!-- Dropdown Menu -->
+                    <div class="profile-dropdown" id="profileDropdown">
+                        <a href="profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Hồ sơ của tôi</a>
+                        <a href="change-password.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Đổi mật khẩu</a>
+                        <a href="user-settings.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg> Cài đặt tài khoản</a>
+                        <div class="dropdown-divider"></div>
+                        <button type="button" class="logout-btn" id="logoutBtn" onclick="openLogoutModal()">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                            Đăng xuất
+                        </button>
+                    </div>
+                </div>
+                
+                <button id="themeToggle" class="theme-toggle-menu" title="Giao diện Sáng/Tối"></button>
+                
+                <button id="sidebarToggle" class="collapse-btn-floating" title="Thu gọn/Mở rộng">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="11 17 6 12 11 7"></polyline>
+                        <polyline points="18 17 13 12 18 7"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <div class="main-wrapper">
+            <!-- Account Settings Content -->
+            <main class="main-content">
+                <div class="page-header">
+                    <h1>Cài đặt tài khoản</h1>
+                    <p>Tùy chỉnh giao diện cá nhân, cấu hình thông báo, bảo mật và thiết lập tài khoản của bạn</p>
+                </div>
+
+                <div class="settings-layout">
+                    <!-- Sidebar điều hướng hồ sơ/tài khoản -->
+                    <aside class="settings-sidebar card">
+                        <div class="profile-header-info">
+                            <div class="profile-avatar-wrapper">
+                                <img src="https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff&size=120" alt="Avatar lớn" class="profile-avatar-large">
+                            </div>
+                            <h2>Quản trị viên</h2>
+                            <span class="role-badge">Quản lý cấp cao</span>
+                            <p class="profile-email text-muted">admin@evn.com.vn</p>
+                            <p class="text-muted" style="font-size: 0.8rem; margin: 4px 0 0 0;">EVNICT &bull; Ban Viễn thông &amp; CNTT</p>
+                        </div>
+
+                        <div class="profile-nav">
+                            <button type="button" class="profile-nav-btn active" data-section="appearance">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="5"></circle>
+                                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                                </svg>
+                                Giao diện &amp; Hiển thị
+                            </button>
+                            <button type="button" class="profile-nav-btn" data-section="notifications">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                </svg>
+                                Cài đặt thông báo
+                            </button>
+                            <button type="button" class="profile-nav-btn" data-section="security">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                </svg>
+                                Bảo mật tài khoản
+                            </button>
+                            <button type="button" class="profile-nav-btn" data-section="advanced">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                                Dữ liệu &amp; Tài khoản
+                            </button>
+                        </div>
+                    </aside>
+
+                    <!-- Nội dung các tab cài đặt tài khoản -->
+                    <div class="settings-content">
+
+                        <!-- Tab 1: Giao diện & Hiển thị -->
+                        <div id="section-appearance" class="settings-tab-pane">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>Giao diện &amp; Hiển thị</h3>
+                                </div>
+                                <div class="card-body">
+                                    <form id="appearanceForm" class="settings-form">
+                                        <!-- Nhóm: Giao diện & Chủ đề -->
+                                        <div class="settings-group">
+                                            <div class="settings-group-header">
+                                                <h4>Giao diện &amp; Chủ đề</h4>
+                                                <p>Tùy chỉnh chế độ hiển thị phù hợp với môi trường làm việc của bạn</p>
+                                            </div>
+                                            <div class="setting-item">
+                                                <div class="setting-info">
+                                                    <h5>Chế độ Tối (Dark Mode)</h5>
+                                                    <p>Sử dụng giao diện tối giúp giảm mỏi mắt khi phân tích nhật ký CDR trong thời gian dài</p>
+                                                </div>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="settingThemeToggle">
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                            <div class="setting-item">
+                                                <div class="setting-info">
+                                                    <h5>Menu thu gọn mặc định</h5>
+                                                    <p>Thu gọn menu bên trái để mở rộng không gian hiển thị bảng dữ liệu và biểu đồ</p>
+                                                </div>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="settingSidebarToggle">
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <!-- Nhóm: Tùy chọn hiển thị & Bảng dữ liệu -->
+                                        <div class="settings-group">
+                                            <div class="settings-group-header">
+                                                <h4>Tùy chọn hiển thị dữ liệu</h4>
+                                                <p>Thiết lập số dòng phân trang và quy chuẩn hiển thị thời gian</p>
+                                            </div>
+                                            <div class="setting-item">
+                                                <div class="setting-info">
+                                                    <h5>Số dòng hiển thị mỗi trang</h5>
+                                                    <p>Áp dụng mặc định cho bảng danh sách CDR, quản lý người dùng và báo cáo</p>
+                                                </div>
+                                                <select id="prefItemsPerPage" class="form-control" style="width: auto; min-width: 170px;">
+                                                    <option value="10">10 bản ghi / trang</option>
+                                                    <option value="20" selected>20 bản ghi / trang</option>
+                                                    <option value="50">50 bản ghi / trang</option>
+                                                    <option value="100">100 bản ghi / trang</option>
+                                                </select>
+                                            </div>
+                                            <div class="setting-item">
+                                                <div class="setting-info">
+                                                    <h5>Định dạng thời gian hiển thị</h5>
+                                                    <p>Quy chuẩn hiển thị ngày giờ trong các bản ghi CDR và sự kiện hệ thống</p>
+                                                </div>
+                                                <select id="prefDateFormat" class="form-control" style="width: auto; min-width: 170px;">
+                                                    <option value="24h" selected>24 giờ (DD/MM/YYYY HH:mm:ss)</option>
+                                                    <option value="12h">12 giờ (DD/MM/YYYY hh:mm:ss A)</option>
+                                                    <option value="iso">Chuẩn ISO (YYYY-MM-DD HH:mm:ss)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <!-- Nhóm: Ngôn ngữ & Khu vực -->
+                                        <div class="settings-group">
+                                            <div class="settings-group-header">
+                                                <h4>Ngôn ngữ &amp; Khu vực</h4>
+                                                <p>Lựa chọn ngôn ngữ sử dụng cho toàn bộ giao diện phần mềm</p>
+                                            </div>
+                                            <div class="setting-item">
+                                                <div class="setting-info">
+                                                    <h5>Ngôn ngữ giao diện</h5>
+                                                    <p>Hiện tại hệ thống hỗ trợ Tiếng Việt và Tiếng Anh</p>
+                                                </div>
+                                                <select id="prefLanguage" class="form-control" style="width: auto; min-width: 170px;">
+                                                    <option value="vi" selected>Tiếng Việt (Mặc định)</option>
+                                                    <option value="en">English (US)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 2: Cài đặt thông báo -->
+                        <div id="section-notifications" class="settings-tab-pane">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>Cài đặt thông báo tài khoản</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="settings-form">
+                                        <!-- Nhóm 1: Kênh nhận thông báo -->
+                                        <div class="settings-group">
+                                            <div class="settings-group-header">
+                                                <h4>Kênh &amp; Phương thức nhận thông báo</h4>
+                                                <p>Tùy chỉnh các phương thức nhận cảnh báo và thông tin từ hệ thống EVN CDR AS</p>
+                                            </div>
+
+                                            <div class="setting-item">
+                                                <div class="setting-icon-box">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                                                        <polyline points="22,6 12,13 2,6"></polyline>
+                                                    </svg>
+                                                </div>
+                                                <div class="setting-info">
+                                                    <h5>Thông báo Email</h5>
+                                                    <p>Gửi thư đến admin@evn.com.vn khi có sự cố tổng đài hoặc thông báo an ninh quan trọng.</p>
+                                                </div>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="prefNotificationEmail" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </div>
+
+                                            <div class="setting-item">
+                                                <div class="setting-icon-box">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                                    </svg>
+                                                </div>
+                                                <div class="setting-info">
+                                                    <h5>Thông báo ứng dụng (In-App Push)</h5>
+                                                    <p>Hiển thị cửa sổ cảnh báo trực tiếp ngay trên trình duyệt khi phát hiện cuộc gọi bất thường.</p>
+                                                </div>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="prefNotificationPush" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </div>
+
+                                            <div class="setting-item">
+                                                <div class="setting-icon-box">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                                                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                                                    </svg>
+                                                </div>
+                                                <div class="setting-info">
+                                                    <h5>Âm thanh cảnh báo (Sound Alert)</h5>
+                                                    <p>Phát âm thanh chuông cảnh báo khi phát sinh sự cố tổng đài mức Nghiêm trọng.</p>
+                                                </div>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="prefNotificationSound" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </div>
+
+                                            <div class="setting-item">
+                                                <div class="setting-icon-box">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                                    </svg>
+                                                </div>
+                                                <div class="setting-info">
+                                                    <h5>Báo cáo định kỳ hàng tuần</h5>
+                                                    <p>Gửi bản tin email tóm tắt chất lượng CDR và lưu lượng mạng vào mỗi sáng thứ Hai.</p>
+                                                </div>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="prefNotificationWeeklyReport">
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <!-- Nhóm 2: Tiêu chí lọc cảnh báo -->
+                                        <div class="settings-group">
+                                            <div class="settings-group-header">
+                                                <h4>Tiêu chuẩn &amp; Bộ lọc cảnh báo</h4>
+                                                <p>Giảm thiểu thông báo thừa bằng cách giới hạn theo ngưỡng nghiêm trọng</p>
+                                            </div>
+
+                                            <div class="setting-item">
+                                                <div class="setting-info">
+                                                    <h5>Chỉ nhận sự cố mức Nghiêm trọng</h5>
+                                                    <p>Bỏ qua các thông báo thông tin thông thường, chỉ nhận cảnh báo khi lỗi SIP &ge; 500 hoặc rớt mạng PABX.</p>
+                                                </div>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="prefAlertCriticalOnly">
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </div>
+
+                                            <div class="setting-item">
+                                                <div class="setting-info">
+                                                    <h5>Cảnh báo suy giảm chất lượng thoại (QoS)</h5>
+                                                    <p>Gửi thông báo khi điểm MOS trung bình &lt; 3.0 hoặc độ trễ Jitter &gt; 30ms.</p>
+                                                </div>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="prefAlertQosLow" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 3: Bảo mật tài khoản -->
+                        <div id="section-security" class="settings-tab-pane">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>Bảo mật tài khoản &amp; Phiên đăng nhập</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="settings-form">
+                                        <!-- Nhóm: Mật khẩu & Xác thực -->
+                                        <div class="settings-group">
+                                            <div class="settings-group-header">
+                                                <h4>Mật khẩu &amp; Xác thực tài khoản</h4>
+                                                <p>Quản lý mật khẩu đăng nhập và phương thức bảo mật nhiều lớp</p>
+                                            </div>
+
+                                            <div class="setting-item">
+                                                <div class="setting-info">
+                                                    <h5>Mật khẩu đăng nhập</h5>
+                                                    <p>Đổi mật khẩu lần cuối: <strong>15 ngày trước</strong>. Mật khẩu Quản trị viên EVN yêu cầu đổi định kỳ 90 ngày.</p>
+                                                </div>
+                                                <a href="change-password.html" class="btn btn-outline" style="white-space: nowrap; flex-shrink: 0;">
+                                                    Đổi mật khẩu
+                                                </a>
+                                            </div>
+
+                                            <div class="setting-item">
+                                                <div class="setting-info">
+                                                    <h5>Xác thực 2 bước (2FA)</h5>
+                                                    <p>Bảo vệ tài khoản bằng mã OTP gửi qua Email hoặc ứng dụng EVN Authenticator khi đăng nhập thiết bị mới.</p>
+                                                </div>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="setting2FAToggle" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <!-- Nhóm: Thiết bị & Phiên đăng nhập -->
+                                        <div class="settings-group">
+                                            <div class="settings-group-header">
+                                                <h4>Thiết bị &amp; Phiên đăng nhập</h4>
+                                                <p>Danh sách các thiết bị đang đăng nhập vào tài khoản của bạn</p>
+                                            </div>
+                                            <div class="device-list" id="deviceList">
+                                                <!-- Thiết bị hiện tại -->
+                                                <div class="device-item" data-session-id="1">
+                                                    <div class="device-icon">
+                                                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                                                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="device-details">
+                                                        <h5>Chrome trên Windows 11</h5>
+                                                        <p>IP: 192.168.1.15 &bull; Hà Nội, Việt Nam &bull; Đang hoạt động</p>
+                                                    </div>
+                                                    <span class="device-badge active">Thiết bị này</span>
+                                                </div>
+
+                                                <!-- Thiết bị khác 1 -->
+                                                <div class="device-item" data-session-id="2" data-browser="Safari" data-platform="iOS" data-ip="113.190.234.12">
+                                                    <div class="device-icon">
+                                                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                                                            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="device-details">
+                                                        <h5>Safari trên iPhone (iOS 17)</h5>
+                                                        <p>IP: 113.190.234.12 &bull; 2 giờ trước</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-outline-danger btn-logout-device"
+                                                        style="padding: 4px 12px; font-size: 0.8rem;"
+                                                    >
+                                                        Đăng xuất
+                                                    </button>
+                                                </div>
+
+                                                <!-- Thiết bị khác 2 -->
+                                                <div class="device-item" data-session-id="3" data-browser="Edge" data-platform="Windows" data-ip="192.168.1.45">
+                                                    <div class="device-icon">
+                                                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                                                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="device-details">
+                                                        <h5>Microsoft Edge trên Windows</h5>
+                                                        <p>IP: 192.168.1.45 &bull; Hôm qua 16:45</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-outline-danger btn-logout-device"
+                                                        style="padding: 4px 12px; font-size: 0.8rem;"
+                                                    >
+                                                        Đăng xuất
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div style="margin-top: 16px; text-align: right;">
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-outline"
+                                                    id="btnLogoutAllDevices"
+                                                >
+                                                    Đăng xuất khỏi tất cả các thiết bị khác
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 4: Dữ liệu & Tài khoản -->
+                        <div id="section-advanced" class="settings-tab-pane">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>Dữ liệu &amp; Tài khoản</h3>
+                                </div>
+                                <div class="card-body settings-form">
+                                    <!-- Nhóm: Trích xuất dữ liệu tài khoản -->
+                                    <div class="settings-group">
+                                        <div class="settings-group-header">
+                                            <h4>Trích xuất dữ liệu tài khoản</h4>
+                                            <p>Tải xuống bản sao lưu nhật ký hoạt động cá nhân và cấu hình tài khoản của bạn</p>
+                                        </div>
+                                        <div class="setting-item">
+                                            <div class="setting-info">
+                                                <h5>Yêu cầu bản sao dữ liệu cá nhân</h5>
+                                                <p>Chúng tôi sẽ xử lý dữ liệu và gửi liên kết tải xuống bảo mật qua email admin@evn.com.vn</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                class="btn btn-outline"
+                                                style="white-space: nowrap; flex-shrink: 0;"
+                                                id="btnRequestExport"
+                                            >
+                                                Tạo yêu cầu
+                                            </button>
+                                        </div>
+
+                                        <!-- Danh sách lịch sử yêu cầu gần đây -->
+                                        <div style="margin-top: 16px;">
+                                            <h5 style="font-size: 0.9rem; margin-bottom: 12px; color: var(--text-muted);">Lịch sử yêu cầu gần đây:</h5>
+                                            <div class="device-list" id="exportHistoryList">
+                                                <div class="device-item" style="padding: 10px 14px;">
+                                                    <div class="device-details">
+                                                        <h5 style="font-size: 0.9rem; margin: 0 0 2px;">Yêu cầu #1042 &bull; 10/10/2026 14:30</h5>
+                                                        <p style="font-size: 0.8rem; margin: 0;">Email nhận: admin@evn.com.vn &bull; File ZIP (12.4 MB)</p>
+                                                    </div>
+                                                    <span class="device-badge active">Hoàn thành</span>
+                                                </div>
+                                                <div class="device-item" style="padding: 10px 14px;">
+                                                    <div class="device-details">
+                                                        <h5 style="font-size: 0.9rem; margin: 0 0 2px;">Yêu cầu #1045 &bull; 12/10/2026 09:15</h5>
+                                                        <p style="font-size: 0.8rem; margin: 0;">Email nhận: admin@evn.com.vn</p>
+                                                    </div>
+                                                    <span class="device-badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border-color: rgba(245, 158, 11, 0.3);">Chờ Admin xử lý</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Nhóm: Danger Zone -->
+                                    <div class="settings-group danger-zone">
+                                        <div class="settings-group-header">
+                                            <h4>Khu vực nguy hiểm (Danger Zone)</h4>
+                                            <p>Các hành động tác động trực tiếp đến tình trạng tài khoản cá nhân</p>
+                                        </div>
+                                        <div class="setting-item">
+                                            <div class="setting-info">
+                                                <h5>Vô hiệu hóa tài khoản</h5>
+                                                <p>Gửi yêu cầu tạm thời vô hiệu hóa quyền truy cập của tài khoản (Quản trị viên cấp cao sẽ phê duyệt).</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                class="btn btn-outline-danger"
+                                                style="white-space: nowrap; flex-shrink: 0;"
+                                                id="btnDisableAccount"
+                                            >
+                                                Vô hiệu hóa
+                                            </button>
+                                        </div>
+                                        <div class="setting-item">
+                                            <div class="setting-info">
+                                                <h5>Yêu cầu xóa tài khoản</h5>
+                                                <p>Gửi yêu cầu đóng và xóa vĩnh viễn tài khoản cùng toàn bộ thông tin định danh cá nhân khỏi hệ thống.</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                class="btn btn-danger"
+                                                style="white-space: nowrap; flex-shrink: 0;"
+                                                id="btnDeleteAccount"
+                                            >
+                                                Xóa tài khoản
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="confirmModal" class="confirm-modal-backdrop" style="display: none;">
+        <div class="confirm-modal-dialog" role="dialog" aria-modal="true">
+            <!-- Modal Header Icon -->
+            <div id="confirmModalIconWrapper" class="confirm-modal-icon-wrapper confirm-modal-icon--danger">
+                <!-- Danger Icon -->
+                <svg id="confirmModalIconDanger" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <!-- Warning Icon -->
+                <svg id="confirmModalIconWarning" style="display: none;" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                <!-- Primary Icon -->
+                <svg id="confirmModalIconPrimary" style="display: none;" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="confirm-modal-content">
+                <h3 id="confirmModalTitle" class="confirm-modal-title">Xác nhận</h3>
+                <p id="confirmModalMessage" class="confirm-modal-message">Nội dung xác nhận</p>
+            </div>
+
+            <!-- Modal Actions -->
+            <div class="confirm-modal-actions">
+                <button type="button" id="confirmModalCancelBtn" class="confirm-modal-btn confirm-modal-btn--cancel">Hủy bỏ</button>
+                <button type="button" id="confirmModalActionBtn" class="confirm-modal-btn confirm-modal-btn--danger">
+                    <span id="confirmModalBtnText">Xác nhận</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+    <script src="user-settings.js"></script>
+
+    <!-- Modal Xác nhận Đăng xuất (ConfirmModal) -->
+    <div id="logoutModal" class="confirm-modal-backdrop" style="display: none;">
+        <div class="confirm-modal-dialog" role="dialog" aria-modal="true">
+            <div class="confirm-modal-icon-wrapper confirm-modal-icon--danger">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </div>
+            <div class="confirm-modal-content">
+                <h3 class="confirm-modal-title">Xác nhận đăng xuất</h3>
+                <p class="confirm-modal-message">Bạn có chắc chắn muốn đăng xuất khỏi hệ thống EVN CDRAS?</p>
+            </div>
+            <div class="confirm-modal-actions">
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--cancel" onclick="closeLogoutModal()">Hủy bỏ</button>
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--danger" onclick="confirmLogout()">Đăng xuất</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

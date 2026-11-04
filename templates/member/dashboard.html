@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảng điều khiển Đơn vị - EVN CDR AS</title>
+    <meta name="description" content="Trang bảng điều khiển phân tích lưu lượng và chất lượng cuộc gọi dành cho Thành viên đơn vị">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="main.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="dashboard-container" id="dashboardContainer">
+        <!-- Mobile Header -->
+        <div class="mobile-header">
+            <div class="mobile-logo-brand">
+                <img src="logo_evn.svg" alt="EVN Logo" class="mobile-logo">
+                <div class="brand-text">
+                    <h2 class="mobile-brand">EVN CDRAS</h2>
+                    <p class="mobile-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+            <button id="mobileMenuToggle" class="mobile-menu-btn" title="Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="mobile-overlay" id="mobileOverlay"></div>
+
+        <!-- Sidebar Menu dành cho Thành viên Đơn vị -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-small">
+                    <img src="logo_evn.svg" alt="EVN Logo" style="width: 40px; height: 40px; object-fit: contain;">
+                </div>
+                <div class="brand-text">
+                    <h2 class="brand-name">EVN CDRAS</h2>
+                    <p class="brand-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-menu">
+                <ul>
+                    <li class="active">
+                        <a href="dashboard.html" title="Tổng quan đơn vị">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                            <span class="menu-text">Tổng quan đơn vị</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="notifications.html" title="Thông báo">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                            <span class="menu-text">Thông báo</span>
+                            <span class="menu-badge notification-badge-global">0</span>
+                        </a>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            <span class="menu-text">Nhật ký cuộc gọi</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="cdr-history.html" title="Tra cứu CDR">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    <span class="menu-text">Tra cứu CDR</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="qos-debug.html" title="Phân tích QoS">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                    <span class="menu-text">Phân tích QoS</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="reports.html" title="Báo cáo">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                                    <span class="menu-text">Báo cáo</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                            <span class="menu-text">Đầu số & Đơn vị</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="org-prefix.html" title="Đầu số nội bộ đơn vị">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M7 15h0M2 9.5h20"></path></svg>
+                                    <span class="menu-text">Đầu số đơn vị</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Thành viên đơn vị</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="group-admin.html" title="Quản trị nhóm">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                    </svg>
+                                    <span class="menu-text">Quản trị nhóm</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="group-members.html" title="Danh bạ nhóm">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="8.5" cy="7" r="4"></circle>
+                                        <polyline points="17 11 19 13 23 9"></polyline>
+                                    </svg>
+                                    <span class="menu-text">Danh bạ nhóm</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+                
+                <div class="menu-divider"></div>
+                
+                <ul>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Tài khoản</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="profile.html" title="Hồ sơ của tôi">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    <span class="menu-text">Hồ sơ của tôi</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="change-password.html" title="Đổi mật khẩu">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <span class="menu-text">Đổi mật khẩu</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="user-settings.html" title="Cài đặt tài khoản">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
+                                    <span class="menu-text">Cài đặt tài khoản</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-profile" id="userProfileBtn">
+                    <img src="https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff" alt="User Avatar" class="avatar">
+                    <div class="user-info">
+                        <span class="user-name">Quản trị viên Nhóm</span>
+                        <span class="user-role">EVNICT Đà Nẵng (51xxx)</span>
+                    </div>
+                    
+                    <!-- Dropdown Menu -->
+                    <div class="profile-dropdown" id="profileDropdown">
+                        <a href="profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Hồ sơ của tôi</a>
+                        <a href="change-password.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Đổi mật khẩu</a>
+                        <a href="user-settings.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg> Cài đặt tài khoản</a>
+                        <div class="dropdown-divider"></div>
+                        <button type="button" class="logout-btn" id="logoutBtn" onclick="openLogoutModal()">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                            Đăng xuất
+                        </button>
+                    </div>
+                </div>
+                
+                <button id="themeToggle" class="theme-toggle-menu" title="Giao diện Sáng/Tối"></button>
+                
+                <button id="sidebarToggle" class="collapse-btn-floating" title="Thu gọn/Mở rộng">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="11 17 6 12 11 7"></polyline>
+                        <polyline points="18 17 13 12 18 7"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <div class="main-wrapper">
+            <main class="main-content">
+                <!-- Page Header with Member Badge and Demo Switcher -->
+                <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                            <h1>Tổng quan Đơn vị - EVNICT Đà Nẵng</h1>
+                            <span class="member-badge-pill" title="Phạm vi dữ liệu cô lập theo nhóm người dùng">
+                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                Group Isolation: 51xxx
+                            </span>
+                        </div>
+                        <p>Theo dõi lưu lượng cuộc gọi nội bộ 5 số, cơ cấu 3 hướng gọi và chất lượng đàm thoại của đơn vị</p>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <a href="../admin/dashboard.html" class="btn-demo-switch" title="Chuyển sang xem Dashboard Quản trị viên hệ thống">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                            <span>Dashboard Quản trị viên ➔</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 4 Thẻ KPI chuyên biệt cho Đơn vị -->
+                <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                        </div>
+                        <div class="stat-details">
+                            <h3>Tổng Cuộc Gọi Đơn Vị</h3>
+                            <p class="stat-number" id="kpiMemberCalls">42,350</p>
+                            <span class="stat-trend positive">+8.5% so với tháng trước</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon yellow">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        </div>
+                        <div class="stat-details">
+                            <h3>Thời Lượng Đàm Thoại</h3>
+                            <p class="stat-number" id="kpiMemberDuration">148,200</p>
+                            <span class="stat-trend positive">~2,470 giờ đàm thoại</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green" style="background: rgba(16, 185, 129, 0.12); color: #059669;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                        <div class="stat-details">
+                            <h3>Tỉ Lệ Trả Lời (ASR)</h3>
+                            <p class="stat-number" id="kpiMemberAsr">84.2%</p>
+                            <span class="stat-trend positive">+1.7% cao hơn TB toàn EVN</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: #e0f2fe; color: #0284c7;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                        </div>
+                        <div class="stat-details">
+                            <h3>Tỷ Trọng Gọi Nội Bộ</h3>
+                            <p class="stat-number" id="kpiMemberIntraRatio">68.5%</p>
+                            <span class="stat-trend positive">Tiết kiệm chi phí ngoại mạng</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Khối Dải Số Cấp Phát Cho Đơn Vị (Ánh xạ từ org-prefix.html) -->
+                <div class="kpi-pool-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <h3 style="font-size: 1.05rem; font-weight: 700; margin: 0; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--primary)" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M7 15h0M2 9.5h20"></path></svg>
+                                DẢI SỐ CẤP PHÁT CHO ĐƠN VỊ (QUY HOẠCH NỘI BỘ 5 CHỮ SỐ)
+                            </h3>
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Dải số điện thoại nội bộ EVN cấp riêng cho nhóm: <strong>51000 ➔ 51999</strong> (EVNICT Đà Nẵng)</span>
+                        </div>
+                        <a href="org-prefix.html" class="btn btn-sm btn-outline" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; padding: 6px 14px; font-weight: 600;" title="Đến trang Quản lý Đầu số của Đơn vị">
+                            <span>Chi tiết Đầu số</span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </a>
+                    </div>
+
+                    <div class="kpi-stat-grid">
+                        <div class="kpi-stat-item">
+                            <span class="kpi-stat-label">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                Dải số được EVN cấp
+                            </span>
+                            <span class="kpi-stat-value" id="kpiUnitRangeCount">1 dải</span>
+                            <span class="kpi-stat-sub">Đầu số: 51xxx</span>
+                        </div>
+                        <div class="kpi-stat-item">
+                            <span class="kpi-stat-label">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+                                Tổng dung lượng máy nhánh
+                            </span>
+                            <span class="kpi-stat-value" id="kpiUnitCapacity">1,000</span>
+                            <span class="kpi-stat-sub">51000 ➔ 51999</span>
+                        </div>
+                        <div class="kpi-stat-item active">
+                            <span class="kpi-stat-label">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#10b981" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                Đang gán nhân sự (Active)
+                            </span>
+                            <span class="kpi-stat-value" id="kpiUnitActive">342</span>
+                            <span class="kpi-stat-sub" id="kpiUnitActivePct">34.2% dung lượng dải</span>
+                        </div>
+                        <div class="kpi-stat-item pool-free">
+                            <span class="kpi-stat-label">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+                                Máy nhánh rảnh dự phòng
+                            </span>
+                            <span class="kpi-stat-value" id="kpiUnitFree">658</span>
+                            <span class="kpi-stat-sub">Sẵn sàng cấp cho nhân sự mới</span>
+                        </div>
+                    </div>
+
+                    <!-- Thanh phân bổ máy nhánh nội bộ đơn vị -->
+                    <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <span>Tỉ lệ sử dụng máy nhánh của đơn vị:</span>
+                        <span><b style="color:#10b981;">■</b> Đang dùng: <span id="unitBarActiveText">34.2%</span> | <b style="color:var(--primary);">■</b> Số rảnh: <span id="unitBarFreeText">65.8%</span></span>
+                    </div>
+                    <div class="pool-allocation-bar">
+                        <div class="pool-bar-active" id="unitBarActive" style="width: 34.2%;"></div>
+                        <div class="pool-bar-free" id="unitBarFree" style="width: 65.8%;"></div>
+                    </div>
+                </div>
+
+                <!-- Khu vực 2 Biểu đồ chuyên biệt cho Đơn vị -->
+                <div class="content-grid">
+                    <div class="card chart-card">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3>Lưu Lượng 3 Hướng Gọi Của Đơn Vị</h3>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <button class="chart-toggle-fit-btn" title="Thu nhỏ vừa màn hình" onclick="toggleChartFit(this)">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="4 14 10 14 10 20"></polyline>
+                                        <polyline points="20 10 14 10 14 4"></polyline>
+                                        <line x1="14" y1="10" x2="21" y2="3"></line>
+                                        <line x1="10" y1="14" x2="3" y2="21"></line>
+                                    </svg>
+                                </button>
+                                <select class="form-control" style="width: auto; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--surface); color: var(--text-main);" id="unitTrafficFilter">
+                                    <option value="day">Theo Ngày (7 ngày qua)</option>
+                                    <option value="week">Theo Tuần</option>
+                                    <option value="month">Theo Tháng</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container-scrollable">
+                                <div class="chart-content-wrapper" style="height: 350px;">
+                                    <canvas id="unitTrafficChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card chart-card">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3>Chất Lượng Cuộc Gọi & Tỷ Lệ ASR</h3>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <button class="chart-toggle-fit-btn" title="Thu nhỏ vừa màn hình" onclick="toggleChartFit(this)">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="4 14 10 14 10 20"></polyline>
+                                        <polyline points="20 10 14 10 14 4"></polyline>
+                                        <line x1="14" y1="10" x2="21" y2="3"></line>
+                                        <line x1="10" y1="14" x2="3" y2="21"></line>
+                                    </svg>
+                                </button>
+                                <select class="form-control" style="width: auto; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--surface); color: var(--text-main);" id="unitQualityFilter">
+                                    <option value="7days">7 ngày qua</option>
+                                    <option value="30days">30 ngày qua</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container-scrollable">
+                                <div class="chart-content-wrapper" style="height: 350px;">
+                                    <canvas id="unitQualityChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bảng 5 Cuộc gọi gần nhất của Đơn vị -->
+                <div class="dashboard-table-card">
+                    <div class="dashboard-table-header">
+                        <div>
+                            <h3 style="font-size: 1.05rem; font-weight: 700; margin: 0; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--primary)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                NHẬT KÝ CUỘC GỌI MỚI NHẤT CỦA ĐƠN VỊ
+                            </h3>
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">5 bản ghi đàm thoại gần nhất phát sinh từ máy nhánh thuộc dải 51xxx (Group-Based Data Isolation)</span>
+                        </div>
+                        <a href="cdr-history.html" class="btn btn-sm btn-outline" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; padding: 6px 14px; font-weight: 600;" title="Đến trang Tra cứu CDR chi tiết">
+                            <span>Xem toàn bộ CDR</span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="dashboard-table">
+                            <thead>
+                                <tr>
+                                    <th>Thời gian</th>
+                                    <th>Hướng cuộc gọi</th>
+                                    <th>Số chủ gọi (Caller)</th>
+                                    <th>Số bị gọi (Called)</th>
+                                    <th class="num">Thời lượng</th>
+                                    <th style="text-align: center;">Mã kết thúc SIP</th>
+                                    <th style="text-align: center;">Chất lượng MOS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>14:22:15 18/05/2026</strong></td>
+                                    <td><span class="badge-traffic badge-traffic-intra">Nội bộ nhóm</span></td>
+                                    <td><strong style="color: var(--primary);">51012</strong> (P. Kỹ thuật)</td>
+                                    <td><strong style="color: var(--primary);">51045</strong> (P. Vận hành)</td>
+                                    <td class="num">03:45</td>
+                                    <td style="text-align: center;"><span class="badge-sip badge-sip-200">200 OK</span></td>
+                                    <td style="text-align: center;"><span class="badge-mos mos-good">4.28</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>14:15:02 18/05/2026</strong></td>
+                                    <td><span class="badge-traffic badge-traffic-outbound">Gọi đi ngoại đơn vị</span></td>
+                                    <td><strong style="color: var(--primary);">51001</strong> (Trực ban)</td>
+                                    <td><strong>96001</strong> (Ban VT&CNTT EVN)</td>
+                                    <td class="num">08:12</td>
+                                    <td style="text-align: center;"><span class="badge-sip badge-sip-200">200 OK</span></td>
+                                    <td style="text-align: center;"><span class="badge-mos mos-good">4.22</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>13:58:40 18/05/2026</strong></td>
+                                    <td><span class="badge-traffic badge-traffic-inbound">Đến từ ngoại đơn vị</span></td>
+                                    <td><strong>42105</strong> (Khối CNTT Tập đoàn)</td>
+                                    <td><strong style="color: var(--primary);">51020</strong> (P. Kế toán)</td>
+                                    <td class="num">02:18</td>
+                                    <td style="text-align: center;"><span class="badge-sip badge-sip-200">200 OK</span></td>
+                                    <td style="text-align: center;"><span class="badge-mos mos-good">4.15</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>13:42:19 18/05/2026</strong></td>
+                                    <td><span class="badge-traffic badge-traffic-intra">Nội bộ nhóm</span></td>
+                                    <td><strong style="color: var(--primary);">51088</strong> (P. Kế hoạch)</td>
+                                    <td><strong style="color: var(--primary);">51012</strong> (P. Kỹ thuật)</td>
+                                    <td class="num">00:00</td>
+                                    <td style="text-align: center;"><span class="badge-sip badge-sip-486">486 Busy</span></td>
+                                    <td style="text-align: center;"><span class="badge-mos mos-fair">3.90</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>13:20:55 18/05/2026</strong></td>
+                                    <td><span class="badge-traffic badge-traffic-outbound">Gọi đi ngoại đơn vị</span></td>
+                                    <td><strong style="color: var(--primary);">51015</strong> (Tổ NOC)</td>
+                                    <td><strong>45002</strong> (Điện lực Đà Nẵng)</td>
+                                    <td class="num">05:30</td>
+                                    <td style="text-align: center;"><span class="badge-sip badge-sip-200">200 OK</span></td>
+                                    <td style="text-align: center;"><span class="badge-mos mos-good">4.19</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- App Footer -->
+                <footer class="app-footer">
+                    <div class="footer-content">
+                        <p>&copy; 2026 EVN CDR Analysis System. Tất cả các quyền được bảo lưu.</p>
+                        <p class="footer-version">Phiên bản 1.0.0 (Dành cho Thành viên đơn vị)</p>
+                    </div>
+                </footer>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal Xác nhận Đăng xuất -->
+    <div id="logoutModal" class="confirm-modal-backdrop" style="display: none;">
+        <div class="confirm-modal-dialog" role="dialog" aria-modal="true">
+            <div class="confirm-modal-icon-wrapper confirm-modal-icon--danger">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </div>
+            <div class="confirm-modal-content">
+                <h3 class="confirm-modal-title">Xác nhận đăng xuất</h3>
+                <p class="confirm-modal-message">Bạn có chắc chắn muốn đăng xuất khỏi hệ thống EVN CDRAS?</p>
+            </div>
+            <div class="confirm-modal-actions">
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--cancel" onclick="closeLogoutModal()">Hủy bỏ</button>
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--danger" onclick="confirmLogout()">Đăng xuất</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

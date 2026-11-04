@@ -1,0 +1,391 @@
+/* Custom styles for Reports page */
+.filter-card {
+    margin-bottom: 24px;
+    background-color: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.filter-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 14px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.filter-header-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Role Switcher Widget (Group-Based Data Isolation Demo) */
+.role-switcher-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: var(--bg-hover);
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.role-switch-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.role-toggle-group {
+    display: flex;
+    gap: 4px;
+}
+
+.btn-role-tab {
+    padding: 4px 10px;
+    font-size: 0.775rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+}
+
+.btn-role-tab:hover {
+    color: var(--text-color);
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+.btn-role-tab.active {
+    background-color: var(--surface);
+    color: #0033a0;
+    border-color: var(--border-color);
+    box-shadow: 0 2px 6px rgba(0, 51, 160, 0.12);
+}
+
+[data-theme="dark"] .btn-role-tab.active {
+    color: #60a5fa;
+    background-color: #1e293b;
+    border-color: #334155;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Filter Grid */
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 16px;
+    align-items: end;
+}
+
+.custom-date-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    grid-column: span 2;
+    animation: filterSlideIn 0.2s ease;
+}
+
+@keyframes filterSlideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.filter-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Group Lock Indicator */
+.org-lock-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: #d97706;
+    margin-top: 5px;
+    font-weight: 500;
+}
+
+.org-lock-indicator svg {
+    flex-shrink: 0;
+}
+
+/* Table styling */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th, .data-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    font-size: 0.85rem;
+}
+
+.data-table th {
+    background-color: var(--surface-hover);
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.data-table tbody tr:hover {
+    background-color: var(--surface-hover);
+}
+
+.data-table td.num, .data-table th.num {
+    text-align: right;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+/* Legend */
+#branchLegend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    font-size: 12.5px;
+    color: var(--text-color);
+}
+
+.legend-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
+/* QoS Badges */
+.badge-mos {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+.mos-good {
+    color: #059669;
+    background-color: rgba(16, 185, 129, 0.12);
+}
+
+.mos-fair {
+    color: #d97706;
+    background-color: rgba(245, 158, 11, 0.12);
+}
+
+.mos-poor {
+    color: #dc2626;
+    background-color: rgba(239, 68, 68, 0.12);
+}
+
+/* SIP Disconnection Status Badges */
+.badge-sip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    line-height: 1.25;
+}
+
+.badge-sip-200 {
+    background-color: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.28);
+}
+
+.badge-sip-486 {
+    background-color: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.28);
+}
+
+.badge-sip-487 {
+    background-color: rgba(100, 116, 139, 0.12);
+    color: #64748b;
+    border: 1px solid rgba(100, 116, 139, 0.28);
+}
+
+.badge-sip-503, .badge-sip-408 {
+    background-color: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.28);
+}
+
+/* Zero Scan Banner / Pill */
+.zero-scan-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #059669;
+    background-color: rgba(16, 185, 129, 0.1);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+/* Export Buttons & Spinner */
+.btn-excel {
+    background: linear-gradient(135deg, #217346 0%, #1a5c38 100%);
+    color: #ffffff !important;
+    border: 1px solid transparent;
+    box-shadow: 0 4px 12px rgba(33, 115, 70, 0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-excel:hover {
+    background: linear-gradient(135deg, #1a5c38 0%, #124027 100%);
+    box-shadow: 0 6px 16px rgba(33, 115, 70, 0.35);
+    transform: translateY(-2px);
+    color: #ffffff !important;
+}
+
+[data-theme="dark"] .btn-excel {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="dark"] .btn-excel:hover {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    box-shadow: 0 6px 16px rgba(52, 211, 153, 0.35);
+}
+
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.85;
+}
+
+.btn-loading .btn-text {
+    visibility: hidden;
+}
+
+.btn-loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    margin-top: -8px;
+    margin-left: -8px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #ffffff;
+    animation: btnSpin 0.6s linear infinite;
+}
+
+@keyframes btnSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* Toast Notification */
+.report-toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.report-toast {
+    pointer-events: auto;
+    background-color: var(--surface);
+    color: var(--text-color);
+    padding: 12px 18px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid #10b981;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.875rem;
+    animation: toastSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    max-width: 420px;
+}
+
+.report-toast.error {
+    border-left-color: #ef4444;
+}
+
+.report-toast-icon {
+    flex-shrink: 0;
+    color: #10b981;
+}
+
+.report-toast.error .report-toast-icon {
+    color: #ef4444;
+}
+
+@keyframes toastSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+    .custom-date-container {
+        grid-column: span 1;
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .filter-header-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .role-switcher-box {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .header-actions {
+        width: 100%;
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 10px;
+    }
+    .header-actions .btn {
+        flex: 1;
+        justify-content: center;
+        padding: 0.65rem 0.5rem;
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+}

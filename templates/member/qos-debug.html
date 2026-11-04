@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phân tích Chất lượng (QoS) & Gỡ lỗi - EVN CDR AS</title>
+    <meta name="description" content="Phân tích chất lượng cuộc gọi (QoS) và hỗ trợ gỡ lỗi từ IP PABX">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="qos-debug.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="main.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Mobile Header -->
+        <div class="mobile-header">
+            <div class="mobile-logo-brand">
+                <img src="logo_evn.svg" alt="EVN Logo" class="mobile-logo">
+                <div class="brand-text">
+                    <h2 class="mobile-brand">EVN CDR AS</h2>
+                    <p class="mobile-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+            <button id="mobileMenuToggle" class="mobile-menu-btn" title="Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="mobile-overlay" id="mobileOverlay"></div>
+
+                <!-- Sidebar Menu -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-small">
+                    <img src="logo_evn.svg" alt="EVN Logo" style="width: 40px; height: 40px; object-fit: contain;">
+                </div>
+                <div class="brand-text">
+                    <h2 class="brand-name">EVN CDRAS</h2>
+                    <p class="brand-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-menu">
+                <ul>
+                    <li>
+                        <a href="dashboard.html" title="Tổng quan đơn vị">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                            <span class="menu-text">Tổng quan đơn vị</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="notifications.html" title="Thông báo">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                            <span class="menu-text">Thông báo</span>
+                            <span class="menu-badge notification-badge-global">0</span>
+                        </a>
+                    </li>
+                    <li class="menu-group expanded">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            <span class="menu-text">Nhật ký cuộc gọi</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="cdr-history.html" title="Tra cứu CDR">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    <span class="menu-text">Tra cứu CDR</span>
+                                </a>
+                            </li>
+                            <li class="active">
+                                <a href="qos-debug.html" title="Phân tích QoS">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                    <span class="menu-text">Phân tích QoS</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="reports.html" title="Báo cáo">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                                    <span class="menu-text">Báo cáo</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                            <span class="menu-text">Đầu số & Đơn vị</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="org-prefix.html" title="Đầu số nội bộ đơn vị">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M7 15h0M2 9.5h20"></path></svg>
+                                    <span class="menu-text">Đầu số đơn vị</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Thành viên đơn vị</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="group-admin.html" title="Quản trị nhóm">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                    </svg>
+                                    <span class="menu-text">Quản trị nhóm</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="group-members.html" title="Danh bạ nhóm">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="8.5" cy="7" r="4"></circle>
+                                        <polyline points="17 11 19 13 23 9"></polyline>
+                                    </svg>
+                                    <span class="menu-text">Danh bạ nhóm</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+                
+                <div class="menu-divider"></div>
+                
+                <ul>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Tài khoản</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="profile.html" title="Hồ sơ của tôi">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    <span class="menu-text">Hồ sơ của tôi</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="change-password.html" title="Đổi mật khẩu">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <span class="menu-text">Đổi mật khẩu</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="user-settings.html" title="Cài đặt tài khoản">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
+                                    <span class="menu-text">Cài đặt tài khoản</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-profile" id="userProfileBtn">
+                    <img src="https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff" alt="User Avatar" class="avatar">
+                    <div class="user-info">
+                        <span class="user-name">Quản trị viên Nhóm</span>
+                        <span class="user-role">EVNICT Đà Nẵng (51xxx)</span>
+                    </div>
+                    
+                    <!-- Dropdown Menu -->
+                    <div class="profile-dropdown" id="profileDropdown">
+                        <a href="profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Hồ sơ của tôi</a>
+                        <a href="change-password.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Đổi mật khẩu</a>
+                        <a href="user-settings.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg> Cài đặt tài khoản</a>
+                        <div class="dropdown-divider"></div>
+                        <button type="button" class="logout-btn" id="logoutBtn" onclick="openLogoutModal()">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                            Đăng xuất
+                        </button>
+                    </div>
+                </div>
+                
+                <button id="themeToggle" class="theme-toggle-menu" title="Giao diện Sáng/Tối"></button>
+                
+                <button id="sidebarToggle" class="collapse-btn-floating" title="Thu gọn/Mở rộng">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="11 17 6 12 11 7"></polyline>
+                        <polyline points="18 17 13 12 18 7"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Main Content Wrapper -->
+        <div class="main-wrapper">
+            <main class="main-content">
+                <div class="page-header d-flex-between">
+                    <div>
+                        <h1>Phân tích Chất lượng (QoS) Đơn vị</h1>
+                        <p>Kiểm tra chất lượng đàm thoại (MOS, Packet Loss, Jitter), phân tích độ trễ SIP và gỡ lỗi mạng VoIP dải số đơn vị</p>
+                    </div>
+                    <div class="header-actions">
+                        <button type="button" class="btn btn-outline" id="refreshQosBtn" title="Làm mới dữ liệu từ hệ thống">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                            Làm mới
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="search-filter-wrapper">
+                    <div class="search-filter-header">
+                        <h3>
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="mr-2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                            Bộ lọc phân tích QoS cuộc gọi
+                        </h3>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button type="button" id="toggleAdvancedFilterBtn" class="btn btn-sm btn-outline">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                <span id="advancedFilterText">Bộ lọc nâng cao</span>
+                            </button>
+                            <button type="button" id="resetFilterBtn" class="btn btn-sm btn-outline" style="border:none; color:var(--text-muted); padding: 4px 8px;">Xóa bộ lọc</button>
+                        </div>
+                    </div>
+                    <form id="searchQosForm" class="cdr-filter-form">
+                        <!-- Hàng 1: Bộ lọc cơ bản -->
+                        <div class="filter-grid">
+                            <!-- Time Range -->
+                            <div class="filter-group time-range-group">
+                                <label>Khoảng thời gian</label>
+                                <div class="date-inputs">
+                                    <div class="input-with-icon">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                        <input type="date" class="form-control" id="filterFromDate" value="2025-06-11">
+                                    </div>
+                                    <span class="date-separator">đến</span>
+                                    <div class="input-with-icon">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                        <input type="date" class="form-control" id="filterToDate" value="2025-06-16">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Caller -->
+                            <div class="filter-group">
+                                <label>Số gọi đi (Caller)</label>
+                                <div class="input-with-icon">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                    <input type="text" class="form-control" id="filterCallerId" placeholder="VD: 42118, 96868...">
+                                </div>
+                            </div>
+
+                            <!-- Called -->
+                            <div class="filter-group">
+                                <label>Số nhận (Called)</label>
+                                <div class="input-with-icon">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                    <input type="text" class="form-control" id="filterCalledId" placeholder="VD: 42200, 45419...">
+                                </div>
+                            </div>
+
+                            <!-- Status -->
+                            <div class="filter-group">
+                                <label>Trạng thái cuộc gọi</label>
+                                <div class="input-with-icon">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                    <select class="form-control pl-icon" id="filterStatus">
+                                        <option value="ALL">Tất cả trạng thái</option>
+                                        <option value="ANSWERED">Nghe máy (Answered)</option>
+                                        <option value="BUSY">Máy bận (Busy)</option>
+                                        <option value="CANCEL">Hủy gọi (Cancelled)</option>
+                                        <option value="FAILED">Lỗi mạng / Không kết nối (Failed)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Search Button -->
+                            <div class="filter-group filter-action-group">
+                                <button type="submit" class="btn btn-primary search-btn-large" id="submitFilterBtn">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" class="mr-2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    Tìm kiếm
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Hàng 2: Bộ lọc nâng cao (Trượt mở rộng) -->
+                        <div id="advancedFilterSection" class="advanced-filter-row" style="display: none;">
+                            <div class="filter-grid-advanced">
+                                <div class="filter-group">
+                                    <label>Ngưỡng chất lượng MOS (ITU-T G.107)</label>
+                                    <select class="form-control" id="filterMos">
+                                        <option value="ALL">Tất cả điểm MOS</option>
+                                        <option value="POOR">Kém (MOS &lt; 3.0)</option>
+                                        <option value="FAIR">Trung bình (3.0 &le; MOS &lt; 4.0)</option>
+                                        <option value="GOOD">Tốt (MOS &ge; 4.0)</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label>Mã kết thúc SIP (Disconnection Code)</label>
+                                    <select class="form-control" id="filterDisconnectionCode">
+                                        <option value="ALL">Tất cả mã SIP</option>
+                                        <option value="200">200 - OK (Thành công)</option>
+                                        <option value="486">486 - Busy Here (Máy bận)</option>
+                                        <option value="487">487 - Request Terminated (Hủy gọi)</option>
+                                        <option value="503">503 - Service Unavailable (Lỗi tổng đài)</option>
+                                        <option value="408">408 - Request Timeout (Hết thời gian)</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label>Định dạng Codec RTP</label>
+                                    <select class="form-control" id="filterCodec">
+                                        <option value="ALL">Tất cả Codec</option>
+                                        <option value="G711U">G.711u (PCMU - 64 kbps)</option>
+                                        <option value="G711A">G.711a (PCMA - 64 kbps)</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label>Tỷ lệ mất gói tin (Packet Loss)</label>
+                                    <select class="form-control" id="filterPacketLoss">
+                                        <option value="ALL">Tất cả cuộc gọi</option>
+                                        <option value="ZERO">Không mất gói (Loss = 0%)</option>
+                                        <option value="HAS_LOSS">Có mất gói (Loss &gt; 0%)</option>
+                                        <option value="HIGH_LOSS">Mất gói nghiêm trọng (Loss &gt; 2%)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Data Table (Bố cục 7 Cột cô đọng) -->
+                <div class="card">
+                    <div class="card-body no-padding">
+                        <div class="table-responsive">
+                            <table class="data-table" id="qosTable">
+                                <thead>
+                                    <tr>
+                                        <th style="min-width: 140px;">Thời gian & Thời lượng</th>
+                                        <th style="min-width: 150px;">Bên gọi (Caller)</th>
+                                        <th style="min-width: 150px;">Bên nhận (Called)</th>
+                                        <th style="min-width: 150px; text-align: center;">Trạng thái & Mã SIP</th>
+                                        <th style="min-width: 260px; text-align: center;">Chất lượng thoại 2 chiều (MOS | Loss | Jitter)</th>
+                                        <th style="min-width: 90px; text-align: center;">RTP Codec</th>
+                                        <th style="min-width: 90px; text-align: center;">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="qosTableBody">
+                                    <!-- Render tự động bằng JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="pagination-container">
+                            <div class="pagination-info" style="display: flex; align-items: center; gap: 8px;">
+                                <span>Hiển thị</span>
+                                <select class="form-control" id="pageSizeSelect" style="width: auto; padding: 4px 28px 4px 8px; height: 32px; font-size: 0.875rem;">
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                    <option value="50">50</option>
+                                </select>
+                                <span id="paginationSummary">bản ghi mỗi trang</span>
+                            </div>
+                            <ul class="pagination" id="paginationControls">
+                                <!-- Render tự động bằng JavaScript -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+    <script src="qos-debug.js"></script>
+
+    <!-- Modal Chi tiết Thông số QoS & SIP 4 Khối Grid Cards -->
+    <div id="qosDetailModal" class="qos-modal-backdrop" style="display: none;">
+        <div class="qos-modal-dialog" role="dialog" aria-modal="true">
+            <div class="qos-modal-header">
+                <div>
+                    <h3 id="modalCallIdTitle">Chi tiết Kỹ thuật QoS Cuộc gọi</h3>
+                    <div style="font-size: 0.775rem; color: var(--text-muted); margin-top: 2px;">
+                        SIP Call-ID: <span id="modalSipCallIdBadge" style="font-family: 'JetBrains Mono', Consolas, monospace; color: var(--primary);">N/A</span>
+                    </div>
+                </div>
+                <button type="button" class="qos-modal-close-btn" onclick="closeQosDetailModal()" title="Đóng modal">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
+            <div class="qos-modal-body">
+                <!-- 4 Grid Cards -->
+                <div class="qos-grid-4cards">
+                    <!-- KHỐI 1: Thông tin Tổng quan Cuộc gọi -->
+                    <div class="qos-card">
+                        <div class="qos-card-header">
+                            <h4 class="qos-card-title">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                1. Tổng quan Cuộc gọi
+                            </h4>
+                            <span class="badge-group" id="mCallDirection">remote</span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Khởi tạo (Created):</span>
+                            <span class="qos-info-val" id="mCallCreated">-</span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Bắt máy (Answered):</span>
+                            <span class="qos-info-val" id="mCallAnswered">-</span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Kết thúc (Destroyed):</span>
+                            <span class="qos-info-val" id="mCallDestroyed">-</span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Thời lượng đàm thoại:</span>
+                            <span class="qos-info-val text-primary" id="mCallDuration" style="font-weight: 700;">-</span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Bên gọi (CallerId):</span>
+                            <span class="qos-info-val" id="mCallCaller">-</span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Bên nhận (CalledId):</span>
+                            <span class="qos-info-val" id="mCallCalled">-</span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Cắt kết nối (ReleasedBy):</span>
+                            <span class="qos-info-val" id="mCallReleasedBy">-</span>
+                        </div>
+                    </div>
+
+                    <!-- KHỐI 2: Báo hiệu SIP & Độ trễ Mạng -->
+                    <div class="qos-card">
+                        <div class="qos-card-header">
+                            <h4 class="qos-card-title">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                2. Báo hiệu SIP & Độ trễ
+                            </h4>
+                            <span id="mSipDisconnCode"></span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Độ trễ bắt máy (Answer Delay):</span>
+                            <span class="qos-info-val" id="mSipAnswerDelay">-</span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Trễ SIP 100 Trying:</span>
+                            <span class="qos-info-val" id="mSip100Delay">-</span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Trễ SIP 180 Ringing:</span>
+                            <span class="qos-info-val" id="mSip180Delay">-</span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Trễ SIP 183 Session Progress:</span>
+                            <span class="qos-info-val" id="mSip183Delay">-</span>
+                        </div>
+                        <div class="qos-info-row">
+                            <span class="qos-info-label">Độ trễ tín hiệu âm thanh:</span>
+                            <span class="qos-info-val" id="mSipAudioDelay">-</span>
+                        </div>
+                    </div>
+
+                    <!-- KHỐI 3: Chất lượng Thoại RTP ITU-T G.107 (Đối chiếu 2 chiều) -->
+                    <div class="qos-card" style="grid-column: span 2;">
+                        <div class="qos-card-header">
+                            <h4 class="qos-card-title">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                                3. Chỉ số Chất lượng Thoại RTP ITU-T G.107 (So sánh 2 chiều Caller vs Called)
+                            </h4>
+                        </div>
+                        <table class="qos-subtable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 34%;">Tham số kỹ thuật</th>
+                                    <th style="width: 33%;">Phía Gọi (Caller / TX)</th>
+                                    <th style="width: 33%;">Phía Nhận (Called / RX)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Điểm chất lượng MOS G.107</strong></td>
+                                    <td><span id="mCallerMos" style="font-weight: 700; font-family:'JetBrains Mono'; color:#059669;">-</span></td>
+                                    <td><span id="mCalledMos" style="font-weight: 700; font-family:'JetBrains Mono'; color:#059669;">-</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Hệ số R-Factor (G.107 R-Value)</td>
+                                    <td id="mCallerR">-</td>
+                                    <td id="mCalledR">-</td>
+                                </tr>
+                                <tr>
+                                    <td>Tổng số gói tin RTP (PacketsCount)</td>
+                                    <td id="mCallerPackets">-</td>
+                                    <td id="mCalledPackets">-</td>
+                                </tr>
+                                <tr>
+                                    <td>Gói tin thất lạc (LostPackets / %)</td>
+                                    <td id="mCallerLoss">-</td>
+                                    <td id="mCalledLoss">-</td>
+                                </tr>
+                                <tr>
+                                    <td>Độ trễ Jitter RFC 3550 (Trung bình)</td>
+                                    <td id="mCallerJitterMean">-</td>
+                                    <td id="mCalledJitterMean">-</td>
+                                </tr>
+                                <tr>
+                                    <td>Độ trễ Jitter RFC 3550 (Cực đại)</td>
+                                    <td id="mCallerJitterMax">-</td>
+                                    <td id="mCalledJitterMax">-</td>
+                                </tr>
+                                <tr>
+                                    <td>Biến thiên khoảng cách gói (RTP Delta)</td>
+                                    <td id="mCallerDelta">-</td>
+                                    <td id="mCalledDelta">-</td>
+                                </tr>
+                                <tr>
+                                    <td>Thời gian đóng gói (PacketTime)</td>
+                                    <td id="mCallerPktTime">20 ms</td>
+                                    <td id="mCalledPktTime">20 ms</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- KHỐI 4: Hạ tầng Mạng IP & DSCP (Transport & Layer 3 QoS) -->
+                    <div class="qos-card" style="grid-column: span 2;">
+                        <div class="qos-card-header">
+                            <h4 class="qos-card-title">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                                4. Hạ tầng Mạng IP & Phân lớp Dịch vụ DSCP (Transport & Layer 3)
+                            </h4>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                            <div>
+                                <div class="qos-info-row">
+                                    <span class="qos-info-label">IP Báo hiệu SIP (Caller):</span>
+                                    <span class="qos-info-val" id="mCallerSignalingIp">-</span>
+                                </div>
+                                <div class="qos-info-row">
+                                    <span class="qos-info-label">Media Endpoint RTP (Caller):</span>
+                                    <span class="qos-info-val" id="mCallerRtpEndpoint">-</span>
+                                </div>
+                                <div class="qos-info-row">
+                                    <span class="qos-info-label">Phân lớp DSCP (Caller):</span>
+                                    <span class="qos-info-val" id="mCallerDscp">-</span>
+                                </div>
+                                <div class="qos-info-row">
+                                    <span class="qos-info-label">RTP SSRC (Caller):</span>
+                                    <span class="qos-info-val" id="mCallerSsrc">-</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="qos-info-row">
+                                    <span class="qos-info-label">IP Báo hiệu SIP (Called):</span>
+                                    <span class="qos-info-val" id="mCalledSignalingIp">-</span>
+                                </div>
+                                <div class="qos-info-row">
+                                    <span class="qos-info-label">Media Endpoint RTP (Called):</span>
+                                    <span class="qos-info-val" id="mCalledRtpEndpoint">-</span>
+                                </div>
+                                <div class="qos-info-row">
+                                    <span class="qos-info-label">Phân lớp DSCP (Called):</span>
+                                    <span class="qos-info-val" id="mCalledDscp">-</span>
+                                </div>
+                                <div class="qos-info-row">
+                                    <span class="qos-info-label">RTP SSRC (Called):</span>
+                                    <span class="qos-info-val" id="mCalledSsrc">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); display: flex; justify-content: space-between; font-size: 0.8125rem;">
+                            <span>Định dạng Codec: <strong id="mRtpCodecName" class="codec-badge">-</strong></span>
+                            <span>Tần số lấy mẫu: <strong id="mRtpSampleRate" style="font-family:'JetBrains Mono';">8000 Hz</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="qos-modal-footer">
+                <button type="button" class="btn btn-primary" onclick="closeQosDetailModal()">Đóng cửa sổ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Xác nhận Đăng xuất (ConfirmModal) -->
+    <div id="logoutModal" class="confirm-modal-backdrop" style="display: none;">
+        <div class="confirm-modal-dialog" role="dialog" aria-modal="true">
+            <div class="confirm-modal-icon-wrapper confirm-modal-icon--danger">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </div>
+            <div class="confirm-modal-content">
+                <h3 class="confirm-modal-title">Xác nhận đăng xuất</h3>
+                <p class="confirm-modal-message">Bạn có chắc chắn muốn đăng xuất khỏi hệ thống EVN CDRAS?</p>
+            </div>
+            <div class="confirm-modal-actions">
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--cancel" onclick="closeLogoutModal()">Hủy bỏ</button>
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--danger" onclick="confirmLogout()">Đăng xuất</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

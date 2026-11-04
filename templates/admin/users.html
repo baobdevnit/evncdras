@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý người dùng - EVN CDR AS</title>
+    <meta name="description" content="Quản lý danh sách nhóm người dùng và tài khoản người dùng hệ thống EVN CDR AS">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="users.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="main.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Mobile Header -->
+        <div class="mobile-header">
+            <div class="mobile-logo-brand">
+                <img src="logo_evn.svg" alt="EVN Logo" class="mobile-logo">
+                <div class="brand-text">
+                    <h2 class="mobile-brand">EVN CDRAS</h2>
+                    <p class="mobile-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+            <button id="mobileMenuToggle" class="mobile-menu-btn" title="Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="mobile-overlay" id="mobileOverlay"></div>
+
+        <!-- Sidebar Menu -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-small">
+                    <img src="logo_evn.svg" alt="EVN Logo" style="width: 40px; height: 40px; object-fit: contain;">
+                </div>
+                <div class="brand-text">
+                    <h2 class="brand-name">EVN CDRAS</h2>
+                    <p class="brand-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-menu">
+                <ul>
+                    <li>
+                        <a href="dashboard.html" title="Tổng quan">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                            <span class="menu-text">Tổng quan</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="notifications.html" title="Thông báo">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                            <span class="menu-text">Thông báo</span>
+                            <span class="menu-badge notification-badge-global">0</span>
+                        </a>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            <span class="menu-text">Nhật ký cuộc gọi</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="cdr-history.html" title="Tra cứu CDR">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    <span class="menu-text">Tra cứu CDR</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="qos-debug.html" title="Phân tích QoS & Gỡ lỗi">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                    <span class="menu-text">Phân tích QoS</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="reports.html" title="Báo cáo">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                                    <span class="menu-text">Báo cáo</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                            <span class="menu-text">Tổ chức</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="organization.html" title="Danh mục tổ chức">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                                    <span class="menu-text">Danh mục tổ chức</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="prefix-management.html" title="Quản lý đầu số">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                    <span class="menu-text">Quản lý đầu số</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="prefix-history.html" title="Lịch sử cấp phát dải số">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                    <span class="menu-text">Lịch sử cấp phát</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group expanded">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Người dùng</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="user_group.html" title="Nhóm người dùng">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                    <span class="menu-text">Nhóm người dùng</span>
+                                </a>
+                            </li>
+                            <li class="active">
+                                <a href="users.html" title="Người dùng">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    <span class="menu-text">Người dùng</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="roles.html" title="Vai trò">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+                                    <span class="menu-text">Vai trò</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="permissions.html" title="Quyền hạn">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <span class="menu-text">Quyền hạn</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="data-permissions.html" title="Quyền theo dữ liệu & hành vi">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                                    </svg>
+                                    <span class="menu-text">Quyền theo dữ liệu</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+                
+                <div class="menu-divider"></div>
+                
+                <ul>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                            <span class="menu-text">Hệ thống</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="system-settings.html" title="Cài đặt hệ thống">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                    <span class="menu-text">Cài đặt hệ thống</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Tài khoản</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="profile.html" title="Hồ sơ của tôi">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    <span class="menu-text">Hồ sơ của tôi</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="change-password.html" title="Đổi mật khẩu">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <span class="menu-text">Đổi mật khẩu</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="user-settings.html" title="Cài đặt tài khoản">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
+                                    <span class="menu-text">Cài đặt tài khoản</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-profile" id="userProfileBtn">
+                    <img src="https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff" alt="User Avatar" class="avatar">
+                    <div class="user-info">
+                        <span class="user-name">Quản trị viên</span>
+                        <span class="user-role">Quản lý cấp cao</span>
+                    </div>
+                    
+                    <!-- Dropdown Menu -->
+                    <div class="profile-dropdown" id="profileDropdown">
+                        <a href="profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Hồ sơ của tôi</a>
+                        <a href="change-password.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Đổi mật khẩu</a>
+                        <a href="user-settings.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg> Cài đặt tài khoản</a>
+                        <div class="dropdown-divider"></div>
+                        <button type="button" class="logout-btn" id="logoutBtn" onclick="openLogoutModal()">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                            Đăng xuất
+                        </button>
+                    </div>
+                </div>
+                
+                <button id="themeToggle" class="theme-toggle-menu" title="Giao diện Sáng/Tối"></button>
+                
+                <button id="sidebarToggle" class="collapse-btn-floating" title="Thu gọn/Mở rộng">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="11 17 6 12 11 7"></polyline>
+                        <polyline points="18 17 13 12 18 7"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <div class="main-wrapper">
+            <!-- Dashboard Content -->
+            <main class="main-content">
+                <div class="page-header d-flex-between">
+                    <div>
+                        <h1>Quản lý người dùng</h1>
+                        <p>Danh sách nhóm người dùng và quản lý tài khoản người dùng hệ thống</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="openAddUserModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+                        Thêm mới người dùng
+                    </button>
+                </div>
+
+                <div class="split-view">
+                    <!-- Left Sidebar for User Groups List -->
+                    <div class="group-sidebar card">
+                        <div class="card-header">
+                            <div class="group-header-top">
+                                <h3>Nhóm người dùng</h3>
+                                <span class="badge-count" style="font-size: 0.75rem; padding: 2px 8px;">5 nhóm</span>
+                            </div>
+                            <div class="group-search-box">
+                                <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                <input type="text" id="groupSearchInput" class="form-control" placeholder="Tìm kiếm nhóm...">
+                            </div>
+                        </div>
+                        <div class="group-list-container">
+                            <ul class="group-list" id="groupList">
+                                <li class="group-item active" data-group="all">
+                                    <div class="group-item-header">
+                                        <span class="group-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                        </span>
+                                        <div class="group-info">
+                                            <span class="group-name">Tất cả nhóm</span>
+                                            <div class="group-meta">
+                                                <span class="badge-code">ALL</span> • <span>Toàn hệ thống</span>
+                                            </div>
+                                        </div>
+                                        <span class="badge-count">30</span>
+                                    </div>
+                                </li>
+                                <li class="group-item" data-group="1" data-code="UMO-IT-01">
+                                    <div class="group-item-header">
+                                        <span class="group-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                                        </span>
+                                        <div class="group-info">
+                                            <span class="group-name">Nhóm Quản trị Vận hành HT</span>
+                                            <div class="group-meta">
+                                                <span class="badge-code">UMO-IT-01</span> • <span class="group-admin-hint">QTV: Trần Thị B</span>
+                                            </div>
+                                        </div>
+                                        <span class="badge-count">6</span>
+                                    </div>
+                                </li>
+                                <li class="group-item" data-group="2" data-code="UMO-IT-02">
+                                    <div class="group-item-header">
+                                        <span class="group-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                                        </span>
+                                        <div class="group-info">
+                                            <span class="group-name">Nhóm Kỹ thuật Phần mềm</span>
+                                            <div class="group-meta">
+                                                <span class="badge-code">UMO-IT-02</span> • <span class="group-admin-hint">QTV: Hoàng Văn Tuấn</span>
+                                            </div>
+                                        </div>
+                                        <span class="badge-count">6</span>
+                                    </div>
+                                </li>
+                                <li class="group-item" data-group="3" data-code="UMO-KD-01">
+                                    <div class="group-item-header">
+                                        <span class="group-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                        </span>
+                                        <div class="group-info">
+                                            <span class="group-name">Nhóm Call Center CSKH</span>
+                                            <div class="group-meta">
+                                                <span class="badge-code">UMO-KD-01</span> • <span class="group-admin-hint">QTV: Phạm Thu Hương</span>
+                                            </div>
+                                        </div>
+                                        <span class="badge-count">7</span>
+                                    </div>
+                                </li>
+                                <li class="group-item" data-group="4" data-code="UMO-AUDIT">
+                                    <div class="group-item-header">
+                                        <span class="group-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                                        </span>
+                                        <div class="group-info">
+                                            <span class="group-name">Tổ Giám sát Kiểm toán</span>
+                                            <div class="group-meta">
+                                                <span class="badge-code">UMO-AUDIT</span> • <span class="group-admin-hint">QTV: Nguyễn Hải Nam</span>
+                                            </div>
+                                        </div>
+                                        <span class="badge-count">5</span>
+                                    </div>
+                                </li>
+                                <li class="group-item" data-group="5" data-code="UMO-SEC-01">
+                                    <div class="group-item-header">
+                                        <span class="group-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                        </span>
+                                        <div class="group-info">
+                                            <span class="group-name">Tổ Chuyên gia SOC An toàn TT</span>
+                                            <div class="group-meta">
+                                                <span class="badge-code">UMO-SEC-01</span> • <span class="group-admin-hint">QTV: Vũ Minh Trí</span>
+                                            </div>
+                                        </div>
+                                        <span class="badge-count">6</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="group-sidebar-footer">
+                            <a href="user_group.html" class="link-manage-groups" title="Cấu hình danh mục nhóm người dùng và dải số liên kết">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                Quản lý cấu hình nhóm người dùng
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Right Main Area for User List -->
+                    <div class="user-content card">
+                        <div class="card-header d-flex-between">
+                            <div>
+                                <h3 id="currentGroupTitle">Tất cả nhóm người dùng <span class="badge-count" id="currentGroupCount">30</span></h3>
+                                <p class="group-subtitle text-muted" id="currentGroupSubtitle">Danh sách tài khoản người dùng thuộc tất cả các nhóm trong hệ thống</p>
+                            </div>
+                            <div class="user-search-box">
+                                <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                <input type="text" id="searchUserInput" placeholder="Tìm kiếm người dùng, email, tài khoản..." class="form-control">
+                            </div>
+                        </div>
+                        <div class="card-body no-padding">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Người dùng</th>
+                                        <th>Nhóm</th>
+                                        <th>Vai trò trong nhóm</th>
+                                        <th>Trạng thái</th>
+                                        <th class="text-right">Hành động</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Group 1: UMO-IT-01 (6 users) -->
+                                    <tr data-group="1" data-role="admin" data-name="Trần Thị B" data-email="tran.b@71portal.vn" data-username="tran.b" data-title="Trưởng nhóm Kỹ thuật Vận hành" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Tran+B&background=0033A0&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Trần Thị B</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">tran.b@71portal.vn • @tran.b</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role admin">★ Quản trị nhóm</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Trưởng nhóm kỹ thuật</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="1" data-role="admin" data-name="Lê Văn C" data-email="le.c@71portal.vn" data-username="le.c" data-title="Kỹ sư Quản trị Hệ thống" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Le+C&background=10b981&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Lê Văn C</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">le.c@71portal.vn • @le.c</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role admin">★ Quản trị nhóm</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Kỹ sư chính</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="1" data-role="member" data-name="Phạm Văn D" data-email="pham.d@71portal.vn" data-username="pham.d" data-title="Kỹ sư Vận hành Máy chủ" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Pham+D&background=FFD100&color=000" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Phạm Văn D</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">pham.d@71portal.vn • @pham.d</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Kỹ sư vận hành</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="1" data-role="member" data-name="Bùi Hoàng X" data-email="bui.x@71portal.vn" data-username="bui.x" data-title="Kỹ sư Giám sát Tổng đài" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Bui+X&background=0033A0&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Bùi Hoàng X</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">bui.x@71portal.vn • @bui.x</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Chuyên viên kỹ thuật</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="1" data-role="member" data-name="Trần Thu B" data-email="tran.b2@71portal.vn" data-username="tran.b2" data-title="Chuyên viên Vận hành Mạng" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Tran+Thu&background=64748b&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Trần Thu B</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">tran.b2@71portal.vn • @tran.b2</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Chuyên viên</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="1" data-role="member" data-name="Bùi Thu P" data-email="bui.p@71portal.vn" data-username="bui.p" data-title="Kỹ sư Hạ tầng Viễn thông" data-status="INACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Bui+P&background=8b5cf6&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Bùi Thu P</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">bui.p@71portal.vn • @bui.p</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Kỹ sư hạ tầng</span>
+                                        </td>
+                                        <td><span class="badge-status inactive">Khóa</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Group 2: UMO-IT-02 (6 users) -->
+                                    <tr data-group="2" data-role="admin" data-name="Hoàng Văn Tuấn" data-email="tuan.hv@71portal.vn" data-username="tuan.hv" data-title="Trưởng nhóm Kỹ thuật Phần mềm" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Hoang+Tuan&background=0284c7&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Hoàng Văn Tuấn</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">tuan.hv@71portal.vn • @tuan.hv</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-02</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role admin">★ Quản trị nhóm</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Tech Lead</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="2" data-role="member" data-name="Đỗ Mai T" data-email="do.t@71portal.vn" data-username="do.t" data-title="Kỹ sư Phát triển Backend" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Do+T&background=f59e0b&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Đỗ Mai T</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">do.t@71portal.vn • @do.t</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-02</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Backend Developer</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="2" data-role="member" data-name="Vũ Thu S" data-email="vu.s@71portal.vn" data-username="vu.s" data-title="Kỹ sư Frontend & UI/UX" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Vu+S&background=ec4899&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Vũ Thu S</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">vu.s@71portal.vn • @vu.s</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-02</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Frontend Engineer</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="2" data-role="member" data-name="Đặng Đức Q" data-email="dang.q@71portal.vn" data-username="dang.q" data-title="Kỹ sư Tích hợp CDR SIP" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Dang+Q&background=10b981&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Đặng Đức Q</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">dang.q@71portal.vn • @dang.q</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-02</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">VoIP / SIP Engineer</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="2" data-role="member" data-name="Phạm Thị C" data-email="pham.c@71portal.vn" data-username="pham.c" data-title="Chuyên viên Kiểm thử QA" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Pham+C&background=E31837&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Phạm Thị C</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">pham.c@71portal.vn • @pham.c</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-02</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">QA / Tester</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="2" data-role="member" data-name="Lê Mai F" data-email="le.f@71portal.vn" data-username="le.f" data-title="Kỹ sư Cơ sở Dữ liệu" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Le+F&background=FFD100&color=000" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Lê Mai F</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">le.f@71portal.vn • @le.f</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-IT-02</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">DBA Engineer</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Group 3: UMO-KD-01 (7 users) -->
+                                    <tr data-group="3" data-role="admin" data-name="Phạm Thu Hương" data-email="huong.pt@71portal.vn" data-username="huong.pt" data-title="Trưởng nhóm Call Center CSKH" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Pham+Huong&background=f59e0b&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Phạm Thu Hương</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">huong.pt@71portal.vn • @huong.pt</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-KD-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role admin">★ Quản trị nhóm</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Trưởng nhóm CSKH</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="3" data-role="admin" data-name="Đặng Quốc Huy" data-email="huy.dq@71portal.vn" data-username="huy.dq" data-title="Giám sát Tổng đài CSKH" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Dang+Huy&background=6366f1&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Đặng Quốc Huy</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">huy.dq@71portal.vn • @huy.dq</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-KD-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role admin">★ Quản trị nhóm</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Giám sát ca</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="3" data-role="member" data-name="Võ Thanh Q" data-email="vo.q@71portal.vn" data-username="vo.q" data-title="Điện thoại viên Tiếp nhận" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Vo+Q&background=f59e0b&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Võ Thanh Q</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">vo.q@71portal.vn • @vo.q</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-KD-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Điện thoại viên</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="3" data-role="member" data-name="Bùi Văn L" data-email="bui.l@71portal.vn" data-username="bui.l" data-title="Chuyên viên Phân tích Cuộc gọi" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Bui+L&background=8b5cf6&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Bùi Văn L</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">bui.l@71portal.vn • @bui.l</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-KD-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Chuyên viên phân tích</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="3" data-role="member" data-name="Lý Văn V" data-email="ly.v@71portal.vn" data-username="ly.v" data-title="Điện thoại viên Trực ca" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Ly+V&background=0033A0&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Lý Văn V</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">ly.v@71portal.vn • @ly.v</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-KD-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Điện thoại viên</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="3" data-role="member" data-name="Dương Mai V" data-email="duong.v@71portal.vn" data-username="duong.v" data-title="Chuyên viên CSKH" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Duong+V&background=0033A0&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Dương Mai V</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">duong.v@71portal.vn • @duong.v</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-KD-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Chuyên viên tư vấn</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="3" data-role="member" data-name="Huỳnh Thu K" data-email="huynh.k@71portal.vn" data-username="huynh.k" data-title="Điện thoại viên Hỗ trợ Sự cố" data-status="INACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Huynh+K&background=ec4899&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Huỳnh Thu K</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">huynh.k@71portal.vn • @huynh.k</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-KD-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Điện thoại viên</span>
+                                        </td>
+                                        <td><span class="badge-status inactive">Khóa</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Group 4: UMO-AUDIT (5 users) -->
+                                    <tr data-group="4" data-role="admin" data-name="Nguyễn Hải Nam" data-email="nam.nh@evn.com.vn" data-username="nam.nh" data-title="Trưởng nhóm Giám sát Kiểm toán" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Nguyen+Nam&background=64748b&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Nguyễn Hải Nam</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">nam.nh@evn.com.vn • @nam.nh</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-AUDIT</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role admin">★ Quản trị nhóm</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Trưởng tổ kiểm toán</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="4" data-role="member" data-name="Hồ Thị T" data-email="ho.t@evn.com.vn" data-username="ho.t" data-title="Kiểm toán viên Viễn thông" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Ho+T&background=FFD100&color=000" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Hồ Thị T</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">ho.t@evn.com.vn • @ho.t</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-AUDIT</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Kiểm toán viên</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="4" data-role="member" data-name="Đỗ Văn E" data-email="do.e@evn.com.vn" data-username="do.e" data-title="Chuyên viên Quản trị Lưu lượng Thoại" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Do+E&background=f59e0b&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Đỗ Văn E</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">do.e@evn.com.vn • @do.e</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-AUDIT</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Chuyên viên lưu lượng</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="4" data-role="member" data-name="Lê Văn C" data-email="le.c2@evn.com.vn" data-username="le.c2" data-title="Chuyên viên Thẩm tra Dữ liệu" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Le+C&background=8b5cf6&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Lê Văn C</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">le.c2@evn.com.vn • @le.c2</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-AUDIT</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Chuyên viên</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="4" data-role="member" data-name="Đỗ Thanh H" data-email="do.h@evn.com.vn" data-username="do.h" data-title="Chuyên viên Báo cáo Độc lập" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Do+H&background=E31837&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Đỗ Thanh H</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">do.h@evn.com.vn • @do.h</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-AUDIT</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Chuyên viên</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Group 5: UMO-SEC-01 (6 users) -->
+                                    <tr data-group="5" data-role="admin" data-name="Vũ Minh Trí" data-email="tri.vm@soc.evn.vn" data-username="tri.vm" data-title="Trưởng nhóm SOC An toàn TT" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Vu+Tri&background=dc2626&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Vũ Minh Trí</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">tri.vm@soc.evn.vn • @tri.vm</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-SEC-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role admin">★ Quản trị nhóm</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Trưởng tổ SOC</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="5" data-role="member" data-name="Vũ Thu Q" data-email="vu.q@soc.evn.vn" data-username="vu.q" data-title="Kỹ sư Giám sát SOC 24/7" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Vu+Q&background=f59e0b&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Vũ Thu Q</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">vu.q@soc.evn.vn • @vu.q</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-SEC-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Kỹ sư SOC L2</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="5" data-role="member" data-name="Võ Xuân Y" data-email="vo.y@soc.evn.vn" data-username="vo.y" data-title="Chuyên viên Giám sát Kỹ thuật Thoại" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Vo+Y&background=0033A0&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Võ Xuân Y</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">vo.y@soc.evn.vn • @vo.y</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-SEC-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Fraud Analyst</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="5" data-role="member" data-name="Đặng Minh F" data-email="dang.f@soc.evn.vn" data-username="dang.f" data-title="Kỹ sư Ứng cứu Sự cố An ninh" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Dang+F&background=E31837&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Đặng Minh F</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">dang.f@soc.evn.vn • @dang.f</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-SEC-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Incident Responder</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="5" data-role="member" data-name="Phạm Ngọc C" data-email="pham.c2@soc.evn.vn" data-username="pham.c2" data-title="Kỹ sư Quản trị Tường lửa" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Pham+C&background=10b981&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Phạm Ngọc C</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">pham.c2@soc.evn.vn • @pham.c2</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-SEC-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Security Admin</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                    <tr data-group="5" data-role="member" data-name="Vũ Ngọc H" data-email="vu.h@soc.evn.vn" data-username="vu.h" data-title="Chuyên viên An toàn Mạng" data-status="ACTIVE">
+                                        <td>
+                                            <div class="user-card-small">
+                                                <img src="https://ui-avatars.com/api/?name=Vu+H&background=ec4899&color=fff" class="avatar-sm" alt="Avatar">
+                                                <div>
+                                                    <span class="fw-600">Vũ Ngọc H</span>
+                                                    <span class="text-muted d-block" style="font-size: 0.75rem;">vu.h@soc.evn.vn • @vu.h</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge-code">UMO-SEC-01</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-role member">Thành viên</span>
+                                            <span class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">Chuyên viên</span>
+                                        </td>
+                                        <td><span class="badge-status active">Hoạt động</span></td>
+                                        <td class="text-right">
+                                            <button class="action-btn edit-btn" onclick="editUser(this)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                            <button class="action-btn delete-btn" onclick="deleteUser(this)" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div id="noDataMsg" style="display: none; padding: 3rem; text-align: center; color: var(--text-muted);">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.5;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="17" y1="8" x2="23" y2="14"></line><line x1="23" y1="8" x2="17" y2="14"></line></svg>
+                                <p>Không tìm thấy người dùng nào trong nhóm này.</p>
+                            </div>
+                        </div>
+                        <div class="pagination-container">
+                            <div class="pagination-info" style="display: flex; align-items: center; gap: 8px;">
+                                <span>Hiển thị 1 đến 10</span>
+                                <select class="form-control" style="width: auto; padding: 4px 28px 4px 8px; height: 32px; font-size: 0.875rem;">
+                                    <option value="5">5</option>
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                    <option value="50">50</option>
+                                </select>
+                                <span>bản ghi mỗi trang (Tổng: 30)</span>
+                            </div>
+                            <ul class="pagination">
+                                <li class="page-item disabled"><a href="#" class="page-link">&laquo;</a></li>
+                                <li class="page-item active"><a href="#" class="page-link">1</a></li>
+                                <li class="page-item"><a href="#" class="page-link">2</a></li>
+                                <li class="page-item"><a href="#" class="page-link">3</a></li>
+                                <li class="page-item"><a href="#" class="page-link">&raquo;</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal Form (Add/Edit User) -->
+    <div id="userModal" class="modal">
+        <div class="modal-content" style="max-width: 720px;">
+            <div class="modal-header">
+                <h2>Thông tin Người dùng</h2>
+                <button class="close-btn" onclick="closeModal('userModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="creatorScopeBanner" class="creator-scope-banner system-admin">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0; margin-top: 1px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <span id="creatorScopeText">Đang thao tác với tư cách <strong>Quản trị viên hệ thống</strong>: Có quyền chỉ định tài khoản vào bất kỳ nhóm người dùng nào trong toàn hệ thống.</span>
+                </div>
+                <form id="userForm">
+                    <!-- Hàng 1: Họ tên & Tên đăng nhập -->
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Họ và tên <span class="text-danger">*</span></label>
+                            <input type="text" id="userNameInput" class="form-control" required placeholder="Nhập họ và tên">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Tên đăng nhập <span class="text-danger">*</span></label>
+                            <input type="text" id="userUsernameInput" class="form-control" required placeholder="nguyen.vana">
+                        </div>
+                    </div>
+
+                    <!-- Hàng 2: Email & Số điện thoại -->
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Email <span class="text-danger">*</span></label>
+                            <input type="email" id="userEmailInput" class="form-control" required placeholder="example@71portal.vn">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Số điện thoại</label>
+                            <input type="tel" id="userPhoneInput" class="form-control" placeholder="0987xxxxxx">
+                        </div>
+                    </div>
+
+                    <!-- Hàng 3: Nhóm & Vai trò trong nhóm -->
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Nhóm người dùng <span class="text-danger">*</span></label>
+                            <select id="userGroupSelect" class="form-control" required>
+                                <option value="">-- Chọn nhóm người dùng --</option>
+                                <option value="1">Nhóm Quản trị Vận hành HT (UMO-IT-01)</option>
+                                <option value="2">Nhóm Kỹ thuật Phần mềm (UMO-IT-02)</option>
+                                <option value="3">Nhóm Call Center CSKH (UMO-KD-01)</option>
+                                <option value="4">Tổ Giám sát Kiểm toán Độc lập (UMO-AUDIT)</option>
+                                <option value="5">Tổ Chuyên gia SOC An toàn TT (UMO-SEC-01)</option>
+                            </select>
+                            <div id="userGroupLockNotice" class="badge-locked-note" style="display: none; margin-top: 6px;">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                <span><strong>Cố định:</strong> Người dùng luôn thuộc nhóm này ngay từ lúc tạo và không thể chuyển nhóm sau này.</span>
+                            </div>
+                            <div id="userGroupCreationNotice" style="margin-top: 4px; font-size: 0.75rem; color: var(--text-muted); line-height: 1.35;">
+                                <span>ℹ️ Người dùng luôn luôn thuộc cố định vào một nhóm người dùng ngay từ lúc khởi tạo; hệ thống không có khái niệm chuyển người dùng giữa các nhóm.</span>
+                            </div>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Vai trò trong nhóm <span class="text-danger">*</span></label>
+                            <select id="userRoleSelect" class="form-control" required>
+                                <option value="member">Thành viên thường</option>
+                                <option value="admin">Quản trị nhóm (Group Admin)</option>
+                            </select>
+                            <span style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-top: 4px; line-height: 1.35;">
+                                Quản trị nhóm cũng là thành viên nhưng có quyền tạo và quản lý người dùng trong nhóm.
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Hàng 4: Chức danh & Trạng thái tài khoản -->
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Chức danh / Vị trí chuyên môn</label>
+                            <input type="text" id="userJobTitle" class="form-control" placeholder="Kỹ sư, Chuyên viên, Điện thoại viên...">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Trạng thái tài khoản</label>
+                            <select id="userStatusSelect" class="form-control">
+                                <option value="ACTIVE">Hoạt động</option>
+                                <option value="INACTIVE">Khóa</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('userModal')">Hủy</button>
+                <button type="button" class="btn btn-primary" onclick="saveUser()">Lưu thay đổi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Confirm Delete -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2>Xác nhận xóa người dùng</h2>
+                <button class="close-btn" onclick="closeModal('deleteModal')">&times;</button>
+            </div>
+            <div class="modal-body text-center">
+                <div class="icon-warning">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#E31837" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                </div>
+                <p>Bạn có chắc chắn muốn xóa tài khoản người dùng này không? Hành động này không thể hoàn tác.</p>
+            </div>
+            <div class="modal-footer justify-center">
+                <button type="button" class="btn btn-outline" onclick="closeModal('deleteModal')">Hủy</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteUser()">Xóa bỏ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Xác nhận Đăng xuất (ConfirmModal) -->
+    <div id="logoutModal" class="confirm-modal-backdrop" style="display: none;">
+        <div class="confirm-modal-dialog" role="dialog" aria-modal="true">
+            <div class="confirm-modal-icon-wrapper confirm-modal-icon--danger">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </div>
+            <div class="confirm-modal-content">
+                <h3 class="confirm-modal-title">Xác nhận đăng xuất</h3>
+                <p class="confirm-modal-message">Bạn có chắc chắn muốn đăng xuất khỏi hệ thống EVN CDRAS?</p>
+            </div>
+            <div class="confirm-modal-actions">
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--cancel" onclick="closeLogoutModal()">Hủy bỏ</button>
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--danger" onclick="confirmLogout()">Đăng xuất</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="users.js"></script>
+</body>
+</html>

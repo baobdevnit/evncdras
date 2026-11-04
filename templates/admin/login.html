@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập Quản trị viên - EVN CDR AS</title>
+    <meta name="description" content="Trang đăng nhập Quản trị viên hệ thống EVN CDR AS">
+    <link rel="stylesheet" href="login.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="main.js"></script>
+</head>
+
+<body class="admin-login-page">
+    <div class="container">
+        <!-- Left Panel: Branded Admin Showcase -->
+        <div class="left-panel">
+            <div class="brand-section">
+
+                <div class="brand-logo-wrapper">
+                    <img src="logo_evn.svg" alt="EVN Logo" class="brand-logo">
+                </div>
+
+                <div class="welcome-text">
+                    <h1>EVN CDR <br>Analysis System</h1>
+                    <p class="subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+
+            </div>
+
+            <div class="decorations">
+                <div class="circle circle-1"></div>
+                <div class="circle circle-2"></div>
+                <div class="circle circle-3"></div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Authentication Form -->
+        <div class="right-panel">
+            <div class="right-panel-header">
+                <a href="../member/login.html" class="portal-switch-btn" title="Quay lại Cổng Người dùng">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    <span>Cổng Người dùng</span>
+                </a>
+
+                <button id="themeToggle" class="theme-toggle-btn" type="button" aria-label="Đổi giao diện">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" class="theme-icon">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <span class="theme-text">Giao diện tối</span>
+                </button>
+            </div>
+
+            <div class="admin-login-wrapper">
+                <div class="admin-login-header">
+                    <div class="admin-badge-inline">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        <span>Cổng Quản trị Hệ thống</span>
+                    </div>
+                    <h2>Đăng nhập Quản trị</h2>
+                    <p>Nhập thông tin tài khoản Quản trị viên để truy cập</p>
+                </div>
+
+                <!-- Error alerts -->
+                <div id="adminLoginError" class="admin-error-message" style="display: none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" class="error-icon">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span id="adminErrorMessage">Thông tin đăng nhập Quản trị không chính xác</span>
+                </div>
+
+                <form id="adminLoginForm" class="admin-login-form">
+                    <div class="input-group">
+                        <label for="adminEmail">Tên đăng nhập / Email Quản trị</label>
+                        <div class="input-container">
+                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            <input type="text" id="adminEmail" placeholder="Ví dụ: root.admin@evnict.vn" required
+                                autocomplete="username" value="root.admin@evnict.vn">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="adminPassword">Mật khẩu Quản trị</label>
+                        <div class="input-container">
+                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            <input type="password" id="adminPassword" placeholder="Nhập mật khẩu quản trị" required
+                                autocomplete="current-password" value="RootSecurePassword2026!@">
+                            <button type="button" id="toggleAdminPassword" class="toggle-password"
+                                aria-label="Hiện/Ẩn mật khẩu">
+                                <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-options">
+                        <label class="remember-me">
+                            <input type="checkbox" id="adminRemember">
+                            <span class="checkmark"></span>
+                            <span>Ghi nhớ phiên quản trị</span>
+                        </label>
+                        <a href="system-settings.html" class="forgot-link">Quên mật khẩu?</a>
+                    </div>
+
+                    <button type="submit" class="admin-submit-btn">
+                        <span>Xác thực Quản trị</span>
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                    </button>
+                </form>
+
+                <div class="form-footer">
+                    <p>Bạn là người dùng đơn vị? <a href="../member/login.html">Đăng nhập Cổng Người dùng</a></p>
+                </div>
+            </div>
+
+            <!-- Admin Copyright Footer -->
+            <div class="admin-login-footer">
+                <span>&copy; 2026 EVN CDR AS. Bảo lưu mọi quyền.</span>
+                <span class="footer-version">v1.0.0</span>
+            </div>
+        </div>
+    </div>
+    <script src="login.js"></script>
+</body>
+
+</html>

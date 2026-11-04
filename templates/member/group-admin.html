@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản trị Nhóm & Thành viên - EVN CDR AS</title>
+    <meta name="description" content="Trang quản trị thành viên nhóm dành riêng cho Quản trị viên nhóm EVN CDR AS">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="users.css">
+    <link rel="stylesheet" href="group-admin.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="main.js"></script>
+    <script src="group-admin.js"></script>
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <!-- Mobile Header -->
+        <div class="mobile-header">
+            <div class="mobile-logo-brand">
+                <img src="logo_evn.svg" alt="EVN Logo" class="mobile-logo">
+                <div class="brand-text">
+                    <h2 class="mobile-brand">EVN CDRAS</h2>
+                    <p class="mobile-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+            <button id="mobileMenuToggle" class="mobile-menu-btn" title="Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="mobile-overlay" id="mobileOverlay"></div>
+
+        <!-- Sidebar Menu -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-small">
+                    <img src="logo_evn.svg" alt="EVN Logo" style="width: 40px; height: 40px; object-fit: contain;">
+                </div>
+                <div class="brand-text">
+                    <h2 class="brand-name">EVN CDRAS</h2>
+                    <p class="brand-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+
+            <nav class="sidebar-menu">
+                <ul>
+                    <li>
+                        <a href="dashboard.html" title="Tổng quan đơn vị">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                            <span class="menu-text">Tổng quan đơn vị</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="notifications.html" title="Thông báo">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                            <span class="menu-text">Thông báo</span>
+                            <span class="menu-badge notification-badge-global">0</span>
+                        </a>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            <span class="menu-text">Nhật ký cuộc gọi</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="cdr-history.html" title="Tra cứu CDR">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    <span class="menu-text">Tra cứu CDR</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="qos-debug.html" title="Phân tích QoS">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                    <span class="menu-text">Phân tích QoS</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="reports.html" title="Báo cáo">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                                    <span class="menu-text">Báo cáo</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                            <span class="menu-text">Đầu số & Đơn vị</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="org-prefix.html" title="Đầu số nội bộ đơn vị">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M7 15h0M2 9.5h20"></path></svg>
+                                    <span class="menu-text">Đầu số đơn vị</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group expanded">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Thành viên đơn vị</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li class="active">
+                                <a href="group-admin.html" title="Quản trị nhóm">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                    </svg>
+                                    <span class="menu-text">Quản trị nhóm</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="group-members.html" title="Danh bạ nhóm">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="8.5" cy="7" r="4"></circle>
+                                        <polyline points="17 11 19 13 23 9"></polyline>
+                                    </svg>
+                                    <span class="menu-text">Danh bạ nhóm</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+                
+                <div class="menu-divider"></div>
+                
+                <ul>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Tài khoản</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="profile.html" title="Hồ sơ của tôi">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    <span class="menu-text">Hồ sơ của tôi</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="change-password.html" title="Đổi mật khẩu">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <span class="menu-text">Đổi mật khẩu</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="user-settings.html" title="Cài đặt tài khoản">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
+                                    <span class="menu-text">Cài đặt tài khoản</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile" id="userProfileBtn">
+                    <img src="https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff" alt="User Avatar" class="avatar">
+                    <div class="user-info">
+                        <span class="user-name">Quản trị viên Nhóm</span>
+                        <span class="user-role">EVNICT Đà Nẵng (51xxx)</span>
+                    </div>
+                    
+                    <!-- Dropdown Menu -->
+                    <div class="profile-dropdown" id="profileDropdown">
+                        <a href="profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Hồ sơ của tôi</a>
+                        <a href="change-password.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Đổi mật khẩu</a>
+                        <a href="user-settings.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg> Cài đặt tài khoản</a>
+                        <div class="dropdown-divider"></div>
+                        <button type="button" class="logout-btn" id="logoutBtn" onclick="openLogoutModal()">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                            Đăng xuất
+                        </button>
+                    </div>
+                </div>
+                
+                <button id="themeToggle" class="theme-toggle-menu" title="Giao diện Sáng/Tối"></button>
+                
+                <button id="sidebarToggle" class="collapse-btn-floating" title="Thu gọn/Mở rộng">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="11 17 6 12 11 7"></polyline>
+                        <polyline points="18 17 13 12 18 7"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <div class="main-wrapper" id="mainContainer">
+            <main class="main-content">
+                <!-- Page Header -->
+                <div class="page-header d-flex-between">
+                    <div>
+                        <div class="breadcrumb"
+                            style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 4px;">
+                            <span>Trang chủ</span> › <span>Người dùng</span> › <span
+                                style="color: var(--primary); font-weight: 600;">Nhóm</span>
+                        </div>
+                        <h1>Quản trị Nhóm thành viên</h1>
+                        <p>Đây là trang dành cho Quản trị viên của Nhóm thành viên</p>
+                    </div>
+                </div>
+
+                <!-- 2-Column Split Layout: Left Column = Group Summary Hero Card, Right Column = Member Management (Card & Table) -->
+                <div class="group-page-grid">
+                    <!-- Cột Trái: Group Summary Hero Card -->
+                    <aside class="group-sidebar-col">
+                        <div class="group-hero-card">
+                            <div class="group-hero-top">
+                                <div class="group-hero-brand">
+                                    <div class="group-hero-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="9" cy="7" r="4"></circle>
+                                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="group-hero-headings">
+                                        <div class="group-hero-title-row">
+                                            <h2 class="group-hero-title" id="heroGroupTitle">Khối Công nghệ Thông tin -
+                                                Nhóm Vận hành</h2>
+                                            <div class="group-hero-badges-row">
+                                                <span class="badge-code" id="heroGroupCode">UMO-IT-01</span>
+                                                <span class="badge-status active">Hoạt động</span>
+                                            </div>
+                                        </div>
+                                        <p class="group-hero-desc" id="heroGroupDesc">
+                                            Quản trị hệ thống máy chủ, hạ tầng mạng và giám sát tổng đài CDR toàn hệ
+                                            thống EVN
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div class="group-hero-actions">
+                                    <!-- Nút Thêm mới (Thẩm quyền Quản trị viên nhóm) -->
+                                    <button type="button" class="btn btn-primary btn-block"
+                                        onclick="openAddMemberModal()">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="8.5" cy="7" r="4"></circle>
+                                            <line x1="20" y1="8" x2="20" y2="14"></line>
+                                            <line x1="23" y1="11" x2="17" y2="11"></line>
+                                        </svg>
+                                        Thêm mới thành viên
+                                    </button>
+
+                                    <!-- Nút Xuất danh bạ -->
+                                    <button type="button" class="btn btn-outline btn-block"
+                                        onclick="exportMembersList()">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                            <polyline points="7 10 12 15 17 10"></polyline>
+                                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                                        </svg>
+                                        Xuất danh sách (CSV)
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Meta Grid (4 Thẻ tóm tắt thông tin quan trọng) -->
+                            <div class="group-meta-grid">
+                                <!-- 1. Đơn vị chủ quản / Cây tổ chức EVN -->
+                                <div class="group-meta-item">
+                                    <span class="group-meta-label">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                        </svg>
+                                        Cây tổ chức
+                                    </span>
+                                    <div class="group-meta-value" id="groupHierarchyBreadcrumb"
+                                        style="font-size: 0.8125rem;">
+                                    </div>
+                                </div>
+
+                                <!-- 2. Dải số điện thoại EVN liên kết -->
+                                <div class="group-meta-item">
+                                    <span class="group-meta-label">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path
+                                                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
+                                            </path>
+                                        </svg>
+                                        Dải số điện thoại EVN
+                                    </span>
+                                    <div class="group-meta-value" id="heroPrefixBinding">
+                                    </div>
+                                </div>
+
+                                <!-- 3. Quản trị viên nhóm (gồm Người đại diện và các QTV) -->
+                                <div class="group-meta-item">
+                                    <span class="group-meta-label">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <polygon
+                                                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+                                            </polygon>
+                                        </svg>
+                                        Quản trị viên nhóm
+                                    </span>
+                                    <div class="group-admin-list" id="heroAdminList">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- KPI Summary Bar -->
+                            <div class="kpi-summary-bar">
+                                <div><span class="text-muted">Tổng thành viên:</span> <strong id="kpiTotalMembers"
+                                        style="color: var(--primary);">0</strong></div>
+                                <div><span class="text-muted">Quản trị viên:</span> <strong id="kpiTotalAdmins"
+                                        style="color: #d97706;">0</strong></div>
+                                <div><span class="text-muted">Đang hoạt động:</span> <strong id="kpiActiveMembers"
+                                        style="color: #059669;">0</strong></div>
+                                <div><span class="text-muted">Đã khóa:</span> <strong id="kpiLockedMembers"
+                                        style="color: #dc2626;">0</strong></div>
+                            </div>
+                        </div>
+                    </aside>
+
+                    <!-- Cột Phải: Bảng Quản trị & Thẻ Thành viên Nhóm -->
+                    <section class="group-main-col">
+                        <div class="member-table-card">
+                            <!-- Table Header & Filter Bar -->
+                            <div class="member-table-header">
+                                <div class="member-table-title">
+                                    <h3>Danh sách thành viên quản lý</h3>
+                                    <span class="badge-count" id="memberTableCountBadge">0 thành viên</span>
+                                </div>
+
+                                <div class="member-filter-bar">
+                                    <!-- Search Input -->
+                                    <div class="member-search-box">
+                                        <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                        </svg>
+                                        <input type="text" id="memberSearchInput" class="form-control"
+                                            placeholder="Tìm họ tên, email, số điện thoại EVN...">
+                                    </div>
+
+                                    <!-- Filter Role -->
+                                    <select id="filterRoleSelect" class="filter-select" title="Lọc theo vai trò">
+                                        <option value="all">Tất cả vai trò</option>
+                                        <option value="admin">Quản trị viên nhóm</option>
+                                        <option value="member">Thành viên thường</option>
+                                    </select>
+
+                                    <!-- Filter Status -->
+                                    <select id="filterStatusSelect" class="filter-select" title="Lọc theo trạng thái">
+                                        <option value="all">Tất cả trạng thái</option>
+                                        <option value="ACTIVE">Đang hoạt động</option>
+                                        <option value="LOCKED">Đã khóa</option>
+                                    </select>
+
+                                    <!-- View Mode Switcher: Cards vs Table -->
+                                    <div class="view-mode-toggle">
+                                        <button type="button" class="view-mode-btn active" id="btnViewGrid"
+                                            title="Xem dạng Thẻ card">
+                                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+                                                stroke="currentColor" stroke-width="2">
+                                                <rect x="3" y="3" width="7" height="7"></rect>
+                                                <rect x="14" y="3" width="7" height="7"></rect>
+                                                <rect x="14" y="14" width="7" height="7"></rect>
+                                                <rect x="3" y="14" width="7" height="7"></rect>
+                                            </svg>
+                                            Dạng Thẻ
+                                        </button>
+                                        <button type="button" class="view-mode-btn" id="btnViewTable"
+                                            title="Xem dạng Bảng">
+                                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+                                                stroke="currentColor" stroke-width="2">
+                                                <line x1="8" y1="6" x2="21" y2="6"></line>
+                                                <line x1="8" y1="12" x2="21" y2="12"></line>
+                                                <line x1="8" y1="18" x2="21" y2="18"></line>
+                                                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                                            </svg>
+                                            Dạng Bảng
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 1. Admin Cards Grid (Default view) -->
+                            <div class="admin-cards-grid" id="adminCardsGrid"></div>
+
+                            <!-- 2. Data Table (Toggled view) -->
+                            <div class="data-table-wrapper" id="adminTableView" style="display: none;">
+                                <table class="member-data-table" id="membersTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Thành viên</th>
+                                            <th>Điện thoại</th>
+                                            <th>Vai trò</th>
+                                            <th>Trạng thái</th>
+                                            <th class="text-right">Hành động</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="membersTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Empty State -->
+                            <div class="table-empty-state" id="memberEmptyState" style="display: none;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <h4>Không tìm thấy thành viên nào</h4>
+                                <p style="font-size: 0.8125rem;">Thử thay đổi từ khóa tìm kiếm hoặc bỏ bớt các bộ lọc
+                                    đang chọn</p>
+                            </div>
+
+                            <!-- Pagination -->
+                            <div class="pagination-container"
+                                style="padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 10px;">
+                                <span id="paginationInfo" style="font-size: 0.8125rem; color: var(--text-muted);">Hiển
+                                    thị 0 thành viên</span>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <button type="button" class="btn btn-outline" id="paginationPrevBtn"
+                                        style="padding: 4px 10px; font-size: 0.8125rem;">Trước</button>
+                                    <div id="paginationPages" style="display: flex; gap: 4px;"></div>
+                                    <button type="button" class="btn btn-outline" id="paginationNextBtn"
+                                        style="padding: 4px 10px; font-size: 0.8125rem;">Sau</button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+       MODALS QUẢN TRỊ
+       ========================================================================== -->
+
+    <!-- Modal 1: Thêm thành viên mới (Cố định vào nhóm - BR-UG-01) -->
+    <div class="modal" id="addMemberModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Thêm thành viên mới vào nhóm</h3>
+                    <button type="button" class="close-btn" onclick="closeModal('addMemberModal')">&times;</button>
+                </div>
+                <form id="addMemberForm" onsubmit="submitAddMember(event)">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="form-label">Họ và tên thành viên <span
+                                    style="color: var(--secondary);">*</span></label>
+                            <input type="text" id="addFullName" class="form-control" placeholder="Ví dụ: Nguyễn Văn An"
+                                required>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div class="form-group">
+                                <label class="form-label">Tên đăng nhập (@username) <span
+                                        style="color: var(--secondary);">*</span></label>
+                                <input type="text" id="addUsername" class="form-control" placeholder="nguyen.va"
+                                    required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email <span style="color: var(--secondary);">*</span></label>
+                                <input type="email" id="addEmail" class="form-control" placeholder="an.nv@71portal.vn"
+                                    required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Điện thoại di động liên hệ</label>
+                            <input type="text" id="addPhone" class="form-control" placeholder="0912.xxx.xxx">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Chức danh / Vị trí công tác</label>
+                            <input type="text" id="addTitle" class="form-control"
+                                placeholder="Ví dụ: Kỹ sư Quản trị Hệ thống">
+                        </div>
+
+                        <!-- Cấp quyền ghi âm thoại MP3 (BR-UG-05 - Ẩn nếu nhóm chưa được cấp phép) -->
+                        <div class="form-group" id="addRecordingAccessGroup" style="display: none; margin-top: 6px;">
+                            <label class="recording-permission-label">
+                                <input type="checkbox" id="addCanAccessRecording">
+                                <span class="recording-label-text">
+                                    <strong>Cho phép nghe & tải ghi âm thoại MP3 (BR-UG-05)</strong>
+                                    <small>Ủy quyền cho thành viên được nghe trực tuyến và tải file ghi âm cuộc gọi của nhóm</small>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeModal('addMemberModal')">Hủy
+                            bỏ</button>
+                        <button type="submit" class="btn btn-primary">Thêm thành viên</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Chỉnh sửa thông tin thành viên (Cố định nhóm) -->
+    <div class="modal" id="editMemberModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Chỉnh sửa thông tin thành viên</h3>
+                    <button type="button" class="close-btn" onclick="closeModal('editMemberModal')">&times;</button>
+                </div>
+                <form id="editMemberForm" onsubmit="submitEditMember(event)">
+                    <div class="modal-body">
+                        <input type="hidden" id="editGroupNameDisplay" class="form-control" disabled
+                            style="background: var(--bg-hover); cursor: not-allowed; display: none;">
+                        <div class="form-group">
+                            <label class="form-label">Họ và tên <span style="color: var(--secondary);">*</span></label>
+                            <input type="text" id="editFullName" class="form-control" required>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div class="form-group">
+                                <label class="form-label">Tên đăng nhập</label>
+                                <input type="text" id="editUsername" class="form-control" disabled
+                                    style="background: var(--bg-hover); cursor: not-allowed;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email</label>
+                                <input type="email" id="editEmail" class="form-control" disabled
+                                    style="background: var(--bg-hover); cursor: not-allowed;">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Điện thoại di động liên hệ</label>
+                            <input type="text" id="editPhone" class="form-control">
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 12px;">
+                            <div class="form-group">
+                                <label class="form-label">Chức danh / Vị trí</label>
+                                <input type="text" id="editTitle" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Trạng thái</label>
+                                <select id="editStatus" class="form-control">
+                                    <option value="ACTIVE">Hoạt động</option>
+                                    <option value="LOCKED">Đã khóa</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Cấp quyền ghi âm thoại MP3 (BR-UG-05 - Ẩn nếu nhóm chưa được cấp phép) -->
+                        <div class="form-group" id="editRecordingAccessGroup" style="display: none; margin-top: 6px;">
+                            <label class="recording-permission-label">
+                                <input type="checkbox" id="editCanAccessRecording">
+                                <span class="recording-label-text">
+                                    <strong>Cho phép nghe & tải ghi âm thoại MP3 (BR-UG-05)</strong>
+                                    <small id="editRecordingAccessNote">Ủy quyền cho thành viên được nghe trực tuyến và tải file ghi âm cuộc gọi của nhóm</small>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeModal('editMemberModal')">Hủy
+                            bỏ</button>
+                        <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Bổ nhiệm / Hạ quyền Admin kèm Safeguard BR-UG-02 -->
+    <div class="modal" id="toggleAdminModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="toggleAdminModalTitle">Thay đổi vai trò Quản trị viên nhóm</h3>
+                    <button type="button" class="close-btn" onclick="closeModal('toggleAdminModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p id="toggleAdminModalDesc" style="margin-bottom: 14px; font-size: 0.925rem;"></p>
+                    <div id="toggleAdminSafeguardBox" class="safeguard-alert-box" style="display: none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('toggleAdminModal')">Đóng</button>
+                    <button type="button" class="btn btn-primary" id="confirmToggleAdminBtn"
+                        onclick="confirmToggleAdmin()">
+                        Xác nhận
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 4: Đặt lại Mật khẩu -->
+    <div class="modal" id="resetPasswordModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Đặt lại mật khẩu thành viên</h3>
+                    <button type="button" class="close-btn" onclick="closeModal('resetPasswordModal')">&times;</button>
+                </div>
+                <form id="resetPasswordForm" onsubmit="confirmResetPassword(event)">
+                    <div class="modal-body">
+                        <!-- Member Summary Profile Card -->
+                        <div class="reset-pass-profile">
+                            <img id="resetPassUserAvatar" src="" class="reset-pass-avatar" alt="Avatar">
+                            <div class="reset-pass-user-info">
+                                <div class="reset-pass-user-name" id="resetPassUserName">...</div>
+                                <div class="reset-pass-user-meta">
+                                    <span id="resetPassUserEmail">...</span>
+                                    <span class="meta-sep">•</span>
+                                    <span id="resetPassUserGroup">...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Mode Switcher Tabs -->
+                        <div class="reset-pass-mode-tabs">
+                            <button type="button" class="reset-pass-tab-btn active" id="resetPassTabAuto"
+                                onclick="switchResetPassMode('auto')">
+                                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15">
+                                    </path>
+                                </svg>
+                                <span>Tự động tạo ngẫu nhiên</span>
+                            </button>
+                            <button type="button" class="reset-pass-tab-btn" id="resetPassTabManual"
+                                onclick="switchResetPassMode('manual')">
+                                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                </svg>
+                                <span>Tự nhập mật khẩu</span>
+                            </button>
+                        </div>
+
+                        <!-- 1. Section: Auto-Generated Password -->
+                        <div id="resetPassAutoSection" class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Mật khẩu mới khởi tạo</label>
+                            <div class="password-gen-row">
+                                <input type="text" id="newGeneratedPassword" class="form-control password-gen-input"
+                                    readonly>
+                                <button type="button" class="btn-pass-action" onclick="generateRandomPassword()"
+                                    title="Tạo chuỗi mật khẩu ngẫu nhiên mới">
+                                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <polyline points="23 4 23 10 17 10"></polyline>
+                                        <polyline points="1 20 1 14 7 14"></polyline>
+                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15">
+                                        </path>
+                                    </svg>
+                                    <span>Tạo mới</span>
+                                </button>
+                                <button type="button" class="btn-pass-action" onclick="copyResetPassword()"
+                                    title="Sao chép mật khẩu">
+                                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                    <span>Sao chép</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 2. Section: Manual Password Input -->
+                        <div id="resetPassManualSection" class="manual-pass-grid" style="display: none;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label">Mật khẩu mới <span
+                                        style="color: var(--secondary);">*</span></label>
+                                <div class="password-field-wrapper">
+                                    <input type="password" id="manualNewPassword" class="form-control"
+                                        placeholder="Tối thiểu 8 ký tự...">
+                                    <button type="button" class="btn-toggle-eye"
+                                        onclick="togglePasswordVisibility('manualNewPassword', this)"
+                                        title="Ẩn/Hiện mật khẩu">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label">Xác nhận mật khẩu mới <span
+                                        style="color: var(--secondary);">*</span></label>
+                                <div class="password-field-wrapper">
+                                    <input type="password" id="manualConfirmPassword" class="form-control"
+                                        placeholder="Nhập lại mật khẩu mới...">
+                                    <button type="button" class="btn-toggle-eye"
+                                        onclick="togglePasswordVisibility('manualConfirmPassword', this)"
+                                        title="Ẩn/Hiện mật khẩu">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Security Options -->
+                        <div class="reset-pass-options">
+                            <label class="reset-pass-checkbox-label">
+                                <input type="checkbox" id="chkRequireChangePassword" checked>
+                                <span>Bắt buộc đổi mật khẩu ở lần đăng nhập tiếp theo</span>
+                            </label>
+                        </div>
+
+                        <!-- Safeguard Info Box -->
+                        <div class="safeguard-alert-box info" style="margin-top: 14px;">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                            <div>
+                                Mật khẩu tạm thời sẽ có hiệu lực ngay sau khi lưu. Hãy bàn giao mật khẩu cho thành viên
+                                theo kênh bảo mật.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeModal('resetPasswordModal')">Hủy
+                            bỏ</button>
+                        <button type="submit" class="btn btn-primary" id="btnConfirmResetPass">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            Lưu mật khẩu mới
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 5: Khóa / Mở khóa Tài khoản -->
+    <div class="modal" id="toggleStatusModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="toggleStatusTitle">Trạng thái tài khoản</h3>
+                    <button type="button" class="close-btn" onclick="closeModal('toggleStatusModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p id="toggleStatusDesc" style="font-size: 0.925rem; margin-bottom: 12px;"></p>
+                    <div id="toggleStatusAlertBox" class="safeguard-alert-box" style="display: none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline"
+                        onclick="closeModal('toggleStatusModal')">Đóng</button>
+                    <button type="button" class="btn btn-danger" id="confirmToggleStatusBtn"
+                        onclick="confirmToggleStatus()">
+                        Xác nhận
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 6: Xem Chi Tiết Thành Viên -->
+    <div class="modal" id="viewMemberModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Chi tiết thành viên</h3>
+                    <button type="button" class="close-btn" onclick="closeModal('viewMemberModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="member-detail-profile">
+                        <img id="viewMemberAvatar" src="" class="member-detail-avatar" alt="Avatar">
+                        <div>
+                            <h4 id="viewMemberFullName" style="font-size: 1.1rem; margin-bottom: 2px;"></h4>
+                            <span id="viewMemberUsername"
+                                style="font-size: 0.8125rem; color: var(--text-muted); display: block; margin-bottom: 6px;"></span>
+                            <div style="display: flex; gap: 8px;">
+                                <div id="viewMemberRoleBadge"></div>
+                                <div id="viewMemberStatusBadge"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="member-detail-grid">
+                        <div class="group-meta-item">
+                            <span class="group-meta-label">Nhóm người dùng</span>
+                            <span class="group-meta-value" id="viewMemberGroupName"
+                                style="font-size: 0.8125rem;"></span>
+                        </div>
+                        <div class="group-meta-item">
+                            <span class="group-meta-label">Chức danh / Vị trí</span>
+                            <span class="group-meta-value" id="viewMemberTitle" style="font-size: 0.8125rem;"></span>
+                        </div>
+                        <div class="group-meta-item">
+                            <span class="group-meta-label">Điện thoại di động</span>
+                            <span class="group-meta-value" id="viewMemberPhone" style="font-size: 0.8125rem;"></span>
+                        </div>
+                        <div class="group-meta-item" style="grid-column: 1 / -1;">
+                            <span class="group-meta-label">Email</span>
+                            <span class="group-meta-value" id="viewMemberEmail" style="font-size: 0.8125rem;"></span>
+                        </div>
+                        <div class="group-meta-item" id="viewMemberRecordingAccessItem" style="grid-column: 1 / -1; display: none;">
+                            <span class="group-meta-label">Quyền nghe & tải ghi âm thoại</span>
+                            <div id="viewMemberRecordingBadge" style="margin-top: 4px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('viewMemberModal')">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 7: Xác nhận đăng xuất -->
+    <div class="modal" id="logoutModal">
+        <div class="modal-dialog" style="max-width: 400px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Xác nhận đăng xuất</h3>
+                    <button type="button" class="close-btn" onclick="closeModal('logoutModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Bạn có chắc chắn muốn đăng xuất khỏi phiên làm việc hiện tại của hệ thống EVN CDR AS?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('logoutModal')">Hủy</button>
+                    <a href="login.html" class="btn btn-danger">Đăng xuất</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

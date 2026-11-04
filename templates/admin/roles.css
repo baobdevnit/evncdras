@@ -1,0 +1,144 @@
+/* roles.css */
+
+.badge {
+    position: static !important;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.badge-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 8px;
+    background-color: var(--bg-hover);
+    border-radius: 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+/* Mobile Responsive Cards for Roles Tables */
+@media (max-width: 768px) {
+    /* Avoid horizontal scrolling container on mobile */
+    .tab-pane .card-body.no-padding {
+        overflow-x: visible !important;
+        padding: 16px !important;
+        background: transparent !important;
+    }
+
+    /* Convert table to block list */
+    .tab-content .data-table,
+    .tab-content .data-table thead,
+    .tab-content .data-table tbody,
+    .tab-content .data-table tr,
+    .tab-content .data-table th,
+    .tab-content .data-table td {
+        display: block;
+        width: 100% !important;
+        box-sizing: border-box;
+    }
+
+    /* Hide standard header */
+    .tab-content .data-table thead {
+        display: none;
+    }
+
+    .tab-content .data-table tbody {
+        padding: 0;
+    }
+
+    /* Clean, premium card layout for each row */
+    .tab-content .data-table tr {
+        background-color: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        margin-bottom: 16px;
+        padding: 16px;
+        box-shadow: var(--shadow-sm);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .tab-content .data-table tr:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+        background-color: var(--surface) !important;
+    }
+
+    .tab-content .data-table td {
+        padding: 6px 0;
+        border: none;
+        text-align: left !important;
+        background: transparent !important;
+    }
+
+    /* Role Name: Prominent Header */
+    .tab-content .data-table td:nth-child(1) {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--text-main);
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 10px;
+        margin-bottom: 10px;
+    }
+
+    /* Role Description */
+    .tab-content .data-table td:nth-child(2) {
+        font-size: 0.9rem;
+        line-height: 1.5;
+        color: var(--text-muted);
+        padding-bottom: 12px;
+    }
+
+    /* Number of Users count badge container */
+    .tab-content .data-table td:nth-child(3) {
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-bottom: 12px;
+    }
+
+    .tab-content .data-table td:nth-child(3)::before {
+        content: "Số người dùng:";
+        font-weight: 500;
+        color: var(--text-muted);
+    }
+    
+    .tab-content .data-table td:nth-child(3) .badge-count {
+        margin-left: 0; /* Align with label */
+    }
+
+    /* Actions buttons footer inside card */
+    .tab-content .data-table td:nth-child(4) {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        border-top: 1px solid var(--border);
+        padding-top: 12px;
+        margin-top: 4px;
+        gap: 12px;
+    }
+
+    /* Improve touch targets for actions on mobile */
+    .tab-content .data-table td:nth-child(4) .action-btn {
+        width: 38px;
+        height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background-color: var(--bg-hover, #f1f5f9);
+        border: 1px solid var(--border);
+        transition: all 0.2s ease;
+    }
+    
+    .tab-content .data-table td:nth-child(4) .action-btn:hover {
+        background-color: var(--border);
+    }
+}

@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý cấp phát đầu số tổng đài - EVN CDR AS</title>
+    <meta name="description" content="Quản lý dải số điện thoại 5 số cấp cho các Nhóm người dùng thành viên">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="organization.css">
+    <link rel="stylesheet" href="users.css">
+    <link rel="stylesheet" href="prefix-management.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="main.js"></script>
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <!-- Mobile Header -->
+        <div class="mobile-header">
+            <div class="mobile-logo-brand">
+                <img src="logo_evn.svg" alt="EVN Logo" class="mobile-logo">
+                <div class="brand-text">
+                    <h2 class="mobile-brand">EVN CDRAS</h2>
+                    <p class="mobile-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+            <button id="mobileMenuToggle" class="mobile-menu-btn" title="Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="mobile-overlay" id="mobileOverlay"></div>
+
+                <!-- Sidebar Menu -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-small">
+                    <img src="logo_evn.svg" alt="EVN Logo" style="width: 40px; height: 40px; object-fit: contain;">
+                </div>
+                <div class="brand-text">
+                    <h2 class="brand-name">EVN CDRAS</h2>
+                    <p class="brand-subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-menu">
+                <ul>
+                    <li>
+                        <a href="dashboard.html" title="Tổng quan">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                            <span class="menu-text">Tổng quan</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="notifications.html" title="Thông báo">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                            <span class="menu-text">Thông báo</span>
+                            <span class="menu-badge notification-badge-global">0</span>
+                        </a>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            <span class="menu-text">Nhật ký cuộc gọi</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="cdr-history.html" title="Tra cứu CDR">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    <span class="menu-text">Tra cứu CDR</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="qos-debug.html" title="Phân tích QoS & Gỡ lỗi">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                    <span class="menu-text">Phân tích QoS</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="reports.html" title="Báo cáo">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                                    <span class="menu-text">Báo cáo</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group expanded">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                            <span class="menu-text">Tổ chức</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="organization.html" title="Danh mục tổ chức">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                                    <span class="menu-text">Danh mục tổ chức</span>
+                                </a>
+                            </li>
+                            <li class="active">
+                                <a href="prefix-management.html" title="Quản lý đầu số">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                    <span class="menu-text">Quản lý đầu số</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="prefix-history.html" title="Lịch sử cấp phát dải số">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                    <span class="menu-text">Lịch sử cấp phát</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Người dùng</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="user_group.html" title="Nhóm người dùng">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                    <span class="menu-text">Nhóm người dùng</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="users.html" title="Người dùng">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    <span class="menu-text">Người dùng</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="roles.html" title="Vai trò">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+                                    <span class="menu-text">Vai trò</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="permissions.html" title="Quyền hạn">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <span class="menu-text">Quyền hạn</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="data-permissions.html" title="Quyền theo dữ liệu & hành vi">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                                    </svg>
+                                    <span class="menu-text">Quyền theo dữ liệu</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+                
+                <div class="menu-divider"></div>
+                
+                <ul>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                            <span class="menu-text">Hệ thống</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="system-settings.html" title="Cài đặt hệ thống">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                    <span class="menu-text">Cài đặt hệ thống</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-group">
+                        <div class="menu-group-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                            <span class="menu-text">Tài khoản</span>
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <ul class="submenu">
+                            <li>
+                                <a href="profile.html" title="Hồ sơ của tôi">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    <span class="menu-text">Hồ sơ của tôi</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="change-password.html" title="Đổi mật khẩu">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <span class="menu-text">Đổi mật khẩu</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="user-settings.html" title="Cài đặt tài khoản">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
+                                    <span class="menu-text">Cài đặt tài khoản</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-profile" id="userProfileBtn">
+                    <img src="https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff" alt="User Avatar" class="avatar">
+                    <div class="user-info">
+                        <span class="user-name">Quản trị viên</span>
+                        <span class="user-role">Quản lý cấp cao</span>
+                    </div>
+                    
+                    <!-- Dropdown Menu -->
+                    <div class="profile-dropdown" id="profileDropdown">
+                        <a href="profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Hồ sơ của tôi</a>
+                        <a href="change-password.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Đổi mật khẩu</a>
+                        <a href="user-settings.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg> Cài đặt tài khoản</a>
+                        <div class="dropdown-divider"></div>
+                        <button type="button" class="logout-btn" id="logoutBtn" onclick="openLogoutModal()">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                            Đăng xuất
+                        </button>
+                    </div>
+                </div>
+                
+                <button id="themeToggle" class="theme-toggle-menu" title="Giao diện Sáng/Tối"></button>
+                
+                <button id="sidebarToggle" class="collapse-btn-floating" title="Thu gọn/Mở rộng">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="11 17 6 12 11 7"></polyline>
+                        <polyline points="18 17 13 12 18 7"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main-wrapper">
+            <main class="main-content">
+                <!-- Header -->
+                <div class="page-header" style="margin-bottom: 16px;">
+                    <h1>Quản lý cấp phát đầu số tổng đài</h1>
+                    <p>Danh sách đầu số tổng đài 5 số cấp cho các đơn vị thành viên của EVN</p>
+                </div>
+
+                <!-- Hàng nút thao tác chức năng -->
+                <div class="prefix-toolbar-actions"
+                    style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <a href="prefix-history.html" class="btn btn-outline" title="Xem lịch sử cấp phát và kiểm toán CDR">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                            stroke-width="2" style="margin-right: 6px;">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        Lịch sử cấp phát
+                    </a>
+                    <button class="btn btn-primary" onclick="openCreateGroupModal()">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                            stroke-width="2" style="margin-right: 6px;">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Thêm Nhóm đầu số
+                    </button>
+                </div>
+
+                <!-- Bảng danh sách Nhóm đầu số -->
+                <div class="card">
+                    <!-- Filter Bar -->
+                    <div class="prefix-filter-bar" style="padding: 16px 20px 0 20px;">
+                        <div class="prefix-filter-left">
+                            <div class="search-filter" style="min-width: 280px;">
+                                <input type="text" id="searchInput"
+                                    placeholder="Tìm theo tên nhóm, dải số 5 số, nhóm ND..." class="form-control"
+                                    onkeyup="filterPrefixGroups()">
+                            </div>
+                            <select class="form-control" id="statusFilter" style="width: auto; min-width: 150px;"
+                                onchange="filterPrefixGroups()">
+                                <option value="all">Tất cả trạng thái</option>
+                                <option value="Đang dùng">Đang dùng (Active)</option>
+                                <option value="Chưa dùng">Chưa dùng (Available)</option>
+                                <option value="Tạm ngưng">Tạm ngưng (Suspended)</option>
+                            </select>
+                            <select class="form-control" id="assignmentFilter" style="width: auto; min-width: 180px;"
+                                onchange="filterPrefixGroups()">
+                                <option value="all">Tất cả tình trạng gán</option>
+                                <option value="assigned">Đã gán nhóm người dùng</option>
+                                <option value="unassigned">Chưa gán nhóm người dùng</option>
+                            </select>
+                        </div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted);">
+                            Tổng cộng: <strong id="totalGroupsCount" class="text-main">0</strong> Nhóm đầu số
+                        </div>
+                    </div>
+
+                    <div class="card-body no-padding" style="margin-top: 12px;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 32%;">Tên nhóm đầu số</th>
+                                    <th style="width: 28%;">Các dải số</th>
+                                    <th style="width: 10%; text-align: center;">Số lượng</th>
+                                    <th style="width: 12%;">Tình trạng</th>
+                                    <th style="width: 18%; text-align: right;">Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="prefixGroupTableBody">
+                                <!-- Rendered via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagination-container">
+                        <div class="pagination-info" style="display: flex; align-items: center; gap: 8px;">
+                            <span>Hiển thị</span>
+                            <select class="form-control"
+                                style="width: auto; padding: 4px 28px 4px 8px; height: 32px; font-size: 0.875rem;">
+                                <option value="10" selected>10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                            <span id="paginationLabel">bản ghi mỗi trang</span>
+                        </div>
+                        <ul class="pagination">
+                            <li class="page-item disabled"><a href="#" class="page-link">&laquo;</a></li>
+                            <li class="page-item active"><a href="#" class="page-link">1</a></li>
+                            <li class="page-item disabled"><a href="#" class="page-link">&raquo;</a></li>
+                        </ul>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL 1: TẠO / SỬA NHÓM ĐẦU SỐ -->
+    <div id="createGroupModal" class="modal">
+        <div class="modal-content" style="max-width: 520px;">
+            <div class="modal-header">
+                <h2 id="groupModalTitle">Thêm Nhóm đầu số mới</h2>
+                <button class="close-btn" onclick="closeModal('createGroupModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="groupForm" onsubmit="savePrefixGroup(event)">
+                    <input type="hidden" id="groupIdInput">
+                    <div class="form-group mb-3">
+                        <label class="text-sm fw-600">Mã nhóm đầu số <span class="text-danger">*</span></label>
+                        <input type="text" id="groupCodeInput" class="form-control"
+                            placeholder="VD: PG-IT-01, PG-KD-02..." required>
+                        <small class="text-muted d-block mt-1">Mã định danh duy nhất của nhóm đầu số (tương ứng phone_prefix_groups.code).</small>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="text-sm fw-600">Tên nhóm đầu số <span class="text-danger">*</span></label>
+                        <input type="text" id="groupNameInput" class="form-control"
+                            placeholder="VD: Nhóm Đầu số Trụ sở chính EVN, Ban CNTT..." required>
+                        <small class="text-muted d-block mt-1">Tên nhóm độc lập, người dùng nhập text tự do, có thể gợi
+                            nhớ đơn vị nhưng là thực thể riêng biệt.</small>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="text-sm fw-600">Mô tả / Mục đích sử dụng</label>
+                        <textarea id="groupDescInput" class="form-control" rows="3"
+                            placeholder="Nhập ghi chú hoặc phạm vi áp dụng..."></textarea>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="text-sm fw-600">Trạng thái ban đầu</label>
+                        <select id="groupStatusInput" class="form-control">
+                            <option value="Chưa dùng">Chưa dùng (Chờ gán nhóm người dùng)</option>
+                            <option value="Tạm ngưng">Tạm ngưng</option>
+                        </select>
+                    </div>
+                    <!-- Phần hiển thị và thao tác Gán / Hủy nhóm người dùng khi sửa nhóm -->
+                    <div id="groupUserGroupSection" class="form-group mb-3"
+                        style="display: none; padding: 12px; background: var(--bg-hover); border-radius: 8px; border: 1px solid var(--border);">
+                        <label class="text-xs text-muted d-block mb-2"
+                            style="text-transform: uppercase; font-weight: 600;">Nhóm người dùng thành viên liên kết (1
+                            - 1)</label>
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                            <div>
+                                <div id="groupUserGroupName" class="fw-700 text-main" style="font-size: 0.95rem;">-
+                                </div>
+                                <div id="groupUserGroupOrg" class="text-xs text-muted mt-1">-</div>
+                            </div>
+                            <div id="groupUserGroupActions">
+                                <!-- JS Inject: Nút Hủy gán hoặc Nút Gán ngay -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="padding: 16px 0 0 0; border-top: 1px solid var(--border);">
+                        <button type="button" class="btn btn-outline"
+                            onclick="closeModal('createGroupModal')">Hủy</button>
+                        <button type="submit" class="btn btn-primary">Lưu Nhóm đầu số</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: GÁN NHÓM NGƯỜI DÙNG THÀNH VIÊN (1 - 1) -->
+    <div id="assignGroupModal" class="modal">
+        <div class="modal-content" style="max-width: 580px;">
+            <div class="modal-header">
+                <h2 style="display: flex; align-items: center; gap: 8px;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <line x1="19" y1="8" x2="19" y2="14"></line>
+                        <line x1="22" y1="11" x2="16" y2="11"></line>
+                    </svg>
+                    Gán Nhóm đầu số cho Nhóm người dùng thành viên (1-1)
+                </h2>
+                <button class="close-btn" onclick="closeModal('assignGroupModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <!-- Thẻ thông tin nhóm đầu số tiếp nhận -->
+                <div id="assignTargetGroupInfoBox"
+                    style="background: var(--bg-color); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span class="text-xs text-muted" style="text-transform: uppercase; font-weight: 600;">Nhóm đầu
+                            số tiếp nhận</span>
+                        <span id="assignGroupCurrentStatus" class="status-pill inactive">Chưa dùng</span>
+                    </div>
+                    <div class="fw-700 text-main" id="assignTargetGroupName"
+                        style="font-size: 1.05rem; margin-bottom: 4px;">-</div>
+                    <div class="text-xs text-muted mb-2" id="assignTargetGroupDesc">-</div>
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding-top: 8px; border-top: 1px dashed var(--border);">
+                        <span class="text-muted">Dải số quản lý: <strong id="assignTargetRanges"
+                                style="color: var(--primary); font-family: monospace;">-</strong></span>
+                        <span class="text-muted">Tổng số ĐT: <strong id="assignTargetCount"
+                                style="color: var(--text-main);">-</strong></span>
+                    </div>
+                </div>
+
+                <!-- Form chọn nhóm người dùng -->
+                <div class="form-group mb-3">
+                    <label class="text-sm fw-600">Chọn Nhóm người dùng thành viên tiếp nhận <span
+                            class="text-danger">*</span></label>
+                    <select id="userGroupSelect" class="form-control" required>
+                        <option value="">-- Chọn Nhóm người dùng thành viên khả dụng --</option>
+                        <!-- Injected JS (chỉ nhóm chưa có đầu số, quan hệ 1-1) -->
+                    </select>
+                    <small class="text-muted d-block mt-1">
+                        <b style="color:var(--primary);">Quy tắc 1-1:</b> Mỗi Nhóm người dùng thành viên chỉ được cấp
+                        duy nhất một Nhóm đầu số. Dữ liệu CDR sẽ bắt đầu được ghi nhận cho nhóm người dùng này từ thời
+                        điểm gán.
+                    </small>
+                </div>
+
+                <!-- Thông tin đơn vị bắc cầu -->
+                <div id="assignedBridgeInfo"
+                    style="display:none; padding: 12px; background: rgba(0,51,160,0.06); border: 1px solid rgba(0,51,160,0.18); border-radius: 8px; font-size: 0.875rem; margin-bottom: 16px;">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                            stroke-width="2" style="color: var(--primary);">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        </svg>
+                        <div>
+                            <span class="text-muted">Đơn vị tổ chức trực thuộc (bắc cầu):</span><br>
+                            <strong id="assignedBridgeOrgName"
+                                style="color: var(--primary); font-size: 0.95rem;"></strong>
+                        </div>
+                    </div>
+                    <div
+                        style="margin-top: 6px; font-size: 0.775rem; color: #059669; display: flex; align-items: center; gap: 4px;">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        <span>Hiệu lực ghi nhận CDR: Bắt đầu từ ngày hôm nay</span>
+                    </div>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="text-sm fw-600">Căn cứ bàn giao / Quyết định cấp phát</label>
+                    <input type="text" id="assignNoteInput" class="form-control"
+                        placeholder="VD: Quyết định số 1444/EVN-VT&CNTT giao dải số...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('assignGroupModal')">Hủy</button>
+                <button type="button" class="btn btn-primary" onclick="confirmAssignUserGroup()">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
+                        style="margin-right: 6px;">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Xác nhận Gán & Chuyển sang Đang dùng
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2B: HỦY GÁN NHÓM NGƯỜI DÙNG THÀNH VIÊN -->
+    <div id="unassignGroupModal" class="modal">
+        <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header"
+                style="border-bottom: 1px solid rgba(220, 38, 38, 0.2); background: rgba(220, 38, 38, 0.04);">
+                <h2 style="color: #dc2626; display: flex; align-items: center; gap: 8px;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <line x1="18" y1="8" x2="23" y2="13"></line>
+                        <line x1="23" y1="8" x2="18" y2="13"></line>
+                    </svg>
+                    Hủy gán Nhóm người dùng khỏi Nhóm đầu số
+                </h2>
+                <button class="close-btn" onclick="closeModal('unassignGroupModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Thông tin nhóm đang thao tác -->
+                <div
+                    style="background: var(--bg-color); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span class="text-xs text-muted" style="text-transform: uppercase; font-weight: 600;">Nhóm đầu
+                            số</span>
+                        <span id="unassignGroupStatusBadge" class="status-pill active">Đang dùng</span>
+                    </div>
+                    <div class="fw-700 text-main" id="unassignTargetGroupName"
+                        style="font-size: 1.1rem; margin-bottom: 10px;">-</div>
+
+                    <div
+                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; background: rgba(0, 51, 160, 0.05); border-radius: 6px; border: 1px solid rgba(0, 51, 160, 0.12); margin-bottom: 10px;">
+                        <div>
+                            <div class="text-xs text-muted">Nhóm người dùng thành viên:</div>
+                            <div class="fw-600 text-main" id="unassignTargetUserGroupName" style="font-size: 0.875rem;">
+                                -</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-muted">Đơn vị tổ chức bắc cầu:</div>
+                            <div class="fw-600 text-main" id="unassignTargetOrgName" style="font-size: 0.875rem;">-
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding-top: 6px; border-top: 1px dashed var(--border);">
+                        <span class="text-muted">Dải số quản lý: <strong id="unassignTargetRanges"
+                                style="color: var(--primary); font-family: monospace;">-</strong></span>
+                        <span class="text-muted">Tổng số ĐT: <strong id="unassignTargetCount"
+                                style="color: var(--text-main);">-</strong></span>
+                    </div>
+                </div>
+
+                <!-- Cảnh báo chốt CDR -->
+                <div
+                    style="background: rgba(220, 38, 38, 0.08); border: 1px solid rgba(220, 38, 38, 0.25); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                    <div style="display: flex; gap: 8px; align-items: flex-start;">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#dc2626" stroke-width="2"
+                            style="flex-shrink: 0; margin-top: 2px;">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <div style="font-size: 0.825rem; color: #991b1b; line-height: 1.45;">
+                            <strong>Quy tắc bảo toàn dữ liệu CDR theo thời gian:</strong><br>
+                            Toàn bộ lịch sử cuộc gọi (CDR) của nhóm này đến thời điểm hiện tại (<span
+                                id="unassignCurrentDate" style="font-weight: 700;"></span>) vẫn được bảo toàn và thuộc
+                            về đơn vị cũ. Sau khi hủy gán, nhóm đầu số sẽ chuyển sang trạng thái <strong>Chưa
+                                dùng</strong> và sẵn sàng để cấp cho nhóm thành viên khác.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="text-sm fw-600">Căn cứ quyết định điều chuyển / Lý do hủy gán <span
+                            class="text-danger">*</span></label>
+                    <input type="text" id="unassignReasonInput" class="form-control"
+                        placeholder="VD: Quyết định số 1010/EVN-VT&CNTT về việc điều chuyển dải số..." required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('unassignGroupModal')">Bỏ qua</button>
+                <button type="button" class="btn btn-danger" onclick="confirmUnassignUserGroup()"
+                    style="background: #dc2626; color: white; border: none;">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
+                        style="margin-right: 6px;">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <line x1="18" y1="8" x2="23" y2="13"></line>
+                        <line x1="23" y1="8" x2="18" y2="13"></line>
+                    </svg>
+                    Xác nhận Hủy gán & Chốt quyền CDR
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: CẤP PHÁT DẢI SỐ MỚI (TỪ KHO RẢNH) -->
+    <div id="allocateRangeModal" class="modal">
+        <div class="modal-content" style="max-width: 580px;">
+            <div class="modal-header">
+                <h2>Cấp phát Dải số mới cho Nhóm</h2>
+                <button class="close-btn" onclick="closeModal('allocateRangeModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div
+                    style="background: var(--bg-color); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                    <div class="text-xs text-muted">Nhóm đầu số tiếp nhận:</div>
+                    <div class="fw-700 text-main" id="allocTargetGroupName">-</div>
+                    <div class="text-xs text-muted mt-1" id="allocTargetUserGroup">-</div>
+                </div>
+
+                <div class="d-flex gap-3 mb-3">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="text-sm fw-600">Từ số (5 chữ số) <span class="text-danger">*</span></label>
+                        <input type="text" id="rangeFromInput" class="form-control" maxlength="5"
+                            placeholder="VD: 42000" oninput="calculateAllocCount()" required>
+                        <small class="text-muted">Quy hoạch 5 số EVN</small>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="text-sm fw-600">Đến số (5 chữ số) <span class="text-danger">*</span></label>
+                        <input type="text" id="rangeToInput" class="form-control" maxlength="5" placeholder="VD: 42499"
+                            oninput="calculateAllocCount()" required>
+                        <small class="text-muted">Nếu 1 số thì nhập Từ = Đến</small>
+                    </div>
+                </div>
+
+                <!-- Preview số lượng -->
+                <div id="allocCountBox"
+                    style="background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); border-radius: 6px; padding: 10px 14px; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 0.875rem; color: #065f46; font-weight: 600;">Tổng số điện thoại cấp phát
+                            trong dải:</span>
+                        <span id="allocCountDisplay" style="font-size: 1.15rem; font-weight: 700; color: #047857;">0
+                            số</span>
+                    </div>
+                    <div id="allocConflictWarning"
+                        style="color: #dc2626; font-size: 0.775rem; display: none; margin-top: 4px; font-weight: 500;">
+                        ⚠️ Cảnh báo: Một số số trong dải này đã được cấp hoặc không hợp lệ!
+                    </div>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="text-sm fw-600">Căn cứ cấp phát / Ghi chú</label>
+                    <input type="text" id="allocNoteInput" class="form-control"
+                        placeholder="VD: Quyết định cấp số phục vụ Trung tâm NOC...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('allocateRangeModal')">Hủy</button>
+                <button type="button" class="btn btn-primary" onclick="confirmAllocateRange()">Xác nhận Cấp phát dải
+                    số</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: THU HỒI DẢI SỐ VỀ KHO SỐ CHUNG -->
+    <div id="revokeRangeModal" class="modal">
+        <div class="modal-content" style="max-width: 540px;">
+            <div class="modal-header">
+                <h2>Thu hồi Dải số về Kho số chung</h2>
+                <button class="close-btn" onclick="closeModal('revokeRangeModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div
+                    style="background: var(--bg-color); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                    <div class="d-flex-between">
+                        <div>
+                            <span class="text-xs text-muted">Nhóm đầu số:</span>
+                            <div class="fw-700 text-main" id="revokeTargetGroupName">-</div>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs text-muted">Dải số thu hồi:</span>
+                            <div class="fw-700 range-chip" id="revokeCurrentRangeChip">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="text-sm fw-600">Lý do thu hồi & Số Quyết định / Căn cứ <span
+                            class="text-danger">*</span></label>
+                    <input type="text" id="revokeReasonInput" class="form-control"
+                        placeholder="VD: Thu hồi dải số dự phòng theo QĐ 124/EVN-VT..." required>
+                </div>
+
+                <div
+                    style="background: rgba(227,24,55,0.06); border-left: 3px solid #E31837; padding: 10px 12px; border-radius: 4px; font-size: 0.8rem; color: #991b1b;">
+                    <strong>Quyền sở hữu dữ liệu CDR:</strong> Quyền quản trị dữ liệu cuộc gọi của Nhóm người dùng thành
+                    viên đối với toàn bộ số trong dải này sẽ được chốt tại thời điểm thu hồi. Toàn bộ các số sẽ được rã
+                    về Kho số chung dưới dạng từng số lẻ tự do để sẵn sàng cấp cho nhóm khác.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('revokeRangeModal')">Hủy</button>
+                <button type="button" class="btn btn-secondary" onclick="confirmRevokeRange()"
+                    style="background: #E31837; color: white;">Xác nhận Thu hồi về kho</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4B: THAY ĐỔI TÌNH TRẠNG NHÓM ĐẦU SỐ (MODAL 2 CỘT) -->
+    <div id="changeStatusModal" class="modal">
+        <div class="modal-content" style="max-width: 840px;">
+            <div class="modal-header">
+                <h2 style="display: flex; align-items: center; gap: 8px;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    Thay đổi Tình trạng Nhóm đầu số
+                </h2>
+                <button class="close-btn" onclick="closeModal('changeStatusModal')">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <div class="status-modal-grid">
+                    <!-- CỘT 1 (BÊN TRÁI): THÔNG TIN ĐỐI TƯỢNG & TÁC ĐỘNG NGHIỆP VỤ CDR -->
+                    <div class="status-info-col">
+                        <!-- Thẻ thông tin Nhóm đầu số đang chọn -->
+                        <div class="status-card-group">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span class="text-xs text-muted"
+                                    style="text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Bối cảnh
+                                    hiện tại</span>
+                                <div id="statusCurrentBadgeContainer">
+                                    <!-- JS inject badge hiện tại -->
+                                </div>
+                            </div>
+                            <div class="fw-700 text-main" id="statusTargetGroupName"
+                                style="font-size: 1.05rem; margin-bottom: 6px; line-height: 1.35;">-</div>
+                            <div class="text-xs text-muted mb-2" id="statusTargetUserGroupInfo">-</div>
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding-top: 8px; border-top: 1px dashed var(--border);">
+                                <span class="text-muted">Dải số quản lý: <strong id="statusTargetRanges"
+                                        style="color: var(--primary); font-family: monospace;">-</strong></span>
+                                <span class="text-muted">Tổng số: <strong id="statusTargetCount"
+                                        style="color: var(--text-main);">-</strong></span>
+                            </div>
+                        </div>
+
+                        <!-- Cảnh báo tác động nghiệp vụ & dữ liệu CDR -->
+                        <div id="statusImpactNotice"
+                            style="display: none; padding: 12px; border-radius: 8px; font-size: 0.825rem; line-height: 1.45;">
+                            <!-- JS inject thông báo theo trạng thái được chọn -->
+                        </div>
+
+                        <!-- Cam kết & Nguyên tắc bảo toàn CDR -->
+                        <div class="status-cdr-note">
+                            <div
+                                style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text-main); margin-bottom: 4px;">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                                    stroke-width="2" style="color: var(--primary);">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                </svg>
+                                <span>Bảo toàn Lịch sử & Dữ liệu Cuộc gọi CDR</span>
+                            </div>
+                            <div>Mọi sự thay đổi trạng thái đều được lưu vết kiểm toán tự động theo mốc thời gian. Dữ
+                                liệu các cuộc gọi đã phát sinh trước đó của đơn vị được bảo lưu nguyên vẹn 100%.</div>
+                        </div>
+                    </div>
+
+                    <!-- CỘT 2 (BÊN PHẢI): CHỌN TÌNH TRẠNG MỚI & CĂN CỨ PHÊ DUYỆT -->
+                    <div class="status-action-col">
+                        <!-- Lựa chọn tình trạng mới -->
+                        <div class="form-group mb-0">
+                            <label class="text-sm fw-600 mb-2 d-block">Chọn Tình trạng mới <span
+                                    class="text-danger">*</span></label>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <!-- Đang dùng -->
+                                <label class="status-option-card" id="cardStatusActive"
+                                    style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                                    <input type="radio" name="newGroupStatus" value="Đang dùng" id="radioStatusActive"
+                                        style="margin-top: 3px;" onchange="onStatusRadioChange()">
+                                    <div style="flex: 1;">
+                                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+                                            <span class="status-pill active"
+                                                style="font-size: 0.775rem; padding: 2px 8px;"><span
+                                                    class="status-dot"></span>Đang dùng (Active)</span>
+                                        </div>
+                                        <div style="font-size: 0.775rem; color: var(--text-muted); line-height: 1.35;">
+                                            Kích hoạt thông tuyến tổng đài EVN & ghi nhận lưu lượng CDR.
+                                        </div>
+                                    </div>
+                                </label>
+
+                                <!-- Tạm ngưng -->
+                                <label class="status-option-card" id="cardStatusSuspended"
+                                    style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                                    <input type="radio" name="newGroupStatus" value="Tạm ngưng"
+                                        id="radioStatusSuspended" style="margin-top: 3px;"
+                                        onchange="onStatusRadioChange()">
+                                    <div style="flex: 1;">
+                                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+                                            <span class="status-pill suspended"
+                                                style="font-size: 0.775rem; padding: 2px 8px;"><span
+                                                    class="status-dot"></span>Tạm ngưng (Suspended)</span>
+                                        </div>
+                                        <div style="font-size: 0.775rem; color: var(--text-muted); line-height: 1.35;">
+                                            Tạm dừng thoại & CDR phục vụ đại tu, bảo trì (vẫn bảo lưu dải số).
+                                        </div>
+                                    </div>
+                                </label>
+
+                                <!-- Chưa dùng -->
+                                <label class="status-option-card" id="cardStatusInactive"
+                                    style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                                    <input type="radio" name="newGroupStatus" value="Chưa dùng" id="radioStatusInactive"
+                                        style="margin-top: 3px;" onchange="onStatusRadioChange()">
+                                    <div style="flex: 1;">
+                                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+                                            <span class="status-pill inactive"
+                                                style="font-size: 0.775rem; padding: 2px 8px;"><span
+                                                    class="status-dot"></span>Chưa dùng (Available)</span>
+                                        </div>
+                                        <div style="font-size: 0.775rem; color: var(--text-muted); line-height: 1.35;">
+                                            Dải số sẵn sàng trong kho hoặc chờ bàn giao quy hoạch viễn thông.
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Căn cứ quyết định / Lý do -->
+                        <div class="form-group mb-0">
+                            <label class="text-sm fw-600 mb-1 d-block">Căn cứ quyết định / Lý do thay đổi <span
+                                    class="text-danger">*</span></label>
+                            <textarea id="statusReasonInput" class="form-control" rows="2"
+                                placeholder="VD: Quyết định số 124/EVN-VT tạm ngưng phục vụ đại tu tổ máy..." required
+                                style="resize: vertical; font-size: 0.825rem;"></textarea>
+                            <small class="text-muted d-block mt-1" style="font-size: 0.725rem;">Thông tin này được ghi
+                                nhận trực tiếp vào Nhật ký kiểm toán hệ thống.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 12px 20px;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('changeStatusModal')">Hủy bỏ</button>
+                <button type="button" class="btn btn-primary" onclick="confirmChangeStatus()">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
+                        style="margin-right: 6px;">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Xác nhận Thay đổi Tình trạng
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4C: XÓA NHÓM ĐẦU SỐ (MODAL 2 CỘT) -->
+    <div id="deleteGroupModal" class="modal">
+        <div class="modal-content" style="max-width: 840px;">
+            <div class="modal-header"
+                style="border-bottom: 1px solid rgba(220, 38, 38, 0.2); background: rgba(220, 38, 38, 0.04);">
+                <h2 style="color: #dc2626; display: flex; align-items: center; gap: 8px;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                    Xác nhận Xóa Nhóm đầu số
+                </h2>
+                <button class="close-btn" onclick="closeModal('deleteGroupModal')">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <div class="delete-modal-grid">
+                    <!-- CỘT 1 (BÊN TRÁI): THÔNG TIN ĐỐI TƯỢNG & BẢO TOÀN DỮ LIỆU CDR -->
+                    <div class="delete-info-col">
+                        <!-- Thẻ thông tin Nhóm đầu số dự kiến xóa -->
+                        <div class="status-card-group" style="border-left: 3px solid #dc2626;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span class="text-xs text-muted"
+                                    style="text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Nhóm đầu
+                                    số yêu cầu xóa</span>
+                                <div id="deleteTargetStatusBadge">
+                                    <!-- JS inject badge -->
+                                </div>
+                            </div>
+                            <div class="fw-700 text-main" id="deleteTargetGroupName"
+                                style="font-size: 1.05rem; margin-bottom: 4px; line-height: 1.35;">-</div>
+                            <div class="text-xs text-muted mb-2" id="deleteTargetGroupDesc">-</div>
+                            <div class="text-xs text-muted mb-2" id="deleteTargetUserGroupInfo">-</div>
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding-top: 8px; border-top: 1px dashed var(--border);">
+                                <span class="text-muted">Dải số hiện tại: <strong id="deleteTargetRangesText"
+                                        style="color: var(--primary); font-family: monospace;">-</strong></span>
+                                <span class="text-muted">Tổng số ĐT: <strong id="deleteTargetTotalCount"
+                                        style="color: var(--text-main);">-</strong></span>
+                            </div>
+                        </div>
+
+                        <!-- Khối cam kết & Quy tắc bảo toàn dữ liệu CDR -->
+                        <div class="delete-cdr-note">
+                            <div
+                                style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: #b91c1c; margin-bottom: 4px;">
+                                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                                    stroke-width="2" style="color: #dc2626;">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                </svg>
+                                <span>Bảo toàn Lịch sử Dữ liệu Cuộc gọi CDR</span>
+                            </div>
+                            <div>Khi nhóm đầu số bị xóa, quyền sở hữu dữ liệu CDR của đơn vị quản lý được chốt tại thời
+                                điểm này. Toàn bộ lịch sử cuộc gọi trong quá khứ được bảo toàn 100% trên hệ thống để tra
+                                cứu và đối soát lưu lượng thoại.</div>
+                        </div>
+                    </div>
+
+                    <!-- CỘT 2 (BÊN PHẢI): CẢNH BÁO THU HỒI DẢI SỐ & CĂN CỨ PHÊ DUYỆT -->
+                    <div class="delete-action-col">
+                        <!-- CẢNH BÁO NẾU CÒN DẢI SỐ -->
+                        <div id="deleteHasRangesNotice"
+                            style="display: none; background: rgba(220, 38, 38, 0.06); border: 1.5px solid rgba(220, 38, 38, 0.25); border-radius: 8px; padding: 12px; margin-bottom: 0;">
+                            <div style="display: flex; align-items: flex-start; gap: 8px;">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#dc2626"
+                                    stroke-width="2" style="flex-shrink: 0; margin-top: 2px;">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                                <div style="flex: 1;">
+                                    <div
+                                        style="font-weight: 700; color: #dc2626; font-size: 0.85rem; margin-bottom: 3px;">
+                                        Nhóm đang có <span id="deleteRangeCountNumber">0</span> dải (<span
+                                            id="deleteTotalCountNumber">0</span> số ĐT)!
+                                    </div>
+                                    <div
+                                        style="font-size: 0.775rem; color: var(--text-main); line-height: 1.4; margin-bottom: 8px;">
+                                        Các dải số này sẽ được <strong>tự động thu hồi và rã về Kho số chung</strong>
+                                        dưới dạng số lẻ tự do.
+                                    </div>
+                                    <div id="deleteRangesListChip"
+                                        style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; max-height: 85px; overflow-y: auto;">
+                                        <!-- JS render dải số -->
+                                    </div>
+                                    <label
+                                        style="display: flex; align-items: flex-start; gap: 8px; font-size: 0.8rem; font-weight: 600; color: #dc2626; cursor: pointer; user-select: none;">
+                                        <input type="checkbox" id="deleteConfirmRevokeCheckbox"
+                                            onchange="onDeleteConfirmCheckboxChange()"
+                                            style="margin-top: 2px; cursor: pointer;">
+                                        <span>Tôi đồng ý tự động thu hồi <span id="deleteConfirmNumbersText">0</span> số
+                                            về Kho chung để xóa</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- THÔNG BÁO NẾU NHÓM RỖNG (KHÔNG CÓ DẢI SỐ) -->
+                        <div id="deleteEmptyNotice"
+                            style="display: none; background: rgba(220, 38, 38, 0.05); border-left: 4px solid #dc2626; padding: 12px; border-radius: 6px; font-size: 0.8rem; color: #b91c1c; margin-bottom: 0; line-height: 1.45;">
+                            <strong>Lưu ý:</strong> Nhóm đầu số này hiện không quản lý dải số nào. Thao tác xóa sẽ gỡ
+                            vĩnh viễn nhóm khỏi hệ thống và không thể hoàn tác.
+                        </div>
+
+                        <!-- CĂN CỨ / LÝ DO XÓA NHÓM -->
+                        <div class="form-group mb-0">
+                            <label class="text-sm fw-600 mb-1 d-block">Căn cứ quyết định / Lý do xóa nhóm <span
+                                    class="text-danger">*</span></label>
+                            <textarea id="deleteReasonInput" class="form-control" rows="2"
+                                placeholder="VD: Quyết định bãi bỏ nhóm quy hoạch cũ hoặc chuyển đổi mô hình PABX..."
+                                required style="resize: vertical; font-size: 0.825rem;"></textarea>
+                            <small class="text-muted d-block mt-1" style="font-size: 0.725rem;">Thông tin này được ghi
+                                nhận trực tiếp vào Nhật ký kiểm toán hệ thống (Audit Log).</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 12px 20px;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('deleteGroupModal')">Hủy bỏ</button>
+                <button type="button" class="btn btn-secondary" id="confirmDeleteGroupBtn"
+                    onclick="confirmDeleteGroup()" style="background: #dc2626; color: white;">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
+                        style="margin-right: 6px;">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                    Xác nhận Xóa Nhóm đầu số
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 5: XEM DANH SÁCH SỐ 5 CHỮ SỐ TRONG DẢI -->
+    <div id="numbersListModal" class="modal">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <div>
+                    <h2 style="margin-bottom: 4px;">Danh sách số điện thoại - Dải <span id="listRangeText"
+                            class="text-main"></span></h2>
+                    <div class="text-sm text-muted">Thuộc Nhóm đầu số: <strong id="listGroupNameText"
+                            style="color: var(--primary);">-</strong></div>
+                </div>
+                <button class="close-btn" onclick="closeModal('numbersListModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex-between mb-3" style="gap: 12px; flex-wrap: wrap; align-items: center;">
+                    <div class="search-filter" style="flex: 1; max-width: 320px;">
+                        <input type="text" id="numberSearchInput" placeholder="Tìm số 5 số trong dải..."
+                            class="form-control" onkeyup="filterNumbersList()">
+                    </div>
+                    <div class="text-sm text-muted">
+                        Dải số thuộc quyền quản trị dữ liệu CDR của đơn vị
+                    </div>
+                </div>
+
+                <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40%;">Số điện thoại (5 số)</th>
+                                <th style="width: 40%;">Dải số quy hoạch</th>
+                                <th style="width: 20%; text-align: right;">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="numbersListBody">
+                            <!-- JS Injected -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer d-flex-between">
+                <div class="text-sm text-muted">Hiển thị <span id="numShown">0</span>/<span id="numTotal">0</span> số
+                    điện thoại</div>
+                <button class="btn btn-outline" onclick="closeModal('numbersListModal')">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 6: CHI TIẾT KHO SỐ RẢNH TỰ DO EVN -->
+    <div id="poolModal" class="modal">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h2>Kho số chung EVN (Số rảnh sẵn sàng tổ hợp dải)</h2>
+                <button class="close-btn" onclick="closeModal('poolModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted text-sm mb-3">
+                    Khi một dải số bị thu hồi, toàn bộ số đó được rã thành từng số đơn lẻ đưa về kho chung này. Dưới đây
+                    là các khối số liên tiếp còn trống sẵn sàng để tổ hợp thành dải mới:
+                </p>
+                <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Khối số rảnh liên tiếp</th>
+                                <th>Từ số</th>
+                                <th>Đến số</th>
+                                <th class="text-center">Số lượng rảnh</th>
+                                <th>Trạng thái</th>
+                                <th class="text-right">Tác vụ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="poolTableBody">
+                            <!-- JS injected -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('poolModal')">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="prefix-management.js"></script>
+
+    <!-- Modal Xác nhận Đăng xuất (ConfirmModal) -->
+    <div id="logoutModal" class="confirm-modal-backdrop" style="display: none;">
+        <div class="confirm-modal-dialog" role="dialog" aria-modal="true">
+            <div class="confirm-modal-icon-wrapper confirm-modal-icon--danger">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </div>
+            <div class="confirm-modal-content">
+                <h3 class="confirm-modal-title">Xác nhận đăng xuất</h3>
+                <p class="confirm-modal-message">Bạn có chắc chắn muốn đăng xuất khỏi hệ thống EVN CDRAS?</p>
+            </div>
+            <div class="confirm-modal-actions">
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--cancel" onclick="closeLogoutModal()">Hủy bỏ</button>
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--danger" onclick="confirmLogout()">Đăng xuất</button>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
