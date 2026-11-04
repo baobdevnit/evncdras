@@ -142,6 +142,12 @@ Trong cùng transaction tạo/cập nhật dải số:
 }
 ```
 
+### 4.1.1. Chi tiết một dải số (`GET /api/v1/prefixes/:id`)
+
+- `:id` là `phone_prefix_ranges.id`.
+- **Response**: `data = { id, prefixGroupId, prefixGroupName, userGroupId, userGroupCode, userGroupName, userGroupStatus, prefix, numberLength, rangeFrom, rangeTo, counts, note, allocatedAt, createdAt, updatedAt }`. `counts` giống mục 4.1 (`total` = `total_numbers`; `allocated`, `reserved`, `locked` đếm `phone_numbers` theo `range_id` và `status`). Tỷ lệ sử dụng do frontend tính từ `counts` (vd. `allocated / total`); API không trả phần trăm hay nhãn ghép sẵn (`docs/02_api_contracts.md` mục 2).
+- **Phạm vi**: bản User chỉ xem dải của nhóm mình; dải của nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS`. Dải đã thu hồi thì dòng đã bị xóa (`docs/01_database_schema.md` mục 14), trả `404`; lịch sử của dải xem ở mục 4.5.
+
 ### 4.2. Cấp phát dải số cho Nhóm (`POST /api/v1/admin/prefixes`)
 
 - **Guard**: `AdminAuthGuard`, `Permission: prefix:manage`

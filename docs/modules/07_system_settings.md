@@ -118,6 +118,15 @@ Danh mục các Key cấu hình chuẩn (3 phân nhóm: `ANALYSIS`, `REPORTING`,
 - **Guard**: `AdminAuthGuard`, `Permission: system:manage`
 - Nạp lại cache sở hữu số (`phone_numbers.range_id → user_groups`) và cache `system_settings` trên mọi tiến trình backend (mọi instance `backend-api` và `backend-worker`) bằng cách tăng `cdr_enrichment_state.cache_version`; mỗi tiến trình phát hiện giá trị mới trong vòng vài giây và tự nạp lại (`docs/00_overview_and_architecture.md` mục 2.1). Ghi `audit_logs` (`SYSTEM / UPDATE_SETTINGS`, `action_details.op = "RELOAD_CACHE"`). Dùng sau khi sửa dữ liệu trực tiếp trong DB.
 
+### 3.4. Tra cứu nhật ký kiểm toán (`GET /api/v1/admin/audit-logs`)
+
+- **Guard**: `AdminAuthGuard`, `Permission: audit:view`. Chỉ đọc; không có API sửa, xóa hay xuất file `audit_logs` (`docs/01_database_schema.md` mục 13). Bản thân việc tra cứu không ghi `audit_logs`.
+- **Query**:
+  - `fromDate`, `toDate` (bắt buộc, `YYYY-MM-DD`, tính theo `created_at`, cả hai đầu mút); thiếu, sai định dạng, `fromDate > toDate` hoặc khoảng quá 31 ngày trả `400`.
+  - `actorType` (`ADMIN` | `USER` | `SYSTEM`), `actorId` (chỉ đi cùng `actorType` `ADMIN`/`USER`, thiếu `actorType` thì `400`), `action` (một mã trong danh mục `docs/01_database_schema.md` mục 13, mã lạ trả `400`), `resourceName` (một giá trị trong danh mục cùng mục), `page` (mặc định 1), `limit` (mặc định 20, tối đa 100).
+- **Sắp xếp**: `created_at` giảm dần, rồi `id` giảm dần.
+- **Phần tử**: `id`, `actorType`, `actorId`, `actorName`, `action`, `resourceName`, `resourceId`, `ipAddress`, `userAgent`, `actionDetails` (JSON gốc của `action_details`, có thể `null`), `createdAt`. Khung phân trang theo `docs/02_api_contracts.md` mục 2.2.
+
 ---
 
 ## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)

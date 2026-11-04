@@ -319,6 +319,12 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
 
 ---
 
+### 3.1.2. `GET /api/v1/user-groups/:id`
+
+- **Response**: `data` gồm mọi trường của một phần tử mục 3.1 (`phonePrefixGroup`, `representative`, `admins`, `userCount`, `adminCount`, `hierarchyPath`…) và thêm `description`, `allowRecordingAccess`, `updatedAt`. Mỗi phần tử `phonePrefixGroup.ranges` có thêm `id`, `prefix`, `totalNumbers` để mở chi tiết dải (`GET /prefixes/:id`, `docs/modules/11_core_business_phone_numbers.md` mục 4.1.1). Không trả danh sách thành viên: bản Admin dùng `GET /admin/users?groupId=`, bản User dùng `GET /users` hoặc mục 3.6.
+- **Phạm vi**: bản Admin xem mọi nhóm, kể cả `INACTIVE` (`representative = null`, `admins = []`). Bản User chỉ xem nhóm của người gọi; `:id` là nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS` (`docs/02_api_contracts.md` mục 2.3).
+- `:id` không tồn tại trả `404`.
+
 ### 3.2. `POST /api/v1/admin/user-groups`
 
 - **Mục đích**: Thiết lập nhóm người dùng mới.

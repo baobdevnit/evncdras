@@ -119,6 +119,12 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
   - Nếu là Group Admin: Chỉ xem được user có `user_group_id` bằng nhóm của mình.
 - **Query Params**: `page=1`, `limit=10`, `search=nguyen`, `status=ACTIVE`, `groupId=1` (chỉ bản Admin; bản User gửi thì `400` theo `docs/02_api_contracts.md` mục 1.1)
 
+### 3.3.1. Chi tiết người dùng (`GET /api/v1/users/:id`)
+
+- **Response**: `data = { id, userGroupId, userGroupCode, userGroupName, username, email, fullName, jobTitle, phoneNumber, avatarUrl, status, roleCode, roleName, isRepresentative, mustChangePassword, lockedUntil, lastLoginAt, createdAt, updatedAt }`. `isRepresentative` = tài khoản là `user_groups.representative_user_id` của nhóm. `lockedUntil` chỉ khác `null` khi đang bị khóa tạm do sai mật khẩu. Không trả `password_hash`, `failed_login_count` hay thông tin phiên.
+- Phần tử của `GET /users` (mục 3.3) có cùng các trường, trừ `mustChangePassword`, `lockedUntil`.
+- **Phạm vi**: bản User chỉ xem người dùng trong nhóm của người gọi; người nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS`. Tài khoản `INACTIVE` vẫn xem được. `:id` không tồn tại trả `404`.
+
 ### 3.4. Tạo người dùng mới (`POST /api/v1/users`)
 
 - **Thẩm quyền thực hiện (Authorization)**:
@@ -161,6 +167,34 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 - Quyền cần, điều kiện và xử lý: đặc tả tại `docs/modules/10_permissions_and_roles.md` mục 1.3 và 3.2.
 - Hạ quyền Quản trị viên nhóm `ACTIVE` cuối cùng của nhóm bị từ chối `409` với thông báo: "Nhóm người dùng bắt buộc phải có ít nhất 1 quản trị viên".
 - Không còn các endpoint `PUT /users/:id/group-admin` và `PATCH /user-groups/:id/members/:userId/recording-access`.
+
+### 3.7. Khóa / Mở khóa người dùng (`PUT /api/v1/users/:id/status`)
+
+- **Body**: `{ "status": "ACTIVE" | "LOCKED" }`; giá trị khác (kể cả `INACTIVE`) trả `400`.
+- Câu đầu của transaction khóa dòng nhóm của tài khoản đích (`SELECT ... FOR UPDATE`, `docs/01_database_schema.md` mục 14), rồi kiểm tra theo thứ tự:
+  1. Bản User: tài khoản đích thuộc nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS`; tài khoản đích là chính người gọi trả `403 SELF_ACTION_FORBIDDEN`.
+  2. Tài khoản `INACTIVE` trả `409 ACCOUNT_INACTIVE`.
+  3. Sang `LOCKED` mà tài khoản là `GROUP_ADMIN` `ACTIVE` cuối cùng của nhóm trả `409 LAST_GROUP_ADMIN`.
+- Trạng thái mới bằng trạng thái hiện tại: trả `200`, không ghi gì.
+- Sang `LOCKED`: thu hồi mọi phiên (`ACCOUNT_LOCKED`), ghi `audit_logs` `USER / LOCK`. Sang `ACTIVE`: ghi `USER / UNLOCK`. Không đổi `representative_user_id`, `locked_until`, `failed_login_count`.
+- **Response** `200`: `data = { id, status }`.
+
+### 3.8. Đặt lại mật khẩu người dùng (`PUT /api/v1/users/:id/reset-password`)
+
+- Không có body. Kiểm tra phạm vi như mục 3.7 bước 1 (bản User: nhóm khác `403 FORBIDDEN_SCOPE_ACCESS`, chính mình `403 SELF_ACTION_FORBIDDEN`, tự đổi qua `PUT /profile/change-password`); tài khoản `INACTIVE` trả `409 ACCOUNT_INACTIVE`.
+- Trong một transaction: sinh mật khẩu tạm 16 ký tự đạt chính sách (`docs/01_database_schema.md` mục 6.1), lưu bản băm, đặt `must_change_password = 1`; thu hồi mọi phiên (`PASSWORD_CHANGED`); ghi `audit_logs` `AUTH / PASSWORD_RESET` (`resource_id` = id người dùng, `action_details = { "targetActorType": "USER" }`). Tài khoản `LOCKED` vẫn đặt lại được, trạng thái giữ `LOCKED`.
+- **Response** `200`: `data = { "id": 25, "temporaryPassword": "<16 ký tự>" }`, trả **một lần**, giống `docs/modules/04_auth_admin.md` mục 3.6.
+
+### 3.9. Ngừng hoạt động người dùng (`DELETE /api/v1/users/:id`)
+
+- Khóa dòng nhóm và kiểm tra như mục 3.7 (bước 1, 2; bước 3 áp cho mọi `GROUP_ADMIN` `ACTIVE` cuối cùng: `409 LAST_GROUP_ADMIN`).
+- Trong một transaction: `status = 'INACTIVE'`; thu hồi mọi phiên (`ACCOUNT_LOCKED`); nếu là `representative_user_id` của nhóm thì đặt `NULL`; giữ dòng `user_roles` (`docs/01_database_schema.md` mục 14); ghi `audit_logs` `USER / DEACTIVATE`.
+- **Response** `200`: `data = { id, status: "INACTIVE" }`. Không xóa cứng, không kích hoạt lại; `username`/`email` được dùng lại cho tài khoản mới (mục 1.2).
+
+### 3.10. Thu hồi mọi phiên của người dùng (`DELETE /api/v1/admin/users/:id/sessions`)
+
+- Chỉ bản Admin, quyền `user:edit`. Không có body. Quản trị viên nhóm không có API này; họ khóa tài khoản (mục 3.7) để thu hồi phiên.
+- Cùng cách xử lý `docs/modules/04_auth_admin.md` mục 3.7: thu hồi mọi phiên còn hiệu lực (`REVOKED_BY_ADMIN`), ghi `audit_logs` `AUTH / SESSION_REVOKED` với `action_details = { "targetActorType": "USER", "revokedCount": n }`, trả `200` với `data = { revokedCount }`. Tài khoản `INACTIVE` trả `revokedCount = 0`. `:id` không tồn tại trả `404`.
 
 ---
 

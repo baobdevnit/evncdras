@@ -20,7 +20,8 @@
 - **Lần 19 (2026-11-04)**: 11 Minor, tập trung vào M05, M06, M11, M12, M13, M14 so với `01`/`02` (tên trường, giá trị enum, mã lỗi `409`), đã sửa; 9 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R19-03…R19-11). Không đổi DDL.
 - **Lần 20 (2026-11-04)**: 8 Minor, tập trung vào mã lỗi `403`/`409` (M02, M03, M04, M10, M12, M13 so với `02` §2.3), enum `theme` và đồng bộ `02` với M03/M04/M10/M11; 3 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R20-01…R20-03). Đổi DDL `user_settings.theme`.
 - **Lần 21 (2026-11-04)**: 8 Minor, rà theo chiều API (`02`) → CSDL (`01`): phiên đăng nhập khi xoay vòng, mã lý do `LOGIN_FAILED`, `username`/`email` người dùng, ngưỡng QoS, đặc tả nhóm đầu số, đồng bộ `02` với M02/M03; 5 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R21-01…R21-05). Chỉ đổi COMMENT (`auth_sessions.last_used_at`, `users.username`, `users.email`). Không phát hiện API thiếu cho dữ liệu có trong CSDL; `username`/`email` người dùng chốt là bất biến nên không thêm API.
-- **Lần 22 (2026-11-04)**: 6 Minor, rà **độ phủ API theo yêu cầu nghiệp vụ** (`require_for_writing_docs.md` → 83 endpoint của `02` → M01–M15). Mọi nhóm tính năng đều có API; thiếu 2 chỉ số QoS mà yêu cầu nêu đích danh dù `stats_*` đã có cột (R-Value, MOS hai chiều), 1 chỉ số chưa ghi lý do bỏ (gói RTP bị loại bỏ) và 4 endpoint có ở `02` nhưng chưa module nào đặc tả. Đã sửa M02, M03, M04, M13, M15, `02`. Không đổi DDL. Các quy tắc mới của R22-04…R22-06 là đề xuất của lần rà, chờ chủ dự án xác nhận (C-02).
+- **Lần 22 (2026-11-04)**: 6 Minor, rà **độ phủ API theo yêu cầu nghiệp vụ** (`require_for_writing_docs.md` → 83 endpoint của `02` → M01–M15; đếm lại ở lần 23: 95 dòng). Mọi nhóm tính năng đều có API; thiếu 2 chỉ số QoS mà yêu cầu nêu đích danh dù `stats_*` đã có cột (R-Value, MOS hai chiều), 1 chỉ số chưa ghi lý do bỏ (gói RTP bị loại bỏ) và 4 endpoint có ở `02` nhưng chưa module nào đặc tả. Đã sửa M02, M03, M04, M13, M15, `02`. Không đổi DDL. Các quy tắc mới của R22-04…R22-06 là đề xuất của lần rà, chờ chủ dự án xác nhận (C-02).
+- **Lần 23 (2026-11-04)**: 6 Minor, rà **đủ số lượng endpoint** theo hai chiều: (a) mọi endpoint mà `00`, `01`, `03`, M01–M15 nhắc tới đều có trong `02` (6 tham chiếu lệch đều là endpoint đã loại bỏ hoặc bản Admin của route `USER + ADMIN`); (b) `02` có **95 dòng = 133 route** (dòng `USER + ADMIN` tính 2), không trùng, không thiếu endpoint cho chức năng nào. Thiếu ở chiều sâu: 16 endpoint chỉ có một dòng ở `02`, chưa có đặc tả trong module (R23-01…R23-06). Đã viết đặc tả ở M01, M02, M03, M04, M07, M08, M09, M11 và thêm tham chiếu ở `02`. Không đổi DDL. Các quy tắc mới là đề xuất của lần rà, chờ chủ dự án xác nhận (C-03).
 - **Sẵn sàng sinh migration/entity** sau khi chạy xong DDL trên MariaDB 10.6 (mục 2.1).
 
 ## 1. Các lần rà soát
@@ -50,6 +51,7 @@
 | 20 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `cd6f5df` | 8 Minor | ✅ |
 | 21 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `a6ae071` | 8 Minor | ✅ |
 | 22 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `9d57fd3` | 6 Minor | ✅ phía `docs/`; C-02 chờ xác nhận |
+| 23 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (chưa commit) | 6 Minor | ✅ phía `docs/`; C-03 chờ xác nhận |
 
 ---
 
@@ -57,7 +59,7 @@
 
 ### 2.1. Kiểm chứng DDL trên đúng phiên bản
 
-- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`). Lần 16 không đổi DDL (chỉ thêm một câu chính sách phiên ở `01` §6.1). Lần 17 không đổi DDL (chỉ sửa câu mã lỗi `423` ở `01` §6.1). Lần 18 không đổi DDL (chỉ sửa câu chính sách phiên ở `01` §6.1). Lần 19 chỉ đổi COMMENT `prefix_allocation_history.range_text`. Lần 20 đổi `user_settings.theme` thành `enum('LIGHT','DARK','SYSTEM') DEFAULT 'SYSTEM'`, chưa chạy lại. Lần 21 chỉ đổi COMMENT (`auth_sessions.last_used_at`, `users.username`, `users.email`). Lần 22 không đổi DDL.
+- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`). Lần 16 không đổi DDL (chỉ thêm một câu chính sách phiên ở `01` §6.1). Lần 17 không đổi DDL (chỉ sửa câu mã lỗi `423` ở `01` §6.1). Lần 18 không đổi DDL (chỉ sửa câu chính sách phiên ở `01` §6.1). Lần 19 chỉ đổi COMMENT `prefix_allocation_history.range_text`. Lần 20 đổi `user_settings.theme` thành `enum('LIGHT','DARK','SYSTEM') DEFAULT 'SYSTEM'`, chưa chạy lại. Lần 21 chỉ đổi COMMENT (`auth_sessions.last_used_at`, `users.username`, `users.email`). Lần 22, 23 không đổi DDL.
 - **Việc cần làm**: trích toàn bộ khối ```` ```sql ```` của `01` và seed `M10` §2.1, chạy trên MariaDB 10.6, kiểm tra:
   - 27 bảng + 1 view tạo không lỗi; partition `cdr_enriched` đúng.
   - Seed: 25 mã quyền; `permission_roles` ROOT_ADMIN 25, SYSTEM_ADMIN 24, GROUP_ADMIN 17, USER_RECORDING 11, REGULAR_USER 9; 19 key `system_settings`; 5 ngưỡng QoS.
@@ -130,6 +132,10 @@ Các quy tắc sau đã ghi trong `docs/` nhưng chỉ kiểm chứng được b
 | `GET /user-groups/tree` bản User chỉ trả nhánh của nhóm người gọi; nút không có nhóm trong cả nhánh bị lược | M02 §3.1.1 | R22-04 |
 | `logout` không có cookie hoặc phiên đã thu hồi vẫn xóa cookie, trả `200` | M03 §3.2.1, M04 §3.5 | R22-05 |
 | `reset-password`, `DELETE .../sessions` của Admin chặn chính mình (`SELF_ACTION_FORBIDDEN`) và `ROOT_ADMIN` (`ROOT_ADMIN_PROTECTED`) | `02` §2.3, §3.1, M04 §3.6–3.7 | R22-06 |
+| Route User của `/users/:id`, `/user-groups/:id`, `/prefixes/:id` với bản ghi nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS` | M02 §3.1.2, M03 §3.3.1, M11 §4.1.1 | R23-02 |
+| Quản trị viên nhóm tự khóa, tự ngừng hoạt động, tự đặt lại mật khẩu qua route User trả `403 SELF_ACTION_FORBIDDEN`; `PUT /admin/admins/:id` với chính mình cũng vậy | `02` §2.3, M03 §3.7–3.9, M04 §3.8 | R23-03, R23-04 |
+| `DELETE .../auth/sessions/:id` với phiên hiện tại trả `400`, với phiên của người khác trả `404`; `GET` đánh dấu đúng `isCurrent` theo cookie | M08 §3.6, M09 §3.5 | R23-05 |
+| `GET /admin/audit-logs` khoảng quá 31 ngày, thiếu ngày, `actorId` không có `actorType` hoặc `action` lạ trả `400` | M07 §3.4 | R23-06 |
 
 ### 2.4. Cần xác nhận / ghi nhận rủi ro
 
@@ -137,6 +143,7 @@ Các quy tắc sau đã ghi trong `docs/` nhưng chỉ kiểm chứng được b
 |---|---|---|
 | C-01 | ✅ **Đã xác nhận** (lần 17): `trend` cho `last_month` so với tháng liền trước nữa, `custom` so với khoảng cùng số ngày ngay trước `fromDate`, giữ như M05 | M05 §3.1 (R12-05) |
 | C-02 | ⏳ **Chờ xác nhận** (lần 22): các quy tắc do lần rà đề xuất khi viết đặc tả còn thiếu: dạng response và cách lược cây của `GET /user-groups/tree` (R22-04); `logout` idempotent (R22-05); chặn tự đặt lại mật khẩu/tự thu hồi mọi phiên và chặn thao tác trên `ROOT_ADMIN` cho `reset-password`, `DELETE /admin/admins/:id/sessions` (R22-06) | M02 §3.1.1, M03 §3.2.1, M04 §3.6–3.7, `02` §2.3 |
+| C-03 | ⏳ **Chờ xác nhận** (lần 23): các quy tắc do lần rà đề xuất khi viết đặc tả còn thiếu: giữ `GET /organizations`, `GET /organizations/:id` (dù chưa màn hình nào gọi), bản User không trả `userGroups`/`userGroupCount` (R23-01); bản User xem chi tiết nhóm/người dùng/dải số của nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS` (R23-02); `PUT /admin/admins/:id` chặn chính mình, đổi `email` không thu hồi phiên (R23-03); Quản trị viên nhóm tự khóa, tự ngừng hoạt động, tự đặt lại mật khẩu qua route User trả `403 SELF_ACTION_FORBIDDEN`, đổi trạng thái trùng trạng thái hiện tại trả `200` không ghi gì (R23-04); thu hồi phiên hiện tại qua `DELETE .../auth/sessions/:id` trả `400`, `:id` không phải của mình trả `404`, nhận diện phiên hiện tại bằng cookie (R23-05); `audit-logs` khoảng tối đa 31 ngày, `limit` ≤ 100, không xuất file (R23-06) | M01 §3.1.1–3.1.2, M02 §3.1.2, M03 §3.3.1, §3.7–3.10, M04 §3.8–3.9, M07 §3.4, M08 §3.6, M09 §3.5, M11 §4.1.1, `02` §2.3 |
 | I-01 | `high_packet_loss_legs_count` phụ thuộc ngưỡng tại thời điểm tính; đổi ngưỡng rồi tính lại sẽ đổi số liệu lịch sử của các khung được tính lại | `01` §15 |
 | I-02 | `representative_user_id` phải là GROUP_ADMIN cùng nhóm: chỉ service bảo đảm | `01` §5, M10 |
 | I-03 | `cdr_enriched` có nhiều index phụ trên bảng ghi liên tục; truy vấn `caller_group_id = g OR called_group_id = g` cần index merge hoặc `UNION`. Đo trên dữ liệu thật trước khi chốt bộ index | `01` §2.1 |
@@ -237,7 +244,7 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 - Tách đổi trạng thái khỏi `PUT /users/:id`; `audit_logs` chỉ ghi thêm ở mức CSDL.
 - Ghi chú: nhóm sở hữu số chốt lúc làm giàu, mã nhóm không dùng lại, giới hạn `timestamp` 2038.
 
-### 3.5. Lần 6–22
+### 3.5. Lần 6–23
 
 | Mã | Mức | Vấn đề | Xử lý (nơi sửa) |
 |---|---|---|---|
@@ -381,6 +388,12 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 | R22-04 | Minor | `GET /user-groups/tree` có ở `02` §3.4 và tab `tree-view` (M02 §1.4, §5.1) nhưng không module nào đặc tả response, phạm vi bản User | Thêm M02 §3.1.1: `{ organizations, standaloneGroups }`, mỗi nút có `userGroups`, lược nút không có nhóm, bản User chỉ nhánh của nhóm mình; `02` §3.4 (C-02) |
 | R22-05 | Minor | `POST /auth/logout`, `/auth/refresh` (cả hai cổng) chỉ có dòng ở `02` §3.1–3.2 và chính sách `01` §6.1, không có đặc tả request/response | Thêm M03 §3.2.1, M04 §3.5: body rỗng, `refresh` trả `{ accessToken, expiresIn }`, `logout` idempotent, audit `AUTH / LOGOUT` (C-02) |
 | R22-06 | Minor | `PUT /admin/admins/:id/reset-password`, `DELETE /admin/admins/:id/sessions` chỉ có dòng ở `02` §3.1; không nói tự áp lên chính mình hay lên `ROOT_ADMIN` thì sao | Thêm M04 §3.6–3.7; chặn `403 SELF_ACTION_FORBIDDEN`, `403 ROOT_ADMIN_PROTECTED` như khóa/ngừng hoạt động (R20-03); `DELETE .../sessions` trả `{ revokedCount }`. `02` §2.3, §3.1 (C-02) |
+| R23-01 | Minor | `GET /organizations`, `GET /organizations/:id` (`USER + ADMIN`) có ở `02` §3.3 và cây controller M01 §4 nhưng không có đặc tả (query lọc, trường trả về); chưa màn hình nào gọi (Admin dùng `/organizations/tree`, Member không có màn hình tổ chức) | Giữ API, thêm M01 §3.1.1–3.1.2: lọc `search`/`status`/`parentId`/`level`, `childCount`; bản Admin có thêm `userGroupCount`, `userGroups`. `02` §3.3 (C-03) |
+| R23-02 | Minor | API chi tiết `GET /users/:id`, `GET /user-groups/:id`, `GET /prefixes/:id` chỉ có một dòng ở `02`; không module nào nêu trường trả về (vd. "tỷ lệ sử dụng kho số" của `/prefixes/:id` tính thế nào) | Thêm M03 §3.3.1, M02 §3.1.2, M11 §4.1.1; tỷ lệ sử dụng do frontend tính từ `counts`; bản User xem bản ghi nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS`. `02` §3.4–3.6 (C-03) |
+| R23-03 | Minor | `PUT /admin/admins/:id`, `DELETE /admin/admins/:id`: M04 §3 đặc tả 3.2–3.7 nhưng thiếu hai API này (body, chặn chính mình/`ROOT_ADMIN`, thu hồi phiên) | Thêm M04 §3.8–3.9; `PUT` chặn chính mình (`SELF_ACTION_FORBIDDEN`), `DELETE` thu hồi phiên (`ACCOUNT_LOCKED`), ghi `ADMIN / UPDATE`, `DEACTIVATE`. `02` §2.3, §3.1 (C-03) |
+| R23-04 | Minor | `PUT /users/:id/status`, `PUT /users/:id/reset-password`, `DELETE /users/:id`, `DELETE /admin/users/:id/sessions`: quy tắc rải ở M03 §1.2, §3.5 và `02` §3.5, chưa có mục đặc tả (thứ tự kiểm tra, response, audit, Quản trị viên nhóm tự áp lên chính mình) | Thêm M03 §3.7–3.10; route User chặn tự khóa/tự ngừng hoạt động/tự đặt lại mật khẩu (`403 SELF_ACTION_FORBIDDEN`). `02` §2.3, §3.5 (C-03) |
+| R23-05 | Minor | 4 API phiên `GET`/`DELETE .../auth/sessions[/:id]` (cả hai cổng): M08, M09 chỉ nhắc tên; chưa nêu trường trả về, cách biết phiên hiện tại, thu hồi phiên hiện tại hay phiên của người khác thì sao | Thêm M08 §3.6, M09 §3.5: `isCurrent` theo cookie, `expiresAt`, phiên hiện tại `400`, phiên không phải của mình `404`, `{ revoked }`. `02` §3.1–3.2 (C-03) |
+| R23-06 | Minor | `GET /admin/audit-logs` chỉ có bộ lọc (M07 §5, `02` §3.1); chưa nêu trường trả về, thứ tự sắp, khoảng ngày tối đa. Bảy endpoint khác cũng chưa có mục riêng (`GET /admin/qos/thresholds`, `POST /admin/notifications`, `GET /admin/phone-numbers/pool/summary`, `PUT /admin/phone-numbers/:number`, `POST /admin/stats/recalculate`, `GET /dashboard/recent-calls`, `GET /admin/dashboard/groups`) nhưng dòng `02` và module đã đủ body/response, không cần sửa | Thêm M07 §3.4 (tối đa 31 ngày, `limit` ≤ 100, sắp `created_at` giảm dần); M09 §3.4 nêu trường của `recent-activity` theo M07 §3.4. `02` §3.1 (C-03) |
 
 Đề xuất làm gọn **bị từ chối** ở lần 10 (giữ nguyên, không đề xuất lại): gộp `phone_prefix_groups` vào `user_groups`; thay 5 bảng RBAC bằng cột `role`; bỏ `stats_daily`; bỏ dòng `phone_number_range_history` cho từng số.
 

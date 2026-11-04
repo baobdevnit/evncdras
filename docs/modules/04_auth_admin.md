@@ -113,7 +113,22 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 - **Guard**: `AdminAuthGuard`, `Permission: admin:manage`. Không có body.
 - Thu hồi mọi phiên còn hiệu lực của admin `:id` (`revoked_reason = 'REVOKED_BY_ADMIN'`), ghi `audit_logs` `AUTH / SESSION_REVOKED` với `action_details = { "targetActorType": "ADMIN", "revokedCount": n }`. Response `200`: `data = { "revokedCount": n }` (0 nếu không còn phiên nào).
 - Chặn chính mình (`403 SELF_ACTION_FORBIDDEN`; thu hồi phiên của mình qua `DELETE /admin/auth/sessions/:id`) và tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`). Tài khoản `INACTIVE` không còn phiên nên trả `200` với `revokedCount = 0`.
-- Bản tương ứng cho người dùng đơn vị là `DELETE /api/v1/admin/users/:id/sessions` (quyền `user:edit`, `docs/modules/03_auth_user.md`), cùng cách xử lý, `targetActorType = "USER"`.
+- Bản tương ứng cho người dùng đơn vị là `DELETE /api/v1/admin/users/:id/sessions` (quyền `user:edit`, `docs/modules/03_auth_user.md` mục 3.10), cùng cách xử lý, `targetActorType = "USER"`.
+
+### 3.8. Sửa thông tin Admin khác (`PUT /api/v1/admin/admins/:id`)
+
+- **Guard**: `AdminAuthGuard`, `Permission: admin:manage`.
+- **Body**: `{ "fullName"?: string, "email"?: string, "phoneNumber"?: string | null }`, ít nhất một trường. Có `username`, `status`, `roleCode`, `avatarUrl`, `password` hoặc trường khác thì trả `400` (trạng thái đổi qua mục 3.4, mật khẩu qua mục 3.6; không có API đổi vai trò Admin).
+- Chặn chính mình (`403 SELF_ACTION_FORBIDDEN`; tự sửa họ tên, điện thoại qua `PUT /admin/profile`, `docs/modules/09_admin_profile.md` mục 3.2). Tài khoản `INACTIVE` trả `409 ACCOUNT_INACTIVE`. `email` trùng tài khoản Admin chưa `INACTIVE` khác trả `409 ACCOUNT_DUPLICATE`.
+- Đổi `email` không thu hồi phiên (đăng nhập bằng `username` hoặc `email` mới). Ghi `audit_logs` `ADMIN / UPDATE`, `action_details = { "changedFields": ["email", …] }`.
+- **Response** `200`: `data` là phần tử của mục 3.2 sau khi sửa.
+
+### 3.9. Ngừng hoạt động Admin (`DELETE /api/v1/admin/admins/:id`)
+
+- **Guard**: `AdminAuthGuard`, `Permission: admin:manage`. Không có body.
+- Chặn chính mình (`403 SELF_ACTION_FORBIDDEN`) và tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`; ghi thêm `audit_logs` `ADMIN / ACCESS_DENIED`, `docs/01_database_schema.md` mục 13). Tài khoản đã `INACTIVE` trả `409 ACCOUNT_INACTIVE`.
+- Trong một transaction: `status = 'INACTIVE'`; thu hồi mọi phiên (`ACCOUNT_LOCKED`); giữ dòng `admin_roles` (`docs/01_database_schema.md` mục 14); ghi `audit_logs` `ADMIN / DEACTIVATE`.
+- **Response** `200`: `data = { id, status: "INACTIVE" }`. Không xóa cứng, không kích hoạt lại; `username`/`email` được dùng lại cho tài khoản mới.
 
 ---
 

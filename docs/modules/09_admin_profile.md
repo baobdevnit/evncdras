@@ -58,6 +58,11 @@ Dữ liệu lưu tại bảng `admins`, `user_settings` (`user_type = 'ADMIN'`) 
 ### 3.4. `GET /api/v1/admin/profile/recent-activity`
 - **Mục đích**: Lấy 20 hành động gần nhất của Admin từ bảng `audit_logs`.
 - **Response**: Trả về thời gian, địa chỉ IP, hành động (`LISTEN_AUDIO`, `EXPORT_REPORT`, `UPDATE_SETTINGS`...).
+- **Phần tử**: `id`, `action`, `resourceName`, `resourceId`, `ipAddress`, `userAgent`, `actionDetails`, `createdAt`, cùng ý nghĩa với `GET /admin/audit-logs` (`docs/modules/07_system_settings.md` mục 3.4); sắp `created_at` giảm dần; không phân trang.
+
+### 3.5. Phiên đăng nhập của chính mình (`GET /api/v1/admin/auth/sessions`, `DELETE /api/v1/admin/auth/sessions/:id`)
+
+- Giống bản User (`docs/modules/08_user_profile.md` mục 3.6), khác ở `AdminAuthGuard`, cookie `Path=/api/v1/admin/auth` và `actor_type = 'ADMIN'`. Thu hồi mọi phiên của Admin khác dùng `DELETE /api/v1/admin/admins/:id/sessions` (`docs/modules/04_auth_admin.md` mục 3.7).
 
 ---
 

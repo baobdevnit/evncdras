@@ -78,6 +78,18 @@ Bảng dữ liệu MariaDB chính: `organizations` (Đã định nghĩa trong `d
 }
 ```
 
+### 3.1.1. `GET /api/v1/organizations`
+
+- **Mục đích**: danh sách phẳng có lọc và phân trang, dùng cho ô chọn đơn vị có tìm kiếm và tra cứu; màn hình cây dùng mục 3.1. Cây tổ chức không phải dữ liệu của nhóm nên bản User không cô lập theo nhóm, giống mục 3.1.
+- **Query**: `page` (mặc định 1), `limit` (mặc định 20, tối đa 100), `search` (khớp một phần `code`, `name`), `status` (`ACTIVE` | `INACTIVE`, bỏ trống = cả hai), `parentId` (số; `null` = chỉ đơn vị gốc), `level` (`0`–`3`). Sắp `level`, `sort_order`, `name` tăng dần.
+- **Phần tử**: `id`, `parentId`, `parentName`, `code`, `name`, `description`, `representativeName`, `representativePhone`, `representativeEmail`, `level`, `sortOrder`, `status`, `childCount` (số đơn vị con trực tiếp), `createdAt`, `updatedAt`. Bản Admin có thêm `userGroupCount` (số nhóm người dùng tham chiếu, kể cả nhóm `INACTIVE`, là điều kiện chặn xóa ở mục 3.4); bản User không có trường này.
+- Khung phân trang theo `docs/02_api_contracts.md` mục 2.2.
+
+### 3.1.2. `GET /api/v1/organizations/:id`
+
+- **Response**: `data` gồm các trường của một phần tử mục 3.1.1 và `children` (đơn vị con trực tiếp: `id`, `code`, `name`, `level`, `status`, sắp như mục 3.1.1). Bản Admin có thêm `userGroups` (nhóm người dùng gắn trực tiếp vào đơn vị: `id`, `code`, `name`, `status`); bản User không có `userGroups`, `userGroupCount`.
+- `:id` không tồn tại trả `404`. Đơn vị `INACTIVE` vẫn xem được.
+
 ### 3.2. `POST /api/v1/admin/organizations`
 
 - **Body**:

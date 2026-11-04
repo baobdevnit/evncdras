@@ -96,6 +96,17 @@ Bảng MariaDB: `users` và `user_settings`.
 
 - Lấy và lưu thiết lập: `theme`, `isSidebarCollapsed`, `itemsPerPage`, `emailNotificationEnabled`, `soundAlertEnabled`.
 
+### 3.6. Phiên đăng nhập của chính mình (`GET /api/v1/auth/sessions`, `DELETE /api/v1/auth/sessions/:id`)
+
+- **Guard**: `UserAuthGuard` (không nhận token `PASSWORD_CHANGE_ONLY`). Chỉ thao tác trên phiên của chính người gọi (`actor_type = 'USER'`, `actor_id` = người gọi).
+- **Phiên hiện tại**: cookie Refresh Token có `Path=/api/v1/auth` nên được gửi kèm hai API này; backend băm cookie (SHA-256) và so với `refresh_token_hash` để biết phiên hiện tại.
+- **`GET`**: trả mảng (không phân trang) các phiên `revoked_at IS NULL AND expires_at > NOW()`, sắp `COALESCE(last_used_at, created_at)` giảm dần. Mỗi phần tử: `id`, `ipAddress`, `userAgent`, `createdAt` (lúc tạo dòng phiên; sau mỗi lần xoay vòng là lúc refresh gần nhất), `lastUsedAt`, `expiresAt` (hạn tuyệt đối, bằng lúc đăng nhập + `security_refresh_token_days`), `isCurrent`. API không trả tên thiết bị/trình duyệt ghép sẵn: frontend tự đọc từ `userAgent` (`docs/02_api_contracts.md` mục 2).
+- **`DELETE /:id`**: không có body. `:id` đi theo chuỗi `replaced_by_session_id` như `docs/01_database_schema.md` mục 6.1.
+  - `:id` không tồn tại hoặc không phải phiên của người gọi: `404`.
+  - Phiên đích (sau khi đi theo chuỗi) là phiên hiện tại: `400`; kết thúc phiên hiện tại dùng `POST /auth/logout`. Frontend ẩn nút thu hồi ở dòng `isCurrent = true`.
+  - Tới được phiên hiệu lực khác: thu hồi (`REVOKED_BY_SELF`), ghi `audit_logs` `AUTH / SESSION_REVOKED` (`resource_id` = id phiên bị thu hồi), trả `200` với `data = { "revoked": true }`.
+  - Không tới được phiên hiệu lực (phiên đã hết hạn hoặc bị thu hồi vì lý do khác): không ghi gì, trả `200` với `data = { "revoked": false }`.
+
 ---
 
 ## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
