@@ -155,7 +155,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | A05 | GET | `/api/v1/admin/profile` | ADMIN | M09 | `admins` | A/profile | ✅ | `8c8da4c` | 2026-11-04; đặc tả M09 §3.1; bỏ `permissions`, thêm `passwordChangedAt`, `createdAt`; A06 dùng form đã dọn (`fullName`, `phoneNumber`) |
 | A06 | PUT | `/api/v1/admin/profile` | ADMIN | M09 | `admins`, `audit_logs` | A/profile | ✅ | `e61a41d` | 2026-11-04; đặc tả M09 §3.2; quy tắc số điện thoại chung `02` §2; mẫu `adminSession.updateAccount` |
 | A07 | PUT | `/api/v1/admin/profile/change-password` | ADMIN | M09 | `admins`, `auth_sessions` | A/change-password | ✅ | `9ccaa83` | 2026-11-04; đặc tả chung hai cổng M09 §3.3; claim `sid`; sai `currentPassword` → `400` + đếm khóa tạm; bố cục bị buộc đổi `?forced=1` |
-| A08 | POST | `/api/v1/admin/profile/avatar` | ADMIN | M09 | `admins.avatar_url`, `audit_logs` | A/profile | ✅ | | 2026-11-04; đặc tả chung hai cổng M09 §3.2.1; volume chung + Nginx `/media/avatars/`; mã hóa lại 256×256; response hồ sơ đủ 12 trường |
+| A08 | POST | `/api/v1/admin/profile/avatar` | ADMIN | M09 | `admins.avatar_url`, `audit_logs` | A/profile | ✅ | `ae3d510` | 2026-11-04; đặc tả chung hai cổng M09 §3.2.1; volume chung + Nginx `/media/avatars/`; mã hóa lại 256×256; response hồ sơ đủ 12 trường |
 | A09 | GET | `/api/v1/admin/profile/preferences` | ADMIN | M09 | `user_settings` | A/user-settings | ⬜ | | |
 | A10 | PUT | `/api/v1/admin/profile/preferences` | ADMIN | M09 | `user_settings` | A/user-settings | ⬜ | | |
 | A11 | GET | `/api/v1/admin/profile/recent-activity` | ADMIN | M09 | `audit_logs` | A/profile | ⬜ | | |
@@ -324,7 +324,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | 2026-11-04 | A05 | ✅ Xong 3 lớp; không đổi DDL; 2 câu hỏi chốt ngay trong phiên (bỏ `permissions` + thêm `passwordChangedAt`/`createdAt`; xóa ô `department`/`bio` khỏi template) | E-A05-01…03 | `02`, M09, `templates/admin/profile.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | `8c8da4c` |
 | 2026-11-04 | A06 | ✅ Xong 3 lớp; không đổi DDL; 4 câu hỏi chốt ngay trong phiên (cập nhật một phần, response = hồ sơ đủ 12 trường, không đổi gì thì không ghi audit, quy tắc định dạng `phoneNumber` chung) | E-A06-01…04 | `02`, M09, `templates/admin/main.js`, `templates/admin/profile.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | `e61a41d` |
 | 2026-11-04 | A07 | ✅ Xong 3 lớp; chỉ đổi COMMENT `failed_login_count` (`admins`, `users`); 5 câu hỏi chốt ngay trong phiên (sai `currentPassword` → `400` + đếm khóa tạm, tối đa 72 byte, bố cục riêng khi bị buộc đổi, ở lại trang sau khi đổi, claim `sid` vì cookie không tới route) | E-A07-01…05 | `01`, `02`, M03, M04, M08, M09, `templates/admin/{main,login}.js`, `templates/admin/change-password.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | `9ccaa83` |
-| 2026-11-04 | A08 | ✅ Xong 3 lớp; chỉ đổi COMMENT `avatar_url` (`admins`, `users`); 4 câu hỏi chốt ngay trong phiên (volume chung + Nginx `/media/avatars/`, mã hóa lại 256×256, response hồ sơ đủ 12 trường, chưa thêm API gỡ ảnh) | E-A08-01…04 | `00`, `01`, `02`, M02, M03, M08, M09, `templates/admin/profile.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | |
+| 2026-11-04 | A08 | ✅ Xong 3 lớp; chỉ đổi COMMENT `avatar_url` (`admins`, `users`); 4 câu hỏi chốt ngay trong phiên (volume chung + Nginx `/media/avatars/`, mã hóa lại 256×256, response hồ sơ đủ 12 trường, chưa thêm API gỡ ảnh) | E-A08-01…04 | `00`, `01`, `02`, M02, M03, M08, M09, `templates/admin/profile.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | `ae3d510` |
 
 ---
 
