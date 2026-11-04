@@ -249,13 +249,19 @@
                     <p>Quản lý thông tin cá nhân và hồ sơ công tác</p>
                 </div>
 
-                <div class="profile-layout">
+                <!-- Dữ liệu: GET /api/v1/admin/profile (docs/modules/09_admin_profile.md mục 3.1); profile.js đổ vào các phần tử data-field -->
+                <div class="profile-load-state" id="profileLoadState" role="status" aria-live="polite">
+                    <span id="profileLoadMessage">Đang tải hồ sơ...</span>
+                    <button type="button" class="btn btn-outline" id="btnRetryProfile" hidden>Thử lại</button>
+                </div>
+
+                <div class="profile-layout" id="profileLayout" hidden>
                     <!-- Sidebar hồ sơ -->
                     <div class="profile-sidebar card">
                         <div class="profile-header-info">
                             <div class="profile-avatar-wrapper">
-                                <img src="https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff&size=120"
-                                    alt="Avatar lớn" class="profile-avatar-large" id="profileAvatarImg">
+                                <img src="" alt="Ảnh đại diện" class="profile-avatar-large" id="profileAvatarImg">
+                                <!-- Đổi ảnh chỉ qua POST /api/v1/admin/profile/avatar (A08) -->
                                 <button type="button" class="btn-change-avatar" title="Thay đổi ảnh đại diện"
                                     id="btnChangeAvatar">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -264,12 +270,29 @@
                                         <line x1="12" y1="3" x2="12" y2="15"></line>
                                     </svg>
                                 </button>
-                                <input type="file" id="avatar-input" style="display: none" accept="image/*">
+                                <input type="file" id="avatar-input" style="display: none" accept="image/png,image/jpeg">
                             </div>
-                            <h2 id="profileDisplayName">Quản trị viên</h2>
-                            <span class="role-badge">Quản lý cấp cao</span>
-                            <p class="profile-email text-muted">admin@evn.com.vn</p>
+                            <h2 id="profileDisplayName" data-field="fullName"></h2>
+                            <!-- roleName; ROOT_ADMIN thêm class role-badge--root (vàng), SYSTEM_ADMIN giữ màu xanh (M09 mục 5.1) -->
+                            <span class="role-badge" id="profileRoleBadge" data-field="roleName"></span>
+                            <p class="profile-email text-muted" data-field="email"></p>
                         </div>
+
+                        <!-- Thông tin tài khoản (chỉ đọc); thời gian do frontend tự định dạng từ ISO 8601 -->
+                        <dl class="account-meta">
+                            <div class="account-meta-row">
+                                <dt>Lần đăng nhập gần nhất</dt>
+                                <dd data-field="lastLoginAt" data-format="datetime"></dd>
+                            </div>
+                            <div class="account-meta-row">
+                                <dt>Đổi mật khẩu lần cuối</dt>
+                                <dd data-field="passwordChangedAt" data-format="datetime" data-empty="Chưa đổi"></dd>
+                            </div>
+                            <div class="account-meta-row">
+                                <dt>Ngày tạo tài khoản</dt>
+                                <dd data-field="createdAt" data-format="date"></dd>
+                            </div>
+                        </dl>
                     </div>
 
                     <!-- Nội dung hồ sơ -->
@@ -280,29 +303,29 @@
                                 <h3>Thông tin cá nhân</h3>
                             </div>
                             <div class="card-body">
-                                <form id="formGeneralInfo" class="profile-form">
+                                <!-- Form gửi PUT /api/v1/admin/profile (A06): chỉ fullName, phoneNumber -->
+                                <form id="formGeneralInfo" class="profile-form" novalidate>
                                     <!-- Hàng 1: Họ và tên -->
                                     <div class="form-row">
                                         <div class="form-group" style="flex: 1;">
                                             <label for="fullName">Họ và tên <span class="text-danger">*</span></label>
                                             <input type="text" id="fullName" name="fullName" autocomplete="name"
-                                                class="form-control" value="Quản trị viên" required
+                                                class="form-control" required maxlength="150"
                                                 placeholder="Nhập họ và tên đầy đủ">
                                         </div>
                                     </div>
-                                    </div>
                                     <div class="name-preview-hint">
                                         <small class="form-text text-muted">Họ tên hiển thị đầy đủ trên hệ thống:
-                                            <strong id="computedFullNameDisplay">Quản trị viên</strong></small>
+                                            <strong id="computedFullNameDisplay"></strong></small>
                                     </div>
 
-                                    <!-- Hàng 2: Email & Số điện thoại -->
+                                    <!-- Hàng 2: Tên đăng nhập & Email (chỉ đọc) -->
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <label for="email">Địa chỉ Email</label>
+                                            <label for="username">Tên đăng nhập</label>
                                             <div class="input-with-icon">
-                                                <input type="email" id="email" name="email" autocomplete="username"
-                                                    class="form-control" value="admin@evn.com.vn" readonly disabled>
+                                                <input type="text" id="username" data-field="username"
+                                                    autocomplete="username" class="form-control" readonly disabled>
                                                 <span class="input-lock-badge">
                                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                                         stroke-width="2" width="14" height="14">
@@ -312,34 +335,40 @@
                                                     Định danh
                                                 </span>
                                             </div>
-                                            <small class="form-text text-muted">Email dùng để đăng nhập hệ thống nên
-                                                không thể tự thay đổi.</small>
                                         </div>
                                         <div class="form-group">
-                                            <label for="phone">Số điện thoại liên hệ</label>
-                                            <input type="tel" id="phone" name="phone" autocomplete="tel"
-                                                class="form-control" value="0901234567"
-                                                placeholder="Ví dụ: 0987654321">
-                                            <small class="form-text text-muted">Số điện thoại liên lạc dành cho công
-                                                việc.</small>
+                                            <label for="email">Địa chỉ Email</label>
+                                            <div class="input-with-icon">
+                                                <input type="email" id="email" data-field="email" autocomplete="email"
+                                                    class="form-control" readonly disabled>
+                                                <span class="input-lock-badge">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                        stroke-width="2" width="14" height="14">
+                                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                                    </svg>
+                                                    Định danh
+                                                </span>
+                                            </div>
+                                            <small class="form-text text-muted">Không tự đổi được; Root Admin sửa email
+                                                tại Quản lý Quản trị viên.</small>
                                         </div>
                                     </div>
 
-                                    <!-- Hàng 3: Phòng ban & Vai trò hệ thống -->
+                                    <!-- Hàng 3: Số điện thoại & Vai trò -->
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <label for="department">Phòng ban / Đơn vị</label>
-                                            <input type="text" id="department" name="department"
-                                                autocomplete="organization" class="form-control"
-                                                value="Ban Công nghệ thông tin"
-                                                placeholder="Ví dụ: Ban Công nghệ thông tin">
-                                            <small class="form-text text-muted">Đơn vị đang quản lý trực tiếp.</small>
+                                            <label for="phoneNumber">Số điện thoại trực ban</label>
+                                            <input type="tel" id="phoneNumber" name="phoneNumber" autocomplete="tel"
+                                                class="form-control" maxlength="30"
+                                                placeholder="Ví dụ: 0987654321">
+                                            <small class="form-text text-muted">Để trống nếu không có.</small>
                                         </div>
                                         <div class="form-group">
-                                            <label for="userRoleDisplay">Vai trò / Cấp bậc quản trị</label>
+                                            <label for="userRoleDisplay">Vai trò</label>
                                             <div class="input-with-icon">
-                                                <input type="text" id="userRoleDisplay" class="form-control"
-                                                    value="Quản trị viên cấp cao (Root Admin)" readonly disabled>
+                                                <input type="text" id="userRoleDisplay" data-field="roleName"
+                                                    class="form-control" readonly disabled>
                                                 <span class="input-lock-badge">
                                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                                         stroke-width="2" width="14" height="14">
@@ -350,16 +379,7 @@
                                                     Hệ thống
                                                 </span>
                                             </div>
-                                            <small class="form-text text-muted">Cấp bậc phân quyền quản trị cao nhất của
-                                                hệ thống EVN CDR AS.</small>
                                         </div>
-                                    </div>
-
-                                    <!-- Hàng 4: Tiểu sử công tác -->
-                                    <div class="form-group">
-                                        <label for="bio">Ghi chú hồ sơ cá nhân</label>
-                                        <textarea id="bio" name="bio" class="form-control" rows="3"
-                                            placeholder="Nhập tóm tắt quá trình công tác hoặc thông tin giới thiệu bản thân...">Quản trị viên hệ thống EVN CDR AS.</textarea>
                                     </div>
 
                                     <div class="form-actions">

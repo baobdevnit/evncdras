@@ -291,6 +291,57 @@ textarea.form-control {
     box-shadow: none !important;
 }
 
+/* Huy hiệu vai trò: ROOT_ADMIN vàng, SYSTEM_ADMIN giữ màu xanh mặc định (M09 mục 5.1) */
+.role-badge--root {
+    background: var(--accent-light);
+    color: var(--text-main);
+    border-color: var(--accent);
+}
+
+/* Trạng thái tải / lỗi của GET /admin/profile */
+.profile-load-state {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 24px;
+    color: var(--text-muted);
+}
+
+.profile-load-state.is-error {
+    color: var(--secondary);
+}
+
+.profile-load-state[hidden],
+.profile-layout[hidden] {
+    display: none;
+}
+
+/* Thông tin tài khoản chỉ đọc (lastLoginAt, passwordChangedAt, createdAt) */
+.account-meta {
+    margin: 20px 0 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.account-meta-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    font-size: 0.85rem;
+}
+
+.account-meta-row dt {
+    color: var(--text-muted);
+}
+
+.account-meta-row dd {
+    margin: 0;
+    color: var(--text-main);
+    font-weight: 500;
+    text-align: right;
+}
+
 /* Mobile Responsive Adjustments */
 @media (max-width: 576px) {
     .form-actions {

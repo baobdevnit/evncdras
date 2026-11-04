@@ -26,27 +26,60 @@ Dữ liệu lưu tại bảng `admins`, `user_settings` (`user_type = 'ADMIN'`) 
 ## 3. Đặc tả API Contracts
 
 ### 3.1. `GET /api/v1/admin/profile`
-- **Guard**: `AdminAuthGuard`
-- **Response**:
+- **Guard**: `AdminAuthGuard`; không cần mã quyền. Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED` (`docs/01_database_schema.md` mục 6.1). Chế độ bảo trì không áp dụng cho cổng Admin.
+- **Request**: không có query, không có body. Gửi query param bất kỳ trả `400 VALIDATION_ERROR`.
+- **Xử lý** (chỉ đọc, không ghi CSDL, không ghi `audit_logs`): đọc `admins` theo khóa chính `id = sub` của Access Token, join `admin_roles` → `roles`. Không thấy dòng hoặc `status` khác `ACTIVE` trả `401 UNAUTHORIZED`, cùng quy tắc `GET /api/v1/admin/auth/me` (`docs/modules/04_auth_admin.md` mục 3.1.1 bước 2).
+- **Response** `200`: hồ sơ để hiển thị và làm giá trị ban đầu cho form `PUT` (mục 3.2). Không có `permissions`: quyền chỉ lấy từ store `authAdmin.admin` (nạp từ đăng nhập hoặc `/auth/me`).
+
+| Trường | Nguồn | Ghi chú |
+|---|---|---|
+| `id` | `admins.id` | |
+| `username` | `admins.username` | Chỉ đọc |
+| `email` | `admins.email` | Chỉ đọc (mục 1.1) |
+| `fullName` | `admins.full_name` | Sửa qua mục 3.2 |
+| `phoneNumber` | `admins.phone_number` | `null` khi chưa nhập; sửa qua mục 3.2 |
+| `avatarUrl` | `admins.avatar_url` | `null` khi chưa tải ảnh (frontend dựng ảnh chữ cái đầu từ `fullName`); đổi qua `POST /admin/profile/avatar` |
+| `status` | `admins.status` | Luôn `ACTIVE` (tài khoản khác `ACTIVE` nhận `401`) |
+| `roleCode`, `roleName` | `roles.code`, `roles.name` qua `admin_roles` | Huy hiệu vai trò (mục 5.1) |
+| `lastLoginAt` | `admins.last_login_at` | Lần đăng nhập thành công gần nhất (chính là phiên hiện tại nếu chưa đăng nhập lại ở nơi khác) |
+| `passwordChangedAt` | `admins.password_changed_at` | `null` khi chưa từng đổi; frontend tự tính ngày hết hạn từ `security_password_max_age_days` nếu cần |
+| `createdAt` | `admins.created_at` | |
+
+Không trả `password_hash`, `must_change_password`, `failed_login_count`, `locked_until`, `created_by_admin_id`, `updated_at`. Thời gian theo ISO 8601 `+07:00` (`docs/02_api_contracts.md` mục 2).
+
 ```json
 {
   "success": true,
   "statusCode": 200,
+  "message": "Lấy hồ sơ thành công",
   "data": {
     "id": 1,
     "username": "root.admin@evnict.vn",
     "email": "root.admin@evnict.vn",
     "fullName": "Quản trị viên Tối cao EVNICT",
     "phoneNumber": "02422222222",
-    "avatarUrl": "https://ui-avatars.com/api/?name=Root+Admin",
+    "avatarUrl": null,
     "status": "ACTIVE",
-    "lastLoginAt": "2026-10-12T08:15:00+07:00",
     "roleCode": "ROOT_ADMIN",
     "roleName": "Quản trị viên tối cao",
-    "permissions": ["cdr:view", "cdr:listen_audio", "cdr:download_audio", "admin:manage", "system:manage", "role:view"]
-  }
+    "lastLoginAt": "2026-10-12T08:15:00+07:00",
+    "passwordChangedAt": "2026-09-01T10:20:00+07:00",
+    "createdAt": "2026-08-15T09:00:00+07:00"
+  },
+  "timestamp": "2026-10-12T09:45:00+07:00"
 }
 ```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản không còn `ACTIVE` |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+
+- **Frontend** (`AdminProfileView`): gọi mỗi lần vào màn hình qua API client của cổng (`401` → refresh một lần rồi gửi lại). Phần đầu thẻ hiển thị `avatarUrl`, `fullName`, huy hiệu `roleName`, `email`; form điền `fullName`, `phoneNumber` (sửa được), `username`, `email`, `roleName` (chỉ đọc); khối thông tin tài khoản hiển thị `lastLoginAt`, `passwordChangedAt` (`null` → "Chưa đổi"), `createdAt` do frontend tự định dạng. Lỗi tải thì hiện thông báo và nút thử lại, không hiện dữ liệu mẫu. Mẫu: `templates/admin/profile.js`.
+- Index phục vụ: khóa chính `admins`, `admin_roles`, `roles`.
 
 ### 3.2. `PUT /api/v1/admin/profile`
 - Cập nhật `fullName`, `phoneNumber`. Không nhận `email`, `avatarUrl` (gửi lên trả `400`); ảnh đại diện chỉ đổi qua `POST /api/v1/admin/profile/avatar`, API này lưu file, ghi luôn `admins.avatar_url` và trả `avatarUrl` mới. Cả hai API ghi `audit_logs` `ADMIN / UPDATE` (`action_details = { "changedFields": [...] }`); `PUT .../preferences` không ghi.
@@ -105,4 +138,5 @@ Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
 1. **TC-AP-01**: Admin đổi mật khẩu thành chuỗi dưới 10 ký tự, xác nhận hệ thống báo lỗi validation `Mật khẩu quản trị phải từ 10 ký tự trở lên`.
 2. **TC-AP-02**: Xem tab "Nhật ký kiểm toán cá nhân", xác nhận hiển thị đúng lịch sử đăng nhập vừa thực hiện kèm IP client.
+3. **TC-AP-03**: `GET /api/v1/admin/profile` trả đủ 12 trường của mục 3.1, không có `permissions`, `password_hash`, `locked_until`; gửi `?x=1` trả `400`; gọi bằng token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`; Root Admin khóa tài khoản trong lúc Access Token còn hạn thì lần gọi kế tiếp trả `401 UNAUTHORIZED`.
 
