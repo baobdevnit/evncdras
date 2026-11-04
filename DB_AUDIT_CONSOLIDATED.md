@@ -45,7 +45,7 @@
 | 17 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `c13212d` | 12 Minor | ✅ |
 | 18 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `1d54b6e` | 8 Minor | ✅ |
 | 19 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `fa7f659` | 11 Minor | ✅ |
-| 20 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (chưa commit) | 8 Minor | ✅ |
+| 20 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `cd6f5df` | 8 Minor | ✅ |
 
 ---
 
