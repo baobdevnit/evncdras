@@ -51,7 +51,7 @@
 | 20 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `cd6f5df` | 8 Minor | ✅ |
 | 21 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `a6ae071` | 8 Minor | ✅ |
 | 22 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `9d57fd3` | 6 Minor | ✅ phía `docs/`; C-02 chờ xác nhận |
-| 23 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (chưa commit) | 6 Minor | ✅ phía `docs/`; C-03 chờ xác nhận |
+| 23 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `94c7d7b` | 6 Minor | ✅ phía `docs/`; C-03 chờ xác nhận |
 
 ---
 
