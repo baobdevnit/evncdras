@@ -51,10 +51,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (themeToggleBtn) {
         updateIcon();
 
-        // Nút ở header đổi nhanh Sáng ↔ Tối qua store thiết lập (A10 sẽ lưu bằng PUT .../preferences).
+        // Nút ở header đổi nhanh Sáng ↔ Tối và lưu ngay: PUT .../preferences { theme } (A10, M09 mục 3.7).
+        // Áp ngay, đang gửi thì khóa nút, lỗi thì savePreferences đã hoàn tác → chỉ báo toast.
         themeToggleBtn.addEventListener('click', () => {
+            if (themeToggleBtn.disabled) return;
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-            window.adminSession.setPreferences({ theme: isDark ? 'LIGHT' : 'DARK' });
+            themeToggleBtn.disabled = true;
+            window.adminSession.savePreferences({ theme: isDark ? 'LIGHT' : 'DARK' })
+                .catch(err => {
+                    if (err && err.statusCode === 401) return; // đã chuyển về trang đăng nhập
+                    if (typeof window.showToast === 'function') {
+                        window.showToast((err && err.message) || 'Không lưu được chế độ giao diện.', 'error');
+                    }
+                })
+                .finally(() => { themeToggleBtn.disabled = false; });
         });
         window.addEventListener('theme-changed', updateIcon);
     }
@@ -372,11 +382,87 @@ window.adminSession = (function () {
         return clonePreferences(currentPreferences || DEFAULT_PREFERENCES);
     }
 
-    // Đổi thiết lập trong store rồi áp lên giao diện (A10: gọi PUT .../preferences rồi mới cập nhật store).
-    function setPreferences(patch) {
-        currentPreferences = Object.assign(getPreferences(), patch || {});
+    // ---------- Lưu thiết lập: PUT /api/v1/admin/profile/preferences (A10, M09 mục 3.7) ----------
+    const WIDGET_KEYS = DEFAULT_PREFERENCES.dashboardWidgets.map(w => w.key);
+    const PREF_FIELDS = ['theme', 'isSidebarCollapsed', 'itemsPerPage', 'emailNotificationEnabled', 'soundAlertEnabled', 'dashboardWidgets'];
+
+    // Kiểm tra body như backend: cập nhật một phần, ít nhất một trường, không null, không ép kiểu,
+    // dashboardWidgets đúng 6 phần tử { key, visible, order }, mỗi key một lần, order 1…6. Trả errors hoặc null.
+    function validatePreferencesBody(body) {
+        const errors = {};
+        const add = (field, msg) => { (errors[field] = errors[field] || []).push(msg); };
+        const keys = Object.keys(body || {});
+        if (keys.length === 0) {
+            PREF_FIELDS.forEach(f => add(f, 'Cần gửi ít nhất một trường'));
+            return errors;
+        }
+        keys.forEach(k => { if (!PREF_FIELDS.includes(k)) add(k, 'Trường không được phép cập nhật'); });
+        if ('theme' in body && !THEMES.includes(body.theme)) add('theme', 'Chế độ giao diện chỉ nhận LIGHT, DARK hoặc SYSTEM');
+        if ('itemsPerPage' in body && ![10, 20, 50].includes(body.itemsPerPage)) add('itemsPerPage', 'Số dòng mỗi trang chỉ nhận 10, 20 hoặc 50');
+        ['isSidebarCollapsed', 'emailNotificationEnabled', 'soundAlertEnabled'].forEach(f => {
+            if (f in body && typeof body[f] !== 'boolean') add(f, 'Giá trị phải là true hoặc false');
+        });
+        if ('dashboardWidgets' in body) {
+            const w = body.dashboardWidgets;
+            const ok = Array.isArray(w) && w.length === 6 &&
+                w.every(x => x && typeof x === 'object' && Object.keys(x).length === 3 &&
+                    WIDGET_KEYS.includes(x.key) && typeof x.visible === 'boolean' && Number.isInteger(x.order)) &&
+                new Set(w.map(x => x.key)).size === 6 &&
+                w.map(x => x.order).sort((a, b) => a - b).join() === '1,2,3,4,5,6';
+            if (!ok) add('dashboardWidgets', 'Phải gồm đúng 6 widget, mỗi key một lần, order từ 1 đến 6 không trùng');
+        }
+        return Object.keys(errors).length ? errors : null;
+    }
+
+    // Giả lập backend PUT .../preferences: 400 VALIDATION_ERROR; 401 UNAUTHORIZED; 200 data = đủ 6 trường như GET
+    // (upsert, mảng widget lưu theo order; không ghi audit). MOCK_PREFERENCES đóng vai dòng user_settings đã lưu.
+    function mockAdminUpdatePreferences(token, body) {
+        return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+            if (!token) {
+                return Promise.reject({
+                    success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+                    message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: now()
+                });
+            }
+            const errors = validatePreferencesBody(body);
+            if (errors) {
+                return Promise.reject({
+                    success: false, statusCode: 400, errorCode: 'VALIDATION_ERROR',
+                    message: 'Dữ liệu không hợp lệ', errors, timestamp: now()
+                });
+            }
+            const patch = Object.assign({}, body);
+            if (patch.dashboardWidgets) {
+                patch.dashboardWidgets = patch.dashboardWidgets.map(w => Object.assign({}, w)).sort((a, b) => a.order - b.order);
+            }
+            Object.assign(MOCK_PREFERENCES, patch);
+            return {
+                success: true, statusCode: 200, message: 'Cập nhật thiết lập thành công',
+                data: clonePreferences(MOCK_PREFERENCES), timestamp: now()
+            };
+        });
+    }
+
+    // Lưu một thay đổi theo kiểu "áp ngay, lỗi thì hoàn tác" (M09 mục 3.7):
+    // 1) chụp giá trị cũ các trường của patch, đổi store + áp giao diện ngay;
+    // 2) PUT chỉ các trường đó qua request() (401 → refresh một lần rồi gửi lại);
+    // 3) thành công: store = data của response; lỗi: trả các trường đó về giá trị cũ rồi ném lỗi để màn hình báo.
+    // Vue: action `save(patch)` của store preferencesAdmin.
+    function savePreferences(patch) {
+        const before = getPreferences();
+        const previous = {};
+        Object.keys(patch).forEach(k => { previous[k] = before[k]; });
+        currentPreferences = Object.assign(getPreferences(), clonePreferences(Object.assign({}, before, patch)));
         applyPreferences(currentPreferences);
-        return getPreferences();
+        return request(token => mockAdminUpdatePreferences(token, patch)).then(res => {
+            currentPreferences = res.data;
+            applyPreferences(currentPreferences);
+            return getPreferences();
+        }).catch(err => {
+            currentPreferences = Object.assign(getPreferences(), previous);
+            applyPreferences(currentPreferences);
+            throw err;
+        });
     }
 
     // Nạp `admin` vào store (chỉ khi chưa có: sau đăng nhập đã có data.admin của login).
@@ -484,7 +570,7 @@ window.adminSession = (function () {
     });
 
     return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, updateAccount, setAccessToken, getAccount,
-        loadPreferences, getPreferences, setPreferences, applyPreferences };
+        loadPreferences, getPreferences, savePreferences, applyPreferences };
 })();
 
 // ----------------------------------------

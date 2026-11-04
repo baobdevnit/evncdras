@@ -3,7 +3,8 @@
  * PAGE: Cài đặt tài khoản Admin (AccountSettingsView, /admin/account-settings)
  * File: templates/admin/user-settings.js
  * API: GET /api/v1/admin/profile/preferences (docs/modules/09_admin_profile.md mục 3.6, mục 5.2)
- * Lưu thay đổi: PUT /api/v1/admin/profile/preferences (A10, chưa nối: hiện chỉ đổi store và áp giao diện)
+ * Lưu thay đổi: PUT /api/v1/admin/profile/preferences (docs/modules/09_admin_profile.md mục 3.7): mỗi điều khiển lưu
+ *   ngay khi đổi, chỉ gửi trường vừa đổi; áp ngay, đang gửi thì khóa điều khiển, lỗi thì hoàn tác + toast.
  * ============================================================
  *
  * Dữ liệu: store preferencesAdmin (window.adminSession.getPreferences). Guard của cổng đã nạp một lần khi vào cổng;
@@ -66,6 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderWidgets(prefs.dashboardWidgets);
     }
 
+    let savingWidgets = false; // đang gửi PUT dashboardWidgets → khóa nút lên/xuống và công tắc
+
     // dashboardWidgets: backend đã chuẩn hóa đủ 6 phần tử, order 1…6; chỉ cần sắp theo order
     function renderWidgets(widgets) {
         const sorted = widgets.slice().sort((a, b) => a.order - b.order);
@@ -78,14 +81,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="widget-order">${w.order}</span>
                 <span class="widget-name"></span>
                 <span class="widget-actions">
-                    <button type="button" class="btn-icon" data-move="-1" title="Lên trên" aria-label="Đưa lên trên" ${i === 0 ? 'disabled' : ''}>
+                    <button type="button" class="btn-icon" data-move="-1" title="Lên trên" aria-label="Đưa lên trên" ${i === 0 || savingWidgets ? 'disabled' : ''}>
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
                     </button>
-                    <button type="button" class="btn-icon" data-move="1" title="Xuống dưới" aria-label="Đưa xuống dưới" ${i === sorted.length - 1 ? 'disabled' : ''}>
+                    <button type="button" class="btn-icon" data-move="1" title="Xuống dưới" aria-label="Đưa xuống dưới" ${i === sorted.length - 1 || savingWidgets ? 'disabled' : ''}>
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </button>
                     <label class="toggle-switch">
-                        <input type="checkbox" data-visible ${w.visible ? 'checked' : ''}>
+                        <input type="checkbox" data-visible ${w.visible ? 'checked' : ''} ${savingWidgets ? 'disabled' : ''}>
                         <span class="toggle-slider"></span>
                     </label>
                 </span>`;
@@ -125,24 +128,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnRetry.addEventListener('click', () => load(true));
 
-    // ---------- Thay đổi (A10 sẽ gọi PUT trước rồi mới cập nhật store; lỗi thì trả điều khiển về giá trị cũ) ----------
-    function change(patch, message) {
-        const prefs = session.setPreferences(patch);
-        render(prefs);
-        notify(message);
+    // ---------- Thay đổi: PUT .../preferences chỉ trường vừa đổi (M09 mục 3.7) ----------
+    // savePreferences áp ngay vào store/giao diện (preferences-changed → render), lỗi thì tự hoàn tác.
+    // `lockEls`: điều khiển bị khóa trong lúc gửi (Vue: :disabled theo trạng thái saving của từng trường).
+    function change(patch, message, lockEls) {
+        const els = lockEls || [];
+        els.forEach(el => { el.disabled = true; });
+        // Danh sách widget được vẽ lại sau mỗi lần áp → khóa qua cờ savingWidgets (renderWidgets đọc)
+        if ('dashboardWidgets' in patch) { savingWidgets = true; widgetList.setAttribute('aria-busy', 'true'); }
+        return session.savePreferences(patch)
+            .then(prefs => { render(prefs); notify(message); })
+            .catch(err => {
+                render(session.getPreferences());
+                if (err && err.statusCode === 401) return; // đã chuyển về trang đăng nhập
+                const fieldMsg = err && err.errors && Object.values(err.errors)[0];
+                notify((fieldMsg && fieldMsg[0]) || (err && err.message) || 'Không lưu được thiết lập. Vui lòng thử lại.', 'error');
+            })
+            .finally(() => {
+                els.forEach(el => { el.disabled = false; });
+                if ('dashboardWidgets' in patch) {
+                    savingWidgets = false;
+                    widgetList.setAttribute('aria-busy', 'false');
+                    renderWidgets(session.getPreferences().dashboardWidgets);
+                }
+            });
     }
 
     themeInputs.forEach(input => input.addEventListener('change', () => {
-        if (input.checked) change({ theme: input.value }, 'Đã đổi chế độ giao diện.');
+        if (input.checked) change({ theme: input.value }, 'Đã đổi chế độ giao diện.', Array.from(themeInputs));
     }));
     sidebarInput.addEventListener('change', () =>
-        change({ isSidebarCollapsed: sidebarInput.checked }, 'Đã cập nhật trạng thái menu mặc định.'));
+        change({ isSidebarCollapsed: sidebarInput.checked }, 'Đã cập nhật trạng thái menu mặc định.', [sidebarInput]));
     itemsPerPageSelect.addEventListener('change', () =>
-        change({ itemsPerPage: Number(itemsPerPageSelect.value) }, `Hiển thị ${itemsPerPageSelect.value} bản ghi mỗi trang.`));
+        change({ itemsPerPage: Number(itemsPerPageSelect.value) }, `Hiển thị ${itemsPerPageSelect.value} bản ghi mỗi trang.`, [itemsPerPageSelect]));
     emailInput.addEventListener('change', () =>
-        change({ emailNotificationEnabled: emailInput.checked }, 'Đã cập nhật nhận email cảnh báo.'));
+        change({ emailNotificationEnabled: emailInput.checked }, 'Đã cập nhật nhận email cảnh báo.', [emailInput]));
     soundInput.addEventListener('change', () =>
-        change({ soundAlertEnabled: soundInput.checked }, 'Đã cập nhật âm thanh cảnh báo.'));
+        change({ soundAlertEnabled: soundInput.checked }, 'Đã cập nhật âm thanh cảnh báo.', [soundInput]));
+
 
     // Ẩn/hiện, lên/xuống: luôn gửi đủ 6 phần tử, order đánh lại 1…6
     widgetList.addEventListener('click', e => {

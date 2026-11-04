@@ -134,12 +134,13 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | 2026-11-04 | A07 | Access Token đầy đủ mang claim `sid` = `auth_sessions.id` (đăng nhập, refresh kể cả nhánh ân hạn, đổi mật khẩu); API ngoài `Path` cookie xác định phiên hiện tại bằng `sid`. Tự đổi mật khẩu (cả hai cổng, đặc tả chung M09 §3.3): sai `currentPassword` → `400` (`errors.currentPassword`) + tăng bộ đếm khóa tạm chung với đăng nhập, đang khóa → `423`; mật khẩu tối đa 72 byte UTF-8, 3/4 loại ký tự (định nghĩa ở `01` §6.1). Màn hình bị buộc đổi: bố cục riêng không sidebar; mẫu `adminSession.setAccessToken`/`getAccount`, `change-password.html?forced=1` | `01` §6.1, `02` §2.3, M03, M04, M09 §3.3, §5, `templates/admin/{main,change-password,login}.js` |
 | 2026-11-04 | A08 | Ảnh đại diện (hai cổng, đặc tả chung M09 §3.2.1): volume chung `AVATAR_STORAGE_DIR`, Nginx phục vụ `/media/avatars/<uuid>.<png\|jpg>` (không token), cột `avatar_url` lưu đường dẫn tương đối; một phần multipart `file` ≤ 2 MB PNG/JPEG theo magic bytes, mã hóa lại 256×256 bỏ metadata; quá 2 MB → `400` (Nginx `client_max_body_size 3m`); response = hồ sơ đủ trường như `GET`; chưa có API gỡ ảnh. Ví dụ `avatarUrl` trong docs dùng `/media/avatars/...` hoặc `null`, không dùng dịch vụ ngoài. Mẫu upload `FormData` + `adminSession.updateAccount({ avatarUrl })` | `00` §5.1–5.3, `01` (COMMENT `avatar_url`), M08 §3.3, M09 §3.2.1, `templates/admin/profile.js` |
 | 2026-11-05 | A09 | Thiết lập giao diện (hai cổng): nạp **một lần khi vào cổng** (sau khi store có tài khoản) vào store `preferencesAdmin`/`preferencesUser`, lỗi khác `401` không chặn (dùng mặc định DDL), đăng xuất xóa store; chỉ cache `theme` ở `localStorage` (`adminTheme`/`memberTheme`) chống nháy, không lưu trường khác. `GET` không có dòng `user_settings` → mặc định, không chèn; `dashboardWidgets` (Admin) luôn đủ 6 phần tử do backend chuẩn hóa. Màn hình cài đặt chỉ có điều khiển cho đúng các trường API. Mẫu `adminSession.loadPreferences`/`getPreferences`/`setPreferences` | M09 §3.6, §5.2, M08 §3.5, `03` §1, `templates/admin/{main,user-settings}.js` |
+| 2026-11-05 | A10 | Lưu thiết lập giao diện (hai cổng): `PUT` cập nhật một phần (ít nhất một trường, không `null`, không ép kiểu), response đủ trường như `GET`, không ghi `audit_logs`, upsert theo `uniq_user_settings` chỉ cột đã gửi. Frontend **áp ngay, lỗi thì hoàn tác**: gửi chỉ trường vừa đổi, khóa điều khiển đang gửi, lỗi trả các trường đó về giá trị cũ + toast, không có nút "Lưu"; nút theme ở header lưu qua API, nút thu gọn sidebar không lưu. Mẫu `adminSession.savePreferences` | M09 §3.7, M08 §3.5, `templates/admin/{main,user-settings}.js` |
 
 ---
 
 ## 5. Bảng tiến độ
 
-**Tiến độ**: 9 / 99 ✅ · 0 ⏸ · 0 🔁
+**Tiến độ**: 10 / 99 ✅ · 0 ⏸ · 0 🔁
 
 - Một dòng `USER + ADMIN` gồm **cả hai route** (bản User và bản `/api/v1/admin/...`) và cả hai template: rà trong cùng một hội thoại.
 - Cột **Module**: `Mxx` = `docs/modules/xx_*.md`. Cột **Template**: `A/` = `templates/admin/`, `M/` = `templates/member/` (tên file HTML; JS/CSS cùng tên). Cột **CSDL chính**: gợi ý điểm bắt đầu, phải tự grep đủ.
@@ -158,7 +159,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | A07 | PUT | `/api/v1/admin/profile/change-password` | ADMIN | M09 | `admins`, `auth_sessions` | A/change-password | ✅ | `9ccaa83` | 2026-11-04; đặc tả chung hai cổng M09 §3.3; claim `sid`; sai `currentPassword` → `400` + đếm khóa tạm; bố cục bị buộc đổi `?forced=1` |
 | A08 | POST | `/api/v1/admin/profile/avatar` | ADMIN | M09 | `admins.avatar_url`, `audit_logs` | A/profile | ✅ | `ae3d510` | 2026-11-04; đặc tả chung hai cổng M09 §3.2.1; volume chung + Nginx `/media/avatars/`; mã hóa lại 256×256; response hồ sơ đủ 12 trường |
 | A09 | GET | `/api/v1/admin/profile/preferences` | ADMIN | M09 | `user_settings` | A/user-settings | ✅ | `881385d` | 2026-11-05; đặc tả M09 §3.6, §5.2; `dashboardWidgets` luôn đủ 6 phần tử; store `preferencesAdmin` nạp khi vào cổng; template chỉ còn 6 trường |
-| A10 | PUT | `/api/v1/admin/profile/preferences` | ADMIN | M09 | `user_settings` | A/user-settings | ⬜ | | Response nên trả đủ 6 trường như `GET` (M09 §3.6); kiểm `dashboardWidgets` (đủ 6 `key`, không lặp, `order` 1…6?); nối `PUT` vào `user-settings.js` (`change()`) và nút theme ở header (`main.js`), lỗi thì trả điều khiển về giá trị cũ |
+| A10 | PUT | `/api/v1/admin/profile/preferences` | ADMIN | M09 | `user_settings` | A/user-settings | ✅ | | 2026-11-05; đặc tả M09 §3.7; cập nhật một phần, `dashboardWidgets` kiểm tra chặt, không audit; upsert giữ khóa khác của `custom_preferences`; mẫu `adminSession.savePreferences` (áp ngay, lỗi hoàn tác) |
 | A11 | GET | `/api/v1/admin/profile/recent-activity` | ADMIN | M09 | `audit_logs` | A/profile | ⬜ | | |
 | A12 | GET | `/api/v1/admin/auth/sessions` | ADMIN | M09 | `auth_sessions` | A/profile | ⬜ | | `profile.html` chưa có khối phiên; mẫu cũ (danh sách thiết bị) đã gỡ khỏi `user-settings.html` ở A09 (xem lịch sử git) |
 | A13 | DELETE | `/api/v1/admin/auth/sessions/:id` | ADMIN | M09 | `auth_sessions` | A/profile | ⬜ | | |
@@ -186,7 +187,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | U09 | GET | `/api/v1/auth/sessions` | USER | M08 | `auth_sessions` | M/profile | ⬜ | | |
 | U10 | DELETE | `/api/v1/auth/sessions/:id` | USER | M08 | `auth_sessions` | M/profile | ⬜ | | |
 | U11 | GET | `/api/v1/profile/preferences` | USER | M08 | `user_settings` | M/user-settings | ⬜ | | Theo mẫu A09 (M09 §3.6, M08 §3.5): không `dashboardWidgets`, store `preferencesUser`, cache `memberTheme`; còn rà nhóm `INACTIVE`, bảo trì `503`, `member/user-settings.*`, `member/main.js` |
-| U12 | PUT | `/api/v1/profile/preferences` | USER | M08 | `user_settings` | M/user-settings | ⬜ | | |
+| U12 | PUT | `/api/v1/profile/preferences` | USER | M08 | `user_settings` | M/user-settings | ⬜ | | Theo mẫu A10 (M09 §3.7, M08 §3.5): không nhận `dashboardWidgets`, store `preferencesUser`, mẫu `savePreferences` cho `member/main.js` (nút theme) và `member/user-settings.js`; còn rà nhóm `INACTIVE`, bảo trì `503` |
 
 ### 5.3. Cây tổ chức (`02` §3.3)
 
@@ -327,6 +328,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | 2026-11-04 | A07 | ✅ Xong 3 lớp; chỉ đổi COMMENT `failed_login_count` (`admins`, `users`); 5 câu hỏi chốt ngay trong phiên (sai `currentPassword` → `400` + đếm khóa tạm, tối đa 72 byte, bố cục riêng khi bị buộc đổi, ở lại trang sau khi đổi, claim `sid` vì cookie không tới route) | E-A07-01…05 | `01`, `02`, M03, M04, M08, M09, `templates/admin/{main,login}.js`, `templates/admin/change-password.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | `9ccaa83` |
 | 2026-11-04 | A08 | ✅ Xong 3 lớp; chỉ đổi COMMENT `avatar_url` (`admins`, `users`); 4 câu hỏi chốt ngay trong phiên (volume chung + Nginx `/media/avatars/`, mã hóa lại 256×256, response hồ sơ đủ 12 trường, chưa thêm API gỡ ảnh) | E-A08-01…04 | `00`, `01`, `02`, M02, M03, M08, M09, `templates/admin/profile.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | `ae3d510` |
 | 2026-11-05 | A09 | ✅ Xong 3 lớp; không đổi DDL; 4 câu hỏi chốt ngay trong phiên (xóa điều khiển không có API + khối phiên, nạp khi vào cổng + cache `theme`, `dashboardWidgets` luôn đủ 6, giao diện widget ở `user-settings`). Lưu ý: khối phiên đăng nhập trước đó chỉ có ở `user-settings.html` (không phải `profile.html` như câu hỏi đã nêu) → A12 phải dựng mới ở `profile.html` | E-A09-01…04 | `02`, `03`, M04, M08, M09, `templates/admin/main.js`, `templates/admin/user-settings.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | `881385d` |
+| 2026-11-05 | A10 | ✅ Xong 3 lớp; không đổi DDL; 4 câu hỏi chốt ngay trong phiên (cập nhật một phần, `dashboardWidgets` kiểm tra chặt, không ghi audit, áp ngay + hoàn tác khi lỗi). Không kiểm được trên trình duyệt (điều hướng bị từ chối), đã kiểm hàm validate của mock bằng Node | E-A10-01…03 | `02`, M08, M09, `templates/admin/{main,user-settings}.js`, `DB_AUDIT_CONSOLIDATED.md`, file này | |
 
 ---
 

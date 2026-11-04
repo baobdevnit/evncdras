@@ -90,6 +90,7 @@ Bảng MariaDB: `users` và `user_settings`.
 - Lấy và lưu thiết lập: `theme`, `isSidebarCollapsed`, `itemsPerPage`, `emailNotificationEnabled`, `soundAlertEnabled`.
 - `itemsPerPage` chỉ nhận `10`, `20`, `50` (mục 1.1, khớp `limit` của `GET /cdr`); `theme` chỉ nhận `LIGHT`, `DARK`, `SYSTEM`; giá trị khác trả `400`. `PUT` không ghi `audit_logs`.
 - `GET`: xử lý, response, lỗi và cách frontend nạp/áp dụng theo bản Admin `docs/modules/09_admin_profile.md` mục 3.6, khác ở `UserAuthGuard`, `user_type = 'USER'`, store `preferencesUser`, khóa `localStorage` `memberTheme` và **không** có `dashboardWidgets`. *(Còn rà ở U11: nhóm `INACTIVE`, chế độ bảo trì `503`, mẫu `templates/member/user-settings.*`.)*
+- `PUT`: body, xử lý (upsert theo `uniq_user_settings`, không ghi `audit_logs`), response, lỗi và cách frontend lưu (áp ngay, lỗi thì hoàn tác) theo bản Admin `docs/modules/09_admin_profile.md` mục 3.7, khác ở `UserAuthGuard`, `user_type = 'USER'`, store `preferencesUser` và **không** nhận `dashboardWidgets` (gửi thì `400` như trường lạ). *(Còn rà ở U12: nhóm `INACTIVE`, chế độ bảo trì `503`, mẫu `templates/member/user-settings.*`, nút theme ở `templates/member/main.js`.)*
 
 ### 3.6. Phiên đăng nhập của chính mình (`GET /api/v1/auth/sessions`, `DELETE /api/v1/auth/sessions/:id`)
 
