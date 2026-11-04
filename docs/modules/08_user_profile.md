@@ -97,11 +97,7 @@ Bảng MariaDB: `users` và `user_settings`.
 - **Guard**: `UserAuthGuard` (không nhận token `PASSWORD_CHANGE_ONLY`). Chỉ thao tác trên phiên của chính người gọi (`actor_type = 'USER'`, `actor_id` = người gọi).
 - **Phiên hiện tại**: xác định từ claim `sid` của Access Token, đi theo chuỗi `replaced_by_session_id` tới phiên còn hiệu lực, **không** từ cookie (đặc tả chung `docs/modules/09_admin_profile.md` mục 3.5).
 - **`GET`**: query, xử lý, response (`data` là mảng các phiên còn hiệu lực, phiên hiện tại đứng đầu; mỗi phần tử `id`, `ipAddress`, `userAgent`, `loggedInAt`, `lastActiveAt`, `expiresAt`, `isCurrent`), lỗi và khối giao diện theo bản Admin `docs/modules/09_admin_profile.md` mục 3.5.1, khác ở `UserAuthGuard`, `actor_type = 'USER'`, bước 1 đọc `users`. *(Còn rà ở U09: nhóm `INACTIVE`, chế độ bảo trì `503`, mẫu `templates/member/profile.*`.)*
-- **`DELETE /:id`**: không có body. `:id` đi theo chuỗi `replaced_by_session_id` như `docs/01_database_schema.md` mục 6.1.
-  - `:id` không tồn tại hoặc không phải phiên của người gọi: `404`.
-  - Phiên đích (sau khi đi theo chuỗi) là phiên hiện tại: `400`; kết thúc phiên hiện tại dùng `POST /auth/logout`. Frontend ẩn nút thu hồi ở dòng `isCurrent = true`.
-  - Tới được phiên hiệu lực khác: thu hồi (`REVOKED_BY_SELF`), ghi `audit_logs` `AUTH / SESSION_REVOKED` (`resource_id` = id phiên bị thu hồi), trả `200` với `data = { "revoked": true }`.
-  - Không tới được phiên hiệu lực (phiên đã hết hạn hoặc bị thu hồi vì lý do khác): không ghi gì, trả `200` với `data = { "revoked": false }`.
+- **`DELETE /:id`**: request, xử lý (khóa và đi chuỗi `replaced_by_session_id`, xác định phiên hiện tại bằng đọc khóa sau khi khóa phiên đích), response `{ revoked }`, lỗi và cách frontend thu hồi (hộp xác nhận, tải lại danh sách) theo bản Admin `docs/modules/09_admin_profile.md` mục 3.5.2, khác ở `UserAuthGuard`, `actor_type = 'USER'`, bước 1 đọc `users`. Tóm tắt: `:id` không tồn tại hoặc không phải phiên của người gọi `404 NOT_FOUND`; phiên đích là phiên hiện tại `400 VALIDATION_ERROR` (`errors.id`, dùng `POST /auth/logout`); tới được phiên hiệu lực khác thì thu hồi (`REVOKED_BY_SELF`), ghi `audit_logs` `AUTH / SESSION_REVOKED` (`resource_id` = id phiên bị thu hồi), `200` `{ "revoked": true }`; không tới được thì không ghi gì, `200` `{ "revoked": false }`. *(Còn rà ở U10: nhóm `INACTIVE`, chế độ bảo trì `503`, mẫu `templates/member/profile.*`.)*
 
 ---
 

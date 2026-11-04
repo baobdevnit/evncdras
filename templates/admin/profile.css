@@ -470,16 +470,33 @@ textarea.form-control {
 }
 
 .session-expiry {
-    flex-shrink: 0;
     color: var(--text-muted);
     font-size: 0.8rem;
     white-space: nowrap;
+}
+
+/* Cột phải: hạn phiên + nút thu hồi (DELETE /admin/auth/sessions/:id, M09 mục 3.5.2) */
+.session-side {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+.session-revoke {
+    padding: 4px 12px;
+    font-size: 0.8rem;
 }
 
 @media (max-width: 576px) {
     .session-item {
         flex-direction: column;
         gap: 4px;
+    }
+
+    .session-side {
+        align-items: flex-start;
     }
 }
 

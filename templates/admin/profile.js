@@ -1,4 +1,4 @@
-// Hồ sơ của tôi (AdminProfileView) – docs/modules/09_admin_profile.md mục 3.1, 3.2, 3.2.1, 3.4, 5.1.
+// Hồ sơ của tôi (AdminProfileView) – docs/modules/09_admin_profile.md mục 3.1, 3.2, 3.2.1, 3.4, 3.5, 5.1.
 // Vue: AdminProfileView gọi API client của cổng Admin (401 → refresh một lần, mẫu window.adminSession.request).
 document.addEventListener('DOMContentLoaded', function() {
     // Redirect legacy #security hash to standalone change-password.html page
@@ -471,16 +471,25 @@ document.addEventListener('DOMContentLoaded', function() {
         return row.revokedAt === null && Date.parse(row.expiresAt) > MOCK_NOW;
     }
 
-    // Phiên hiện tại: id = sid của chính mình; ROTATED thì theo replaced_by_session_id tối đa 5 bước (01 mục 6.1)
-    function resolveCurrentSessionId(sid, actorId) {
-        let row = MOCK_AUTH_SESSIONS.find(r => r.id === sid && r.actorType === 'ADMIN' && r.actorId === actorId);
+    // WHERE id = ? AND actor_type = 'ADMIN' AND actor_id = :sub (khóa chính; DELETE đọc bằng SELECT ... FOR UPDATE)
+    function findOwnSession(id, actorId) {
+        return MOCK_AUTH_SESSIONS.find(r => r.id === id && r.actorType === 'ADMIN' && r.actorId === actorId) || null;
+    }
+
+    // Đi theo replaced_by_session_id tối đa 5 bước tới phiên còn hiệu lực (01 mục 6.1); không tới được → null
+    function followSessionChain(row, actorId) {
         for (let step = 0; row && step <= 5; step++) {
-            if (isLiveSession(row)) return row.id;
+            if (isLiveSession(row)) return row;
             if (row.revokedReason !== 'ROTATED' || !row.replacedBySessionId) return null;
-            const nextId = row.replacedBySessionId;
-            row = MOCK_AUTH_SESSIONS.find(r => r.id === nextId && r.actorType === 'ADMIN' && r.actorId === actorId);
+            row = findOwnSession(row.replacedBySessionId, actorId);
         }
         return null;
+    }
+
+    // Phiên hiện tại: id = sid của chính mình, đi theo chuỗi xoay vòng (M09 mục 3.5)
+    function resolveCurrentSessionId(sid, actorId) {
+        const row = followSessionChain(findOwnSession(sid, actorId), actorId);
+        return row ? row.id : null;
     }
 
     function mockGetMySessions(token, query) {
@@ -514,6 +523,56 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // ------------------------------------------------------------
+    // Giả lập backend DELETE /api/v1/admin/auth/sessions/:id (A13, M09 mục 3.5.2).
+    // :id không phải số nguyên dương → 400 (errors.id); có query/body → 400; không có hoặc không phải phiên
+    // của mình → 404 NOT_FOUND; đi chuỗi ROTATED tới phiên còn hiệu lực, không tới được → 200 { revoked: false };
+    // phiên đích là phiên hiện tại (theo claim sid) → 400 VALIDATION_ERROR (errors.id); còn lại thu hồi
+    // REVOKED_BY_SELF + audit AUTH / SESSION_REVOKED (resource_id = id phiên bị thu hồi) → 200 { revoked: true }.
+    // ------------------------------------------------------------
+    function mockDeleteMySession(token, rawId, query, body) {
+        return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+            if (!token) {
+                return Promise.reject({
+                    success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+                    message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: now()
+                });
+            }
+            const errors = {};
+            Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+            Object.keys(body || {}).forEach(k => { errors[k] = ['Trường không được nhận']; });
+            if (!/^[1-9][0-9]{0,18}$/.test(String(rawId))) errors.id = ['Mã phiên không hợp lệ'];
+            if (Object.keys(errors).length) return Promise.reject(validationError(errors));
+
+            const actorId = MOCK_PROFILE.id;
+            const requested = findOwnSession(Number(rawId), actorId);
+            if (!requested) {
+                return Promise.reject({
+                    success: false, statusCode: 404, errorCode: 'NOT_FOUND',
+                    message: 'Không tìm thấy phiên đăng nhập', errors: null, timestamp: now()
+                });
+            }
+            const target = followSessionChain(requested, actorId);
+            if (!target) {
+                return {
+                    success: true, statusCode: 200, message: 'Phiên đăng nhập đã kết thúc trước đó',
+                    data: { revoked: false }, timestamp: now()
+                };
+            }
+            // Backend: xác định phiên hiện tại SAU khi đã khóa chuỗi phiên đích, bằng đọc khóa (FOR UPDATE)
+            if (target.id === resolveCurrentSessionId(MOCK_TOKEN_SID, actorId)) {
+                return Promise.reject(validationError({ id: ['Không thể thu hồi phiên đang dùng, hãy dùng Đăng xuất'] }));
+            }
+            target.revokedAt = nowVN();
+            target.revokedReason = 'REVOKED_BY_SELF';
+            mockWriteAudit('SESSION_REVOKED', 'AUTH', String(target.id), null);
+            return {
+                success: true, statusCode: 200, message: 'Đã thu hồi phiên đăng nhập',
+                data: { revoked: true }, timestamp: now()
+            };
+        });
+    }
+
     // Rút tên trình duyệt + hệ điều hành từ userAgent (hàm nội bộ, không thư viện ngoài; API không trả tên ghép sẵn).
     // Thứ tự kiểm tra quan trọng: Edge/Opera chứa "Chrome", Chrome chứa "Safari".
     function describeUserAgent(ua) {
@@ -541,14 +600,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (sessionList) sessionList.hidden = state !== 'ready';
     }
 
+    let sessionRows = new Map(); // id → phần tử của GET, để hộp xác nhận nêu thiết bị/IP
+
     // Dựng bằng textContent: userAgent, ipAddress do client gửi lên
     function renderSessions(rows) {
         if (!sessionList) return;
         sessionList.replaceChildren();
+        sessionRows = new Map(rows.map(r => [String(r.id), r]));
         rows.forEach(row => {
             const li = document.createElement('li');
             li.className = 'session-item' + (row.isCurrent ? ' session-item--current' : '');
-            li.dataset.sessionId = String(row.id); // A13: nút thu hồi gửi id này
+            li.dataset.sessionId = String(row.id);
             if (row.userAgent) li.title = row.userAgent;
             const body = document.createElement('div');
             const device = document.createElement('p');
@@ -573,8 +635,20 @@ document.addEventListener('DOMContentLoaded', function() {
             expiry.className = 'session-expiry';
             expiry.dateTime = row.expiresAt;
             expiry.textContent = 'Hết hạn ' + formatValue(row.expiresAt, 'datetime');
+            const side = document.createElement('div');
+            side.className = 'session-side';
+            side.appendChild(expiry);
+            // Phiên hiện tại không có nút thu hồi (DELETE trả 400; kết thúc phiên này bằng Đăng xuất)
+            if (!row.isCurrent) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn-outline-danger session-revoke';
+                btn.dataset.sessionId = String(row.id);
+                btn.textContent = 'Thu hồi';
+                side.appendChild(btn);
+            }
             li.appendChild(body);
-            li.appendChild(expiry);
+            li.appendChild(side);
             sessionList.appendChild(li);
         });
     }
@@ -595,6 +669,94 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (btnRetrySessions) btnRetrySessions.addEventListener('click', loadSessions);
+
+    // ------------------------------------------------------------
+    // Thu hồi một phiên – DELETE /api/v1/admin/auth/sessions/:id (A13, M09 mục 3.5.2)
+    // Hộp xác nhận (03 mục 6.6, loại danger) → gọi API. 200 (revoked true/false), 404, 400 đều tải lại danh sách
+    // phiên; chỉ revoked = true mới sinh dòng SESSION_REVOKED nên chỉ khi đó tải lại "Hoạt động gần đây".
+    // Vue: ConfirmModal dùng chung. Thiết bị bị thu hồi còn dùng Access Token tới khi hết hạn (≤ 15 phút mặc định).
+    // ------------------------------------------------------------
+    const revokeModal = document.getElementById('revokeSessionModal');
+    const revokeModalMessage = document.getElementById('revokeSessionMessage');
+    const btnCancelRevoke = document.getElementById('btnCancelRevokeSession');
+    const btnConfirmRevoke = document.getElementById('btnConfirmRevokeSession');
+    let pendingRevokeId = null;
+    let revoking = false;
+
+    function openRevokeModal(id) {
+        const row = sessionRows.get(id);
+        if (!row || !revokeModal) return;
+        pendingRevokeId = id;
+        const device = describeUserAgent(row.userAgent) || 'Thiết bị không xác định';
+        revokeModalMessage.textContent = 'Thiết bị "' + device + '"' + (row.ipAddress ? ' (IP ' + row.ipAddress + ')' : '')
+            + ' sẽ không làm mới được phiên và bị đăng xuất khi Access Token hiện tại của thiết bị đó hết hạn'
+            + ' (tối đa 15 phút theo cấu hình mặc định).';
+        revokeModal.style.display = 'flex';
+        btnConfirmRevoke.focus();
+    }
+
+    function closeRevokeModal() {
+        if (!revokeModal || revoking) return; // đang gửi thì không đóng
+        revokeModal.style.display = 'none';
+        pendingRevokeId = null;
+    }
+
+    function setRevoking(on) {
+        revoking = on;
+        btnConfirmRevoke.disabled = on;
+        btnCancelRevoke.disabled = on;
+        btnConfirmRevoke.textContent = on ? 'Đang thu hồi...' : 'Thu hồi';
+    }
+
+    function confirmRevoke() {
+        if (!pendingRevokeId || revoking) return;
+        const id = pendingRevokeId;
+        let reloadSessions = true;
+        let reloadActivity = false;
+        setRevoking(true);
+        callApi(token => mockDeleteMySession(token, id))
+            .then(res => {
+                if (res.data.revoked) {
+                    reloadActivity = true;
+                    notify(res.message || 'Đã thu hồi phiên đăng nhập', 'success');
+                } else {
+                    notify('Phiên này đã kết thúc trước đó', 'info');
+                }
+            })
+            .catch(err => {
+                const status = err && err.statusCode;
+                if (status === 401) { reloadSessions = false; return; } // request() đã chuyển về login
+                if (status === 404) { notify('Phiên đăng nhập không còn tồn tại', 'warning'); return; }
+                if (status === 400) {
+                    const msg = err.errors && err.errors.id ? err.errors.id[0] : err.message;
+                    notify(msg || 'Không thể thu hồi phiên này', 'error');
+                    return;
+                }
+                reloadSessions = false; // lỗi mạng/khác: giữ nguyên danh sách để thử lại
+                notify((err && err.message) || 'Không thu hồi được phiên. Vui lòng thử lại.', 'error');
+            })
+            .finally(() => {
+                setRevoking(false);
+                closeRevokeModal();
+                if (reloadSessions) loadSessions();
+                if (reloadActivity) loadActivity();
+            });
+    }
+
+    if (sessionList) {
+        sessionList.addEventListener('click', e => {
+            const btn = e.target.closest('.session-revoke');
+            if (btn) openRevokeModal(btn.dataset.sessionId);
+        });
+    }
+    if (revokeModal) {
+        btnCancelRevoke.addEventListener('click', closeRevokeModal);
+        btnConfirmRevoke.addEventListener('click', confirmRevoke);
+        revokeModal.addEventListener('click', e => { if (e.target === revokeModal) closeRevokeModal(); });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && revokeModal.style.display !== 'none') closeRevokeModal();
+        });
+    }
 
     // ------------------------------------------------------------
     // Hoạt động gần đây – GET /api/v1/admin/profile/recent-activity (A11, M09 mục 3.4, 5.1)
