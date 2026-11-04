@@ -21,7 +21,7 @@ erDiagram
     ORGANIZATIONS ||--o{ ORGANIZATIONS : "parent_id (reference tree)"
     ORGANIZATIONS ||--o{ USER_GROUPS : "reference_belongs_to"
 
-    USER_GROUPS |o--|| PHONE_PREFIX_GROUPS : "bound_1_to_1 (phone_prefix_group_id; prefix group may have no user group yet)"
+    USER_GROUPS ||--|| PHONE_PREFIX_GROUPS : "bound_1_to_1 (phone_prefix_group_id; prefix group auto-created with the user group)"
     PHONE_PREFIX_GROUPS ||--o{ PHONE_PREFIX_RANGES : "contains_ranges (0..N)"
     PHONE_PREFIX_RANGES |o--o{ PHONE_NUMBERS : "allocates_from_master_pool (range_id nullable: free pool)"
 
@@ -357,9 +357,9 @@ CREATE TABLE IF NOT EXISTS `cdr_enriched` (
   KEY `idx_cdre_type_created` (`call_type`, `Created`),
   KEY `idx_cdre_caller_created` (`CallerId`, `Created`),
   KEY `idx_cdre_called_created` (`CalledId`, `Created`),
-  KEY `idx_cdre_sipcallid` (`SipCallId`),
-  KEY `idx_cdre_disconnection_code` (`DisconnectionCode`),
   KEY `idx_cdre_mos_created` (`mos_x100`, `Created`)
+  -- Không có index SipCallId (không API hay tiến trình nào tra theo cột này) và DisconnectionCode
+  -- (bộ lọc disconnectionCode luôn kèm khoảng Created và nhóm, đi qua idx_cdre_*_group / idx_cdre_primary_created)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 PARTITION BY RANGE (TO_DAYS(`Created`)) (
   -- Partition theo tháng; job hằng tháng tạo trước partition cho 2 tháng tiếp theo bằng REORGANIZE PARTITION p_future
@@ -483,15 +483,20 @@ CREATE TABLE IF NOT EXISTS `organizations` (
 
 ## 4.1. Bảng Nhóm đầu số điện thoại PABX (`phone_prefix_groups`)
 
-Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để liên kết 1 - 1 với Nhóm người dùng (`user_groups`). Toàn bộ lưu lượng cuộc gọi và file ghi âm phát sinh từ nhóm đầu số này được cô lập thuộc quyền quản lý của nhóm người dùng tương ứng.
+Thực thể gom nhóm các dải đầu số viễn thông PABX, là phần mở rộng của Nhóm người dùng (`user_groups`) theo quan hệ 1 - 1. Toàn bộ lưu lượng cuộc gọi và file ghi âm phát sinh từ nhóm đầu số này được cô lập thuộc quyền quản lý của nhóm người dùng tương ứng.
+
+> [!IMPORTANT]
+> **Vòng đời nhóm đầu số đi liền nhóm người dùng**:
+> - **Tạo tự động** trong cùng transaction `POST /api/v1/admin/user-groups`: `code = 'PG-' + user_groups.code`, `name = 'Nhóm đầu số ' + user_groups.name`, rồi gắn vào `user_groups.phone_prefix_group_id`. Không có API tạo, xóa hay chọn nhóm đầu số riêng; chỉ sửa được `name`, `description` (`PUT /api/v1/admin/prefix-groups/:id`). Vì vậy không tồn tại nhóm đầu số chưa gắn nhóm người dùng, và chỉ cấp được dải cho nhóm đầu số của nhóm người dùng `ACTIVE`.
+> - **Không có cột trạng thái**: trạng thái của nhóm đầu số là trạng thái của nhóm người dùng gắn với nó. Không bao giờ bị xóa (nhóm người dùng chỉ xóa mềm, mục 14).
+> - **Nhóm đầu số rỗng là hợp lệ**: nhóm mới tạo chưa có dải, hoặc mọi dải đã bị thu hồi (kể cả khi ngừng hoạt động nhóm có chọn thu hồi dải, mục 14).
 
 ```sql
 CREATE TABLE IF NOT EXISTS `phone_prefix_groups` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `code` varchar(50) NOT NULL COMMENT 'Mã nhóm đầu số (ví dụ: PG-IT-01, PG-KD-02)',
-  `name` varchar(255) NOT NULL COMMENT 'Tên nhóm đầu số (ví dụ: Nhóm dải số Khối CNTT)',
+  `code` varchar(53) NOT NULL COMMENT 'Sinh tự động = PG- + user_groups.code (ví dụ: PG-UMO-IT), dài hơn user_groups.code 3 ký tự; duy nhất vì user_groups.code duy nhất; không sửa được',
+  `name` varchar(255) NOT NULL COMMENT 'Mặc định = Nhóm đầu số + user_groups.name; Admin sửa được',
   `description` text DEFAULT NULL,
-  `status` enum('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -509,7 +514,7 @@ Mỗi nhóm người dùng tham chiếu vào một nút trên cây tổ chức (
 CREATE TABLE IF NOT EXISTS `user_groups` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `organization_id` int(11) unsigned DEFAULT NULL COMMENT 'ID đơn vị trên cây tổ chức (tham chiếu trực quan danh mục, NULL nếu là nhóm độc lập)',
-  `phone_prefix_group_id` int(11) unsigned NOT NULL COMMENT 'Khóa ngoại liên kết 1-1 với nhóm đầu số điện thoại',
+  `phone_prefix_group_id` int(11) unsigned NOT NULL COMMENT 'Khóa ngoại liên kết 1-1 với nhóm đầu số điện thoại, tạo tự động cùng nhóm (mục 4.1)',
   `code` varchar(50) NOT NULL COMMENT 'Mã nhóm QLND (ví dụ: UMO-IT-01)',
   `name` varchar(255) NOT NULL COMMENT 'Tên nhóm (ví dụ: Nhóm QLND Khối CNTT)',
   `description` text DEFAULT NULL,
@@ -730,6 +735,7 @@ Seed `permissions` và `permission_roles`: `docs/modules/10_permissions_and_role
 >    - **Kiểm tra giao nhau**: dải mới hoặc dải sau khi sửa không được giao với **bất kỳ** dải nào khác, kể cả dải của cùng nhóm đầu số.
 >    - **Chống giao nhau khi chạy đồng thời**: phép kiểm tra giao nhau bằng `SELECT` thường không khóa gì, nên hai request cấp phát chồng lấn chạy cùng lúc đều qua được và request sau âm thầm chuyển số của dải trước sang dải của nó. Vì kho `phone_numbers` có đủ mọi số 10000–99999, giao nhau tương đương "có số trong khoảng đã có `range_id`", nên CSDL chặn được: câu `UPDATE phone_numbers` khi cấp phát (và phần mở rộng khi sửa dải) có thêm điều kiện `AND range_id IS NULL`, và service so `affectedRows` với số lượng số của khoảng; khác nhau thì rollback, trả `409`. Câu `UPDATE` khóa từng dòng số, nên request thứ hai chờ request đầu commit rồi mới đọc lại `range_id` mới nhất.
 >    - **Nhóm đầu số của một nhóm người dùng không đổi sau khi tạo**. Muốn chuyển số sang nhóm khác: thu hồi dải ở nhóm cũ rồi cấp dải cho nhóm mới.
+>    - **Chỉ cấp phát / sửa dải cho nhóm người dùng `ACTIVE`** (nhóm `INACTIVE` trả `409 GROUP_INACTIVE`). Thu hồi dải thì được cả với nhóm `INACTIVE` (dải còn giữ lại khi ngừng hoạt động nhóm, mục 14). Vì nhóm đầu số luôn được tạo cùng nhóm người dùng (mục 4.1), quyền sở hữu số chỉ đổi qua cấp phát / sửa / thu hồi dải, và các thao tác này luôn tăng `cache_version`.
 > 4. **Lưu vết biến động**: Bảng `phone_number_range_history` ghi nhận lịch sử gán số vào dải số, thu hồi số về kho tự do, hoặc khóa/mở khóa số.
 
 ```sql
@@ -1054,7 +1060,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | `REPORT` | `EXPORT_REPORT` (`action_details.format`: `EXCEL`/`PDF`) |
 | `USER` / `ADMIN` | `CREATE`, `UPDATE`, `LOCK`, `UNLOCK`, `DEACTIVATE`, `CHANGE_ROLE` (chỉ `USER`; `action_details = { "from": "<roleCode>", "to": "<roleCode>" }`) |
 | `USER_GROUP` | `CREATE`, `UPDATE`, `DEACTIVATE`, `TOGGLE_GROUP_RECORDING` (`allow_recording_access`) |
-| `PREFIX` | `CREATE_PREFIX_GROUP`, `UPDATE_PREFIX_GROUP`, `DELETE_PREFIX_GROUP`, `ALLOCATE_RANGE`, `UPDATE_RANGE`, `REVOKE_RANGE`, `UPDATE_NUMBER` |
+| `PREFIX` | `UPDATE_PREFIX_GROUP`, `ALLOCATE_RANGE`, `UPDATE_RANGE`, `REVOKE_RANGE`, `UPDATE_NUMBER` |
 | `ORGANIZATION` | `CREATE`, `UPDATE`, `DELETE` |
 | `SYSTEM` | `UPDATE_SETTINGS` (kể cả nạp lại bộ nhớ đệm, `action_details.op = "RELOAD_CACHE"`) |
 | (mọi resource) | `ACCESS_DENIED`: thao tác bị chặn có ý nghĩa an ninh (vd. thử xóa Root Admin, gọi API ngoài phạm vi nhóm) |
@@ -1068,10 +1074,10 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 
 | Thực thể | Thao tác "xóa" của API | Điều kiện xóa / Lỗi | Điều kiện khóa (`status = 'LOCKED'`) | Khóa ngoại liên quan |
 |---|---|---|---|---|
-| `user_groups` | **Xóa mềm**: trong một transaction, chuyển **mọi** user chưa `INACTIVE` của nhóm sang `INACTIVE` (kể cả Quản trị viên nhóm cuối cùng) và thu hồi toàn bộ phiên của họ (`ACCOUNT_LOCKED`), đặt `representative_user_id = NULL`, `status = 'INACTIVE'`, thu hồi toàn bộ dải số của nhóm (quy tắc thu hồi mục 8). Giữ liên kết `phone_prefix_group_id`, CDR và stats để báo cáo lịch sử vẫn đúng | Không chặn theo số thành viên. Giao diện hiển thị số thành viên sẽ bị ngừng hoạt động và yêu cầu xác nhận | — | `stats_*.group_id`, `users.user_group_id`: RESTRICT; `cdr_enriched.*_group_id` là tham chiếu logic (bảng partition, không FK) |
+| `user_groups` | **Xóa mềm** (`DELETE /api/v1/admin/user-groups/:id?revokeRanges=true\|false`, mặc định `false`): trong một transaction, chuyển **mọi** user chưa `INACTIVE` của nhóm sang `INACTIVE` (kể cả Quản trị viên nhóm cuối cùng) và thu hồi toàn bộ phiên của họ (`ACCOUNT_LOCKED`), đặt `representative_user_id = NULL`, `status = 'INACTIVE'`. Chỉ khi `revokeRanges=true` mới thu hồi toàn bộ dải số của nhóm (quy tắc thu hồi mục 8). Không thu hồi thì các số vẫn thuộc nhóm `INACTIVE`, CDR mới của các số đó vẫn gán cho nhóm này; Admin thu hồi sau bằng `DELETE /api/v1/admin/prefixes/:id`. Giữ liên kết `phone_prefix_group_id`, CDR và stats để báo cáo lịch sử vẫn đúng | Không chặn theo số thành viên. Giao diện hiển thị số thành viên sẽ bị ngừng hoạt động, số dải đang có và ô chọn "Thu hồi toàn bộ dải số" (mặc định không chọn), yêu cầu xác nhận | — | `stats_*.group_id`, `users.user_group_id`: RESTRICT; `cdr_enriched.*_group_id` là tham chiếu logic (bảng partition, không FK) |
 | `users` | **Xóa mềm**: `status = 'INACTIVE'`; nếu là `representative_user_id` của nhóm thì set NULL | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm `ACTIVE`. Ngoại lệ duy nhất: thao tác ngừng hoạt động cả nhóm (dòng `user_groups` ở trên) | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm (giống xóa mềm). Áp dụng cho mọi đường đổi trạng thái (`PUT /users/:id/status`, `DELETE /users/:id`) | `user_groups.representative_user_id`: SET NULL; `user_roles.user_id`: RESTRICT (giữ dòng vai trò) |
 | `admins` | **Xóa mềm**: `status = 'INACTIVE'` | Chặn nếu admin mang vai trò `ROOT_ADMIN` hoặc tự xóa chính mình | Chặn nếu admin mang vai trò `ROOT_ADMIN` hoặc tự khóa chính mình | `*.performed_by_admin_id`, `admins.created_by_admin_id`: SET NULL (chỉ áp dụng nếu sau này có xóa cứng bằng tay); `admin_roles.admin_id`: RESTRICT (giữ dòng vai trò) |
-| `phone_prefix_groups` | **Xóa cứng** khi không có nhóm người dùng liên kết và không còn dải số. Muốn ngừng dùng mà vẫn giữ: `status = 'INACTIVE'` | `409` nếu còn liên kết hoặc còn dải | — | `user_groups.phone_prefix_group_id`, `phone_prefix_ranges.prefix_group_id`: RESTRICT |
+| `phone_prefix_groups` | Không xóa, không có trạng thái riêng: tạo và ngừng hoạt động cùng nhóm người dùng (mục 4.1) | — | — | `user_groups.phone_prefix_group_id`, `phone_prefix_ranges.prefix_group_id`: RESTRICT |
 | `phone_prefix_ranges` | **Thu hồi**: dọn số theo quy tắc mục 8 → ghi `prefix_allocation_history` + `phone_number_range_history` → xóa dòng dải | — | — | `phone_numbers.range_id`: RESTRICT (bắt buộc dọn số trước) |
 | `organizations` | **Xóa cứng** khi không còn đơn vị con và không còn nhóm tham chiếu | `409` nếu còn con hoặc còn nhóm | — | `organizations.parent_id`, `user_groups.organization_id`: RESTRICT |
 | `notifications` | Phiên bản này không có API hay job xóa: thông báo giữ vĩnh viễn. DDL cho phép DBA xóa cứng thủ công thông báo cũ khi cần | — | — | `notification_recipients`: CASCADE |
@@ -1081,12 +1087,12 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   - `PUT /users/:id/role`, `PUT /users/:id/status`, `DELETE /users/:id` (kể cả bản `/admin`): đếm Quản trị viên nhóm còn lại sau khi đã giữ khóa nhóm.
   - `POST /users`: kiểm tra nhóm còn `ACTIVE` sau khi giữ khóa, để không tạo tài khoản `ACTIVE` trong nhóm vừa ngừng hoạt động.
   - `PUT /admin/user-groups/:id`: kiểm tra người đại diện mới còn là Quản trị viên nhóm `ACTIVE` sau khi giữ khóa.
-  - `DELETE /admin/user-groups/:id`: ngừng hoạt động nhóm, thành viên và thu hồi dải số.
-  - Cấp phát và sửa dải số cho nhóm đầu số đã gắn nhóm người dùng: kiểm tra nhóm còn `ACTIVE` sau khi giữ khóa (nhóm đầu số chưa gắn nhóm người dùng thì không có dòng để khóa).
+  - `DELETE /admin/user-groups/:id`: ngừng hoạt động nhóm, thành viên và (nếu `revokeRanges=true`) thu hồi dải số.
+  - Cấp phát và sửa dải số: khóa dòng nhóm người dùng gắn với nhóm đầu số của dải, kiểm tra nhóm còn `ACTIVE` sau khi giữ khóa. Thu hồi dải cũng khóa dòng nhóm trước (để chạy tuần tự với ngừng hoạt động nhóm) nhưng không đòi nhóm `ACTIVE`.
 - **`INACTIVE` là trạng thái cuối** của `users`, `admins` và `user_groups`: không có API kích hoạt lại. `PUT /users/:id/status` và `PUT /admin/admins/:id/status` chỉ chuyển giữa `ACTIVE` và `LOCKED`, gọi trên tài khoản `INACTIVE` trả `409` (`ACCOUNT_INACTIVE`); `PUT /admin/user-groups/:id` không nhận `status` (`400`) và trả `409` (`GROUP_INACTIVE`) nếu nhóm đã `INACTIVE`. Lý do: kích hoạt lại tài khoản có thể đụng `UNIQUE` của `username_active`/`email_active` (tên đã được tài khoản mới dùng lại), và kích hoạt lại nhóm tạo ra nhóm `ACTIVE` không có Quản trị viên nhóm nào. Cần dùng lại thì tạo tài khoản/nhóm mới.
 - Tài khoản `INACTIVE` không đăng nhập được và bị ẩn khỏi danh sách mặc định (có bộ lọc "Đã ngừng hoạt động"). `username`/`email` của tài khoản `INACTIVE` được phép dùng lại cho tài khoản mới (UNIQUE chỉ áp cho tài khoản chưa `INACTIVE`, qua cột ảo `username_active`/`email_active`), phục vụ chuyển công tác.
-- Nhóm `INACTIVE` không cho đăng nhập thành viên, không nhận cấp phát dải số mới, nhưng vẫn xuất hiện trong báo cáo lịch sử.
-- **Mã (`code`) không được dùng lại sau xóa mềm** (chủ ý, khác với `username`/`email`): `user_groups.code` của nhóm `INACTIVE` và `phone_prefix_groups.code` của nhóm đầu số `INACTIVE` vẫn giữ `UNIQUE`, vì báo cáo lịch sử, `audit_logs` và lịch sử cấp phát tham chiếu tới nhóm cũ qua mã; dùng lại mã sẽ làm hai nhóm khác nhau trông như một. Tạo nhóm thay thế thì dùng mã mới (vd. thêm hậu tố `-2`). `organizations.code` chỉ được giải phóng khi đơn vị bị xóa cứng.
+- Nhóm `INACTIVE` không cho đăng nhập thành viên, không nhận cấp phát hay sửa dải số, nhưng vẫn xuất hiện trong báo cáo lịch sử. Nếu ngừng hoạt động mà không thu hồi dải, nhóm vẫn có dòng `stats_*` mới và vẫn được tính trong cảnh báo QoS cấp nhóm (người nhận chỉ còn Admin, vì nhóm không còn Quản trị viên nhóm `ACTIVE`).
+- **Mã (`code`) không được dùng lại sau xóa mềm** (chủ ý, khác với `username`/`email`): `user_groups.code` của nhóm `INACTIVE` và `phone_prefix_groups.code` của nhóm đầu số gắn với nó vẫn giữ `UNIQUE`, vì báo cáo lịch sử, `audit_logs` và lịch sử cấp phát tham chiếu tới nhóm cũ qua mã; dùng lại mã sẽ làm hai nhóm khác nhau trông như một. Tạo nhóm thay thế thì dùng mã mới (vd. thêm hậu tố `-2`). `organizations.code` chỉ được giải phóng khi đơn vị bị xóa cứng.
 
 ---
 
@@ -1122,7 +1128,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 > - **ACD** (`avg_duration_sec`): `SUM(total_duration_sec) / NULLIF(SUM(answered_calls), 0)`.
 > - **Cột dạng tổng/số mẫu** (`sum_*_delay_ms`, `cnt_*_delay`, `rtp_packets_total`, `rtp_lost_packets_total`): cộng thẳng khi roll-up; API tính trung bình/tỷ lệ ở bước cuối (`SUM(sum_x) / NULLIF(SUM(cnt_x), 0)`, `SUM(rtp_lost_packets_total) / NULLIF(SUM(rtp_packets_total), 0) * 100`). Mẫu số bằng 0 thì trả `null`.
 > - **`max_*`** lấy `MAX`.
-> - **`high_packet_loss_legs_count`** đếm theo `critical_threshold` của `PACKET_LOSS_PERCENT` **tại thời điểm tính** khung giờ. Đổi ngưỡng không tính lại khung đã chốt sổ (chỉ áp dụng cho khung tính sau thời điểm lưu ngưỡng), nên giao diện ghi chú cột này "theo ngưỡng tại thời điểm tổng hợp". Tỷ lệ mất gói theo ngưỡng mới luôn tính được từ `rtp_lost_packets_total / rtp_packets_total`.
+> - **`high_packet_loss_legs_count`** đếm theo `critical_threshold` của `PACKET_LOSS_PERCENT` **tại thời điểm tính** khung giờ. Đổi ngưỡng không tính lại khung đã tính (chỉ áp dụng cho khung tính sau thời điểm lưu ngưỡng), nên giao diện ghi chú cột này "theo ngưỡng tại thời điểm tổng hợp". Tỷ lệ mất gói theo ngưỡng mới luôn tính được từ `rtp_lost_packets_total / rtp_packets_total`.
 > - **Không có chỉ số RTCP RTT, gói bị loại bỏ (`RTP_Rx_*`) hay `Audio_Signal_Delay`**: các cột PABX tương ứng luôn NULL trên dữ liệu thật. Khi PABX bật các tính năng này sẽ bổ sung bằng migration riêng.
 >
 > **Quy tắc quy chiếu lưu lượng (Traffic Attribution)** – áp dụng cho số cuộc gọi và cho thời lượng `*_duration_sec` tương ứng:
@@ -1144,12 +1150,12 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 > [!IMPORTANT]
 > **Tính lại idempotent, không cộng dồn**. Một cuộc gọi chỉ có bản ghi sau khi kết thúc, còn leg A có thể đến muộn và đổi leg chính. Nếu cộng dồn từng phần thì sẽ đếm thiếu hoặc đếm đôi, nên job luôn tính lại toàn bộ khung giờ từ `cdr_enriched`.
 > 1. **Khóa thời gian**: `stat_date = DATE(Created)`, `stat_hour = HOUR(Created)`, tức thời điểm **bắt đầu** của leg chính (bộ đếm cuộc gọi) hoặc của từng leg (khối QoS), theo "Đơn vị đếm" ở trên.
-> 2. **Job giờ** (`*/10 * * * *`): với mỗi khung giờ trong **cửa sổ trực tiếp** gồm 3 khung `H − 2`, `H − 1`, `H` (`H` = khung giờ chứa thời điểm chạy, vd. lần chạy 10:50 tính 08:00, 09:00, 10:00), cộng các khung giờ lấy từ `stats_recompute_queue` (bước 5), chạy một câu `INSERT INTO stats_hourly (...) SELECT ... FROM cdr_enriched WHERE Created >= :hourStart AND Created < :hourEnd GROUP BY ...` kèm `ON DUPLICATE KEY UPDATE` (ghi đè mọi cột). Bộ đếm cuộc gọi dùng tổng có điều kiện trên leg chính (vd. `SUM(is_primary_leg = 1 AND call_status = 'ANSWERED')`), khối QoS tổng hợp trên mọi leg. Mỗi khung giờ sinh **1 dòng toàn hệ thống** (`group_id IS NULL`) và **1 dòng cho mỗi nhóm** có tham gia cuộc gọi (leg chính) hoặc có leg trong khung đó, theo quy tắc quy chiếu lưu lượng bên dưới. Dòng nhóm của khung giờ đã từng có nhưng nay không còn leg nào của nhóm thì bị xóa trong cùng transaction.
+> 2. **Job giờ** (`*/10 * * * *`): với mỗi khung giờ lấy từ `stats_recompute_queue` (bước 5; job **chỉ** tính các khung có trong hàng đợi, không có cửa sổ cố định), chạy một câu `INSERT INTO stats_hourly (...) SELECT ... FROM cdr_enriched WHERE Created >= :hourStart AND Created < :hourEnd GROUP BY ...` kèm `ON DUPLICATE KEY UPDATE` (ghi đè mọi cột). Bộ đếm cuộc gọi dùng tổng có điều kiện trên leg chính (vd. `SUM(is_primary_leg = 1 AND call_status = 'ANSWERED')`), khối QoS tổng hợp trên mọi leg. Mỗi khung giờ sinh **1 dòng toàn hệ thống** (`group_id IS NULL`) và **1 dòng cho mỗi nhóm** có tham gia cuộc gọi (leg chính) hoặc có leg trong khung đó, theo quy tắc quy chiếu lưu lượng bên dưới. Dòng nhóm của khung giờ đã từng có nhưng nay không còn leg nào của nhóm thì bị xóa trong cùng transaction.
 > 3. **Job ngày**: ngay sau job giờ, tính lại dòng `stats_daily` của các ngày vừa bị tác động, từ các dòng `stats_hourly` cùng ngày theo quy tắc roll-up (cộng bộ đếm; tỷ lệ và trung bình tính lại, không lấy trung bình của trung bình). Trong cùng transaction, xóa các dòng nhóm `stats_daily` của ngày đó mà không còn dòng `stats_hourly` nào cùng `group_id` (`DELETE d FROM stats_daily d WHERE d.stat_date = :d AND d.group_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM stats_hourly h WHERE h.stat_date = d.stat_date AND h.group_id = d.group_id)`). Câu `INSERT ... SELECT ... GROUP BY` chỉ ghi đè dòng của nhóm còn dữ liệu, nên nếu không xóa thì khi mọi dòng giờ của nhóm đã bị xóa ở bước 2 (vd. đổi leg chính làm nhóm không còn tham gia), dòng ngày cũ vẫn còn và báo cáo đếm sai.
-> 4. **Chốt sổ** lúc 00:05: tính lại cả 24 giờ của ngày hôm trước lần cuối, rồi đặt `is_finalized = 1`. Dòng đã chốt chỉ đổi khi có yêu cầu trong `stats_recompute_queue`.
-> 5. **Dữ liệu đến trễ**: khi tiến trình làm giàu ghi một leg mà khung giờ của nó **bắt đầu trước `H − 1`** (`H` = khung giờ chứa thời điểm ghi, tức khung `<= H − 2`), nó đưa (`stat_date`, `stat_hour`) của leg đó vào `stats_recompute_queue`. Điều kiện xét theo **khung giờ**, không theo tuổi của leg: lần chạy kế tiếp của job có thể đã sang giờ `H + 1` và chỉ còn tính `H − 1`..`H + 1`, nên khung `H − 2` (kể cả leg chỉ mới 2 giờ 50 phút) sẽ bị bỏ sót nếu không vào hàng đợi; khung `H − 1` và `H` luôn nằm trong cửa sổ của lần chạy kế tiếp. Khi đổi leg chính, áp dụng cùng điều kiện cho khung giờ của **cả leg chính mới và leg chính cũ**, vì hai leg lệch tới 2 giây có thể nằm ở hai khung giờ khác nhau (vd. 10:59:59 và 11:00:01).
+> 4. **Không có bước chốt sổ** cuối ngày: mọi leg ghi vào `cdr_enriched` đều đưa khung giờ của nó vào hàng đợi (bước 5), nên khung giờ nào có dữ liệu mới đều được tính lại, không cần quét lại 24 giờ.
+> 5. **Hàng đợi là nguồn duy nhất**: mỗi batch làm giàu, trong cùng transaction ghi `cdr_enriched`, đưa (`stat_date`, `stat_hour`) của **mọi** leg vừa ghi vào `stats_recompute_queue` (mỗi khung khác nhau một dòng, thường 1–2 dòng/batch). Khi đổi leg chính, đưa thêm khung giờ của **leg chính cũ**, vì hai leg lệch tới 2 giây có thể nằm ở hai khung giờ khác nhau (vd. 10:59:59 và 11:00:01). `POST /admin/stats/recalculate` cũng chỉ ghi vào hàng đợi.
 >    - **Ghi hàng đợi**: `INSERT INTO stats_recompute_queue (stat_date, stat_hour) VALUES (...) ON DUPLICATE KEY UPDATE queued_at = CURRENT_TIMESTAMP(6)`, không dùng `INSERT IGNORE`, để một yêu cầu mới đến trong lúc job đang tính khung đó vẫn được nhận ra.
->    - **Xử lý hàng đợi**: mỗi lần chạy, job đọc tối đa 144 dòng cũ nhất (`ORDER BY queued_at`) kèm `queued_at` đã đọc; mỗi khung giờ tính lại trong một transaction riêng, rồi xóa dòng hàng đợi bằng `DELETE ... WHERE stat_date = ? AND stat_hour = ? AND queued_at <= :queuedAtRead`. Nếu tiến trình làm giàu vừa ghi lại khung đó thì `queued_at` đã lớn hơn nên dòng được giữ cho lần chạy sau. Giới hạn 144 dòng (6 ngày) giữ mỗi lần chạy ngắn, để cửa sổ trực tiếp không bị trễ khi có yêu cầu tính lại hàng loạt (`POST /admin/stats/recalculate` 366 ngày xong sau khoảng 61 lần chạy, tức 10 giờ). Ngày đã chốt sổ vẫn được tính lại theo hàng đợi.
+>    - **Xử lý hàng đợi**: mỗi lần chạy, job đọc (a) **mọi** dòng có khung giờ từ `H − 2` trở đi (`H` = khung giờ chứa thời điểm chạy; tối đa 3 dòng), rồi (b) tối đa 144 dòng cũ nhất còn lại (`ORDER BY queued_at`), kèm `queued_at` đã đọc của từng dòng. Phần (a) đi trước để số liệu gần thời gian thực và cảnh báo QoS (mục 10) không bị trễ khi hàng đợi đang có yêu cầu tính lại hàng loạt (`POST /admin/stats/recalculate` 366 ngày xong sau khoảng 61 lần chạy, tức 10 giờ). Mỗi khung giờ tính lại trong một transaction riêng, rồi xóa dòng hàng đợi bằng `DELETE ... WHERE stat_date = ? AND stat_hour = ? AND queued_at <= :queuedAtRead`. Nếu tiến trình làm giàu vừa ghi lại khung đó thì `queued_at` đã lớn hơn nên dòng được giữ cho lần chạy sau.
 >    - **Mốc dưới (`:purgeBoundary`)**: giá trị `cdr_enrichment_state.cdr_purged_before` (NULL = không giới hạn), **không** tính từ setting `retention_archive_months`: Admin có thể tăng setting này sau khi partition đã bị xóa (vd. 60 → 72 tháng), khi đó mốc tính từ setting lùi về 12 tháng mà CDR không còn, và `POST /admin/stats/recalculate` sẽ ghi đè 12 tháng thống kê bằng số liệu rỗng. Khung giờ có `stat_date` trước mốc này **không bao giờ được tính lại**: CDR của kỳ đó đã bị `DROP PARTITION`, tính lại sẽ ghi đè dòng `stats_*` bằng số liệu rỗng (hoặc chỉ vài leg lạc kỳ rơi vào partition thấp nhất) và xóa các dòng nhóm, làm mất báo cáo dài hạn. Tiến trình làm giàu không đưa các khung đó vào hàng đợi; job gặp dòng như vậy thì xóa khỏi hàng đợi mà không tính; `POST /admin/stats/recalculate` trả `400` nếu `fromDate` trước mốc.
 > 6. **Không chạy chồng**: job giữ khóa `GET_LOCK('stats_aggregation_job', 0)`; không lấy được khóa thì bỏ qua lần chạy đó. Job độc lập với tiến trình làm giàu.
 
@@ -1160,7 +1166,7 @@ CREATE TABLE IF NOT EXISTS `stats_recompute_queue` (
   `queued_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT 'Lần yêu cầu gần nhất; ghi lại khi có yêu cầu trùng (ON DUPLICATE KEY UPDATE), job chỉ xóa dòng có queued_at <= giá trị đã đọc',
   PRIMARY KEY (`stat_date`, `stat_hour`),
   KEY `idx_srq_queued` (`queued_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Khung giờ cần tính lại ngoài cửa sổ trực tiếp H-2..H (dữ liệu đến trễ, đổi leg chính, yêu cầu tính lại của Admin)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Khung giờ cần tính lại: mọi khung có leg mới làm giàu, khung của leg chính cũ khi đổi leg chính, yêu cầu tính lại của Admin. Job tổng hợp chỉ tính các khung trong bảng này';
 ```
 
 ### 15.1. Bảng Thống kê Tổng hợp Theo Giờ (`stats_hourly`)
@@ -1262,7 +1268,6 @@ CREATE TABLE IF NOT EXISTS `stats_daily` (
   `stat_date` date NOT NULL COMMENT 'Ngày thống kê (YYYY-MM-DD)',
   `group_id` int(11) unsigned DEFAULT NULL COMMENT 'ID nhóm sở hữu (user_groups.id). NULL = Toàn hệ thống',
   `group_scope_id` int(11) unsigned GENERATED ALWAYS AS (COALESCE(`group_id`, 0)) VIRTUAL COMMENT 'Cột ảo chuẩn hóa NULL thành 0 để thiết lập ràng buộc UNIQUE',
-  `is_finalized` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0: ngày đang được job tính lại; 1: đã chốt sổ lúc 00:05 ngày hôm sau (chỉ đổi khi có yêu cầu trong stats_recompute_queue)',
 
   -- 1. Sản lượng cuộc gọi (Call Volume)
   `total_calls` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng số cuộc gọi phát sinh trong ngày (chỉ đếm leg chính is_primary_leg = 1)',

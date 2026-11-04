@@ -182,7 +182,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/user-groups/me/members` | `user_group:view` | Danh bạ thành viên **nhóm của người gọi** (màn hình Danh bạ nhóm, khu vực Member): chỉ tài khoản `status = 'ACTIVE'`, trường danh bạ `id`, `fullName`, `jobTitle`, `email`, `phoneNumber`, `avatarUrl`, `roleCode`; không trả `username`, `status`, `lastLoginAt` hay thông tin phiên. Query `page`, `limit` (≤ 100), `search` (họ tên, email, chức danh, số điện thoại), `roleCode`. Đặc tả `docs/modules/02_user_group.md` mục 3.6 | USER |
 | `POST` | `/api/v1/admin/user-groups` | `user_group:manage` | Thiết lập nhóm QLND mới gắn vào nút tổ chức (kèm `allowRecordingAccess`) | ADMIN |
 | `PUT` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Cập nhật thông tin nhóm QLND (kèm quyền bật/tắt ghi âm nhóm `allowRecordingAccess`); không nhận `status`; `409` nếu nhóm đã `INACTIVE` | ADMIN |
-| `DELETE` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Ngừng hoạt động nhóm (xóa mềm `status = INACTIVE`) kèm mọi thành viên chưa `INACTIVE` và phiên của họ, thu hồi dải số, trong một transaction; `409` nếu nhóm đã `INACTIVE`. Đặc tả `docs/modules/02_user_group.md` mục 3.4 | ADMIN |
+| `DELETE` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Ngừng hoạt động nhóm (xóa mềm `status = INACTIVE`) kèm mọi thành viên chưa `INACTIVE` và phiên của họ, trong một transaction. Query `revokeRanges=true\|false` (mặc định `false`): `true` thì thu hồi toàn bộ dải số của nhóm trong cùng transaction; `409` nếu nhóm đã `INACTIVE`. Đặc tả `docs/modules/02_user_group.md` mục 3.4 | ADMIN |
 
 ### 3.5. Phân hệ Quản lý Người dùng & Phân quyền (Users & Roles)
 
@@ -205,14 +205,11 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/v1/prefixes` | `prefix:view` | Danh sách các nhóm đầu số (`phone_prefix_groups`) và dải số (`phone_prefix_ranges`) theo Nhóm người dùng | USER + ADMIN |
 | `GET` | `/api/v1/prefixes/:id` | `prefix:view` | Chi tiết dải số, tỷ lệ sử dụng kho số | USER + ADMIN |
-| `GET` | `/api/v1/admin/prefix-groups` | `prefix:view` | Danh sách nhóm đầu số (`phone_prefix_groups`) kèm nhóm người dùng liên kết (nếu có) và số dải | ADMIN |
-| `GET` | `/api/v1/admin/prefix-groups/available` | `prefix:view` | Nhóm đầu số `ACTIVE` chưa liên kết với nhóm người dùng nào (dùng cho form tạo/sửa nhóm) | ADMIN |
-| `POST` | `/api/v1/admin/prefix-groups` | `prefix:manage` | Tạo nhóm đầu số (`code`, `name`, `description`) | ADMIN |
-| `PUT` | `/api/v1/admin/prefix-groups/:id` | `prefix:manage` | Sửa tên/mô tả/trạng thái nhóm đầu số | ADMIN |
-| `DELETE` | `/api/v1/admin/prefix-groups/:id` | `prefix:manage` | Xóa cứng khi không có nhóm người dùng liên kết và không còn dải (`409` nếu vi phạm, `docs/01_database_schema.md` mục 14) | ADMIN |
-| `POST` | `/api/v1/admin/prefixes` | `prefix:manage` | Cấp phát dải số mới cho Nhóm người dùng (Kiểm tra xung đột Overlap Check) | ADMIN |
-| `PUT` | `/api/v1/admin/prefixes/:id` | `prefix:manage` | Cập nhật dải số (body `{ rangeFrom, rangeTo, note, decisionNumber, historyNote }`; không đổi được `prefix`, `prefixGroupId`, gửi giá trị khác thì `400`) (mở rộng / thu hẹp khoảng số) theo quy tắc `docs/01_database_schema.md` mục 8 (`409` nếu phần mở rộng chứa số đã thuộc dải khác) | ADMIN |
-| `DELETE` | `/api/v1/admin/prefixes/:id` | `prefix:manage` | Thu hồi dải số về kho số dùng chung theo quy tắc `docs/01_database_schema.md` mục 8 (số `ALLOCATED` về `FREE`, `RESERVED`/`LOCKED` giữ trạng thái), ghi lịch sử và nhật ký kiểm toán, rồi mới xóa dòng dải | ADMIN |
+| `GET` | `/api/v1/admin/prefix-groups` | `prefix:view` | Danh sách nhóm đầu số (`phone_prefix_groups`) kèm nhóm người dùng liên kết và số dải. Nhóm đầu số được tạo tự động cùng nhóm người dùng (`docs/01_database_schema.md` mục 4.1), không có API tạo/xóa | ADMIN |
+| `PUT` | `/api/v1/admin/prefix-groups/:id` | `prefix:manage` | Sửa `name`, `description` của nhóm đầu số (không sửa `code`) | ADMIN |
+| `POST` | `/api/v1/admin/prefixes` | `prefix:manage` | Cấp phát dải số mới cho Nhóm người dùng (Kiểm tra xung đột Overlap Check); `409 GROUP_INACTIVE` nếu nhóm người dùng của nhóm đầu số đã `INACTIVE` | ADMIN |
+| `PUT` | `/api/v1/admin/prefixes/:id` | `prefix:manage` | Cập nhật dải số (body `{ rangeFrom, rangeTo, note, decisionNumber, historyNote }`; không đổi được `prefix`, `prefixGroupId`, gửi giá trị khác thì `400`) (mở rộng / thu hẹp khoảng số) theo quy tắc `docs/01_database_schema.md` mục 8 (`409` nếu phần mở rộng chứa số đã thuộc dải khác; `409 GROUP_INACTIVE` nếu nhóm đã `INACTIVE`) | ADMIN |
+| `DELETE` | `/api/v1/admin/prefixes/:id` | `prefix:manage` | Thu hồi dải số về kho số dùng chung theo quy tắc `docs/01_database_schema.md` mục 8 (số `ALLOCATED` về `FREE`, `RESERVED`/`LOCKED` giữ trạng thái), ghi lịch sử và nhật ký kiểm toán, rồi mới xóa dòng dải. Được cả khi nhóm đã `INACTIVE` | ADMIN |
 | `GET` | `/api/v1/prefixes/history` | `prefix:view` | Tra cứu lịch sử cấp phát / thu hồi dải số (`prefix_allocation_history`) | USER + ADMIN |
 | `GET` | `/api/v1/phone-numbers/pool` | `prefix:view` | Tra cứu kho số tổng thể 90.000 số máy 5 số PABX (`v_phone_numbers_detail` / `phone_numbers` - hỗ trợ lọc theo nhóm, dải số, trạng thái FREE/ALLOCATED/RESERVED/LOCKED, số máy; cấu trúc bảng vật lý tuân thủ chuẩn hóa 3NF chỉ giữ `range_id`) | USER + ADMIN |
 | `GET` | `/api/v1/admin/phone-numbers/pool/summary` | `prefix:view` | Số lượng số trong kho theo trạng thái (`FREE`, `ALLOCATED`, `RESERVED`, `LOCKED`) và tổng 90.000 | ADMIN |

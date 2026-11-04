@@ -87,7 +87,7 @@ Bảng MariaDB: `roles`, `permissions`, `permission_roles`, `admin_roles`, `user
 | | `user_group:view` | Xem nhóm người dùng (người dùng: chỉ nhóm của mình, kèm danh bạ thành viên `GET /user-groups/me/members`) | BOTH | |
 | | `user_group:manage` | Thêm / Sửa / Xóa nhóm người dùng, cấp phép Tầng 1 ghi âm | ADMIN | |
 | | `prefix:view` | Xem nhóm đầu số, dải số, kho số và lịch sử cấp phát (người dùng: chỉ của nhóm mình) | BOTH | |
-| | `prefix:manage` | Cấp phát / Thu hồi dải số, gán nhóm đầu số, khóa/mở khóa số | ADMIN | |
+| | `prefix:manage` | Cấp phát / Thu hồi dải số, sửa tên/mô tả nhóm đầu số, khóa/mở khóa số | ADMIN | |
 | `SYSTEM` | `role:view` | Xem danh sách vai trò và quyền của từng vai trò | ADMIN | |
 | | `system:manage` | Cài đặt hệ thống (phân tích, báo cáo & lưu trữ, nâng cao) | ADMIN | |
 | | `audit:view` | Tra cứu nhật ký kiểm toán an toàn thông tin | ADMIN | |

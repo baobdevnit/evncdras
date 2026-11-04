@@ -24,8 +24,8 @@ Mạng viễn thông PABX dùng riêng của Tập đoàn Điện lực Việt N
   - Người dùng phần mềm (`users`) là các tài khoản đăng nhập để tra cứu báo cáo và giám sát CDR, **hoàn toàn không sở hữu số máy lẻ cá nhân**. Bảng `users` không có trường `extension`.
   - Mọi biến động của số điện thoại được quản lý qua **Lịch sử gán số vào dải đầu số** (`phone_number_range_history`) và **Lịch sử cấp phát dải số cho Nhóm** (`prefix_allocation_history`).
 - **Mối quan hệ cốt lõi với Phân quyền & Giám sát CDR (Group-Based Data Isolation)**:
-  - Mỗi Nhóm người dùng (`user_groups`) liên kết 1 - 1 độc quyền với một Nhóm đầu số (`phone_prefix_groups`).
-  - Mỗi Nhóm đầu số sở hữu $1..n$ dải số cụ thể (`phone_prefix_ranges`).
+  - Mỗi Nhóm người dùng (`user_groups`) liên kết 1 - 1 độc quyền với một Nhóm đầu số (`phone_prefix_groups`), được tạo tự động cùng nhóm người dùng (`docs/01_database_schema.md` mục 4.1).
+  - Mỗi Nhóm đầu số sở hữu $0..n$ dải số cụ thể (`phone_prefix_ranges`); nhóm đầu số rỗng là hợp lệ.
   - Tiến trình Near-Realtime Batch Scheduler khi xử lý CDR thô sẽ tra cứu số gọi đi (`CallerId`) và số nhận (`CalledId`) vào kho số `phone_numbers` (chỉ qua `range_id → phone_prefix_ranges → user_groups`, quy tắc `docs/01_database_schema.md` mục 8) để xác định chính xác `caller_group_id` và `called_group_id` trên bảng `cdr_enriched`, đảm bảo tính cô lập dữ liệu tuyệt đối giữa các đơn vị thành viên EVN.
 
 ### 1.2. Các chức năng chính của Module
@@ -148,7 +148,8 @@ Trong cùng transaction tạo/cập nhật dải số:
 ### 4.2. Cấp phát dải số cho Nhóm (`POST /api/v1/admin/prefixes`)
 
 - **Guard**: `AdminAuthGuard`, `Permission: prefix:manage`
-- Mỗi request cấp **một** dải (thao tác theo từng dải để mỗi lần ghi một dòng lịch sử riêng). Sửa dải dùng `PUT /api/v1/admin/prefixes/:id`, thu hồi dùng `DELETE /api/v1/admin/prefixes/:id`. Nhóm đầu số quản lý qua `/api/v1/admin/prefix-groups` (`docs/02_api_contracts.md` mục 3.6).
+- Mỗi request cấp **một** dải (thao tác theo từng dải để mỗi lần ghi một dòng lịch sử riêng). Sửa dải dùng `PUT /api/v1/admin/prefixes/:id`, thu hồi dùng `DELETE /api/v1/admin/prefixes/:id`. Nhóm đầu số được tạo tự động cùng nhóm người dùng; `/api/v1/admin/prefix-groups` chỉ có xem danh sách và sửa tên/mô tả (`docs/02_api_contracts.md` mục 3.6).
+- **Nhóm người dùng phải `ACTIVE`**: khóa dòng `user_groups` gắn với `prefixGroupId` (`SELECT ... FOR UPDATE`), nhóm `INACTIVE` thì trả `409 GROUP_INACTIVE`. Áp dụng cho cả `PUT /api/v1/admin/prefixes/:id`. Thu hồi (`DELETE /api/v1/admin/prefixes/:id`) không đòi nhóm `ACTIVE` (`docs/01_database_schema.md` mục 8, 14).
 - **Request Body**:
 
 ```json
@@ -293,4 +294,4 @@ backend/src/
 3. **TC-PREF-03**: Thử cấp dải số `48500 - 48600` cho đơn vị khác, xác nhận hệ thống báo lỗi xung đột dải số (Overlap Conflict) và từ chối lưu.
 4. **TC-PREF-04**: Thu hồi dải số `48000 - 48999`, xác nhận 1.000 số tương ứng trong `phone_numbers` quay trở lại trạng thái `FREE` và `range_id = NULL`.
 5. **TC-PREF-05**: Mở rộng dải `48000 - 48499` thành `48000 - 48999` khi `48500 - 48999` chưa thuộc dải nào, xác nhận 500 số mới nhận `range_id` và có 1 dòng `prefix_allocation_history` (`UPDATE`); thử mở rộng chồng lên dải của cùng nhóm hoặc nhóm khác thì trả `409`.
-6. **TC-PREF-06**: Gửi `PUT /api/v1/admin/user-groups/:id` với `phonePrefixGroupId` khác giá trị hiện tại, xác nhận trả `409`.
+6. **TC-PREF-06**: Gửi `PUT /api/v1/admin/user-groups/:id` có trường `phonePrefixGroupId`, xác nhận trả `400`. Gửi `POST /api/v1/admin/prefixes` cho nhóm đầu số của nhóm `INACTIVE`, xác nhận trả `409 GROUP_INACTIVE`.
