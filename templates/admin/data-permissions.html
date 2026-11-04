@@ -554,6 +554,27 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal Xác nhận Đăng xuất (ConfirmModal) -->
+    <div id="logoutModal" class="confirm-modal-backdrop" style="display: none;">
+        <div class="confirm-modal-dialog" role="dialog" aria-modal="true">
+            <div class="confirm-modal-icon-wrapper confirm-modal-icon--danger">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </div>
+            <div class="confirm-modal-content">
+                <h3 class="confirm-modal-title">Xác nhận đăng xuất</h3>
+                <p class="confirm-modal-message">Bạn có chắc chắn muốn đăng xuất khỏi hệ thống EVN CDRAS?</p>
+            </div>
+            <div class="confirm-modal-actions">
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--cancel" onclick="closeLogoutModal()">Hủy bỏ</button>
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--danger" onclick="confirmLogout()">Đăng xuất</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

@@ -135,7 +135,28 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 
     `expiresIn` = `security_access_token_minutes` × 60 (giây). Không trả thông tin tài khoản: frontend gọi `GET /auth/me` sau đó (`docs/00_overview_and_architecture.md` mục 5.3.2).
   - **Lỗi**: `400 VALIDATION_ERROR` (body có trường); mọi nhánh còn lại `401 UNAUTHORIZED`, cùng thông điệp, và luôn kèm `Set-Cookie` xóa cookie (cùng `Path`, `Max-Age=0`). Refresh thành công không ghi `audit_logs`; chỉ nhánh dùng lại token ghi `TOKEN_REUSE_DETECTED`.
-- **`POST /auth/logout`**: `UserAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`), không có body. Thu hồi phiên ứng với cookie hiện tại (`revoked_reason = 'LOGOUT'`), xóa cookie (`Set-Cookie` cùng `Path`, `Max-Age=0`), ghi `audit_logs` `AUTH / LOGOUT`, trả `200` với `data = null`. Không có cookie hoặc phiên đã bị thu hồi thì vẫn xóa cookie và trả `200` (idempotent). Access Token đang giữ hết hiệu lực tự nhiên sau tối đa 15 phút; frontend xóa token khỏi bộ nhớ và chuyển về `/login`.
+- **`POST /auth/logout`** (đặc tả chung cho cả hai cổng; bản Admin `POST /api/v1/admin/auth/logout` khác ở các điểm ghi tại `docs/modules/04_auth_admin.md` mục 3.5):
+  - **Guard**: `UserAuthGuard`, nhận cả token `PASSWORD_CHANGE_ONLY`; không cần mã quyền. Không có body; gửi body có trường thì `400 VALIDATION_ERROR`. Đọc Refresh Token từ cookie (`Path=/api/v1/auth`, cookie được gửi kèm vì `/api/v1/auth/logout` nằm trong `Path`).
+  - **Xử lý** (một transaction):
+    1. Không có cookie (kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`, vốn không có Refresh Token): bỏ qua bước 2–3.
+    2. `SELECT ... FOR UPDATE` phiên theo `refresh_token_hash` = SHA-256 của cookie, `actor_type` của cổng (`USER`) **và** `actor_id` = `sub` của Access Token. Không thấy (kể cả cookie thuộc tài khoản khác): không thu hồi gì.
+    3. Phiên `ROTATED` (tab khác vừa xoay vòng): đi theo chuỗi `replaced_by_session_id` (tối đa 5 bước, không xét khoảng ân hạn 30 giây, không coi là dùng lại token) tới phiên đang hiệu lực, như `DELETE /auth/sessions/:id` (`docs/01_database_schema.md` mục 6.1). Phiên đích còn hiệu lực (`revoked_at IS NULL AND expires_at > NOW()`): `revoked_at = NOW()`, `revoked_reason = 'LOGOUT'`, ghi `audit_logs` `AUTH / LOGOUT` (`actor_type`, `actor_id` = người gọi, `resource_id` = id phiên bị thu hồi, `ip_address`, `user_agent` của request). Phiên đích đã thu hồi vì lý do khác hoặc đã hết hạn: không ghi gì.
+    4. Luôn trả `200` kèm `Set-Cookie` xóa cookie (cùng `Path`, `Max-Age=0`). `audit_logs` `LOGOUT` chỉ ghi khi bước 3 thực sự thu hồi một phiên, nên bấm đăng xuất hai lần hoặc đăng xuất bằng token `PASSWORD_CHANGE_ONLY` không sinh dòng audit.
+  - **Response** `200`:
+
+    ```json
+    {
+      "success": true,
+      "statusCode": 200,
+      "message": "Đăng xuất thành công",
+      "data": null,
+      "timestamp": "2026-10-26T09:50:00+07:00"
+    }
+    ```
+
+  - **Lỗi**: `400 VALIDATION_ERROR` (body có trường); `401 UNAUTHORIZED` (Access Token thiếu, sai hoặc hết hạn, do guard trả, không xóa cookie). Không có `403`/`404`/`409`: không có cookie, phiên đã thu hồi hay phiên không thuộc người gọi đều trả `200` (idempotent).
+  - **Frontend**: gọi qua API client của cổng, nên Access Token hết hạn thì client refresh một lần rồi gửi lại logout (`docs/00_overview_and_architecture.md` mục 5.3.2). Sau khi gọi, **dù thành công hay lỗi** (mạng, `401`), frontend xóa Access Token và thông tin tài khoản khỏi store, ngắt Socket.IO của cổng rồi chuyển về trang đăng nhập của cổng. Access Token cũ (và token đang giữ ở tab khác) hết hiệu lực tự nhiên sau tối đa `security_access_token_minutes` (15) phút; tab khác bị đưa về đăng nhập ở lần refresh kế tiếp. Đăng xuất một cổng không ảnh hưởng phiên của cổng kia.
+  - Index phục vụ: `uniq_session_token` (tìm phiên theo `refresh_token_hash`), khóa chính (đi theo `replaced_by_session_id`).
 
 ### 3.3. Danh sách người dùng (`GET /api/v1/users`)
 

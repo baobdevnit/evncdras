@@ -139,7 +139,12 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
   - Không bị chế độ bảo trì chặn (`docs/02_api_contracts.md` mục 1.2).
   - `audit_logs` `TOKEN_REUSE_DETECTED` ghi `actor_type = ADMIN`.
   - Index phục vụ: `uniq_session_token` (tìm phiên), `idx_session_actor` (thu hồi mọi phiên khi dùng lại token).
-- **`logout`**: hành vi giống bản User, khác ở cookie `Path=/api/v1/admin/auth`, secret `JWT_ADMIN_SECRET` và bảng `admins`. Dùng `AdminAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`), ghi `audit_logs` `AUTH / LOGOUT` với `actor_type = ADMIN`.
+- **`logout`**: xử lý, response và lỗi theo đặc tả chung `docs/modules/03_auth_user.md` mục 3.2.1. Khác bản User:
+  - Guard `AdminAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`, verify bằng `JWT_ADMIN_SECRET`); cookie `Path=/api/v1/admin/auth`.
+  - Tìm phiên với `actor_type = 'ADMIN'` và `actor_id` = `sub` của token (cookie của User hay của Admin khác không bao giờ bị thu hồi qua route này).
+  - `audit_logs` `AUTH / LOGOUT` ghi `actor_type = ADMIN`, chỉ khi thực sự thu hồi một phiên.
+  - Không bị chế độ bảo trì chặn (`docs/02_api_contracts.md` mục 1.2).
+  - Frontend: nút "Đăng xuất" trong menu tài khoản mở hộp xác nhận (`ConfirmModal`); bấm xác nhận thì khóa nút, gọi API rồi luôn xóa store `authAdmin`, ngắt Socket.IO namespace `/admin/notifications` và chuyển về `admin.login` (mẫu `window.adminSession.logout` trong `templates/admin/main.js`).
 
 ### 3.6. Đặt lại mật khẩu Admin khác (`PUT /api/v1/admin/admins/:id/reset-password`)
 
@@ -241,4 +246,5 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 5. **TC-ADM-05**: Đăng nhập Admin với username không tồn tại, với username của tài khoản `INACTIVE` và với mật khẩu sai: cả ba trả `401 INVALID_CREDENTIALS` cùng thông điệp; `audit_logs` có `LOGIN_FAILED` với `reason` lần lượt `UNKNOWN_USER`, `UNKNOWN_USER`, `BAD_PASSWORD`. Sai lần thứ 5 vẫn trả `401`, lần thứ 6 trả `423` với `errors.lockedUntil`.
 6. **TC-ADM-06**: Đăng nhập Admin vừa tạo (`must_change_password = 1`): `200`, `mustChangePassword = true`, có `admin` đầy đủ, không có `Set-Cookie`, không có dòng `auth_sessions` mới; gọi `GET /api/v1/admin/cdr` bằng token này trả `403 PASSWORD_CHANGE_REQUIRED`.
 7. **TC-ADM-07**: Đăng nhập Admin với `rememberMe = true`, gọi `POST /api/v1/admin/auth/refresh`: `200` có `data = { accessToken, expiresIn }`, cookie mới có `Max-Age` ≈ số giây còn lại tới `expires_at`, phiên cũ `ROTATED` và phiên mới cùng `expires_at`, `remember_me = 1`; với `rememberMe = false` cookie mới không có `Max-Age`. Khóa admin đó rồi refresh bằng cookie cũ: `401 UNAUTHORIZED`, response có `Set-Cookie` `Max-Age=0`. Gửi cookie Refresh Token của User tới route Admin: `401`.
+8. **TC-ADM-08**: Đăng nhập Admin, gọi `POST /api/v1/admin/auth/logout`: `200` với `data = null`, `Set-Cookie` `Max-Age=0`, phiên có `revoked_reason = 'LOGOUT'`, một dòng `audit_logs` `AUTH / LOGOUT` (`resource_id` = id phiên); gọi lại lần nữa: `200`, không thêm dòng audit; refresh bằng cookie cũ: `401`. Gọi logout bằng cookie vừa `ROTATED` (trong lúc tab khác refresh): phiên mới trong chuỗi bị thu hồi. Gọi bằng token `PASSWORD_CHANGE_ONLY`: `200`, không ghi audit. Gọi kèm body `{"x":1}`: `400 VALIDATION_ERROR`.
 

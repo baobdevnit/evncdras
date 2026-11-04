@@ -144,7 +144,7 @@ Toàn bộ endpoint của mục này thuộc portal **ADMIN**.
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/v1/admin/auth/login` | Public | Đăng nhập tài khoản Quản trị viên hệ thống: body `{ username, password, rememberMe? }`; sai thông tin `401 INVALID_CREDENTIALS`, `LOCKED` `403 ACCOUNT_LOCKED`, khóa tạm `423 ACCOUNT_TEMPORARILY_LOCKED`. Đặc tả `docs/modules/04_auth_admin.md` mục 3.1 |
 | `POST` | `/api/v1/admin/auth/refresh` | Public (cookie Refresh Token) | Xoay vòng Refresh Token và cấp Access Token mới: không có body, trả `{ accessToken, expiresIn }` kèm cookie mới; mọi lỗi phiên/tài khoản `401 UNAUTHORIZED` và xóa cookie. Đặc tả `docs/modules/03_auth_user.md` mục 3.2.1, `docs/modules/04_auth_admin.md` mục 3.5 (chính sách `docs/01_database_schema.md` mục 6.1) |
-| `POST` | `/api/v1/admin/auth/logout` | `AdminAuthGuard` | Đăng xuất: thu hồi phiên hiện tại trong `auth_sessions` (`LOGOUT`), xóa cookie |
+| `POST` | `/api/v1/admin/auth/logout` | `AdminAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`) | Đăng xuất: không có body; thu hồi phiên ứng với cookie (`LOGOUT`, đi theo chuỗi nếu đã `ROTATED`), luôn xóa cookie, trả `200` `data = null` (idempotent); audit `AUTH / LOGOUT` chỉ khi thu hồi được phiên. Đặc tả `docs/modules/03_auth_user.md` mục 3.2.1, `docs/modules/04_auth_admin.md` mục 3.5 |
 | `GET` | `/api/v1/admin/auth/me` | `AdminAuthGuard` | Lấy thông tin tài khoản Admin đang đăng nhập |
 | `GET` | `/api/v1/admin/profile` | `AdminAuthGuard` | Xem chi tiết hồ sơ Admin |
 | `PUT` | `/api/v1/admin/profile` | `AdminAuthGuard` | Cập nhật họ tên, điện thoại của Admin; không nhận `email`, `avatarUrl` (`400`); ghi `audit_logs` `ADMIN / UPDATE` |
@@ -172,7 +172,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/v1/auth/login` | Public | Đăng nhập tài khoản Người dùng đơn vị EVN |
 | `POST` | `/api/v1/auth/refresh` | Public (cookie Refresh Token) | Xoay vòng Refresh Token và cấp Access Token mới: không có body, trả `{ accessToken, expiresIn }` kèm cookie mới; mọi lỗi phiên/tài khoản `401 UNAUTHORIZED` và xóa cookie. Đặc tả `docs/modules/03_auth_user.md` mục 3.2.1 |
-| `POST` | `/api/v1/auth/logout` | `UserAuthGuard` | Đăng xuất: thu hồi phiên hiện tại (`LOGOUT`), xóa cookie |
+| `POST` | `/api/v1/auth/logout` | `UserAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`) | Đăng xuất: không có body; thu hồi phiên ứng với cookie (`LOGOUT`, đi theo chuỗi nếu đã `ROTATED`), luôn xóa cookie, trả `200` `data = null` (idempotent); audit `AUTH / LOGOUT` chỉ khi thu hồi được phiên. Đặc tả `docs/modules/03_auth_user.md` mục 3.2.1 |
 | `GET` | `/api/v1/auth/me` | `UserAuthGuard` | Lấy thông tin User, nhóm, `roleCode` và `permissions` hiệu lực (quyền vai trò sau khi áp quyền nhóm, `docs/modules/10_permissions_and_roles.md` mục 2.3) |
 | `GET` | `/api/v1/profile` | `UserAuthGuard` | Xem chi tiết thông tin cá nhân |
 | `PUT` | `/api/v1/profile` | `UserAuthGuard` | Cập nhật họ tên, điện thoại; không nhận `email`, `username`, `roleCode`, `avatarUrl` (`400`). `username`, `email` của người dùng bất biến sau khi tạo, không API nào sửa (`docs/01_database_schema.md` mục 6); ghi `audit_logs` `USER / UPDATE` |

@@ -284,7 +284,32 @@ window.adminSession = (function () {
         });
     }
 
-    return { ensureSession, request, refreshOnce };
+    // Giả lập backend POST /api/v1/admin/auth/logout (A03): không có body; luôn 200 data = null
+    // kèm Set-Cookie xóa cookie (idempotent: không có cookie/phiên đã thu hồi vẫn 200);
+    // Access Token thiếu/hết hạn → 401 UNAUTHORIZED (request() sẽ refresh một lần rồi gửi lại).
+    function mockAdminLogout(token) {
+        return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+            if (!token) {
+                return Promise.reject({
+                    success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+                    message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: now()
+                });
+            }
+            mockHasRefreshCookie = false; // backend đã thu hồi phiên và xóa cookie
+            return { success: true, statusCode: 200, message: 'Đăng xuất thành công', data: null, timestamp: now() };
+        });
+    }
+
+    // Đăng xuất: gọi API qua request() (401 → refresh một lần), rồi DÙ thành công hay lỗi
+    // vẫn xóa phiên phía client và về trang đăng nhập.
+    // Vue: authAdmin.clear(); adminSocket.disconnect(); router.replace({ name: 'admin.login' })
+    function logout() {
+        return request(token => mockAdminLogout(token))
+            .catch(() => null)
+            .then(() => { accessToken = null; goLogin(); });
+    }
+
+    return { ensureSession, request, refreshOnce, logout };
 })();
 
 // ----------------------------------------
@@ -308,8 +333,15 @@ window.closeLogoutModal = function() {
     }
 };
 
+// Nút "Đăng xuất" trong #logoutModal: khóa nút khi đang gọi API, tránh bấm hai lần.
 window.confirmLogout = function() {
-    window.location.href = 'login.html';
+    const btn = document.querySelector('#logoutModal .confirm-modal-btn--danger');
+    if (btn) {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = 'Đang đăng xuất...';
+    }
+    window.adminSession.logout();
 };
 
 window.showToast = function(message, type = 'success', duration = 4000) {
