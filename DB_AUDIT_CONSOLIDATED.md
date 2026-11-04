@@ -55,7 +55,7 @@
 | 22 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `9d57fd3` | 6 Minor | ✅ phía `docs/`; C-02 chờ xác nhận |
 | 23 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `94c7d7b` | 6 Minor | ✅ phía `docs/`; C-03 chờ xác nhận |
 | 24 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `6489527` | 14 Minor | ✅ phía `docs/`; C-04 chờ xác nhận |
-| 25 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (chưa commit) | 3 Major, 7 Minor | ✅ phía `docs/`; R25-07 ghi nhận rủi ro (I-07) |
+| 25 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `69cb536` | 3 Major, 7 Minor | ✅ phía `docs/`; R25-07 ghi nhận rủi ro (I-07) |
 
 ---
 
