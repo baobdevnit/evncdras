@@ -37,7 +37,7 @@
 | 13 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `728e996` | 2 Major, 7 Minor | ✅ |
 | 14 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `94b96b3` | 3 Major, 10 Minor | ✅ |
 | 15 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `104660f` | 8 Minor | ✅ |
-| 16 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (chưa commit) | 13 Minor | ✅ |
+| 16 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `eeda0b6` | 13 Minor | ✅ |
 
 ---
 
