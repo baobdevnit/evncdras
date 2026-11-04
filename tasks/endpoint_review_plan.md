@@ -123,13 +123,15 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 
 | Ngày | Từ | Quy ước | Ghi ở |
 |---|---|---|---|
-| — | — | *(chưa có)* | — |
+| 2026-11-04 | A01 | Mã lỗi `400` = `VALIDATION_ERROR` (`errors = { field: [..] }`); `401` = `INVALID_CREDENTIALS` cho đăng nhập sai (một mã cho mọi trường hợp), `UNAUTHORIZED` cho token/cookie. Mọi endpoint ghi rõ mã lỗi theo danh mục này | `02` §2.3 |
+| 2026-11-04 | A01 | `templates/` đã đưa vào git (commit `67f0cdb`); mỗi endpoint commit kèm file template đã sửa | — |
+| 2026-11-04 | A01 | Template mock gọi API bằng hàm trả Promise với **đúng** envelope thành công/lỗi; không ghi token/tài khoản vào `localStorage`/`sessionStorage` (ghi chú chỗ store Pinia) | `templates/admin/login.js` (mẫu) |
 
 ---
 
 ## 5. Bảng tiến độ
 
-**Tiến độ**: 0 / 99 ✅ · 0 ⏸ · 0 🔁
+**Tiến độ**: 1 / 99 ✅ · 0 ⏸ · 0 🔁
 
 - Một dòng `USER + ADMIN` gồm **cả hai route** (bản User và bản `/api/v1/admin/...`) và cả hai template: rà trong cùng một hội thoại.
 - Cột **Module**: `Mxx` = `docs/modules/xx_*.md`. Cột **Template**: `A/` = `templates/admin/`, `M/` = `templates/member/` (tên file HTML; JS/CSS cùng tên). Cột **CSDL chính**: gợi ý điểm bắt đầu, phải tự grep đủ.
@@ -139,7 +141,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 
 | ID | Method | Endpoint | Portal | Module | CSDL chính | Template | TT | Commit | Ghi chú |
 |---|---|---|---|---|---|---|---|---|---|
-| A01 | POST | `/api/v1/admin/auth/login` | ADMIN | M04 | `admins`, `auth_sessions`, `audit_logs` | A/login | ⬜ | | |
+| A01 | POST | `/api/v1/admin/auth/login` | ADMIN | M04 | `admins`, `auth_sessions`, `audit_logs` | A/login | ✅ | `26651e5` | 2026-11-04; U01 cần áp mã `401`/`400` mới và rà `member/login` |
 | A02 | POST | `/api/v1/admin/auth/refresh` | ADMIN | M04 | `auth_sessions` | A/main.js | ⬜ | | |
 | A03 | POST | `/api/v1/admin/auth/logout` | ADMIN | M04 | `auth_sessions` | A/main.js | ⬜ | | |
 | A04 | GET | `/api/v1/admin/auth/me` | ADMIN | M04, M10 | `admins`, `admin_roles`, `permission_roles` | A/main.js | ⬜ | | |
@@ -307,7 +309,8 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 
 | Ngày | ID | Kết quả | Phát hiện (`E-<ID>-nn`) | File đã sửa | Commit |
 |---|---|---|---|---|---|
-| 2026-11-04 | — | Lập kế hoạch | — | `tasks/endpoint_review_plan.md`, `DB_AUDIT_CONSOLIDATED.md` | |
+| 2026-11-04 | — | Lập kế hoạch | — | `tasks/endpoint_review_plan.md`, `DB_AUDIT_CONSOLIDATED.md` | `387684d` |
+| 2026-11-04 | A01 | ✅ Xong 3 lớp; không đổi DDL; 3 câu hỏi chốt ngay trong phiên (mã 400/401, `admin` với token giới hạn, `avatarUrl`) | E-A01-01…06 | `02`, `03`, M03, M04, `templates/admin/login.*`, `DB_AUDIT_CONSOLIDATED.md`, file này | `26651e5` |
 
 ---
 

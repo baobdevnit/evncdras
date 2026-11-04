@@ -56,7 +56,7 @@
 | 23 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `94c7d7b` | 6 Minor | ✅ phía `docs/`; C-03 chờ xác nhận |
 | 24 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `6489527` | 14 Minor | ✅ phía `docs/`; C-04 chờ xác nhận |
 | 25 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `69cb536` | 3 Major, 7 Minor | ✅ phía `docs/`; R25-07 ghi nhận rủi ro (I-07) |
-| 26 | 2026-11-04 → | Kế hoạch `tasks/endpoint_review_plan.md` (rà từng endpoint: API + CSDL + `templates/`) | theo từng endpoint (cột Commit của kế hoạch) | 0 / 99 endpoint | 🔄 Đang làm |
+| 26 | 2026-11-04 → | Kế hoạch `tasks/endpoint_review_plan.md` (rà từng endpoint: API + CSDL + `templates/`) | theo từng endpoint (cột Commit của kế hoạch) | 1 / 99 endpoint (A01: 2 Major, 4 Minor) | 🔄 Đang làm |
 
 ---
 
@@ -86,7 +86,7 @@ Danh sách chi tiết theo quyết định Q/R/D nằm ở `docs/intent/docs-rea
 | `user-settings.*` | Theme có 3 giá trị `LIGHT`/`DARK`/`SYSTEM` ở API (X-09, R20-01); `data-theme` vẫn chữ thường |
 | `admin|member/dashboard.*`, `notifications.*` | Frontend tự định dạng số, đơn vị, nhãn xu hướng, nhãn MOS và thời gian tương đối; API không trả `formatted`/`trendLabel`/`qualityLabel`/`timeAgo` (R16-07) |
 | `admin|member/profile.*` | Ảnh đại diện chỉ đổi qua nút tải ảnh (`POST .../avatar`); form sửa người dùng của quản trị viên không có ô ảnh (R16-12) |
-| `03` §danh mục template | Bỏ `login_admin.html`, `users4group.html` (không tồn tại); thêm `templates/member/group-admin.html`, `group-members.html` (Phụ lục A lần 4) |
+| `03` §danh mục template | Bỏ `login_admin.html` (✅ A01: đổi thành `admin/login.html`, `member/login.html`), `users4group.html` (không tồn tại); thêm `templates/member/group-admin.html`, `group-members.html` (Phụ lục A lần 4) |
 
 Các phát hiện template gốc của lần 2 (T-01…T-25, A-02, A-03) là căn cứ của danh sách trên; chúng không còn tác dụng với `docs/`.
 
@@ -141,6 +141,7 @@ Các quy tắc sau đã ghi trong `docs/` nhưng chỉ kiểm chứng được b
 | Quản trị viên nhóm tự khóa, tự ngừng hoạt động, tự đặt lại mật khẩu qua route User trả `403 SELF_ACTION_FORBIDDEN`; `PUT /admin/admins/:id` với chính mình cũng vậy | `02` §2.3, M03 §3.7–3.9, M04 §3.8 | R23-03, R23-04 |
 | `DELETE .../auth/sessions/:id` với phiên hiện tại trả `400`, với phiên của người khác trả `404`; `GET` đánh dấu đúng `isCurrent` theo cookie | M08 §3.6, M09 §3.5 | R23-05 |
 | `GET /admin/audit-logs` khoảng quá 31 ngày, thiếu ngày, `actorId` không có `actorType` hoặc `action` lạ trả `400` | M07 §3.4 | R23-06 |
+| Đăng nhập (Admin, User): không thấy tài khoản, tài khoản `INACTIVE` và sai mật khẩu cùng trả `401 INVALID_CREDENTIALS` cùng thông điệp; body sai trả `400 VALIDATION_ERROR`, không ghi audit; token `PASSWORD_CHANGE_ONLY` không tạo dòng `auth_sessions`, không gửi cookie, vẫn trả `admin`/`user` đầy đủ | `02` §2.3, M03 §3.1, M04 §3.1, TC-ADM-05, TC-ADM-06 | E-A01-01, E-A01-03 |
 | Job tổng hợp ghi `avg_r_value_x100 = ROUND(AVG(R) × 100)`; `/qos/summary` và báo cáo `quality` trả `avgRValue` = gia quyền / 100, 2 chữ số | `01` §15, M13 §3.2 | R24-01 |
 | Trường chuỗi dài hơn cột đích (vd. `code` 51 ký tự, `phoneNumber` 31 ký tự) trả `400`, không phải `500` | `02` §2 | R24-03 |
 | `PUT /profile`, `PUT /admin/profile`, `POST .../avatar` ghi `USER`/`ADMIN / UPDATE` có `changedFields`; `PUT .../preferences` không ghi | `01` §13, M08 §3.2–3.3, M09 §3.2 | R24-04 |
@@ -448,7 +449,12 @@ Kế hoạch, quy trình và tiến độ: `tasks/endpoint_review_plan.md`. Mỗ
 
 | ID | Mức | Phát hiện | Cách sửa |
 |---|---|---|---|
-| — | — | *(chưa có)* | — |
+| E-A01-01 | Major | Danh mục lỗi `02` §2.3 không có `errorCode` cho `400` và `401` (TC-ADM-03 lại dùng `401 UNAUTHORIZED` chưa có trong danh mục); M04 §3.1 không nói đăng nhập sai trả mã gì, cũng không nói không thấy tài khoản và sai mật khẩu phải trả giống nhau (lộ tài khoản có tồn tại) | Chủ dự án chốt (quy ước chung): `400 VALIDATION_ERROR` với `errors = { field: [..] }`; `401 INVALID_CREDENTIALS` cho đăng nhập sai (một mã, một thông điệp cho mọi trường hợp), `401 UNAUTHORIZED` cho token/cookie. `02` §2.3, §3.1; M04 §3.1; M03 §3.1 |
+| E-A01-02 | Minor | Request đăng nhập không có ràng buộc trường: độ dài (`username` nhận cả email nên ≤ 150), bắt buộc, mặc định `rememberMe`, trường lạ | Bảng request trong M04 §3.1 (`username` 1–150, `password` 1–255, `rememberMe` mặc định `false`, trường khác `400`) |
+| E-A01-03 | Minor | Thứ tự xử lý M04 §3.1 mâu thuẫn: bước 4 tạo phiên `auth_sessions` trước khi bước 5 quyết định token giới hạn (không có Refresh Token); không nói dòng phiên ghi `ip_address`/`user_agent` (cần cho A12), không nói transaction; tra cứu "username **hoặc** email" chưa có thứ tự như M03 (username của Admin có thể có dạng email) | Viết lại 6 bước: tìm `username_active` rồi `email_active`; `LOCKED`/khóa tạm không kiểm tra mật khẩu; chỉ token đầy đủ mới tạo `auth_sessions` (đủ cột) và cookie; bước 4–6 một transaction; bảng lỗi kèm `LOGIN_FAILED.reason`. M04 §3.1, TC-ADM-05/06 |
+| E-A01-04 | Minor | Response thiếu `timestamp` (envelope `02` §2.1), thiếu `avatarUrl` (bản User có, `admins.avatar_url` có); không nói token giới hạn có trả `admin` không; ví dụ `permissions` 6 mã dễ hiểu nhầm là đủ | Chủ dự án chốt: thêm `avatarUrl`; token giới hạn trả cùng cấu trúc. Thêm `timestamp`, bảng nguồn trường, ghi chú ví dụ rút gọn (25/24 mã). M04 §3.1 |
+| E-A01-05 | Major | Template `admin/login.js` lưu token vào `sessionStorage` và tài khoản vào `localStorage` (trái `01` §6.1), mock sai cấu trúc response (`isRoot`, `roles`, `permissions: ['*']`), điền sẵn mật khẩu Root; `login.html` có liên kết "Quên mật khẩu" tới `system-settings.html` (không có API), thiếu nhãn cảnh báo đỏ của M04 §5.1; không xử lý `401`/`403`/`423`, không chuyển tới đổi mật khẩu khi `mustChangePassword` | Sửa `templates/admin/login.{html,js,css}`: mock đúng response/lỗi, hộp lỗi theo `errorCode`, không lưu trình duyệt, bỏ giá trị điền sẵn, `maxlength`, `name` theo trường API, thay liên kết bằng dòng hướng dẫn, thêm nhãn cảnh báo. Ghi hành vi frontend vào M04 §5.1 |
+| E-A01-06 | Minor | `03` §8 vẫn ghi `login_admin.html`/`login_admin.css` (không tồn tại; nợ ở mục 2.2) | Đổi thành `admin/login.html`, `member/login.html` (phần còn lại của dòng nợ chờ các endpoint sau) |
 
 ---
 
