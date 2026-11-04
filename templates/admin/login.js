@@ -163,7 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // không ghi localStorage/sessionStorage (docs/01_database_schema.md mục 6.1).
                     label.innerText = 'Xác thực thành công!';
                     btn.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
-                    const target = res.data.mustChangePassword ? 'change-password.html' : 'dashboard.html';
+                    // Token giới hạn: trang đổi mật khẩu ở chế độ bị buộc đổi (bố cục riêng, M09 mục 5).
+                    const target = res.data.mustChangePassword ? 'change-password.html?forced=1' : 'dashboard.html';
                     setTimeout(() => { window.location.href = target; }, 600);
                 })
                 .catch(err => {

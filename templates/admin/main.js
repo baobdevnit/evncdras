@@ -382,10 +382,23 @@ window.adminSession = (function () {
         return target;
     }
 
+    // Sau khi tự đổi mật khẩu (PUT /admin/profile/change-password, A07): thay Access Token
+    // (kể cả token PASSWORD_CHANGE_ONLY) bằng token đầy đủ mới; backend đã đặt cookie Refresh Token
+    // của phiên mới qua Set-Cookie. Vue: authAdmin.setAccessToken(data.accessToken); mustChangePassword = false.
+    function setAccessToken(token) {
+        accessToken = token;
+        mockHasRefreshCookie = true;
+    }
+
+    // Tài khoản trong store (thẻ tài khoản ở trang đổi mật khẩu đọc fullName, roleName, email từ đây).
+    function getAccount() {
+        return currentAdmin || MOCK_ADMIN;
+    }
+
     // Trang tĩnh: chỉ đổ dữ liệu mẫu vào header (không chạy guard, để mở từng trang HTML được).
     document.addEventListener('DOMContentLoaded', () => renderAccount(MOCK_ADMIN));
 
-    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, updateAccount };
+    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, updateAccount, setAccessToken, getAccount };
 })();
 
 // ----------------------------------------

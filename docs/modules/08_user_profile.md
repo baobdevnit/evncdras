@@ -78,20 +78,10 @@ Bảng MariaDB: `users` và `user_settings`.
 
 ### 3.4. `PUT /api/v1/profile/change-password`
 
-- **Response thành công** `200`: `{ "accessToken": "...", "expiresIn": 900 }` (token đầy đủ, kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`), đặt cookie Refresh Token mới (phiên mới, hạn tuyệt đối 7 ngày), thu hồi mọi phiên cũ, kể cả phiên đang dùng (`PASSWORD_CHANGED`), cập nhật `password_changed_at = NOW()`, `must_change_password = 0`, ghi `audit_logs` `AUTH / PASSWORD_CHANGED`. Mật khẩu mới phải đạt chính sách và khác mật khẩu hiện tại (sai thì `400`).
-- **Phiên**: mọi phiên cũ của tài khoản, **kể cả phiên đang dùng** để gọi API, bị thu hồi với `revoked_reason = 'PASSWORD_CHANGED'`; sau đó tạo đúng một phiên mới và trả cookie của phiên đó (`docs/01_database_schema.md` mục 6.1). Gọi bằng token `PASSWORD_CHANGE_ONLY` (chưa có phiên) thì chỉ tạo phiên mới.
-
-- **Body**:
-
-```json
-{
-  "currentPassword": "OldPassword123@",
-  "newPassword": "NewSecurePassword2026!@",
-  "confirmPassword": "NewSecurePassword2026!@"
-}
-```
-
-- **Validation**: Kiểm tra `currentPassword` khớp với hash trong DB; `newPassword` phải khác mật khẩu cũ; hash mật khẩu mới trước khi lưu.
+- Body, xử lý, response, lỗi và hành vi frontend theo đặc tả chung `docs/modules/09_admin_profile.md` mục 3.3 (body `currentPassword`, `newPassword`, `confirmPassword`; sai `currentPassword` trả `400` và tăng bộ đếm sai mật khẩu; thu hồi mọi phiên cũ kể cả phiên đang dùng (`PASSWORD_CHANGED`), tạo đúng một phiên mới chép `remember_me` của phiên theo claim `sid`; response `{ accessToken, expiresIn }` kèm cookie mới). Khác bản Admin:
+  - Guard `UserAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`, verify bằng `JWT_USER_SECRET`); bảng `users`, `actor_type = 'USER'`; cookie mới `Path=/api/v1/auth`.
+  - Access Token mới mang thêm `userGroupId` đọc lại từ CSDL, như đăng nhập (`docs/modules/03_auth_user.md` mục 3.1).
+  - *(Còn rà ở U07: kiểm tra nhóm `INACTIVE`, chế độ bảo trì `503`, mẫu `templates/member/change-password.*`.)*
 
 ### 3.5. `GET /api/v1/profile/preferences` & `PUT /api/v1/profile/preferences`
 
@@ -161,5 +151,5 @@ Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
 
 1. **TC-UP-01**: Cập nhật họ tên mới, F5 trang kiểm tra họ tên trên Avatar góc phải Sidebar cập nhật tương ứng.
-2. **TC-UP-02**: Nhập sai mật khẩu hiện tại khi đổi mật khẩu, xác nhận hệ thống báo lỗi 400 "Mật khẩu hiện tại không chính xác".
+2. **TC-UP-02**: Nhập sai mật khẩu hiện tại khi đổi mật khẩu, xác nhận `400 VALIDATION_ERROR` với `errors.currentPassword = ["Mật khẩu hiện tại không đúng"]` và `users.failed_login_count` tăng 1 (`docs/modules/09_admin_profile.md` mục 3.3).
 3. **TC-UP-03**: Bật Chế độ Tối (Dark Mode), đăng xuất rồi đăng nhập lại trên thiết bị khác, kiểm tra hệ thống vẫn giữ nguyên theme Dark Mode từ CSDL.

@@ -154,8 +154,76 @@ Content-Type: application/json
 - Index phục vụ: khóa chính `admins`, `admin_roles`, `roles`.
 
 ### 3.3. `PUT /api/v1/admin/profile/change-password`
-- Đổi mật khẩu Quản trị viên. Body và quy tắc giống `PUT /api/v1/profile/change-password` (`docs/modules/08_user_profile.md` mục 3.4).
-- **Response thành công** `200`: `{ "accessToken": "...", "expiresIn": 900 }` (token đầy đủ, kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`), đặt cookie Refresh Token mới (phiên mới, hạn tuyệt đối 7 ngày), thu hồi mọi phiên cũ, kể cả phiên đang dùng (`PASSWORD_CHANGED`), cập nhật `password_changed_at = NOW()`, `must_change_password = 0`, ghi `audit_logs` `AUTH / PASSWORD_CHANGED`. Mật khẩu mới phải đạt chính sách và khác mật khẩu hiện tại (sai thì `400`). Mọi phiên cũ, kể cả phiên đang dùng, bị thu hồi (`PASSWORD_CHANGED`) trước khi tạo phiên mới, như `docs/modules/08_user_profile.md` mục 3.4.
+
+Đặc tả chung cho cả hai cổng; bản User `PUT /api/v1/profile/change-password` khác ở các điểm ghi tại `docs/modules/08_user_profile.md` mục 3.4. Chính sách mật khẩu và phiên: `docs/01_database_schema.md` mục 6.1.
+
+- **Guard**: `AdminAuthGuard`, nhận cả token `PASSWORD_CHANGE_ONLY`; không cần mã quyền. Chế độ bảo trì không áp dụng cho cổng Admin. Không có query (có thì `400`). Cookie Refresh Token (`Path=/api/v1/admin/auth`) **không** được gửi kèm vì route nằm ngoài `Path`; backend chỉ đặt cookie mới (cookie `Set-Cookie` có `Path=/api/v1/admin/auth`, trình duyệt vẫn nhận). Vì vậy phiên hiện tại xác định bằng claim `sid` của Access Token (id dòng `auth_sessions`, `docs/01_database_schema.md` mục 6.1), không bằng cookie.
+- **Body** (`application/json`, đủ 3 trường):
+
+| Trường | Kiểu | Bắt buộc | Quy tắc |
+|---|---|---|---|
+| `currentPassword` | string | Có | 1–255 ký tự như `password` của đăng nhập; không cắt khoảng trắng |
+| `newPassword` | string | Có | Không cắt khoảng trắng; dài tối thiểu `security_password_min_length` (10) ký tự, tối đa **72 byte UTF-8** (giới hạn của `bcrypt`); có ít nhất 3 trong 4 loại ký tự (`docs/01_database_schema.md` mục 6.1); khác `currentPassword` |
+| `confirmPassword` | string | Có | Trùng đúng `newPassword` |
+
+  Thiếu trường, sai kiểu, sai quy tắc hoặc có trường khác trả `400 VALIDATION_ERROR`, `errors` theo tên trường (vd. `{ "newPassword": ["Mật khẩu phải từ 10 ký tự trở lên"], "confirmPassword": ["Mật khẩu xác nhận không khớp"] }`); thông điệp độ dài tối thiểu ghi đúng giá trị `security_password_min_length` hiện hành. Bước này không đọc CSDL, không tăng bộ đếm sai mật khẩu.
+- **Xử lý** (một transaction, theo thứ tự):
+  1. Validate body như bảng trên.
+  2. `SELECT ... FROM admins WHERE id = sub FOR UPDATE`. Không thấy dòng hoặc `status` khác `ACTIVE`: `401 UNAUTHORIZED` (cùng quy tắc mục 3.1).
+  3. `locked_until > NOW()`: `423 ACCOUNT_TEMPORARILY_LOCKED`, `errors = { "lockedUntil": "<ISO 8601>" }`; không so mật khẩu, không tăng bộ đếm (như đăng nhập, `docs/modules/04_auth_admin.md` mục 3.1 bước 2).
+  4. `bcrypt.compare(currentPassword, password_hash)` sai: tăng bộ đếm bằng **đúng câu `UPDATE` nguyên tử** của đăng nhập (đạt `security_login_max_failed` thì đặt `locked_until` và đưa bộ đếm về 0, `docs/01_database_schema.md` mục 6.1), **commit** câu này rồi trả `400 VALIDATION_ERROR` với `errors = { "currentPassword": ["Mật khẩu hiện tại không đúng"] }` (kể cả lần sai làm tài khoản bị khóa tạm; lần gọi kế tiếp mới trả `423`). Không ghi `audit_logs`, không thu hồi phiên. Không dùng `401` để client không refresh rồi gửi lại.
+  5. Đúng: `UPDATE admins SET password_hash = bcrypt(newPassword, 10), password_changed_at = NOW(), must_change_password = 0, failed_login_count = 0, locked_until = NULL`.
+  6. `remember_me` của phiên mới = `remember_me` của phiên có `id` = claim `sid` của Access Token, `actor_type = 'ADMIN'`, `actor_id = sub` (đọc trước khi thu hồi, không xét phiên đó còn hiệu lực hay không); token `PASSWORD_CHANGE_ONLY` không có `sid` (chưa có phiên) thì `0`.
+  7. Thu hồi mọi phiên còn lại: `UPDATE auth_sessions SET revoked_at = NOW(), revoked_reason = 'PASSWORD_CHANGED' WHERE actor_type = 'ADMIN' AND actor_id = sub AND revoked_at IS NULL` (kể cả phiên đang dùng), `n` = số dòng bị ảnh hưởng.
+  8. Tạo đúng một phiên mới: `refresh_token_hash` của Refresh Token mới, `ip_address`/`user_agent` của request, `remember_me` của bước 6, `expires_at = NOW() + security_refresh_token_days` (hạn tuyệt đối mới, như đăng nhập), `last_used_at = NULL`.
+  9. Ghi `audit_logs` `AUTH / PASSWORD_CHANGED`: `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `full_name`, `resource_id` = id Admin, `ip_address`, `user_agent` của request, `action_details = { "revokedCount": n, "forced": true|false }` (`forced` = gọi bằng token `PASSWORD_CHANGE_ONLY`). Không ghi mật khẩu hay bản băm.
+  10. Commit; ký Access Token **đầy đủ** (không có `scope`) bằng `JWT_ADMIN_SECRET`, mang `sub`, `roleCode` (đọc lại từ `admin_roles`), `sid` = id phiên mới; trả `200` kèm `Set-Cookie` Refresh Token mới (`HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth`, `Max-Age` = số giây còn lại tới `expires_at` khi `remember_me = 1`, không có `Max-Age` khi `0`).
+
+  Không gửi thông báo, không ngắt Socket.IO. Thiết bị khác giữ Access Token cũ tối đa `security_access_token_minutes` (15) phút rồi bị đưa về đăng nhập ở lần refresh kế tiếp (phiên đã `PASSWORD_CHANGED`). Các tab khác của cùng trình duyệt dùng chung cookie mới nên vẫn đăng nhập.
+- **Ví dụ**:
+
+```http
+PUT /api/v1/admin/profile/change-password
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{ "currentPassword": "OldPassword123@", "newPassword": "NewSecurePassword2026!@", "confirmPassword": "NewSecurePassword2026!@" }
+```
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đổi mật khẩu thành công",
+  "data": { "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", "expiresIn": 900 },
+  "timestamp": "2026-10-12T10:05:00+07:00"
+}
+```
+
+  `data` cùng cấu trúc với `refresh` (`docs/modules/03_auth_user.md` mục 3.2.1), không trả thông tin tài khoản: store đã có `admin` từ đăng nhập hoặc `/auth/me`, và đổi mật khẩu không đổi trường nào của `admin`.
+
+```json
+{
+  "success": false,
+  "statusCode": 400,
+  "errorCode": "VALIDATION_ERROR",
+  "message": "Dữ liệu không hợp lệ",
+  "errors": { "currentPassword": ["Mật khẩu hiện tại không đúng"] },
+  "timestamp": "2026-10-12T10:05:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Body sai (bảng body), có query param; `currentPassword` sai (bước 4, có tăng bộ đếm) |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản không còn `ACTIVE` (bước 2) |
+| `423` | `ACCOUNT_TEMPORARILY_LOCKED` | `locked_until > NOW()` (bước 3), `errors.lockedUntil` |
+
+  Không có `403 PASSWORD_CHANGE_REQUIRED` (route nhận token giới hạn).
+- **Frontend** (`ChangePasswordView`, mục 5): kiểm tra trước ở client cùng quy tắc bảng body (độ dài tối thiểu lấy mặc định 10, backend là nơi quyết định), danh sách yêu cầu tự tích khi gõ, ô xác nhận báo khớp/không khớp. Gửi qua API client của cổng (`401` → refresh một lần rồi gửi lại; token `PASSWORD_CHANGE_ONLY` không có phiên nên refresh `401` và về đăng nhập). Đang gửi thì khóa nút. Thành công: lưu `accessToken` mới vào `authAdmin` (thay token cũ, kể cả token giới hạn), xóa form; chế độ bị buộc đổi thì vào `admin.dashboard`, chế độ thường ở lại trang và báo toast "Đã đổi mật khẩu. Các thiết bị khác đã bị đăng xuất." `400` hiện `errors[field]` dưới ô tương ứng (khóa không có ô thì toast); sai `currentPassword` thì xóa ô đó. `423` báo "Tài khoản bị khóa tạm đến <giờ>" theo `errors.lockedUntil`. Mẫu: `templates/admin/change-password.js`, `window.adminSession.setAccessToken` trong `templates/admin/main.js`.
+- Index phục vụ: khóa chính `admins`, `admin_roles`, `auth_sessions` (đọc phiên theo `sid`); `idx_session_actor` (thu hồi mọi phiên); `uniq_session_token` (chèn phiên mới).
 
 ### 3.4. `GET /api/v1/admin/profile/recent-activity`
 - **Mục đích**: Lấy 20 hành động gần nhất của Admin từ bảng `audit_logs`.
@@ -193,7 +261,13 @@ backend/src/
 | `/admin/change-password` (`admin.change-password`) | `src/apps/admin/views/profile/ChangePasswordView.vue` | `templates/admin/change-password.html` | `PUT /api/v1/admin/profile/change-password` |
 | `/admin/account-settings` (`admin.account-settings`) | `src/apps/admin/views/settings/AccountSettingsView.vue` | `templates/admin/user-settings.html` | `GET`/`PUT /api/v1/admin/profile/preferences` |
 
-Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView` là route duy nhất mở được bằng token `PASSWORD_CHANGE_ONLY`: guard của khu vực Admin chuyển mọi route khác về `admin.change-password` khi `authAdmin` đang giữ token giới hạn; đổi mật khẩu thành công thì lưu Access Token mới trả về và vào `admin.dashboard`.
+Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView` là route duy nhất mở được bằng token `PASSWORD_CHANGE_ONLY`: guard của khu vực Admin chuyển mọi route khác về `admin.change-password` khi `authAdmin` đang giữ token giới hạn (`mustChangePassword = true` của response đăng nhập).
+
+`ChangePasswordView` có hai chế độ (mục 3.3):
+- **Bị buộc đổi** (token giới hạn): bố cục riêng như trang đăng nhập, **không** có sidebar/menu/header của `AdminLayout`; hiện banner lý do ("Bạn cần đổi mật khẩu trước khi tiếp tục": mật khẩu ban đầu/được đặt lại hoặc đã quá `security_password_max_age_days` ngày), thẻ tài khoản (`fullName`, `roleName`, `email` từ store) và nút "Đăng xuất" (`POST /admin/auth/logout`). Thành công: lưu Access Token đầy đủ mới, vào `admin.dashboard`.
+- **Thường** (đã đăng nhập đầy đủ): trong `AdminLayout`. Thành công: lưu Access Token mới, xóa form, ở lại trang, toast "Đã đổi mật khẩu. Các thiết bị khác đã bị đăng xuất."
+
+Mẫu tĩnh: `templates/admin/change-password.html` (chế độ thường), `change-password.html?forced=1` (chế độ bị buộc đổi, `login.js` chuyển tới khi `mustChangePassword`).
 
 ### 5.1. Bố cục Giao diện (`AdminProfileView.vue`)
 - Kế thừa bố cục thẻ từ `templates/admin/profile.html` nhưng áp dụng theme Quản trị:
@@ -205,8 +279,8 @@ Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView
 ---
 
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
-1. **TC-AP-01**: Admin đổi mật khẩu thành chuỗi dưới 10 ký tự, xác nhận hệ thống báo lỗi validation `Mật khẩu quản trị phải từ 10 ký tự trở lên`.
+1. **TC-AP-01**: Admin đổi mật khẩu thành chuỗi dưới 10 ký tự trả `400 VALIDATION_ERROR` với `errors.newPassword = ["Mật khẩu phải từ 10 ký tự trở lên"]`; chuỗi 73 byte UTF-8, chỉ 2 loại ký tự, trùng `currentPassword`, `confirmPassword` khác `newPassword`, thêm trường lạ đều trả `400` đúng khóa `errors`, không tăng `failed_login_count`.
 2. **TC-AP-02**: Xem tab "Nhật ký kiểm toán cá nhân", xác nhận hiển thị đúng lịch sử đăng nhập vừa thực hiện kèm IP client.
 3. **TC-AP-03**: `GET /api/v1/admin/profile` trả đủ 12 trường của mục 3.1, không có `permissions`, `password_hash`, `locked_until`; gửi `?x=1` trả `400`; gọi bằng token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`; Root Admin khóa tài khoản trong lúc Access Token còn hạn thì lần gọi kế tiếp trả `401 UNAUTHORIZED`.
 4. **TC-AP-04**: `PUT /api/v1/admin/profile` với `{ "fullName": "  Nguyễn Văn A  " }` lưu `Nguyễn Văn A`, trả đủ 12 trường của mục 3.1, ghi một dòng `audit_logs` `ADMIN / UPDATE` với `changedFields = ["fullName"]`, header đổi tên ngay; gửi lại đúng giá trị đó trả `200` và không ghi thêm dòng audit; `{}`, `{ "fullName": "" }`, `{ "phoneNumber": "abc" }`, `{ "email": "x@evn.vn" }` đều trả `400 VALIDATION_ERROR`; `{ "phoneNumber": null }` xóa số.
-
+5. **TC-AP-05**: Đăng nhập trên 2 trình duyệt (A có `rememberMe = true`). Ở A `PUT /api/v1/admin/profile/change-password` đúng: `200` `{ accessToken, expiresIn }`, `Set-Cookie` `Path=/api/v1/admin/auth` có `Max-Age` ≈ 7 ngày; `admins.must_change_password = 0`, `password_changed_at` mới; cả 2 phiên cũ `PASSWORD_CHANGED`, có đúng 1 phiên mới `remember_me = 1`; `audit_logs` `AUTH / PASSWORD_CHANGED` `revokedCount = 2`, `forced = false`. Refresh ở B trả `401`. Gọi bằng token `PASSWORD_CHANGE_ONLY` (Admin mới tạo): `200`, phiên mới `remember_me = 0`, `forced = true`, token mới gọi được `GET /admin/profile`. Sai `currentPassword` 5 lần: 5 lần `400` (`errors.currentPassword`), lần 6 `423 ACCOUNT_TEMPORARILY_LOCKED` có `errors.lockedUntil`, không có dòng audit nào.
