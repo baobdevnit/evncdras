@@ -135,12 +135,13 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | 2026-11-04 | A08 | Ảnh đại diện (hai cổng, đặc tả chung M09 §3.2.1): volume chung `AVATAR_STORAGE_DIR`, Nginx phục vụ `/media/avatars/<uuid>.<png\|jpg>` (không token), cột `avatar_url` lưu đường dẫn tương đối; một phần multipart `file` ≤ 2 MB PNG/JPEG theo magic bytes, mã hóa lại 256×256 bỏ metadata; quá 2 MB → `400` (Nginx `client_max_body_size 3m`); response = hồ sơ đủ trường như `GET`; chưa có API gỡ ảnh. Ví dụ `avatarUrl` trong docs dùng `/media/avatars/...` hoặc `null`, không dùng dịch vụ ngoài. Mẫu upload `FormData` + `adminSession.updateAccount({ avatarUrl })` | `00` §5.1–5.3, `01` (COMMENT `avatar_url`), M08 §3.3, M09 §3.2.1, `templates/admin/profile.js` |
 | 2026-11-05 | A09 | Thiết lập giao diện (hai cổng): nạp **một lần khi vào cổng** (sau khi store có tài khoản) vào store `preferencesAdmin`/`preferencesUser`, lỗi khác `401` không chặn (dùng mặc định DDL), đăng xuất xóa store; chỉ cache `theme` ở `localStorage` (`adminTheme`/`memberTheme`) chống nháy, không lưu trường khác. `GET` không có dòng `user_settings` → mặc định, không chèn; `dashboardWidgets` (Admin) luôn đủ 6 phần tử do backend chuẩn hóa. Màn hình cài đặt chỉ có điều khiển cho đúng các trường API. Mẫu `adminSession.loadPreferences`/`getPreferences`/`setPreferences` | M09 §3.6, §5.2, M08 §3.5, `03` §1, `templates/admin/{main,user-settings}.js` |
 | 2026-11-05 | A10 | Lưu thiết lập giao diện (hai cổng): `PUT` cập nhật một phần (ít nhất một trường, không `null`, không ép kiểu), response đủ trường như `GET`, không ghi `audit_logs`, upsert theo `uniq_user_settings` chỉ cột đã gửi. Frontend **áp ngay, lỗi thì hoàn tác**: gửi chỉ trường vừa đổi, khóa điều khiển đang gửi, lỗi trả các trường đó về giá trị cũ + toast, không có nút "Lưu"; nút theme ở header lưu qua API, nút thu gọn sidebar không lưu. Mẫu `adminSession.savePreferences` | M09 §3.7, M08 §3.5, `templates/admin/{main,user-settings}.js` |
+| 2026-11-05 | A11 | Nhãn tiếng Việt của mã `audit_logs.action` do frontend ánh xạ theo **một** bảng (M09 §5.1, mẫu `activityLabel` trong `templates/admin/profile.js`), mã chưa có nhãn hiện nguyên mã; API nhật ký chỉ trả mã. Danh sách cố định không phân trang trả `data` là mảng (không có khung §2.2), vẫn `400` khi có query. Khối phụ trên một màn hình tải độc lập với khối chính (trạng thái tải/lỗi/rỗng riêng) | M09 §3.4, §5.1, `templates/admin/profile.js` |
 
 ---
 
 ## 5. Bảng tiến độ
 
-**Tiến độ**: 10 / 99 ✅ · 0 ⏸ · 0 🔁
+**Tiến độ**: 11 / 99 ✅ · 0 ⏸ · 0 🔁
 
 - Một dòng `USER + ADMIN` gồm **cả hai route** (bản User và bản `/api/v1/admin/...`) và cả hai template: rà trong cùng một hội thoại.
 - Cột **Module**: `Mxx` = `docs/modules/xx_*.md`. Cột **Template**: `A/` = `templates/admin/`, `M/` = `templates/member/` (tên file HTML; JS/CSS cùng tên). Cột **CSDL chính**: gợi ý điểm bắt đầu, phải tự grep đủ.
@@ -160,7 +161,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | A08 | POST | `/api/v1/admin/profile/avatar` | ADMIN | M09 | `admins.avatar_url`, `audit_logs` | A/profile | ✅ | `ae3d510` | 2026-11-04; đặc tả chung hai cổng M09 §3.2.1; volume chung + Nginx `/media/avatars/`; mã hóa lại 256×256; response hồ sơ đủ 12 trường |
 | A09 | GET | `/api/v1/admin/profile/preferences` | ADMIN | M09 | `user_settings` | A/user-settings | ✅ | `881385d` | 2026-11-05; đặc tả M09 §3.6, §5.2; `dashboardWidgets` luôn đủ 6 phần tử; store `preferencesAdmin` nạp khi vào cổng; template chỉ còn 6 trường |
 | A10 | PUT | `/api/v1/admin/profile/preferences` | ADMIN | M09 | `user_settings` | A/user-settings | ✅ | `91ed34a` | 2026-11-05; đặc tả M09 §3.7; cập nhật một phần, `dashboardWidgets` kiểm tra chặt, không audit; upsert giữ khóa khác của `custom_preferences`; mẫu `adminSession.savePreferences` (áp ngay, lỗi hoàn tác) |
-| A11 | GET | `/api/v1/admin/profile/recent-activity` | ADMIN | M09 | `audit_logs` | A/profile | ⬜ | | |
+| A11 | GET | `/api/v1/admin/profile/recent-activity` | ADMIN | M09 | `audit_logs` | A/profile | ✅ | | 2026-11-05; đặc tả M09 §3.4; mọi dòng có tác nhân là chính mình (gồm `LOGIN_FAILED`), `data` mảng ≤ 20; đổi DDL `idx_audit_actor` (+`created_at`, `id`); khối "Hoạt động gần đây" ở `profile.html`, nhãn hành động M09 §5.1 |
 | A12 | GET | `/api/v1/admin/auth/sessions` | ADMIN | M09 | `auth_sessions` | A/profile | ⬜ | | `profile.html` chưa có khối phiên; mẫu cũ (danh sách thiết bị) đã gỡ khỏi `user-settings.html` ở A09 (xem lịch sử git) |
 | A13 | DELETE | `/api/v1/admin/auth/sessions/:id` | ADMIN | M09 | `auth_sessions` | A/profile | ⬜ | | |
 | A14 | DELETE | `/api/v1/admin/admins/:id/sessions` | ADMIN | M04 | `auth_sessions` | A/system-settings (tab admins) | ⬜ | | |
@@ -169,7 +170,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | A17 | PUT | `/api/v1/admin/admins/:id/status` | ADMIN | M04 | `admins`, `auth_sessions`, `audit_logs` | A/system-settings (tab admins) | ⬜ | | |
 | A18 | PUT | `/api/v1/admin/admins/:id` | ADMIN | M04 | `admins`, `audit_logs` | A/system-settings (tab admins) | ⬜ | | Áp quy tắc `phoneNumber` `02` §2 (A06); cân nhắc cùng cách xử lý "không có gì đổi" như M09 §3.2 |
 | A19 | PUT | `/api/v1/admin/admins/:id/reset-password` | ADMIN | M04 | `admins`, `auth_sessions`, `audit_logs` | A/system-settings (tab admins) | ⬜ | | |
-| A20 | GET | `/api/v1/admin/audit-logs` | ADMIN | M07 | `audit_logs` | A/system-settings (tab audit-logs) | ⬜ | | |
+| A20 | GET | `/api/v1/admin/audit-logs` | ADMIN | M07 | `audit_logs` | A/system-settings (tab audit-logs) | ⬜ | | Dùng lại bảng nhãn hành động M09 §5.1 (A11); `idx_audit_actor` đã có `created_at`, `id` (A11), xem lại index cho lọc chỉ theo `action`/`resourceName` + khoảng ngày |
 | A21 | DELETE | `/api/v1/admin/admins/:id` | ADMIN | M04 | `admins`, `auth_sessions`, `audit_logs` | A/system-settings (tab admins) | ⬜ | | |
 
 ### 5.2. Xác thực & hồ sơ Người dùng đơn vị (`02` §3.2)
@@ -329,6 +330,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | 2026-11-04 | A08 | ✅ Xong 3 lớp; chỉ đổi COMMENT `avatar_url` (`admins`, `users`); 4 câu hỏi chốt ngay trong phiên (volume chung + Nginx `/media/avatars/`, mã hóa lại 256×256, response hồ sơ đủ 12 trường, chưa thêm API gỡ ảnh) | E-A08-01…04 | `00`, `01`, `02`, M02, M03, M08, M09, `templates/admin/profile.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | `ae3d510` |
 | 2026-11-05 | A09 | ✅ Xong 3 lớp; không đổi DDL; 4 câu hỏi chốt ngay trong phiên (xóa điều khiển không có API + khối phiên, nạp khi vào cổng + cache `theme`, `dashboardWidgets` luôn đủ 6, giao diện widget ở `user-settings`). Lưu ý: khối phiên đăng nhập trước đó chỉ có ở `user-settings.html` (không phải `profile.html` như câu hỏi đã nêu) → A12 phải dựng mới ở `profile.html` | E-A09-01…04 | `02`, `03`, M04, M08, M09, `templates/admin/main.js`, `templates/admin/user-settings.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | `881385d` |
 | 2026-11-05 | A10 | ✅ Xong 3 lớp; không đổi DDL; 4 câu hỏi chốt ngay trong phiên (cập nhật một phần, `dashboardWidgets` kiểm tra chặt, không ghi audit, áp ngay + hoàn tác khi lỗi). Không kiểm được trên trình duyệt (điều hướng bị từ chối), đã kiểm hàm validate của mock bằng Node | E-A10-01…03 | `02`, M08, M09, `templates/admin/{main,user-settings}.js`, `DB_AUDIT_CONSOLIDATED.md`, file này | `91ed34a` |
+| 2026-11-05 | A11 | ✅ Xong 3 lớp; đổi DDL (`audit_logs.idx_audit_actor` thêm `created_at`, `id`); 3 câu hỏi chốt ngay trong phiên (mọi dòng có tác nhân là chính mình gồm `LOGIN_FAILED`, mở rộng index, thẻ riêng không liên kết nhật ký). Không kiểm được trên trình duyệt (điều hướng tới localhost bị từ chối), đã kiểm mock/nhãn/dựng danh sách bằng Node với DOM giả | E-A11-01…04 | `01`, `02`, M09, `templates/admin/profile.{html,css,js}`, `DB_AUDIT_CONSOLIDATED.md`, file này | |
 
 ---
 

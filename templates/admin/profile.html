@@ -405,6 +405,22 @@
                                 </form>
                             </div>
                         </div>
+
+                        <!-- Hoạt động gần đây: GET /api/v1/admin/profile/recent-activity (M09 mục 3.4).
+                             data = mảng ≤ 20 dòng audit_logs có tác nhân là chính mình, đã sắp mới nhất trước; không phân trang.
+                             Tải độc lập với hồ sơ; nhãn hành động do frontend ánh xạ (M09 mục 5.1); profile.js dựng từng <li>. -->
+                        <div class="card" id="recent-activity">
+                            <div class="card-header">
+                                <h3>Hoạt động gần đây</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="activity-state" id="activityState" role="status" aria-live="polite">
+                                    <span id="activityMessage">Đang tải hoạt động...</span>
+                                    <button type="button" class="btn btn-outline" id="btnRetryActivity" hidden>Thử lại</button>
+                                </div>
+                                <ol class="activity-list" id="activityList" hidden></ol>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </main>

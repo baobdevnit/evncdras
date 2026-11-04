@@ -1138,7 +1138,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   `action_details` json DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_audit_actor` (`actor_type`, `actor_id`),
+  KEY `idx_audit_actor` (`actor_type`, `actor_id`, `created_at`, `id`) COMMENT 'Lọc theo tác nhân, sắp created_at/id giảm dần không filesort (GET /admin/profile/recent-activity, GET /admin/audit-logs lọc actorType/actorId)',
   KEY `idx_audit_action` (`action`),
   KEY `idx_audit_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

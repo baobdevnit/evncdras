@@ -309,9 +309,98 @@ Content-Type: application/json
 - Index phục vụ: khóa chính `admins`, `admin_roles`, `auth_sessions` (đọc phiên theo `sid`); `idx_session_actor` (thu hồi mọi phiên); `uniq_session_token` (chèn phiên mới).
 
 ### 3.4. `GET /api/v1/admin/profile/recent-activity`
-- **Mục đích**: Lấy 20 hành động gần nhất của Admin từ bảng `audit_logs`.
-- **Response**: Trả về thời gian, địa chỉ IP, hành động (`LISTEN_AUDIO`, `EXPORT_REPORT`, `UPDATE_SETTINGS`...).
-- **Phần tử**: `id`, `action`, `resourceName`, `resourceId`, `ipAddress`, `userAgent`, `actionDetails`, `createdAt`, cùng ý nghĩa với `GET /admin/audit-logs` (`docs/modules/07_system_settings.md` mục 3.4); sắp `created_at` giảm dần; không phân trang.
+- **Mục đích**: 20 dòng `audit_logs` gần nhất mà **chính Admin đang đăng nhập là tác nhân** (khối "Hoạt động gần đây" của `admin.profile`).
+- **Guard**: `AdminAuthGuard`; không cần mã quyền (xem nhật ký của chính mình không cần `audit:view`). Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`. Chế độ bảo trì không áp dụng cho cổng Admin.
+- **Request**: không có query, không có body; số dòng cố định 20, không phân trang. Gửi query param bất kỳ (kể cả `page`, `limit`) trả `400 VALIDATION_ERROR`.
+- **Xử lý** (chỉ đọc, không ghi CSDL; bản thân lời gọi **không** ghi `audit_logs`):
+  1. Đọc `admins` theo khóa chính `id = sub`; không thấy dòng hoặc `status` khác `ACTIVE` trả `401 UNAUTHORIZED` (cùng quy tắc mục 3.1).
+  2. Đọc:
+
+     ```sql
+     SELECT id, action, resource_name, resource_id, ip_address, user_agent, action_details, created_at
+     FROM audit_logs
+     WHERE actor_type = 'ADMIN' AND actor_id = :sub
+     ORDER BY created_at DESC, id DESC
+     LIMIT 20;
+     ```
+
+     - Gồm **mọi** dòng có tác nhân là chính Admin, mọi `resource_name`/`action`, kể cả `AUTH / LOGIN_FAILED` (khi `username` tồn tại, `actor_id` là tài khoản bị thử, kể cả khi do người khác gõ sai, giúp Admin phát hiện bị dò mật khẩu) và `ACCESS_DENIED`.
+     - **Không** gồm dòng do người khác tác động lên tài khoản này (tác nhân khác, `resource_name = 'ADMIN'`, `resource_id` = id này, vd. Root Admin khóa, đặt lại mật khẩu, thu hồi phiên): tra ở `GET /api/v1/admin/audit-logs` (`audit:view`, `docs/modules/07_system_settings.md` mục 3.4).
+     - Không giới hạn khoảng thời gian (`audit_logs` không bị dọn, `docs/01_database_schema.md` mục 2.1 "Không bị dọn", mục 13); ít hơn 20 dòng thì trả hết, không có dòng nào thì trả mảng rỗng.
+- **Response** `200`: `data` là **mảng** (không có khung phân trang của `docs/02_api_contracts.md` mục 2.2), tối đa 20 phần tử, đã sắp `createdAt` giảm dần rồi `id` giảm dần. Mỗi phần tử cùng tên và ý nghĩa với phần tử của `GET /admin/audit-logs`, bỏ ba trường tác nhân (`actorType`, `actorId`, `actorName` luôn là chính mình):
+
+| Trường | Kiểu | Nguồn | Ghi chú |
+|---|---|---|---|
+| `id` | number | `audit_logs.id` | `bigint`, trả dạng số (không chạm ngưỡng `2^53`) |
+| `action` | string | `action` | Mã trong danh mục `docs/01_database_schema.md` mục 13; frontend tự ánh xạ nhãn tiếng Việt (mục 5.1), API không trả nhãn |
+| `resourceName` | string | `resource_name` | `AUTH`, `AUDIO`, `CDR`, `REPORT`, `USER`, `ADMIN`, `USER_GROUP`, `PREFIX`, `ORGANIZATION`, `SYSTEM` |
+| `resourceId` | string \| null | `resource_id` | Giữ nguyên chuỗi đã ghi (vd. id Admin, `cdr_id`, mã nhóm) |
+| `ipAddress` | string \| null | `ip_address` | |
+| `userAgent` | string \| null | `user_agent` | Chuỗi gốc, frontend không phân tích |
+| `actionDetails` | object \| null | `action_details` | JSON gốc (vd. `{ "changedFields": ["fullName"] }`, `{ "reason": "BAD_PASSWORD" }`, `{ "format": "EXCEL" }`) |
+| `createdAt` | string | `created_at` | ISO 8601 `+07:00` |
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy hoạt động gần đây thành công",
+  "data": [
+    {
+      "id": 10452,
+      "action": "UPDATE",
+      "resourceName": "ADMIN",
+      "resourceId": "1",
+      "ipAddress": "10.0.12.34",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+      "actionDetails": { "changedFields": ["phoneNumber"] },
+      "createdAt": "2026-10-12T09:40:12+07:00"
+    },
+    {
+      "id": 10398,
+      "action": "LISTEN_AUDIO",
+      "resourceName": "AUDIO",
+      "resourceId": "5370",
+      "ipAddress": "10.0.12.34",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+      "actionDetails": null,
+      "createdAt": "2026-10-12T08:31:05+07:00"
+    },
+    {
+      "id": 10377,
+      "action": "LOGIN",
+      "resourceName": "AUTH",
+      "resourceId": null,
+      "ipAddress": "10.0.12.34",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+      "actionDetails": null,
+      "createdAt": "2026-10-12T08:15:00+07:00"
+    },
+    {
+      "id": 10371,
+      "action": "LOGIN_FAILED",
+      "resourceName": "AUTH",
+      "resourceId": null,
+      "ipAddress": "10.0.40.7",
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0",
+      "actionDetails": { "reason": "BAD_PASSWORD" },
+      "createdAt": "2026-10-12T07:58:44+07:00"
+    }
+  ],
+  "timestamp": "2026-10-12T09:45:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản không còn `ACTIVE` (bước 1) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+
+- **Frontend** (`AdminProfileView`, khối "Hoạt động gần đây", mục 5.1): gọi mỗi lần vào màn hình, độc lập với `GET /admin/profile` (lỗi khối này không ẩn hồ sơ), qua API client của cổng (`401` → refresh một lần rồi gửi lại). Có trạng thái đang tải, lỗi + nút "Thử lại", rỗng ("Chưa có hoạt động nào"). Mỗi dòng: thời gian (frontend định dạng), nhãn hành động tiếng Việt ánh xạ từ `resourceName` + `action` (mã chưa có nhãn thì hiện nguyên mã), `resourceId` nếu có, `ipAddress`; `userAgent` ở `title` (tooltip); `LOGIN_FAILED` và `ACCESS_DENIED` tô màu cảnh báo, `LOGIN_FAILED` kèm lý do từ `actionDetails.reason`. Tải lại sau khi `PUT /admin/profile` hoặc `POST /admin/profile/avatar` thành công (hai API đó ghi `ADMIN / UPDATE`). Không có liên kết sang nhật ký kiểm toán. Mẫu: `templates/admin/profile.js`.
+- Index phục vụ: khóa chính `admins`; `idx_audit_actor` (`actor_type`, `actor_id`, `created_at`, `id`) đọc đúng 20 dòng theo thứ tự, không sắp xếp thêm (`docs/01_database_schema.md` mục 13).
 
 ### 3.5. Phiên đăng nhập của chính mình (`GET /api/v1/admin/auth/sessions`, `DELETE /api/v1/admin/auth/sessions/:id`)
 
@@ -478,7 +567,7 @@ backend/src/
 ├── core/profile/                       <-- dùng chung với hồ sơ User (docs/modules/08_user_profile.md mục 4)
 └── apps/admin/profile/
     ├── admin-profile.module.ts
-    ├── admin-profile.controller.ts     <-- /api/v1/admin/profile* (gồm recent-activity đọc qua core/audit)
+    ├── admin-profile.controller.ts     <-- /api/v1/admin/profile* (recent-activity đọc qua core/audit, mục 3.4)
     └── dto/
         ├── update-admin-profile.dto.ts
         └── change-admin-password.dto.ts
@@ -503,11 +592,11 @@ Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView
 Mẫu tĩnh: `templates/admin/change-password.html` (chế độ thường), `change-password.html?forced=1` (chế độ bị buộc đổi, `login.js` chuyển tới khi `mustChangePassword`).
 
 ### 5.1. Bố cục Giao diện (`AdminProfileView.vue`)
-- Kế thừa bố cục thẻ từ `templates/admin/profile.html` nhưng áp dụng theme Quản trị:
-  - Header: Huy hiệu vai trò hiển thị `roles.name` (seed: `ROOT_ADMIN` "Quản trị viên tối cao" màu vàng, `SYSTEM_ADMIN` "Quản trị viên hệ thống" màu xanh dương).
-  - Tab 1: Thông tin liên lạc trực ban.
-  - Tab 2: Bảo mật tài khoản & Đổi mật khẩu.
-  - Tab 3: Nhật ký kiểm toán cá nhân (Bảng hiển thị IP đăng nhập, thiết bị và các thao tác gần đây).
+- Ánh xạ `templates/admin/profile.html`, một trang không chia tab (đổi mật khẩu là route riêng `admin.change-password`):
+  - **Thẻ trái**: ảnh đại diện (nút đổi ảnh, mục 3.2.1), `fullName`, huy hiệu vai trò hiển thị `roles.name` (seed: `ROOT_ADMIN` "Quản trị viên tối cao" màu vàng, `SYSTEM_ADMIN` "Quản trị viên hệ thống" màu xanh dương), `email`, khối chỉ đọc `lastLoginAt`/`passwordChangedAt`/`createdAt` (mục 3.1).
+  - **Thông tin cá nhân**: form `PUT /admin/profile` (mục 3.2).
+  - **Hoạt động gần đây**: 20 dòng của `GET /admin/profile/recent-activity` (mục 3.4), trạng thái tải/lỗi/rỗng riêng. Nhãn hành động do frontend ánh xạ từ `resourceName` + `action`: `AUTH` `LOGIN` "Đăng nhập", `LOGIN_FAILED` "Đăng nhập thất bại" (lý do `BAD_PASSWORD` "sai mật khẩu", `ACCOUNT_LOCKED` "tài khoản bị khóa", `TEMPORARILY_LOCKED` "đang khóa tạm"), `LOGOUT` "Đăng xuất", `SESSION_REVOKED` "Thu hồi phiên đăng nhập", `TOKEN_REUSE_DETECTED` "Phát hiện dùng lại phiên", `PASSWORD_CHANGED` "Đổi mật khẩu", `PASSWORD_RESET` "Đặt lại mật khẩu"; `AUDIO` `LISTEN_AUDIO` "Nghe ghi âm", `DOWNLOAD_AUDIO` "Tải ghi âm"; `CDR` `EXPORT_CDR` "Xuất CDR"; `REPORT` `EXPORT_REPORT` "Xuất báo cáo"; `CREATE`/`UPDATE`/`LOCK`/`UNLOCK`/`DEACTIVATE`/`DELETE`/`CHANGE_ROLE` "Tạo"/"Cập nhật"/"Khóa"/"Mở khóa"/"Ngừng hoạt động"/"Xóa"/"Đổi vai trò" + đối tượng (`ADMIN` "quản trị viên" — riêng `resourceId` = id của chính mình là "Cập nhật hồ sơ của tôi", `USER` "người dùng", `USER_GROUP` "nhóm người dùng", `ORGANIZATION` "đơn vị"); `TOGGLE_GROUP_RECORDING` "Đổi quyền nghe ghi âm của nhóm"; `PREFIX` `UPDATE_PREFIX_GROUP` "Sửa nhóm đầu số", `ALLOCATE_RANGE` "Cấp dải số", `UPDATE_RANGE` "Sửa dải số", `REVOKE_RANGE` "Thu hồi dải số", `UPDATE_NUMBER` "Sửa thông tin số"; `SYSTEM` `UPDATE_SETTINGS` "Cập nhật cài đặt hệ thống", `RECALCULATE_STATS` "Tính lại thống kê", `CREATE_NOTIFICATION` "Gửi thông báo", `RETRY_ENRICHMENT` "Xử lý lại CDR lỗi"; `ACCESS_DENIED` "Thao tác bị từ chối". Mã chưa có nhãn hiện nguyên mã.
+  - **Phiên đăng nhập của tôi** (mục 3.5): chưa có trong template, dựng khi rà `GET`/`DELETE /admin/auth/sessions*`.
 
 ### 5.2. Bố cục Giao diện (`AccountSettingsView.vue`, ánh xạ `templates/admin/user-settings.html`)
 - Thẻ trái: `avatarUrl`, `fullName`, `roleName`, `email` đọc từ store `authAdmin` (không cứng chữ), cùng nút điều hướng hai nhóm và liên kết sang `admin.profile` (phiên đăng nhập, đổi mật khẩu nằm ở hồ sơ, không lặp lại ở đây).
@@ -520,7 +609,7 @@ Mẫu tĩnh: `templates/admin/change-password.html` (chế độ thường), `ch
 
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
 1. **TC-AP-01**: Admin đổi mật khẩu thành chuỗi dưới 10 ký tự trả `400 VALIDATION_ERROR` với `errors.newPassword = ["Mật khẩu phải từ 10 ký tự trở lên"]`; chuỗi 73 byte UTF-8, chỉ 2 loại ký tự, trùng `currentPassword`, `confirmPassword` khác `newPassword`, thêm trường lạ đều trả `400` đúng khóa `errors`, không tăng `failed_login_count`.
-2. **TC-AP-02**: Xem tab "Nhật ký kiểm toán cá nhân", xác nhận hiển thị đúng lịch sử đăng nhập vừa thực hiện kèm IP client.
+2. **TC-AP-02**: Admin A đăng nhập sai mật khẩu một lần rồi đăng nhập đúng, sửa `phoneNumber`, nghe một file ghi âm; Root Admin đặt lại mật khẩu của một Admin B. `GET /api/v1/admin/profile/recent-activity` của A trả `200`, `data` là mảng có 4 dòng mới nhất theo thứ tự `LISTEN_AUDIO`, `UPDATE` (`actionDetails.changedFields = ["phoneNumber"]`), `LOGIN`, `LOGIN_FAILED` (`actionDetails.reason = "BAD_PASSWORD"`), mỗi phần tử đúng 8 trường của mục 3.4 (không có `actorType`/`actorId`/`actorName`), `ipAddress` là IP client; của B không có dòng `PASSWORD_RESET` do Root Admin thực hiện. Admin có hơn 20 dòng chỉ nhận 20 dòng mới nhất; `EXPLAIN` dùng `idx_audit_actor`, không `Using filesort`. Gọi xong không phát sinh dòng `audit_logs` mới. Gửi `?limit=50` trả `400`; token `PASSWORD_CHANGE_ONLY` trả `403`; tài khoản bị khóa trong lúc token còn hạn trả `401`. Ở màn hình hồ sơ, lưu họ tên thành công thì khối "Hoạt động gần đây" có thêm dòng "Cập nhật hồ sơ của tôi".
 3. **TC-AP-03**: `GET /api/v1/admin/profile` trả đủ 12 trường của mục 3.1, không có `permissions`, `password_hash`, `locked_until`; gửi `?x=1` trả `400`; gọi bằng token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`; Root Admin khóa tài khoản trong lúc Access Token còn hạn thì lần gọi kế tiếp trả `401 UNAUTHORIZED`.
 4. **TC-AP-04**: `PUT /api/v1/admin/profile` với `{ "fullName": "  Nguyễn Văn A  " }` lưu `Nguyễn Văn A`, trả đủ 12 trường của mục 3.1, ghi một dòng `audit_logs` `ADMIN / UPDATE` với `changedFields = ["fullName"]`, header đổi tên ngay; gửi lại đúng giá trị đó trả `200` và không ghi thêm dòng audit; `{}`, `{ "fullName": "" }`, `{ "phoneNumber": "abc" }`, `{ "email": "x@evn.vn" }` đều trả `400 VALIDATION_ERROR`; `{ "phoneNumber": null }` xóa số.
 5. **TC-AP-05**: Đăng nhập trên 2 trình duyệt (A có `rememberMe = true`). Ở A `PUT /api/v1/admin/profile/change-password` đúng: `200` `{ accessToken, expiresIn }`, `Set-Cookie` `Path=/api/v1/admin/auth` có `Max-Age` ≈ 7 ngày; `admins.must_change_password = 0`, `password_changed_at` mới; cả 2 phiên cũ `PASSWORD_CHANGED`, có đúng 1 phiên mới `remember_me = 1`; `audit_logs` `AUTH / PASSWORD_CHANGED` `revokedCount = 2`, `forced = false`. Refresh ở B trả `401`. Gọi bằng token `PASSWORD_CHANGE_ONLY` (Admin mới tạo): `200`, phiên mới `remember_me = 0`, `forced = true`, token mới gọi được `GET /admin/profile`. Sai `currentPassword` 5 lần: 5 lần `400` (`errors.currentPassword`), lần 6 `423 ACCOUNT_TEMPORARILY_LOCKED` có `errors.lockedUntil`, không có dòng audit nào.

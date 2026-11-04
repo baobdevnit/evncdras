@@ -409,3 +409,82 @@ textarea.form-control {
 .form-control.is-invalid {
     border-color: var(--secondary);
 }
+
+/* Hoạt động gần đây – GET /admin/profile/recent-activity (M09 mục 3.4, 5.1) */
+#recent-activity {
+    margin-top: 24px;
+}
+
+.activity-state {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.activity-state.is-error {
+    color: var(--secondary);
+}
+
+.activity-state[hidden],
+.activity-list[hidden] {
+    display: none;
+}
+
+.activity-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.activity-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 10px 0 10px 14px;
+    border-bottom: 1px solid var(--border);
+    border-left: 3px solid var(--primary-light);
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+/* LOGIN_FAILED, ACCESS_DENIED: tô màu cảnh báo */
+.activity-item--warning {
+    border-left-color: var(--secondary);
+}
+
+.activity-item--warning .activity-label {
+    color: var(--secondary);
+}
+
+.activity-label {
+    margin: 0;
+    color: var(--text-main);
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.activity-meta {
+    margin: 2px 0 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    word-break: break-all;
+}
+
+.activity-time {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 576px) {
+    .activity-item {
+        flex-direction: column;
+        gap: 4px;
+    }
+}

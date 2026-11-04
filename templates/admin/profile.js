@@ -1,4 +1,4 @@
-// Hồ sơ của tôi (AdminProfileView) – docs/modules/09_admin_profile.md mục 3.1, 3.2, 5.1.
+// Hồ sơ của tôi (AdminProfileView) – docs/modules/09_admin_profile.md mục 3.1, 3.2, 3.2.1, 3.4, 5.1.
 // Vue: AdminProfileView gọi API client của cổng Admin (401 → refresh một lần, mẫu window.adminSession.request).
 document.addEventListener('DOMContentLoaded', function() {
     // Redirect legacy #security hash to standalone change-password.html page
@@ -205,6 +205,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.info('[mock] lưu ảnh', storedPath, '| audit_logs ADMIN / UPDATE', {
                 resourceId: String(MOCK_PROFILE.id), actionDetails: { changedFields: ['avatarUrl'] }
             });
+            mockWriteAudit('UPDATE', 'ADMIN', String(MOCK_PROFILE.id), { changedFields: ['avatarUrl'] });
             return {
                 success: true, statusCode: 200, message: 'Cập nhật ảnh đại diện thành công',
                 data: Object.assign({}, MOCK_PROFILE), timestamp: now()
@@ -251,6 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         window.adminSession.updateAccount({ avatarUrl: profile.avatarUrl });
                     }
                     notify(res.message || 'Cập nhật ảnh đại diện thành công', 'success');
+                    loadActivity(); // POST .../avatar vừa ghi ADMIN / UPDATE
                 })
                 .catch(err => {
                     // 401 sau khi refresh thất bại: request() đã chuyển về login.
@@ -332,6 +334,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.info('[mock] audit_logs ADMIN / UPDATE', {
                     resourceId: String(MOCK_PROFILE.id), actionDetails: { changedFields: changedFields }
                 });
+                mockWriteAudit('UPDATE', 'ADMIN', String(MOCK_PROFILE.id), { changedFields: changedFields });
             }
             return {
                 success: true, statusCode: 200, message: 'Cập nhật hồ sơ thành công',
@@ -420,6 +423,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         window.adminSession.updateAccount({ fullName: profile.fullName });
                     }
                     notify(res.message || 'Cập nhật hồ sơ thành công', 'success');
+                    loadActivity(); // có trường đổi thì PUT vừa ghi ADMIN / UPDATE
                 })
                 .catch(err => {
                     // 401 sau khi refresh thất bại: request() đã chuyển về login.
@@ -438,5 +442,182 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // ------------------------------------------------------------
+    // Hoạt động gần đây – GET /api/v1/admin/profile/recent-activity (A11, M09 mục 3.4, 5.1)
+    // Không query (có → 400). data = mảng ≤ 20 dòng audit_logs có actor_type = 'ADMIN', actor_id = mình,
+    // sắp created_at rồi id giảm dần; mỗi phần tử đúng 8 trường, không có actorType/actorId/actorName.
+    // ------------------------------------------------------------
+    const ACTIVITY_LIMIT = 20;
+    const UA_CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+
+    // MOCK_AUDIT_LOGS đóng vai các dòng audit_logs (đủ cột tác nhân để minh họa câu WHERE của backend).
+    // Gồm cả LOGIN_FAILED do người khác gõ sai mật khẩu (actor_id vẫn là tài khoản bị thử).
+    // Dòng id 10360 do Admin khác (actorId 2) đặt lại mật khẩu tài khoản này: KHÔNG được trả.
+    const MOCK_AUDIT_LOGS = [
+        { id: 10398, actorType: 'ADMIN', actorId: 1, action: 'LISTEN_AUDIO', resourceName: 'AUDIO', resourceId: '5370', ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: null, createdAt: '2026-10-12T08:31:05+07:00' },
+        { id: 10390, actorType: 'ADMIN', actorId: 1, action: 'EXPORT_REPORT', resourceName: 'REPORT', resourceId: null, ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: { format: 'EXCEL' }, createdAt: '2026-10-12T08:25:40+07:00' },
+        { id: 10377, actorType: 'ADMIN', actorId: 1, action: 'LOGIN', resourceName: 'AUTH', resourceId: null, ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: null, createdAt: '2026-10-12T08:15:00+07:00' },
+        { id: 10371, actorType: 'ADMIN', actorId: 1, action: 'LOGIN_FAILED', resourceName: 'AUTH', resourceId: null, ipAddress: '10.0.40.7', userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0', actionDetails: { reason: 'BAD_PASSWORD' }, createdAt: '2026-10-12T07:58:44+07:00' },
+        { id: 10360, actorType: 'ADMIN', actorId: 2, action: 'PASSWORD_RESET', resourceName: 'AUTH', resourceId: '1', ipAddress: '10.0.12.9', userAgent: UA_CHROME, actionDetails: null, createdAt: '2026-10-11T17:20:00+07:00' },
+        { id: 10322, actorType: 'ADMIN', actorId: 1, action: 'UPDATE_SETTINGS', resourceName: 'SYSTEM', resourceId: null, ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: { op: 'RELOAD_CACHE' }, createdAt: '2026-10-11T16:02:10+07:00' },
+        { id: 10301, actorType: 'ADMIN', actorId: 1, action: 'ACCESS_DENIED', resourceName: 'ADMIN', resourceId: '1', ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: null, createdAt: '2026-10-11T15:47:33+07:00' },
+        { id: 10288, actorType: 'ADMIN', actorId: 1, action: 'ALLOCATE_RANGE', resourceName: 'PREFIX', resourceId: '12', ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: null, createdAt: '2026-10-11T14:30:00+07:00' },
+        { id: 10250, actorType: 'ADMIN', actorId: 1, action: 'LOGOUT', resourceName: 'AUTH', resourceId: '88', ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: null, createdAt: '2026-10-10T18:05:00+07:00' }
+    ];
+
+    // ISO 8601 theo giờ Việt Nam (+07:00) như created_at do backend trả
+    function nowVN() {
+        const d = new Date(Date.now() + 7 * 3600 * 1000);
+        return d.toISOString().slice(0, 19) + '+07:00';
+    }
+
+    // Thay cho INSERT audit_logs của các mock khác trên trang (PUT /admin/profile, POST .../avatar)
+    function mockWriteAudit(action, resourceName, resourceId, actionDetails) {
+        const nextId = MOCK_AUDIT_LOGS.reduce((m, r) => Math.max(m, r.id), 0) + 1;
+        MOCK_AUDIT_LOGS.push({
+            id: nextId, actorType: 'ADMIN', actorId: MOCK_PROFILE.id, action, resourceName, resourceId,
+            ipAddress: '10.0.12.34', userAgent: navigator.userAgent, actionDetails, createdAt: nowVN()
+        });
+    }
+
+    function mockGetRecentActivity(token, query) {
+        return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+            if (!token) {
+                return Promise.reject({
+                    success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+                    message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: now()
+                });
+            }
+            const keys = Object.keys(query || {});
+            if (keys.length) {
+                const errors = {};
+                keys.forEach(k => { errors[k] = ['Tham số không được nhận']; });
+                return Promise.reject(validationError(errors));
+            }
+            // WHERE actor_type = 'ADMIN' AND actor_id = :sub ORDER BY created_at DESC, id DESC LIMIT 20
+            const rows = MOCK_AUDIT_LOGS
+                .filter(r => r.actorType === 'ADMIN' && r.actorId === MOCK_PROFILE.id)
+                .sort((a, b) => (Date.parse(b.createdAt) - Date.parse(a.createdAt)) || (b.id - a.id))
+                .slice(0, ACTIVITY_LIMIT)
+                .map(r => ({
+                    id: r.id, action: r.action, resourceName: r.resourceName, resourceId: r.resourceId,
+                    ipAddress: r.ipAddress, userAgent: r.userAgent,
+                    actionDetails: r.actionDetails ? JSON.parse(JSON.stringify(r.actionDetails)) : null,
+                    createdAt: r.createdAt
+                }));
+            return {
+                success: true, statusCode: 200, message: 'Lấy hoạt động gần đây thành công',
+                data: rows, timestamp: now()
+            };
+        });
+    }
+
+    // Nhãn tiếng Việt do frontend ánh xạ (M09 mục 5.1); API chỉ trả mã (R16-07)
+    const ACTION_LABELS = {
+        LOGIN: 'Đăng nhập', LOGIN_FAILED: 'Đăng nhập thất bại', LOGOUT: 'Đăng xuất',
+        SESSION_REVOKED: 'Thu hồi phiên đăng nhập', TOKEN_REUSE_DETECTED: 'Phát hiện dùng lại phiên',
+        PASSWORD_CHANGED: 'Đổi mật khẩu', PASSWORD_RESET: 'Đặt lại mật khẩu',
+        LISTEN_AUDIO: 'Nghe ghi âm', DOWNLOAD_AUDIO: 'Tải ghi âm',
+        EXPORT_CDR: 'Xuất CDR', EXPORT_REPORT: 'Xuất báo cáo',
+        TOGGLE_GROUP_RECORDING: 'Đổi quyền nghe ghi âm của nhóm',
+        UPDATE_PREFIX_GROUP: 'Sửa nhóm đầu số', ALLOCATE_RANGE: 'Cấp dải số', UPDATE_RANGE: 'Sửa dải số',
+        REVOKE_RANGE: 'Thu hồi dải số', UPDATE_NUMBER: 'Sửa thông tin số',
+        UPDATE_SETTINGS: 'Cập nhật cài đặt hệ thống', RECALCULATE_STATS: 'Tính lại thống kê',
+        CREATE_NOTIFICATION: 'Gửi thông báo', RETRY_ENRICHMENT: 'Xử lý lại CDR lỗi',
+        ACCESS_DENIED: 'Thao tác bị từ chối'
+    };
+    const CRUD_LABELS = {
+        CREATE: 'Tạo', UPDATE: 'Cập nhật', LOCK: 'Khóa', UNLOCK: 'Mở khóa',
+        DEACTIVATE: 'Ngừng hoạt động', DELETE: 'Xóa', CHANGE_ROLE: 'Đổi vai trò'
+    };
+    const RESOURCE_LABELS = {
+        ADMIN: 'quản trị viên', USER: 'người dùng', USER_GROUP: 'nhóm người dùng', ORGANIZATION: 'đơn vị'
+    };
+    const LOGIN_FAILED_REASONS = {
+        BAD_PASSWORD: 'sai mật khẩu', ACCOUNT_LOCKED: 'tài khoản bị khóa', TEMPORARILY_LOCKED: 'đang khóa tạm'
+    };
+    const WARNING_ACTIONS = ['LOGIN_FAILED', 'ACCESS_DENIED'];
+
+    function activityLabel(row) {
+        // Vue: so resourceId với authAdmin.admin.id
+        if (row.resourceName === 'ADMIN' && row.action === 'UPDATE' && row.resourceId === String(MOCK_PROFILE.id)) {
+            return 'Cập nhật hồ sơ của tôi';
+        }
+        if (CRUD_LABELS[row.action] && RESOURCE_LABELS[row.resourceName]) {
+            return CRUD_LABELS[row.action] + ' ' + RESOURCE_LABELS[row.resourceName];
+        }
+        let label = ACTION_LABELS[row.action] || row.action; // mã chưa có nhãn: hiện nguyên mã
+        if (row.action === 'LOGIN_FAILED' && row.actionDetails && row.actionDetails.reason) {
+            label += ' (' + (LOGIN_FAILED_REASONS[row.actionDetails.reason] || row.actionDetails.reason) + ')';
+        }
+        return label;
+    }
+
+    const activityState = document.getElementById('activityState');
+    const activityMessage = document.getElementById('activityMessage');
+    const btnRetryActivity = document.getElementById('btnRetryActivity');
+    const activityList = document.getElementById('activityList');
+
+    function setActivityState(state, message) {
+        if (activityState) {
+            activityState.hidden = state === 'ready';
+            activityState.classList.toggle('is-error', state === 'error');
+        }
+        if (activityMessage && message) activityMessage.textContent = message;
+        if (btnRetryActivity) btnRetryActivity.hidden = state !== 'error';
+        if (activityList) activityList.hidden = state !== 'ready';
+    }
+
+    // Dựng bằng textContent (không innerHTML): userAgent, resourceId là dữ liệu do client gửi lên
+    function renderActivity(rows) {
+        if (!activityList) return;
+        activityList.replaceChildren();
+        rows.forEach(row => {
+            const li = document.createElement('li');
+            li.className = 'activity-item' + (WARNING_ACTIONS.includes(row.action) ? ' activity-item--warning' : '');
+            if (row.userAgent) li.title = row.userAgent;
+            const body = document.createElement('div');
+            const label = document.createElement('p');
+            label.className = 'activity-label';
+            label.textContent = activityLabel(row);
+            body.appendChild(label);
+            const metaText = [
+                row.resourceId ? 'Mã đối tượng: ' + row.resourceId : null,
+                row.ipAddress ? 'IP: ' + row.ipAddress : null
+            ].filter(Boolean).join(' · ');
+            if (metaText) {
+                const meta = document.createElement('p');
+                meta.className = 'activity-meta';
+                meta.textContent = metaText;
+                body.appendChild(meta);
+            }
+            const time = document.createElement('time');
+            time.className = 'activity-time';
+            time.dateTime = row.createdAt;
+            time.textContent = formatValue(row.createdAt, 'datetime');
+            li.appendChild(body);
+            li.appendChild(time);
+            activityList.appendChild(li);
+        });
+    }
+
+    function loadActivity() {
+        setActivityState('loading', 'Đang tải hoạt động...');
+        return callApi(token => mockGetRecentActivity(token))
+            .then(res => {
+                if (!res.data.length) { setActivityState('empty', 'Chưa có hoạt động nào'); return; }
+                renderActivity(res.data);
+                setActivityState('ready');
+            })
+            .catch(err => {
+                // 401 sau khi refresh thất bại: request() đã chuyển về login.
+                if (err && err.statusCode === 401) return;
+                setActivityState('error', (err && err.message) || 'Không tải được hoạt động gần đây. Vui lòng thử lại.');
+            });
+    }
+
+    if (btnRetryActivity) btnRetryActivity.addEventListener('click', loadActivity);
+
     loadProfile();
+    loadActivity();
 });
