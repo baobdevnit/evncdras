@@ -12,6 +12,7 @@
 - **`docs/` không còn phát hiện Critical/Major/Minor nào về CSDL đang mở.** Đã kiểm lại ngày 2026-11-04 (mục 4): mọi mục của 12 lần rà soát đều đã phản ánh trong `docs/`. Lần kiểm này sửa thêm 1 lỗi Minor còn sót: ví dụ mã nhóm `UG-KT-01`/`UG-IT-01` ở M12 §3.1, đổi thành `UMO-KT-01`/`UMO-IT-01` theo quy ước `user_groups.code` (`01` §5).
 - **Còn mở (mục 2)**: chạy lại DDL + seed trên **MariaDB 10.6**; sửa `templates/`; viết test cho các quy tắc tầng service khi có backend; xác nhận một điểm diễn giải về `trend` ở M05 (C-01).
 - **Lần 13 (2026-11-04)**: 2 Major, 7 Minor, đã sửa theo quyết định chủ dự án (mục 3.5).
+- **Lần 14 (2026-11-04)**: 3 Major, 10 Minor, đã sửa; 4 điểm thiếu quy định chốt theo phỏng vấn chủ dự án (mục 3.5, R14-*).
 - **Sẵn sàng sinh migration/entity** sau khi chạy xong DDL trên MariaDB 10.6 (mục 2.1).
 
 ## 1. Các lần rà soát
@@ -32,6 +33,7 @@
 | 11 | 2026-11-04 | `db_audit_11.md` | `b30e46c` | 3 Major, 6 Minor | ✅ |
 | 12 | 2026-11-04 | `db_audit_12.md` | `9084f1d`, `bbbc0f9` | 3 Major, 7 Minor, 2 ngoài CSDL | ✅ |
 | 13 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `728e996` | 2 Major, 7 Minor | ✅ |
+| 14 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (chưa commit) | 3 Major, 10 Minor | ✅ |
 
 ---
 
@@ -39,7 +41,7 @@
 
 ### 2.1. Kiểm chứng DDL trên đúng phiên bản
 
-- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại.
+- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`).
 - **Việc cần làm**: trích toàn bộ khối ```` ```sql ```` của `01` và seed `M10` §2.1, chạy trên MariaDB 10.6, kiểm tra:
   - 27 bảng + 1 view tạo không lỗi; partition `cdr_enriched` đúng.
   - Seed: 25 mã quyền; `permission_roles` ROOT_ADMIN 25, SYSTEM_ADMIN 24, GROUP_ADMIN 17, USER_RECORDING 11, REGULAR_USER 9; 19 key `system_settings`; 5 ngưỡng QoS.
@@ -79,7 +81,9 @@ Các quy tắc sau đã ghi trong `docs/` nhưng chỉ kiểm chứng được b
 | Poller thông báo theo cửa sổ `created_at` 5 phút + tập `pushedIds`, đọc đủ người nhận | `01` §11, M06 §4.1 | R7-02 |
 | Giảm `retention_archive_months` cần `confirmPurge` | `01` §2.1, M07 §3.2 | R11-02 |
 | Đổi cha tổ chức tính lại `level` cả nhánh; tối đa 3 | `01` §4, M01 §3.2–3.3 | R11-03 |
-| Route User nhận tham số riêng của Admin trả `400` | `02` §1.1 | R12-04 |
+| Route User nhận tham số riêng của Admin trả `400` (kể cả `userGroupId` trong body `POST /users`) | `02` §1.1, M03 §3.4 | R12-04, R14-06 |
+| `PUT /admin/user-groups/:id` có `code` trả `400` | `01` §5, M02 §3.3 | R14-11 |
+| Đổi trạng thái số `RESERVED` ↔ `LOCKED` ghi 2 dòng `phone_number_range_history` cùng transaction | `01` §8, M11 §4.4 | R14-13 |
 
 ### 2.4. Cần xác nhận / ghi nhận rủi ro
 
@@ -244,6 +248,19 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 | R13-07 | Minor | Ví dụ lệch quy ước: M02 `phonePrefixGroup.code` `PG-IT-01`/`PG-AUDIT` (quy tắc `PG-` + `user_groups.code`); M11 `GET /prefixes` thiếu `counts` mô tả ở cùng mục, `updatedAt` không theo ISO 8601 (`02` §2) | `PG-UMO-IT`, `PG-UMO-AUDIT`; thêm `counts`; `updatedAt` có giờ và `+07:00` |
 | R13-08 | Minor | Ví dụ `pagination` thiếu `hasNext`/`hasPrev` (M02 §3.1, §3.6, M12 §3.1, M13 §3.1); file này ghi `high_packet_loss_calls_count` thay vì tên cột `high_packet_loss_legs_count` (I-01) | Sửa |
 | R13-09 | Minor | Đơn vị thời lượng ở API tổng hợp lệch: M05 `/dashboard/stats` trả `durationMinutes`, M14 `/traffic/summary` trả cả `totalDurationSec` và `totalDurationMinutes`, các API khác dùng giây | Chủ dự án chốt chỉ dùng giây: M05 đổi `durationMinutes` → `durationSec` (SQL bỏ `/ 60`), M14 bỏ `totalDurationMinutes`, frontend tự đổi sang phút; quy tắc ghi ở `02` §2 |
+| R14-01 | Minor | `01` §2.1 còn ghi "trường `duration` trả về API", trái R13-01 | `durationSec` |
+| R14-02 | Minor | COMMENT `admin_roles.assigned_at` ghi "cập nhật khi đổi vai trò, lịch sử ở `audit_logs`", nhưng không có API đổi vai trò Admin (`02` §3.1, M10 §1.2) và `CHANGE_ROLE` chỉ cho `USER` (`01` §13) | Sửa COMMENT: gán cùng lúc tạo tài khoản, không đổi |
+| R14-03 | Minor | ERD M02 §1.2 còn cột `PHONE_PREFIX_GROUPS.status` (đã bỏ ở R10-03) | Bỏ |
+| R14-04 | Minor | M02 BR-UG-03 ghi đổi nhóm đầu số trả `409`, M02 §3.2–3.3 và TC ghi `400` | `400` |
+| R14-05 | Minor | M03 §3.3 `GET /users` lọc bằng `userGroupId`, `02` §3.5 dùng `groupId` | `groupId`, chỉ bản Admin; bản User gửi thì `400` |
+| R14-06 | Major | M03 §3.4 `POST /users` route User: gửi `userGroupId` khác nhóm trả `403`, trái `02` §1.1 (tham số riêng Admin trên route User trả `400`) | Chủ dự án chốt: DTO bản User không có `userGroupId`, gửi lên (kể cả đúng nhóm) trả `400`; sửa M03 §3.4, `02` §3.5 |
+| R14-07 | Minor | M13 §3.3 ghi audit `PUT /admin/qos/thresholds` là `SYSTEM / UPDATE_SETTINGS`, danh mục `01` §13 không nêu | Thêm vào mô tả `UPDATE_SETTINGS` |
+| R14-08 | Minor | COMMENT `user_settings.custom_preferences` nêu khóa `date_format`, `language`, `active_tabs` không dùng ở đâu; khóa duy nhất có đặc tả là `dashboardWidgets` (M09 §1, camelCase) | Sửa COMMENT |
+| R14-09 | Minor | M09 §1 ghi Admin tự sửa email, M09 §3.2 và `02` §3.1 chỉ có họ tên, điện thoại, avatar | Theo §3.2: không tự sửa email |
+| R14-10 | Major | Dòng `prefix_allocation_history` `REVOKE` không có nguồn cho `decision_number`/`note`: `DELETE /admin/prefixes/:id` không có body, ngừng nhóm `revokeRanges=true` không nói | Chủ dự án chốt: `DELETE` nhận body tùy chọn `{ decisionNumber?, historyNote? }`, thiếu thì NULL; ngừng nhóm ghi `decision_number = NULL`, `note` nêu lý do. `01` §8 điểm 5, `02` §3.6, M02 §3.4, M11 §4.2 |
+| R14-11 | Major | Không quy định `user_groups.code` sửa được hay không; nếu sửa thì `phone_prefix_groups.code` (`PG-` + mã, không sửa được) lệch, mã cũ được giải phóng đụng `uniq_ppg_code` khi tạo nhóm mới | Chủ dự án chốt: bất biến, gửi `code` trong `PUT` trả `400`. `01` §5 COMMENT, `02` §3.4, M02 §3.3 |
+| R14-12 | Minor | `GET /prefixes/history` (USER + ADMIN) không có query params, không nói bản User lọc theo cột nào | Chủ dự án chốt theo R13-06: `userGroupId` chỉ bản Admin, bản User lọc `prefix_allocation_history.user_group_id`; thêm M11 §4.5, `02` §3.6 |
+| R14-13 | Minor | `PUT /admin/phone-numbers/:number` không quy định chuyển thẳng `RESERVED` ↔ `LOCKED` ghi lịch sử thế nào | Chủ dự án chốt: cho chuyển, ghi 2 dòng (vd. `UNRESERVE` rồi `LOCK`) cùng transaction. `01` §8, `02` §3.6, M11 §4.4 |
 
 Đề xuất làm gọn **bị từ chối** ở lần 10 (giữ nguyên, không đề xuất lại): gộp `phone_prefix_groups` vào `user_groups`; thay 5 bảng RBAC bằng cột `role`; bỏ `stats_daily`; bỏ dòng `phone_number_range_history` cho từng số.
 

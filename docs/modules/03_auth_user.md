@@ -112,15 +112,15 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 - **Scoped Query**:
   - Nếu là System Admin: Xem được user của mọi đơn vị.
   - Nếu là Group Admin: Chỉ xem được user có `user_group_id` bằng nhóm của mình.
-- **Query Params**: `page=1`, `limit=10`, `userGroupId=1`, `search=nguyen`, `status=ACTIVE`
+- **Query Params**: `page=1`, `limit=10`, `search=nguyen`, `status=ACTIVE`, `groupId=1` (chỉ bản Admin; bản User gửi thì `400` theo `docs/02_api_contracts.md` mục 1.1)
 
 ### 3.4. Tạo người dùng mới (`POST /api/v1/users`)
 
 - **Thẩm quyền thực hiện (Authorization)**:
   - **Quản trị viên hệ thống (System Admin)**: Được phép chỉ định `userGroupId` tùy ý hợp lệ trong danh mục nhóm người dùng.
-  - **Quản trị viên nhóm (Group Admin)**: Hệ thống tự động gán `userGroupId = req.user.userGroupId`. Nếu Group Admin cố tình truyền `userGroupId` khác nhóm của mình, hệ thống trả về mã lỗi `403 FORBIDDEN: Quản trị viên nhóm chỉ có quyền tạo người dùng cho nhóm của mình`.
+  - **Quản trị viên nhóm (Group Admin, route User)**: Hệ thống tự động gán `userGroupId = req.user.userGroupId`. DTO bản User **không có** trường `userGroupId`: body có trường này (kể cả đúng nhóm của mình) thì trả `400` (`docs/02_api_contracts.md` mục 1.1).
 - **Ràng buộc tạo tài khoản**:
-  - `userGroupId`: Bắt buộc (`NOT NULL`). Người dùng luôn gắn cố định với nhóm người dùng ngay từ lúc khởi tạo.
+  - `userGroupId`: Bắt buộc trên bản Admin (`users.user_group_id NOT NULL`). Người dùng luôn gắn cố định với nhóm người dùng ngay từ lúc khởi tạo.
   - Không có tùy chọn khởi tạo người dùng mà không thuộc nhóm nào.
 - **Request Body**:
 

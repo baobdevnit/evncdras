@@ -222,7 +222,7 @@ Bảng `cdr_enriched` là **bảng trung tâm cho toàn bộ nghiệp vụ Backe
 
 > [!IMPORTANT]
 > **Các cột dẫn xuất khác & hướng gọi**:
-> - **Thời lượng**: `Answered_Duration` của PABX tính bằng **mili-giây** (đã kiểm chứng 3.347/3.347 cuộc nhấc máy trong dữ liệu thật: `Answered_Duration / 1000 ≈ Destroyed − Answered`). Cột `answered_duration_sec` là nguồn duy nhất cho mọi thời lượng nghiệp vụ: `*_duration_sec` trong stats, ACD/ALOC, và trường `duration` trả về API.
+> - **Thời lượng**: `Answered_Duration` của PABX tính bằng **mili-giây** (đã kiểm chứng 3.347/3.347 cuộc nhấc máy trong dữ liệu thật: `Answered_Duration / 1000 ≈ Destroyed − Answered`). Cột `answered_duration_sec` là nguồn duy nhất cho mọi thời lượng nghiệp vụ: `*_duration_sec` trong stats, ACD/ALOC, và trường `durationSec` trả về API (`docs/02_api_contracts.md` mục 2).
 > - **`call_type`**: lưu sẵn trên từng leg, xác định từ `caller_group_id`/`called_group_id` (quy tắc tại mục 9).
 > - **Hướng gọi (`Inbound` / `Outbound` / `Internal`) không lưu thành cột**, vì nó phụ thuộc vào nhóm của người xem: cùng một cuộc gọi là `Outbound` với nhóm gọi nhưng là `Inbound` với nhóm nhận. API tính hướng gọi lúc truy vấn theo nhóm đang xem `:g`:
 >   - `Outbound`: `caller_group_id = :g AND (called_group_id <> :g OR called_group_id IS NULL)`
@@ -521,7 +521,7 @@ CREATE TABLE IF NOT EXISTS `user_groups` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `organization_id` int(11) unsigned DEFAULT NULL COMMENT 'ID đơn vị trên cây tổ chức (tham chiếu trực quan danh mục, NULL nếu là nhóm độc lập)',
   `phone_prefix_group_id` int(11) unsigned NOT NULL COMMENT 'Khóa ngoại liên kết 1-1 với nhóm đầu số điện thoại, tạo tự động cùng nhóm (mục 4.1)',
-  `code` varchar(50) NOT NULL COMMENT 'Mã nhóm QLND (ví dụ: UMO-IT-01)',
+  `code` varchar(50) NOT NULL COMMENT 'Mã nhóm QLND (ví dụ: UMO-IT-01). Bất biến sau khi tạo (PUT gửi code thì 400), vì phone_prefix_groups.code = PG- + code và mã không được dùng lại (mục 14)',
   `name` varchar(255) NOT NULL COMMENT 'Tên nhóm (ví dụ: Nhóm QLND Khối CNTT)',
   `description` text DEFAULT NULL,
   `representative_user_id` int(11) unsigned DEFAULT NULL COMMENT 'ID user đại diện nhóm (phải mang vai trò GROUP_ADMIN)',
@@ -679,7 +679,7 @@ CREATE TABLE IF NOT EXISTS `admin_roles` (
   `admin_id` int(11) unsigned NOT NULL,
   `role_id` int(11) unsigned NOT NULL,
   `role_scope` enum('ADMIN','USER') NOT NULL DEFAULT 'ADMIN' COMMENT 'Luôn ADMIN (chk_ar_scope); cùng role_id tạo khóa ngoại bảo đảm chỉ gán vai trò scope ADMIN. Bắt buộc cùng định nghĩa enum với roles.scope',
-  `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Thời điểm gán vai trò hiện tại (cập nhật khi đổi vai trò), không phải thời điểm tạo tài khoản; lịch sử đổi vai trò ở audit_logs',
+  `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Thời điểm gán vai trò, cùng transaction tạo tài khoản. Không có API đổi vai trò Admin (ROOT_ADMIN chỉ từ seed, Admin tạo qua API luôn SYSTEM_ADMIN), nên không có CHANGE_ROLE cho ADMIN',
   PRIMARY KEY (`admin_id`) COMMENT 'Mỗi admin đúng 1 vai trò',
   KEY `idx_ar_role` (`role_id`, `role_scope`),
   CONSTRAINT `fk_ar_admin` FOREIGN KEY (`admin_id`) REFERENCES `admins` (`id`) ON DELETE RESTRICT,
@@ -737,7 +737,7 @@ Seed `permissions` và `permission_roles`: `docs/modules/10_permissions_and_role
 >    - **Quyền sở hữu số khi làm giàu CDR**: số có `range_id` thuộc nhóm của dải đó, **bất kể trạng thái** (kể cả `RESERVED`/`LOCKED`). Nhóm được **chốt tại thời điểm làm giàu** và không đổi khi dải số thay đổi về sau. Khi cài mới, CDR lịch sử được làm giàu theo dải số hiện có, nên phải cấp phát dải số trước khi bật tiến trình làm giàu (`docs/modules/12_core_business_cdr_and_audio.md` mục 4.2).
 >    - Mỗi số thay đổi `range_id` sinh một dòng `phone_number_range_history`, cùng transaction với thao tác cấp phát/thu hồi.
 >    - **Sửa dải** (`PUT /api/v1/admin/prefixes/:id`): phần **mở rộng** chỉ được chứa số chưa thuộc dải nào (`range_id IS NULL`), sai thì `409`; các số đó xử lý như khi cấp phát. Phần **thu hẹp** xử lý như khi thu hồi. Ghi 1 dòng `prefix_allocation_history` (`UPDATE`) và 1 dòng `phone_number_range_history` cho mỗi số thay đổi, cùng transaction.
->    - **Không có thao tác gán/thu hồi từng số lẻ**: `range_id` của một số chỉ thay đổi qua thao tác trên dải. Thao tác trên từng số chỉ sửa `display_name`, `description` và trạng thái `RESERVED`/`LOCKED`.
+>    - **Không có thao tác gán/thu hồi từng số lẻ**: `range_id` của một số chỉ thay đổi qua thao tác trên dải. Thao tác trên từng số chỉ sửa `display_name`, `description` và trạng thái `RESERVED`/`LOCKED`. Mỗi lần đổi trạng thái ghi `phone_number_range_history` theo cặp trạng thái: bỏ khóa/bỏ dự phòng ghi `UNLOCK`/`UNRESERVE`, khóa/đặt dự phòng ghi `LOCK`/`RESERVE`; chuyển thẳng giữa `RESERVED` và `LOCKED` ghi **2 dòng** trong cùng transaction (vd. `RESERVED` → `LOCKED` ghi `UNRESERVE` rồi `LOCK`).
 >    - **Kiểm tra giao nhau**: dải mới hoặc dải sau khi sửa không được giao với **bất kỳ** dải nào khác, kể cả dải của cùng nhóm đầu số.
 >    - **Chống giao nhau khi chạy đồng thời**: phép kiểm tra giao nhau bằng `SELECT` thường không khóa gì, nên hai request cấp phát chồng lấn chạy cùng lúc đều qua được và request sau âm thầm chuyển số của dải trước sang dải của nó. Vì kho `phone_numbers` có đủ mọi số 10000–99999, giao nhau tương đương "có số trong khoảng đã có `range_id`", nên CSDL chặn được: câu `UPDATE phone_numbers` khi cấp phát (và phần mở rộng khi sửa dải) có thêm điều kiện `AND range_id IS NULL`, và service so `affectedRows` với số lượng số của khoảng; khác nhau thì rollback, trả `409`. Câu `UPDATE` khóa từng dòng số, nên request thứ hai chờ request đầu commit rồi mới đọc lại `range_id` mới nhất.
 >    - **Nhóm đầu số của một nhóm người dùng không đổi sau khi tạo**. Muốn chuyển số sang nhóm khác: thu hồi dải ở nhóm cũ rồi cấp dải cho nhóm mới.
@@ -750,6 +750,8 @@ Seed `permissions` và `permission_roles`: `docs/modules/10_permissions_and_role
 >    | `ALLOCATE` | NULL | khoảng được cấp | `từ -> đến` | số số của khoảng | `FREE` → `ALLOCATED` |
 >    | `REVOKE` | NULL | khoảng bị thu hồi | `từ -> đến` | số số của khoảng | `ALLOCATED` → `FREE` |
 >    | `UPDATE` | khoảng trước khi sửa | khoảng sau khi sửa | `cũ_từ-cũ_đến -> mới_từ-mới_đến` | số số thêm vào + số số bớt ra | `ALLOCATED` → `ALLOCATED` |
+>
+>    Nguồn `decision_number` / `note`: `ALLOCATE` lấy `decisionNumber` (bắt buộc) / `historyNote` của `POST /admin/prefixes`; `UPDATE` lấy từ body `PUT /admin/prefixes/:id`; `REVOKE` qua `DELETE /admin/prefixes/:id` lấy từ body tùy chọn `{ decisionNumber?, historyNote? }`, thiếu thì NULL; `REVOKE` do ngừng hoạt động nhóm (`revokeRanges=true`, mục 14) ghi `decision_number = NULL`, `note` nêu lý do ngừng hoạt động nhóm.
 >
 >    Nhãn hiển thị: `FREE` = "Kho tự do", `ALLOCATED` = "Đang dùng". `status_*` mô tả khoảng số của dải, không phải trạng thái từng số (số `RESERVED`/`LOCKED` giữ trạng thái riêng, lịch sử từng số ở `phone_number_range_history`).
 
@@ -1018,7 +1020,7 @@ CREATE TABLE IF NOT EXISTS `user_settings` (
   `sound_alert_enabled` tinyint(1) NOT NULL DEFAULT 1 COMMENT '0: Tắt chuông, 1: Bật chuông cảnh báo sự cố',
   `email_notification_enabled` tinyint(1) NOT NULL DEFAULT 1,
   `items_per_page` int(11) NOT NULL DEFAULT 10,
-  `custom_preferences` json DEFAULT NULL COMMENT 'Lưu các tùy chọn giao diện mở rộng: date_format, language, active_tabs...',
+  `custom_preferences` json DEFAULT NULL COMMENT 'Tùy chọn giao diện mở rộng, khóa camelCase như API trả về. Hiện chỉ có dashboardWidgets (Admin, docs/modules/09_admin_profile.md mục 1)',
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_user_settings` (`user_type`, `user_id`)
@@ -1079,7 +1081,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | `USER_GROUP` | `CREATE`, `UPDATE`, `DEACTIVATE`, `TOGGLE_GROUP_RECORDING` (`allow_recording_access`) |
 | `PREFIX` | `UPDATE_PREFIX_GROUP`, `ALLOCATE_RANGE`, `UPDATE_RANGE`, `REVOKE_RANGE`, `UPDATE_NUMBER` |
 | `ORGANIZATION` | `CREATE`, `UPDATE`, `DELETE` |
-| `SYSTEM` | `UPDATE_SETTINGS` (kể cả nạp lại bộ nhớ đệm, `action_details.op = "RELOAD_CACHE"`), `RECALCULATE_STATS` (`POST /admin/stats/recalculate`; `action_details = { "fromDate", "toDate", "queuedHours" }`), `CREATE_NOTIFICATION` (`POST /admin/notifications`; `resource_id` = `notifications.id`, `action_details = { "type", "severity", "target" }`) |
+| `SYSTEM` | `UPDATE_SETTINGS` (kể cả nạp lại bộ nhớ đệm, `action_details.op = "RELOAD_CACHE"`, và `PUT /admin/qos/thresholds` sửa `qos_threshold_configs`), `RECALCULATE_STATS` (`POST /admin/stats/recalculate`; `action_details = { "fromDate", "toDate", "queuedHours" }`), `CREATE_NOTIFICATION` (`POST /admin/notifications`; `resource_id` = `notifications.id`, `action_details = { "type", "severity", "target" }`) |
 | (mọi resource) | `ACCESS_DENIED`: thao tác bị chặn có ý nghĩa an ninh (vd. thử xóa Root Admin, gọi API ngoài phạm vi nhóm) |
 
 ---

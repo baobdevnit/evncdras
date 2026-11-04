@@ -8,7 +8,7 @@
 
 ### 1.1. Bối cảnh nghiệp vụ
 Quản trị viên hạ tầng viễn thông (Admin Portal) của EVNICT nắm quyền quản lý toàn bộ hệ thống log và file ghi âm nhạy cảm:
-1. **Quản lý hồ sơ cá nhân Quản trị viên**: Xem và cập nhật họ tên, số điện thoại trực ban, email công vụ, ảnh đại diện. Nhận diện cấp bậc rõ ràng giữa **Root Admin** và **System Admin**.
+1. **Quản lý hồ sơ cá nhân Quản trị viên**: Xem hồ sơ; tự cập nhật họ tên, số điện thoại trực ban, ảnh đại diện (mục 3.2). Không tự sửa email; email của Admin khác sửa qua `PUT /api/v1/admin/admins/:id` (`admin:manage`). Nhận diện cấp bậc rõ ràng giữa **Root Admin** và **System Admin**.
 2. **Tiêu chuẩn An toàn thông tin cấp cao**:
    - Mật khẩu tối thiểu 10 ký tự (3 trong 4 loại ký tự), bắt đổi sau 90 ngày (`password_changed_at`). Chính sách áp dụng chung cho cả hai portal, ngưỡng cấu hình qua `system_settings` (`security_*`), chi tiết tại `docs/01_database_schema.md` mục 6.1.
    - Quản lý phiên đăng nhập đang hoạt động (Active Sessions): đọc từ bảng `auth_sessions` (`GET /api/v1/admin/auth/sessions`), cho phép thu hồi từng phiên từ xa (`DELETE /api/v1/admin/auth/sessions/:id`) khi nghi ngờ lộ lọt thông tin. Root Admin thu hồi được mọi phiên của admin khác.

@@ -169,6 +169,7 @@ Trong cùng transaction tạo/cập nhật dải số:
 ```
 
 - `note` → `phone_prefix_ranges.note`; `decisionNumber` (bắt buộc) → `prefix_allocation_history.decision_number`; `historyNote` → `prefix_allocation_history.note`; `cdrOwnershipNote` (bắt buộc) → `prefix_allocation_history.cdr_ownership_note`.
+- **Thu hồi** (`DELETE /api/v1/admin/prefixes/:id`): body tùy chọn `{ "decisionNumber"?: string, "historyNote"?: string }` → `decision_number` / `note` của dòng `REVOKE`, thiếu thì NULL. Thu hồi do ngừng hoạt động nhóm (`revokeRanges=true`) ghi `decision_number = NULL` (`docs/01_database_schema.md` mục 8 điểm 5).
 
 ### 4.3. Tra cứu Kho số tổng thể 90.000 số (`GET /api/v1/phone-numbers/pool`)
 
@@ -212,6 +213,13 @@ Trong cùng transaction tạo/cập nhật dải số:
 
 - **Guard**: `UserAuthGuard` trên route User (chỉ dữ liệu nhóm mình); bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1).
 - **Query Params**: `phoneNumber`, `userGroupId` (chỉ bản Admin; bản User gửi thì `400`), `actionType`, `page`, `limit`. Bản User lọc theo `phone_number_range_history.user_group_id` = nhóm của người gọi.
+- **Đổi trạng thái từng số** (`PUT /api/v1/admin/phone-numbers/:number`): mỗi lần đổi ghi 1 dòng `LOCK`/`UNLOCK`/`RESERVE`/`UNRESERVE`; chuyển thẳng giữa `RESERVED` và `LOCKED` ghi 2 dòng trong cùng transaction (vd. `RESERVED` → `LOCKED`: `UNRESERVE` rồi `LOCK`) (`docs/01_database_schema.md` mục 8).
+
+### 4.5. Tra cứu Lịch sử cấp phát dải số (`GET /api/v1/prefixes/history`)
+
+- **Guard**: `UserAuthGuard` trên route User (chỉ dữ liệu nhóm mình); bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1).
+- **Query Params**: `userGroupId` (chỉ bản Admin; bản User gửi thì `400`), `actionType` (`ALLOCATE` | `REVOKE` | `UPDATE`), `page`, `limit`. Bản User lọc theo `prefix_allocation_history.user_group_id` = nhóm của người gọi, nên dòng thu hồi vẫn hiện cho nhóm bị thu hồi.
+- **Response**: khung phân trang chung (`docs/02_api_contracts.md` mục 2.2); giá trị từng cột theo `action_type` tại `docs/01_database_schema.md` mục 8 điểm 5.
 
 ---
 
