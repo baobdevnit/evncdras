@@ -184,7 +184,7 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
   - Tìm phiên với `actor_type = 'ADMIN'` và `actor_id` = `sub` của token (cookie của User hay của Admin khác không bao giờ bị thu hồi qua route này).
   - `audit_logs` `AUTH / LOGOUT` ghi `actor_type = ADMIN`, chỉ khi thực sự thu hồi một phiên.
   - Không bị chế độ bảo trì chặn (`docs/02_api_contracts.md` mục 1.2).
-  - Frontend: nút "Đăng xuất" trong menu tài khoản mở hộp xác nhận (`ConfirmModal`); bấm xác nhận thì khóa nút, gọi API rồi luôn xóa store `authAdmin`, ngắt Socket.IO namespace `/admin/notifications` và chuyển về `admin.login` (mẫu `window.adminSession.logout` trong `templates/admin/main.js`).
+  - Frontend: nút "Đăng xuất" trong menu tài khoản mở hộp xác nhận (`ConfirmModal`); bấm xác nhận thì khóa nút, gọi API rồi luôn xóa store `authAdmin` và `preferencesAdmin` (`docs/modules/09_admin_profile.md` mục 3.6), ngắt Socket.IO namespace `/admin/notifications` và chuyển về `admin.login` (mẫu `window.adminSession.logout` trong `templates/admin/main.js`).
 
 ### 3.6. Đặt lại mật khẩu Admin khác (`PUT /api/v1/admin/admins/:id/reset-password`)
 

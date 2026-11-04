@@ -317,6 +317,70 @@ Content-Type: application/json
 
 - Giống bản User (`docs/modules/08_user_profile.md` mục 3.6), khác ở `AdminAuthGuard`, cookie `Path=/api/v1/admin/auth` và `actor_type = 'ADMIN'`. Thu hồi mọi phiên của Admin khác dùng `DELETE /api/v1/admin/admins/:id/sessions` (`docs/modules/04_auth_admin.md` mục 3.7).
 
+### 3.6. `GET /api/v1/admin/profile/preferences`
+- **Guard**: `AdminAuthGuard`; không cần mã quyền. Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`. Chế độ bảo trì không áp dụng cho cổng Admin.
+- **Request**: không có query, không có body. Gửi query param bất kỳ trả `400 VALIDATION_ERROR`.
+- **Xử lý** (chỉ đọc, không ghi CSDL, không ghi `audit_logs`):
+  1. Đọc `admins` theo khóa chính `id = sub`; không thấy dòng hoặc `status` khác `ACTIVE` trả `401 UNAUTHORIZED` (cùng quy tắc mục 3.1).
+  2. Đọc `user_settings` theo `uniq_user_settings` (`user_type = 'ADMIN'`, `user_id = sub`). **Không có dòng thì trả giá trị mặc định của DDL** (`docs/01_database_schema.md` mục 12) và **không** chèn dòng (chèn chỉ ở `PUT`, dạng upsert).
+  3. `itemsPerPage`: giá trị lưu ngoài `10`/`20`/`50` (chỉ xảy ra khi sửa tay CSDL) trả `10`.
+  4. Chuẩn hóa `dashboardWidgets` từ `custom_preferences.dashboardWidgets` để response **luôn đủ 6 phần tử**, theo bộ `key` cố định ở mục 1.1 (thứ tự mặc định `kpiCards`, `poolWidget`, `quantityChart`, `qualityChart`, `topGroupsChart`, `groupMonitorTable`):
+     - `custom_preferences` là `NULL`, không có khóa `dashboardWidgets` hoặc giá trị không phải mảng: dùng mặc định (cả 6 `visible = true`, `order` 1…6).
+     - Bỏ phần tử có `key` lạ; `key` lặp lại chỉ lấy phần tử đầu; `visible` không phải boolean coi là `true`; `order` không phải số coi là đứng sau các phần tử có `order`.
+     - Sắp theo `order` tăng dần (bằng nhau thì theo thứ tự mặc định), thêm `key` còn thiếu (`visible = true`) vào cuối theo thứ tự mặc định, rồi đánh lại `order` liên tục 1…6.
+     - Các khóa khác trong `custom_preferences` (nếu có) bỏ qua, không trả.
+- **Response** `200`:
+
+| Trường | Kiểu | Nguồn | Mặc định (không có dòng) |
+|---|---|---|---|
+| `theme` | `LIGHT` \| `DARK` \| `SYSTEM` | `user_settings.theme` | `SYSTEM` |
+| `isSidebarCollapsed` | boolean | `is_sidebar_collapsed` | `false` |
+| `itemsPerPage` | `10` \| `20` \| `50` | `items_per_page` | `10` |
+| `emailNotificationEnabled` | boolean | `email_notification_enabled` (email cho thông báo `CRITICAL`, `docs/01_database_schema.md` mục 10) | `true` |
+| `soundAlertEnabled` | boolean | `sound_alert_enabled` (chuông khi nhận thông báo `CRITICAL` qua Socket.IO, `docs/modules/06_notifications.md`) | `true` |
+| `dashboardWidgets` | mảng 6 phần tử `{ key, visible, order }` | `custom_preferences.dashboardWidgets` (đã chuẩn hóa ở bước 4) | 6 widget theo thứ tự mặc định, đều hiện |
+
+Không trả `id`, `user_type`, `user_id`, `custom_preferences`, `updated_at`. Cột `tinyint(1)` trả boolean, không trả `0`/`1`.
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy thiết lập thành công",
+  "data": {
+    "theme": "DARK",
+    "isSidebarCollapsed": false,
+    "itemsPerPage": 20,
+    "emailNotificationEnabled": true,
+    "soundAlertEnabled": true,
+    "dashboardWidgets": [
+      { "key": "kpiCards", "visible": true, "order": 1 },
+      { "key": "groupMonitorTable", "visible": true, "order": 2 },
+      { "key": "quantityChart", "visible": true, "order": 3 },
+      { "key": "qualityChart", "visible": true, "order": 4 },
+      { "key": "topGroupsChart", "visible": false, "order": 5 },
+      { "key": "poolWidget", "visible": true, "order": 6 }
+    ]
+  },
+  "timestamp": "2026-11-05T09:00:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản không còn `ACTIVE` |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+
+- **Frontend**: thiết lập dùng cho **toàn cổng Admin**, nên nạp một lần khi vào cổng, không chỉ ở màn hình cài đặt.
+  - Guard của khu vực Admin, khi store `authAdmin` đã có `admin` (sau đăng nhập hoặc sau `GET /admin/auth/me`, `docs/modules/04_auth_admin.md` mục 3.1.1) mà store `preferencesAdmin` còn trống, gọi API này qua API client của cổng (`401` → refresh một lần rồi gửi lại) và lưu `data` vào store `preferencesAdmin` (`src/apps/admin/stores/preferencesAdmin.store.ts`). Store đã có dữ liệu thì không gọi lại; đăng xuất thì xóa store. Token `PASSWORD_CHANGE_ONLY` không gọi (route bị buộc đổi mật khẩu không cần), dùng mặc định và `adminTheme` đã cache. Gọi lỗi (trừ `401`) **không chặn** vào cổng: dùng giá trị mặc định ở bảng trên.
+  - Áp dụng: `theme` → `LIGHT` gắn `data-theme="light"`, `DARK` gắn `data-theme="dark"`, `SYSTEM` bỏ thuộc tính để theo `prefers-color-scheme`; `isSidebarCollapsed` → trạng thái ban đầu của sidebar; `itemsPerPage` → `limit` mặc định của các bảng phân trang (người dùng đổi tạm ở từng màn hình không lưu); `soundAlertEnabled` → phát chuông khi nhận thông báo `CRITICAL`; `dashboardWidgets` → `DashboardView` vẽ các widget `visible = true` theo `order` (widget `poolWidget` vẫn cần `prefix:view`, `docs/00_overview_and_architecture.md` mục 5.3.3); `emailNotificationEnabled` chỉ hiển thị ở màn hình cài đặt.
+  - Chống nhấp nháy giao diện (FOUC): sau khi nạp, ghi **riêng giá trị `theme`** vào `localStorage` khóa `adminTheme`; script đầu trang đọc khóa này trước khi Vue chạy (`SYSTEM` hoặc chưa có thì theo `prefers-color-scheme`). Không ghi các trường khác hay dữ liệu tài khoản vào storage.
+  - `AccountSettingsView` (`/admin/account-settings`) đọc từ store, không gọi lại API; nếu store chưa có (lần nạp ở guard lỗi) thì gọi API, hiện trạng thái tải/lỗi kèm nút thử lại. Màn hình chỉ có điều khiển cho đúng 6 trường của response (mục 5.2). Mẫu: `templates/admin/user-settings.js`, `window.adminSession.loadPreferences` trong `templates/admin/main.js`.
+- Index phục vụ: khóa chính `admins`; `uniq_user_settings` (`user_type`, `user_id`).
+
 ---
 
 ## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
@@ -359,6 +423,13 @@ Mẫu tĩnh: `templates/admin/change-password.html` (chế độ thường), `ch
   - Tab 2: Bảo mật tài khoản & Đổi mật khẩu.
   - Tab 3: Nhật ký kiểm toán cá nhân (Bảng hiển thị IP đăng nhập, thiết bị và các thao tác gần đây).
 
+### 5.2. Bố cục Giao diện (`AccountSettingsView.vue`, ánh xạ `templates/admin/user-settings.html`)
+- Thẻ trái: `avatarUrl`, `fullName`, `roleName`, `email` đọc từ store `authAdmin` (không cứng chữ), cùng nút điều hướng hai nhóm và liên kết sang `admin.profile` (phiên đăng nhập, đổi mật khẩu nằm ở hồ sơ, không lặp lại ở đây).
+- Nhóm **Giao diện & Hiển thị**: `theme` là nhóm chọn 3 giá trị Sáng / Tối / Theo hệ thống; công tắc `isSidebarCollapsed` ("Menu thu gọn mặc định"); ô chọn `itemsPerPage` chỉ 10 / 20 / 50.
+- Nhóm **Dashboard Quản trị**: danh sách 6 widget theo `order` của `dashboardWidgets`, mỗi dòng có nhãn tiếng Việt, công tắc `visible` và nút lên/xuống đổi thứ tự. Nhãn: `kpiCards` "Thẻ KPI toàn hệ thống", `poolWidget` "Kho số chung", `quantityChart` "Biểu đồ số lượng cuộc gọi", `qualityChart` "Biểu đồ chất lượng cuộc gọi", `topGroupsChart` "Top nhóm theo lưu lượng", `groupMonitorTable` "Bảng giám sát nhóm".
+- Nhóm **Thông báo**: công tắc `emailNotificationEnabled` ("Nhận email khi có sự cố Nghiêm trọng", gửi tới `email` của tài khoản) và `soundAlertEnabled` ("Âm thanh chuông khi có sự cố Nghiêm trọng").
+- Không có điều khiển nào khác (ngôn ngữ, định dạng ngày, 2FA, trích xuất dữ liệu, xóa/vô hiệu hóa tài khoản không có API/cột). Lưu thay đổi qua `PUT /api/v1/admin/profile/preferences` *(đặc tả ở A10)*.
+
 ---
 
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
@@ -368,3 +439,4 @@ Mẫu tĩnh: `templates/admin/change-password.html` (chế độ thường), `ch
 4. **TC-AP-04**: `PUT /api/v1/admin/profile` với `{ "fullName": "  Nguyễn Văn A  " }` lưu `Nguyễn Văn A`, trả đủ 12 trường của mục 3.1, ghi một dòng `audit_logs` `ADMIN / UPDATE` với `changedFields = ["fullName"]`, header đổi tên ngay; gửi lại đúng giá trị đó trả `200` và không ghi thêm dòng audit; `{}`, `{ "fullName": "" }`, `{ "phoneNumber": "abc" }`, `{ "email": "x@evn.vn" }` đều trả `400 VALIDATION_ERROR`; `{ "phoneNumber": null }` xóa số.
 5. **TC-AP-05**: Đăng nhập trên 2 trình duyệt (A có `rememberMe = true`). Ở A `PUT /api/v1/admin/profile/change-password` đúng: `200` `{ accessToken, expiresIn }`, `Set-Cookie` `Path=/api/v1/admin/auth` có `Max-Age` ≈ 7 ngày; `admins.must_change_password = 0`, `password_changed_at` mới; cả 2 phiên cũ `PASSWORD_CHANGED`, có đúng 1 phiên mới `remember_me = 1`; `audit_logs` `AUTH / PASSWORD_CHANGED` `revokedCount = 2`, `forced = false`. Refresh ở B trả `401`. Gọi bằng token `PASSWORD_CHANGE_ONLY` (Admin mới tạo): `200`, phiên mới `remember_me = 0`, `forced = true`, token mới gọi được `GET /admin/profile`. Sai `currentPassword` 5 lần: 5 lần `400` (`errors.currentPassword`), lần 6 `423 ACCOUNT_TEMPORARILY_LOCKED` có `errors.lockedUntil`, không có dòng audit nào.
 6. **TC-AP-06**: `POST /api/v1/admin/profile/avatar` với ảnh JPEG 1,5 MB 1200×800 có EXIF GPS: `200`, `data` đủ 12 trường, `avatarUrl` dạng `/media/avatars/<uuid>.jpg`; file trên đĩa 256×256, không còn EXIF; `GET` đường dẫn đó qua Nginx trả ảnh với `X-Content-Type-Options: nosniff`; một dòng `audit_logs` `ADMIN / UPDATE` `changedFields = ["avatarUrl"]`; tải ảnh PNG kế tiếp thì file JPEG cũ bị xóa, header đổi ảnh ngay. File 2,1 MB, file `.png` thực chất là PDF, thiếu phần `file`, thêm phần `fullName`, gửi JSON đều trả `400 VALIDATION_ERROR` và không có file mới trong `AVATAR_STORAGE_DIR`; token `PASSWORD_CHANGE_ONLY` trả `403`; tài khoản bị khóa trong lúc token còn hạn trả `401` và không còn file mồ côi.
+7. **TC-AP-07**: Admin mới tạo bằng `npm run seed:root` rồi xóa dòng `user_settings` của mình: `GET /api/v1/admin/profile/preferences` trả `200` với `theme = "SYSTEM"`, `isSidebarCollapsed = false`, `itemsPerPage = 10`, hai cờ thông báo `true`, `dashboardWidgets` đủ 6 phần tử theo thứ tự mặc định đều `visible = true`; sau lời gọi vẫn không có dòng `user_settings` mới, không có dòng `audit_logs`. Sửa tay `custom_preferences = '{"dashboardWidgets":[{"key":"groupMonitorTable","visible":true,"order":1},{"key":"foo","visible":true,"order":2},{"key":"kpiCards","visible":"no","order":3}]}'` và `items_per_page = 30`: response có `itemsPerPage = 10`, `dashboardWidgets` 6 phần tử, `groupMonitorTable` thứ 1, `kpiCards` thứ 2 `visible = true`, không có `foo`, 4 key còn lại theo thứ tự mặc định, `order` liên tục 1…6. Gửi `?x=1` trả `400`; token `PASSWORD_CHANGE_ONLY` trả `403`; tài khoản bị khóa trong lúc token còn hạn trả `401`. Đăng nhập lại ở trình duyệt khác: giao diện, sidebar, số dòng mỗi trang và thứ tự widget Dashboard giữ đúng giá trị CSDL.

@@ -1,9 +1,13 @@
 // Run this script as early as possible in the <head> to prevent FOUC (Flash of Unstyled Content)
+// Chỉ đọc giá trị `theme` (LIGHT | DARK | SYSTEM) đã cache ở localStorage khóa `adminTheme` sau lần nạp
+// GET /api/v1/admin/profile/preferences trước (docs/modules/09_admin_profile.md mục 3.6). Nguồn chuẩn là CSDL;
+// SYSTEM hoặc chưa có cache thì theo prefers-color-scheme. Vue: script inline trong index.html.
 (function() {
-    const savedTheme = sessionStorage.getItem('theme');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+    let cached = null;
+    try { cached = localStorage.getItem('adminTheme'); } catch (e) { /* storage bị chặn */ }
+    if (cached === 'LIGHT') document.documentElement.setAttribute('data-theme', 'light');
+    else if (cached === 'DARK') document.documentElement.setAttribute('data-theme', 'dark');
+    else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         document.documentElement.setAttribute('data-theme', 'dark');
     }
 })();
@@ -47,21 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (themeToggleBtn) {
         updateIcon();
 
+        // Nút ở header đổi nhanh Sáng ↔ Tối qua store thiết lập (A10 sẽ lưu bằng PUT .../preferences).
         themeToggleBtn.addEventListener('click', () => {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-
-            if (newTheme === 'dark') {
-                document.documentElement.setAttribute('data-theme', 'dark');
-                sessionStorage.setItem('theme', 'dark');
-            } else {
-                document.documentElement.removeAttribute('data-theme');
-                sessionStorage.setItem('theme', 'light');
-            }
-
-            updateIcon();
-            window.dispatchEvent(new CustomEvent('theme-changed', { detail: { isDark: newTheme === 'dark' } }));
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            window.adminSession.setPreferences({ theme: isDark ? 'LIGHT' : 'DARK' });
         });
+        window.addEventListener('theme-changed', updateIcon);
     }
 
     function updateIcon() {
@@ -160,17 +155,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarToggleBtn = document.getElementById('sidebarToggle');
 
     if (sidebarToggleBtn && sidebar) {
-        // Check saved state
-        const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true' || sessionStorage.getItem('sidebar_collapsed') === 'true';
-        if (isCollapsed) {
-            sidebar.classList.add('collapsed');
-        }
-
+        // Trạng thái ban đầu theo isSidebarCollapsed của store thiết lập (adminSession.applyPreferences);
+        // bấm nút chỉ thu gọn/mở tạm trong lần dùng này, không ghi storage, không đổi thiết lập đã lưu.
         sidebarToggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
-            const isNowCollapsed = sidebar.classList.contains('collapsed');
-            localStorage.setItem('sidebarCollapsed', isNowCollapsed);
-            sessionStorage.setItem('sidebar_collapsed', isNowCollapsed);
             window.dispatchEvent(new Event('resize'));
         });
     }
@@ -300,6 +288,97 @@ window.adminSession = (function () {
         });
     }
 
+    // ---------- Thiết lập giao diện: GET /api/v1/admin/profile/preferences (A09, M09 mục 3.6) ----------
+    // Vue: store Pinia `preferencesAdmin` (src/apps/admin/stores/preferencesAdmin.store.ts).
+    const THEMES = ['LIGHT', 'DARK', 'SYSTEM'];
+    const DEFAULT_PREFERENCES = {   // giá trị mặc định DDL user_settings; dùng khi chưa nạp hoặc nạp lỗi
+        theme: 'SYSTEM', isSidebarCollapsed: false, itemsPerPage: 10,
+        emailNotificationEnabled: true, soundAlertEnabled: true,
+        dashboardWidgets: ['kpiCards', 'poolWidget', 'quantityChart', 'qualityChart', 'topGroupsChart', 'groupMonitorTable']
+            .map((key, i) => ({ key, visible: true, order: i + 1 }))
+    };
+    let currentPreferences = null;  // Vue: preferencesAdmin.data
+
+    function readThemeCache() {
+        try { const t = localStorage.getItem('adminTheme'); return THEMES.includes(t) ? t : null; } catch (e) { return null; }
+    }
+    function writeThemeCache(theme) {
+        try { localStorage.setItem('adminTheme', theme); } catch (e) { /* storage bị chặn: chỉ mất chống nháy */ }
+    }
+    function clonePreferences(p) {
+        return Object.assign({}, p, { dashboardWidgets: p.dashboardWidgets.map(w => Object.assign({}, w)) });
+    }
+
+    // Dữ liệu mẫu đúng cấu trúc data của response (6 trường; dashboardWidgets backend đã chuẩn hóa đủ 6 phần tử).
+    // Template tĩnh: lấy theme từ cache để giả lập "CSDL đã lưu" giữa các trang.
+    const MOCK_PREFERENCES = Object.assign(clonePreferences(DEFAULT_PREFERENCES), {
+        theme: readThemeCache() || 'SYSTEM',
+        itemsPerPage: 20,
+        dashboardWidgets: [
+            { key: 'kpiCards', visible: true, order: 1 },
+            { key: 'poolWidget', visible: true, order: 2 },
+            { key: 'quantityChart', visible: true, order: 3 },
+            { key: 'qualityChart', visible: true, order: 4 },
+            { key: 'groupMonitorTable', visible: true, order: 5 },
+            { key: 'topGroupsChart', visible: false, order: 6 }
+        ]
+    });
+
+    // Giả lập backend GET /api/v1/admin/profile/preferences: không query, chỉ đọc (không chèn dòng, không audit).
+    // 200 data = 6 trường; 401 UNAUTHORIZED (token/tài khoản không còn ACTIVE); 403 PASSWORD_CHANGE_REQUIRED (token giới hạn).
+    function mockAdminPreferences(token) {
+        return new Promise(resolve => setTimeout(resolve, 250)).then(() => {
+            if (!token) {
+                return Promise.reject({
+                    success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+                    message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: now()
+                });
+            }
+            return {
+                success: true, statusCode: 200, message: 'Lấy thiết lập thành công',
+                data: clonePreferences(MOCK_PREFERENCES), timestamp: now()
+            };
+        });
+    }
+
+    // Áp thiết lập lên giao diện toàn cổng: data-theme, sidebar ban đầu; itemsPerPage/dashboardWidgets/soundAlertEnabled
+    // do từng màn hình đọc qua getPreferences(). Ghi cache `adminTheme` (chỉ theme) để chống nháy ở lần tải sau.
+    function applyPreferences(prefs) {
+        const root = document.documentElement;
+        if (prefs.theme === 'LIGHT') root.setAttribute('data-theme', 'light');
+        else if (prefs.theme === 'DARK') root.setAttribute('data-theme', 'dark');
+        else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) root.setAttribute('data-theme', 'dark');
+        else root.removeAttribute('data-theme');
+        writeThemeCache(prefs.theme);
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) sidebar.classList.toggle('collapsed', !!prefs.isSidebarCollapsed);
+        window.dispatchEvent(new CustomEvent('theme-changed', { detail: { isDark: root.getAttribute('data-theme') === 'dark' } }));
+        window.dispatchEvent(new CustomEvent('preferences-changed', { detail: clonePreferences(prefs) }));
+    }
+
+    // Nạp một lần khi vào cổng (store trống); store đã có thì không gọi lại. Lỗi khác 401 không chặn vào cổng:
+    // giữ mặc định. `force` dùng cho nút "Thử lại" ở màn hình cài đặt.
+    function loadPreferences(force) {
+        if (currentPreferences && !force) return Promise.resolve(clonePreferences(currentPreferences));
+        return request(token => mockAdminPreferences(token)).then(res => {
+            currentPreferences = res.data;
+            applyPreferences(currentPreferences);
+            return clonePreferences(currentPreferences);
+        });
+    }
+
+    // Bản sao thiết lập hiện tại (chưa nạp → mặc định DDL).
+    function getPreferences() {
+        return clonePreferences(currentPreferences || DEFAULT_PREFERENCES);
+    }
+
+    // Đổi thiết lập trong store rồi áp lên giao diện (A10: gọi PUT .../preferences rồi mới cập nhật store).
+    function setPreferences(patch) {
+        currentPreferences = Object.assign(getPreferences(), patch || {});
+        applyPreferences(currentPreferences);
+        return getPreferences();
+    }
+
     // Nạp `admin` vào store (chỉ khi chưa có: sau đăng nhập đã có data.admin của login).
     function loadMe() {
         if (currentAdmin) return Promise.resolve(currentAdmin);
@@ -317,6 +396,7 @@ window.adminSession = (function () {
         const ready = accessToken ? Promise.resolve(accessToken) : refreshOnce();
         return ready
             .then(() => loadMe())
+            .then(admin => loadPreferences().catch(() => null).then(() => admin))
             .catch(err => { if (!err || err.statusCode === 401) goLogin(); return null; });
     }
 
@@ -353,7 +433,7 @@ window.adminSession = (function () {
     function logout() {
         return request(token => mockAdminLogout(token))
             .catch(() => null)
-            .then(() => { accessToken = null; currentAdmin = null; goLogin(); });
+            .then(() => { accessToken = null; currentAdmin = null; currentPreferences = null; goLogin(); });
     }
 
     // Header AdminLayout: fullName, roleName, avatarUrl (null → ảnh chữ cái đầu từ fullName).
@@ -396,9 +476,15 @@ window.adminSession = (function () {
     }
 
     // Trang tĩnh: chỉ đổ dữ liệu mẫu vào header (không chạy guard, để mở từng trang HTML được).
-    document.addEventListener('DOMContentLoaded', () => renderAccount(MOCK_ADMIN));
+    // Thiết lập: áp dữ liệu mẫu như sau khi guard nạp preferences (Vue: guard gọi loadPreferences()).
+    document.addEventListener('DOMContentLoaded', () => {
+        renderAccount(MOCK_ADMIN);
+        currentPreferences = clonePreferences(MOCK_PREFERENCES);
+        applyPreferences(currentPreferences);
+    });
 
-    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, updateAccount, setAccessToken, getAccount };
+    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, updateAccount, setAccessToken, getAccount,
+        loadPreferences, getPreferences, setPreferences, applyPreferences };
 })();
 
 // ----------------------------------------
