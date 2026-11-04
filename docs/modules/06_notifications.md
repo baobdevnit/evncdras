@@ -71,6 +71,7 @@ Bảng MariaDB: `notifications` và `notification_recipients` (Mô tả chi ti�
 
 ### 3.2. Đánh dấu đã đọc 1 thông báo (`PUT /api/v1/notifications/:id/read`)
 
+- `:id` là `notifications.id` (trường `id` của phần tử mục 3.1). Người gọi không có dòng `notification_recipients` cho thông báo đó (`uniq_notif_recipient`) thì trả `404`. Đã đọc rồi thì giữ `read_at` cũ.
 - **Response**: Trả về `success: true` và `unreadCount` mới.
 
 ### 3.3. Đánh dấu đã đọc tất cả (`PUT /api/v1/notifications/mark-all-read`)
@@ -216,7 +217,7 @@ export class MailerService {
 ### 5.2. Soạn thông báo (chỉ khu vực Admin)
 
 - Nút "Soạn thông báo" trên header `NotificationsView` của khu vực Admin, chỉ hiện khi tài khoản có `system:manage`. Template `notifications.html` chưa có nút này: dựng modal theo kiểu `.modal` chung.
-- Modal gồm `type` (`SYSTEM_MAINTENANCE` \| `GENERAL`), `title`, `content`, `severity`, `target` (`ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` với dropdown chỉ liệt kê nhóm `ACTIVE` từ `GET /api/v1/admin/user-groups` \| `EVERYONE`); gửi `POST /api/v1/admin/notifications`, thành công thì đóng modal và hiện toast.
+- Modal gồm `type` (`SYSTEM_MAINTENANCE` \| `GENERAL`), `title`, `content`, `severity` (`INFO` \| `WARNING` \| `CRITICAL`; `CRITICAL` gửi thêm email cho người nhận đã bật `email_notification_enabled`, `docs/01_database_schema.md` mục 10), `target` (`ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` với dropdown chỉ liệt kê nhóm `ACTIVE` từ `GET /api/v1/admin/user-groups` \| `EVERYONE`); gửi `POST /api/v1/admin/notifications`; thành công trả `201` với `data = { id, recipientCount }` (`recipientCount` = số dòng `notification_recipients` đã tạo), đóng modal và hiện toast.
 - Khu vực Member không có chức năng này.
 
 ### 5.3. Quản lý trạng thái Pinia Store (`useNotificationStore`)

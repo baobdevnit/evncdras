@@ -141,6 +141,7 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
   "username": "nguyen.vanc",
   "email": "vanc@evn.com.vn",
   "fullName": "Nguyễn Văn C",
+  "jobTitle": "Kỹ sư Vận hành",
   "phoneNumber": "0987654321",
   "roleCode": "REGULAR_USER"
 }
@@ -148,7 +149,8 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 
 - **Mật khẩu ban đầu do hệ thống sinh**: body không có `password`. Hệ thống sinh mật khẩu tạm 16 ký tự đạt chính sách (`docs/01_database_schema.md` mục 6.1), đặt `must_change_password = 1`, và trả **một lần** trong response (`temporaryPassword`); hệ thống chỉ lưu bản băm, không có API xem lại.
 - `roleCode` tùy chọn, mặc định `REGULAR_USER`; chỉ nhận `GROUP_ADMIN`, `USER_RECORDING`, `REGULAR_USER`. Gán `GROUP_ADMIN` cần thêm `group:manage_admin`; gán `USER_RECORDING` cần thêm `group:toggle_recording` và nhóm có `allow_recording_access = 1` (ngược lại `409 GROUP_RECORDING_DISABLED`).
-- Cùng transaction tạo dòng `users` và dòng `user_roles`. Response trả về `roleCode`, `roleName`.
+- `jobTitle`, `phoneNumber` tùy chọn (`users.job_title`, `users.phone_number` cho phép NULL).
+- Cùng transaction tạo dòng `users`, dòng `user_roles` và dòng `user_settings` (`user_type = USER`, giá trị mặc định, `docs/01_database_schema.md` mục 12); ghi `audit_logs` `USER / CREATE`. Response trả về `roleCode`, `roleName`.
 
 - Mật khẩu được mã hóa `bcrypt.hash(password, 10)` trước khi lưu vào CSDL.
 

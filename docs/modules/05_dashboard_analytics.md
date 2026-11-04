@@ -142,17 +142,17 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
     "totalCalls": {
       "value": 1245600,
       "trend": 12.0,
-      "trendType": "positive"
+      "trendType": "UP"
     },
     "durationSec": {
       "value": 230712000,
       "trend": 5.4,
-      "trendType": "positive"
+      "trendType": "UP"
     },
     "asrPercentage": {
       "value": 82.5,
       "trend": 1.2,
-      "trendType": "positive"
+      "trendType": "UP"
     },
     "avgMos": {
       "value": 4.18
@@ -165,7 +165,7 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
 ```
 
 - **Không có chuỗi hiển thị** (`docs/02_api_contracts.md` mục 2): API chỉ trả số. Phạm vi `SYSTEM` trả `groupId = null`, `groupName = null`; frontend tự hiển thị nhãn toàn hệ thống. Frontend tự định dạng số và đơn vị (`durationSec` đổi sang phút), tự dựng nhãn so sánh từ `trend` (vd. "+12% so với kỳ trước"), và tự lấy nhãn chất lượng của `avgMos` theo bảng dải MOS (`docs/01_database_schema.md` mục 2.1). `avgMos.value = null` khi không có mẫu QoS.
-- **`trend`** = % thay đổi so với **kỳ liền trước cùng số ngày**, cùng phạm vi (toàn hệ thống hoặc cùng nhóm), đọc `stats_*` như kỳ đang xem: `today` so với hôm qua đến cùng giờ; `yesterday` so với hôm kia; `last_7_days` so với 7 ngày trước đó; `this_week`/`this_month` so với cùng số ngày đầu tuần/tháng trước; `last_month` so với tháng liền trước nữa; `custom` so với khoảng cùng số ngày ngay trước `fromDate`. `trend = null` (và không có `trendType`) khi kỳ trước không có dữ liệu (mẫu số bằng 0). `trendType` theo dấu của `trend`, chỉ có ở chỉ số có `trend`.
+- **`trend`** = % thay đổi so với **kỳ liền trước cùng số ngày**, cùng phạm vi (toàn hệ thống hoặc cùng nhóm), đọc `stats_*` như kỳ đang xem: `today` so với hôm qua đến cùng giờ; `yesterday` so với hôm kia; `last_7_days` so với 7 ngày trước đó; `this_week`/`this_month` so với cùng số ngày đầu tuần/tháng trước; `last_month` so với tháng liền trước nữa; `custom` so với khoảng cùng số ngày ngay trước `fromDate`. `trend = null` (và không có `trendType`) khi kỳ trước không có dữ liệu (mẫu số bằng 0). `trendType` theo dấu của `trend`: `UP` (`trend > 0`), `DOWN` (`< 0`), `FLAT` (`= 0`); chỉ có ở chỉ số có `trend`.
 
 ### 3.2. `GET /api/v1/dashboard/charts`
 
@@ -179,7 +179,7 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
   "success": true,
   "statusCode": 200,
   "data": {
-    "granularity": "hour",
+    "granularity": "HOUR",
     "labels": ["00", "01", "02"],
     "series": {
       "totalCalls": [12, 4, 0],
@@ -195,6 +195,7 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
 }
 ```
 
+- `granularity` = `HOUR` (`period = today`, nhãn là giờ) | `DAY` (kỳ khác, nhãn là ngày `YYYY-MM-DD`).
 - Khung không có cuộc gọi: bộ đếm = `0`, tỷ lệ và MOS = `null`. Ở phạm vi toàn hệ thống, ba chuỗi hướng gọi thay bằng `callsIntraGroup`, `callsInterGroup`, `callsUnassigned` (quy tắc quy chiếu lưu lượng `docs/01_database_schema.md` mục 15).
 
 ---

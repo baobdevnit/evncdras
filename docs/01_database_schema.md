@@ -345,8 +345,8 @@ CREATE TABLE IF NOT EXISTS `cdr_enriched` (
   `mos_called_x100` smallint(5) unsigned DEFAULT NULL COMMENT 'MOS phía nhận ×100, tính từ RTP_Called_G107R theo E-model; NULL nếu không có RTP',
   `mos_x100` smallint(5) unsigned DEFAULT NULL COMMENT 'MOS của leg ×100 = trung bình hai chiều (hoặc chiều duy nhất có dữ liệu); NULL nếu cả hai chiều NULL',
   `enriched_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Thời điểm hoàn tất làm giàu dữ liệu',
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL COMMENT 'Chép nguyên cdr.created_at (cột PABX, thuộc object raw của GET /cdr/:id); không phải thời điểm ghi dòng làm giàu (xem enriched_at)',
+  `updated_at` timestamp NULL DEFAULT NULL COMMENT 'Chép nguyên cdr.updated_at (cột PABX, thuộc object raw của GET /cdr/:id)',
   PRIMARY KEY (`id`, `Created`) COMMENT 'Created bắt buộc có trong PK vì bảng partition theo Created',
   KEY `idx_cdre_caller_group` (`caller_group_id`, `Created`),
   KEY `idx_cdre_called_group` (`called_group_id`, `Created`),
@@ -1023,7 +1023,7 @@ CREATE TABLE IF NOT EXISTS `user_settings` (
   `is_sidebar_collapsed` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0: Mở rộng, 1: Thu gọn thanh sidebar',
   `sound_alert_enabled` tinyint(1) NOT NULL DEFAULT 1 COMMENT '0: Tắt chuông, 1: Bật chuông cảnh báo sự cố',
   `email_notification_enabled` tinyint(1) NOT NULL DEFAULT 1,
-  `items_per_page` int(11) NOT NULL DEFAULT 10,
+  `items_per_page` int(11) NOT NULL DEFAULT 10 COMMENT 'Chỉ 10, 20 hoặc 50 (PUT .../preferences giá trị khác trả 400), khớp limit của GET /cdr',
   `custom_preferences` json DEFAULT NULL COMMENT 'Tùy chọn giao diện mở rộng, khóa camelCase như API trả về. Hiện chỉ có dashboardWidgets (Admin, docs/modules/09_admin_profile.md mục 1)',
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -1081,7 +1081,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | `AUDIO` | `LISTEN_AUDIO`, `DOWNLOAD_AUDIO` |
 | `CDR` | `EXPORT_CDR`, `PURGE_CDR_PARTITION` (actor `SYSTEM`) |
 | `REPORT` | `EXPORT_REPORT` (`action_details.format`: `EXCEL`/`PDF`) |
-| `USER` / `ADMIN` | `CREATE`, `UPDATE`, `LOCK`, `UNLOCK`, `DEACTIVATE`, `CHANGE_ROLE` (chỉ `USER`; `action_details = { "from": "<roleCode>", "to": "<roleCode>" }`) |
+| `USER` / `ADMIN` | `CREATE`, `UPDATE` (kể cả tự sửa hồ sơ `PUT /profile`, `PUT /admin/profile` và tự đổi ảnh `POST .../avatar`, `action_details = { "changedFields": [...] }`; `PUT .../preferences` không ghi), `LOCK`, `UNLOCK`, `DEACTIVATE`, `CHANGE_ROLE` (chỉ `USER`; `action_details = { "from": "<roleCode>", "to": "<roleCode>" }`) |
 | `USER_GROUP` | `CREATE`, `UPDATE`, `DEACTIVATE`, `TOGGLE_GROUP_RECORDING` (`allow_recording_access`) |
 | `PREFIX` | `UPDATE_PREFIX_GROUP`, `ALLOCATE_RANGE`, `UPDATE_RANGE`, `REVOKE_RANGE`, `UPDATE_NUMBER` |
 | `ORGANIZATION` | `CREATE`, `UPDATE`, `DELETE` |
@@ -1142,7 +1142,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 >
 >   | Trung bình | Trọng số |
 >   |---|---|
->   | `avg_mos`, `avg_r_value` | `qos_sample_count` (leg có `mos_x100`; trùng tập leg có R ở ít nhất một phía) |
+>   | `avg_mos`, `avg_r_value_x100` | `qos_sample_count` (leg có `mos_x100`; trùng tập leg có R ở ít nhất một phía) |
 >   | `avg_caller_mos` | `caller_mos_sample_count` (leg có `mos_caller_x100`) |
 >   | `avg_called_mos` | `called_mos_sample_count` (leg có `mos_called_x100`) |
 >   | `avg_jitter_ms` | `jitter_sample_count` (leg có jitter ở ít nhất một phía) |
@@ -1230,13 +1230,13 @@ CREATE TABLE IF NOT EXISTS `stats_hourly` (
   `ner_percentage` decimal(5,2) NOT NULL DEFAULT 0.00 COMMENT 'Tỷ lệ hiệu quả mạng NER (% = (answered_calls + busy_calls + no_answer_calls) / total_calls * 100; 0 nếu total_calls = 0)',
 
   -- 4. Chất lượng Âm thanh & QoS Thoại (ITU-T G.107)
-  `qos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg (mọi leg, kể cả leg phụ) có mos_x100 IS NOT NULL; trọng số của avg_mos, avg_r_value khi cuộn giờ -> ngày -> kỳ',
+  `qos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg (mọi leg, kể cả leg phụ) có mos_x100 IS NOT NULL; trọng số của avg_mos, avg_r_value_x100 khi cuộn giờ -> ngày -> kỳ',
   `caller_mos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có mos_caller_x100 IS NOT NULL; trọng số của avg_caller_mos',
   `called_mos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có mos_called_x100 IS NOT NULL; trọng số của avg_called_mos',
   `avg_caller_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía gọi = AVG(mos_caller_x100) trên các leg có dữ liệu (×100, ví dụ 425 = 4.25); gia quyền theo caller_mos_sample_count',
   `avg_called_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía nhận = AVG(mos_called_x100) (×100); gia quyền theo called_mos_sample_count',
   `avg_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình theo leg = AVG(mos_x100) (×100); gia quyền theo qos_sample_count',
-  `avg_r_value` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Hệ số R ITU-T G.107 trung bình (0 - 100) = AVG(R của leg), R của leg = trung bình các phía có RTP_*_G107R; gia quyền theo qos_sample_count',
+  `avg_r_value_x100` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Hệ số R ITU-T G.107 trung bình ×100 (0 - 10000, ví dụ 9285 = 92.85; API chia 100, giữ 2 chữ số thập phân) = ROUND(AVG(R của leg) × 100), R của leg = trung bình các phía có RTP_*_G107R; gia quyền theo qos_sample_count',
   `mos_excellent_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg chất lượng Xuất sắc (mos_x100 >= 400)',
   `mos_good_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg chất lượng Tốt (350 <= mos_x100 < 400)',
   `mos_fair_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg chất lượng Trung bình (300 <= mos_x100 < 350)',
@@ -1318,13 +1318,13 @@ CREATE TABLE IF NOT EXISTS `stats_daily` (
   `ner_percentage` decimal(5,2) NOT NULL DEFAULT 0.00 COMMENT 'Tỷ lệ hiệu quả mạng NER trong ngày (%), tính lại từ các bộ đếm ngày',
 
   -- 4. Chất lượng Âm thanh & QoS Thoại (ITU-T G.107)
-  `qos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg (mọi leg, kể cả leg phụ) có mos_x100 IS NOT NULL; trọng số của avg_mos, avg_r_value khi cuộn giờ -> ngày -> kỳ',
+  `qos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg (mọi leg, kể cả leg phụ) có mos_x100 IS NOT NULL; trọng số của avg_mos, avg_r_value_x100 khi cuộn giờ -> ngày -> kỳ',
   `caller_mos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có mos_caller_x100 IS NOT NULL; trọng số của avg_caller_mos',
   `called_mos_sample_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg có mos_called_x100 IS NOT NULL; trọng số của avg_called_mos',
   `avg_caller_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía gọi = AVG(mos_caller_x100) trên các leg có dữ liệu (×100, ví dụ 425 = 4.25); gia quyền theo caller_mos_sample_count',
   `avg_called_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình phía nhận = AVG(mos_called_x100) (×100); gia quyền theo called_mos_sample_count',
   `avg_mos` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'MOS trung bình theo leg = AVG(mos_x100) (×100); gia quyền theo qos_sample_count',
-  `avg_r_value` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Hệ số R ITU-T G.107 trung bình (0 - 100) = AVG(R của leg), R của leg = trung bình các phía có RTP_*_G107R; gia quyền theo qos_sample_count',
+  `avg_r_value_x100` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Hệ số R ITU-T G.107 trung bình ×100 (0 - 10000, ví dụ 9285 = 92.85; API chia 100, giữ 2 chữ số thập phân) = ROUND(AVG(R của leg) × 100), R của leg = trung bình các phía có RTP_*_G107R; gia quyền theo qos_sample_count',
   `mos_excellent_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg Xuất sắc (mos_x100 >= 400)',
   `mos_good_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg Tốt (350 <= mos_x100 < 400)',
   `mos_fair_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT 'Số leg Trung bình (300 <= mos_x100 < 350)',

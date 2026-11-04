@@ -74,7 +74,9 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 
 ### 3.2. Danh sách Quản trị viên (`GET /api/v1/admin/admins`)
 - **Guard**: `AdminAuthGuard`, `Permission: admin:manage`
-- Chỉ vai trò `ROOT_ADMIN` có quyền này. Mỗi dòng trả kèm `roleCode`, `roleName`.
+- Chỉ vai trò `ROOT_ADMIN` có quyền này.
+- **Query**: `page` (mặc định 1), `limit` (mặc định 10, tối đa 100), `search` (khớp `username`, `email`, `full_name`), `status` (`ACTIVE` | `LOCKED` | `INACTIVE`), như `GET /api/v1/users` (`docs/modules/03_auth_user.md` mục 3.3). Khung phân trang theo `docs/02_api_contracts.md` mục 2.2.
+- **Phần tử**: `id`, `username`, `email`, `fullName`, `phoneNumber`, `avatarUrl`, `status`, `roleCode`, `roleName` (từ `admin_roles`), `lastLoginAt`, `createdAt`, `updatedAt`. Không trả `password_hash`, `failed_login_count`, `locked_until` hay thông tin phiên.
 
 ### 3.3. Tạo mới Quản trị viên (`POST /api/v1/admin/admins`)
 - **Guard**: `AdminAuthGuard`, `Permission: admin:manage`
@@ -87,7 +89,7 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
   "phoneNumber": "0912345678"
 }
 ```
-- Admin tạo qua API luôn mang vai trò `SYSTEM_ADMIN`: cùng transaction tạo dòng `admins` và dòng `admin_roles` (`role_id` của `SYSTEM_ADMIN`). Body không có trường vai trò.
+- Admin tạo qua API luôn mang vai trò `SYSTEM_ADMIN`: cùng transaction tạo dòng `admins` (`created_by_admin_id` = Admin gọi API), dòng `admin_roles` (`role_id` của `SYSTEM_ADMIN`) và dòng `user_settings` (`user_type = ADMIN`, giá trị mặc định, `docs/01_database_schema.md` mục 12); ghi `audit_logs` `ADMIN / CREATE`. Body không có trường vai trò.
 - **Mật khẩu ban đầu do hệ thống sinh**: body không có `password`. Hệ thống sinh mật khẩu tạm 16 ký tự đạt chính sách (`docs/01_database_schema.md` mục 6.1), đặt `must_change_password = 1`, và trả **một lần** trong response (`temporaryPassword`); hệ thống chỉ lưu bản băm, không có API xem lại.
 - **Lưu ý**: Không có API gán hoặc đổi vai trò Admin. Vai trò `ROOT_ADMIN` chỉ được gán qua seed ban đầu (`npm run seed:root`, `docs/01_database_schema.md` mục 3).
 

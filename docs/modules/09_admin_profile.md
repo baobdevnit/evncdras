@@ -49,7 +49,7 @@ Dữ liệu lưu tại bảng `admins`, `user_settings` (`user_type = 'ADMIN'`) 
 ```
 
 ### 3.2. `PUT /api/v1/admin/profile`
-- Cập nhật `fullName`, `phoneNumber`. Không nhận `email`, `avatarUrl` (gửi lên trả `400`); ảnh đại diện chỉ đổi qua `POST /api/v1/admin/profile/avatar`, API này lưu file, ghi luôn `admins.avatar_url` và trả `avatarUrl` mới.
+- Cập nhật `fullName`, `phoneNumber`. Không nhận `email`, `avatarUrl` (gửi lên trả `400`); ảnh đại diện chỉ đổi qua `POST /api/v1/admin/profile/avatar`, API này lưu file, ghi luôn `admins.avatar_url` và trả `avatarUrl` mới. Cả hai API ghi `audit_logs` `ADMIN / UPDATE` (`action_details = { "changedFields": [...] }`); `PUT .../preferences` không ghi.
 
 ### 3.3. `PUT /api/v1/admin/profile/change-password`
 - Đổi mật khẩu Quản trị viên. Body và quy tắc giống `PUT /api/v1/profile/change-password` (`docs/modules/08_user_profile.md` mục 3.4).

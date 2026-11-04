@@ -194,7 +194,7 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
     "lossPercent": 0.01,
     "avgJitterMs": 1.490,
     "maxJitterMs": 147.0,
-    "highPacketLossLegs": 6,
+    "highPacketLossLegsCount": 6,
     "avgSip100DelayMs": 118,
     "avgSip180DelayMs": 241,
     "avgSip183DelayMs": null,
@@ -203,9 +203,9 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 }
 ```
 
-- **Đơn vị**: `totalCalls`, `asrPercentage`, `nerPercentage`, `avgSip100DelayMs`, `avgSip180DelayMs`, `avgSip183DelayMs`, `avgAnswerDelayMs` tính theo cuộc gọi (leg chính). `qosSampleCount`, `avgMos`, `avgRValue`, `avgCallerMos`, `avgCalledMos`, `mosDistribution`, `lossPercent`, `avgJitterMs`, `maxJitterMs`, `highPacketLossLegs` tính theo **leg** (cả leg A và leg B), để phản ánh cả đoạn máy gọi ↔ lõi và đoạn lõi ↔ máy nhận (`docs/01_database_schema.md` mục 15). Số liệu ví dụ lấy từ dữ liệu thật `voip_cdr_20250817.sql`.
-- `avgRValue` = hệ số R ITU-T G.107 trung bình (0–100, 2 chữ số thập phân) từ `stats_*.avg_r_value`, gia quyền theo `qos_sample_count`. `avgCallerMos`, `avgCalledMos` = MOS trung bình riêng phía gọi / phía nhận (thang thập phân, 2 chữ số) từ `avg_caller_mos`, `avg_called_mos`, gia quyền theo `caller_mos_sample_count`, `called_mos_sample_count` (quy tắc roll-up `docs/01_database_schema.md` mục 15); bộ đếm mẫu bằng 0 thì `null`. Hai trường này phục vụ đánh giá chất lượng hai chiều: phía nào thấp hơn rõ rệt thì sự cố nằm ở đoạn mạng của phía đó (máy gọi ↔ lõi hay lõi ↔ máy nhận).
-- `mosDistribution.*.percent` tính trên `qosSampleCount` (chỉ leg có MOS). `asrPercentage`, `nerPercentage` tính trên `totalCalls`. Bốn trường `avg*DelayMs` đơn vị ms, cùng tên với báo cáo `failure` (`docs/modules/15_core_business_reports_export.md` mục 2.1). `highPacketLossLegs` đếm theo ngưỡng `PACKET_LOSS_PERCENT` tại thời điểm tổng hợp từng khung giờ.
+- **Đơn vị**: `totalCalls`, `asrPercentage`, `nerPercentage`, `avgSip100DelayMs`, `avgSip180DelayMs`, `avgSip183DelayMs`, `avgAnswerDelayMs` tính theo cuộc gọi (leg chính). `qosSampleCount`, `avgMos`, `avgRValue`, `avgCallerMos`, `avgCalledMos`, `mosDistribution`, `lossPercent`, `avgJitterMs`, `maxJitterMs`, `highPacketLossLegsCount` tính theo **leg** (cả leg A và leg B), để phản ánh cả đoạn máy gọi ↔ lõi và đoạn lõi ↔ máy nhận (`docs/01_database_schema.md` mục 15). Số liệu ví dụ lấy từ dữ liệu thật `voip_cdr_20250817.sql`.
+- `avgRValue` = hệ số R ITU-T G.107 trung bình (0–100, 2 chữ số thập phân) từ `stats_*.avg_r_value_x100 / 100`, gia quyền theo `qos_sample_count`. `avgCallerMos`, `avgCalledMos` = MOS trung bình riêng phía gọi / phía nhận (thang thập phân, 2 chữ số) từ `avg_caller_mos`, `avg_called_mos`, gia quyền theo `caller_mos_sample_count`, `called_mos_sample_count` (quy tắc roll-up `docs/01_database_schema.md` mục 15); bộ đếm mẫu bằng 0 thì `null`. Hai trường này phục vụ đánh giá chất lượng hai chiều: phía nào thấp hơn rõ rệt thì sự cố nằm ở đoạn mạng của phía đó (máy gọi ↔ lõi hay lõi ↔ máy nhận).
+- `mosDistribution.*.percent` tính trên `qosSampleCount` (chỉ leg có MOS). `asrPercentage`, `nerPercentage` tính trên `totalCalls`. Bốn trường `avg*DelayMs` đơn vị ms, cùng tên với báo cáo `failure` (`docs/modules/15_core_business_reports_export.md` mục 2.1). `highPacketLossLegsCount` đếm theo ngưỡng `PACKET_LOSS_PERCENT` tại thời điểm tổng hợp từng khung giờ.
 
 ### 3.2.1. Phân bố mã kết thúc SIP (`GET /api/v1/qos/disconnection-codes`)
 

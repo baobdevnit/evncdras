@@ -69,11 +69,12 @@ Bảng MariaDB: `users` và `user_settings`.
 
 - **Body**: `{ "fullName": "Trần Thị Bích", "phoneNumber": "0912345679" }`
 - **Validation**: Không cho phép client gửi `email`, `username`, `roleCode` lên để can thiệp (vai trò chỉ đổi qua `PUT /users/:id/role`). Không nhận `avatarUrl` (ảnh chỉ đổi qua mục 3.3). Gửi các trường này thì trả `400`.
+- Ghi `audit_logs` `USER / UPDATE` (`resource_id` = id người gọi, `action_details = { "changedFields": [...] }`).
 
 ### 3.3. `POST /api/v1/profile/avatar`
 
 - **Content-Type**: `multipart/form-data` (File ảnh `.png`, `.jpg`, dung lượng $\le 2\text{ MB}$).
-- Lưu file rồi ghi luôn `users.avatar_url` của chính người gọi; response trả `avatarUrl` mới. Đây là cách duy nhất đổi ảnh đại diện.
+- Lưu file rồi ghi luôn `users.avatar_url` của chính người gọi; response trả `avatarUrl` mới. Đây là cách duy nhất đổi ảnh đại diện. Ghi `audit_logs` `USER / UPDATE` (`action_details = { "changedFields": ["avatarUrl"] }`).
 
 ### 3.4. `PUT /api/v1/profile/change-password`
 
@@ -95,6 +96,7 @@ Bảng MariaDB: `users` và `user_settings`.
 ### 3.5. `GET /api/v1/profile/preferences` & `PUT /api/v1/profile/preferences`
 
 - Lấy và lưu thiết lập: `theme`, `isSidebarCollapsed`, `itemsPerPage`, `emailNotificationEnabled`, `soundAlertEnabled`.
+- `itemsPerPage` chỉ nhận `10`, `20`, `50` (mục 1.1, khớp `limit` của `GET /cdr`); `theme` chỉ nhận `LIGHT`, `DARK`, `SYSTEM`; giá trị khác trả `400`. `PUT` không ghi `audit_logs`.
 
 ### 3.6. Phiên đăng nhập của chính mình (`GET /api/v1/auth/sessions`, `DELETE /api/v1/auth/sessions/:id`)
 

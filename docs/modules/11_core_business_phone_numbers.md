@@ -102,6 +102,7 @@ Trong cùng transaction tạo/cập nhật dải số:
 
 - **Guard**: `UserAuthGuard` trên route User (chỉ dữ liệu nhóm mình); bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1).
 - Mỗi phần tử dải số trong response có thêm `counts`: `{ "total": 500, "allocated": 480, "reserved": 15, "locked": 5 }` (đếm `phone_numbers` theo `range_id` và `status`); bản User dùng cho widget dải số trên Dashboard thành viên. API không trả chuỗi hiển thị (`docs/02_api_contracts.md` mục 2): nhãn dải (vd. "42000 - 42499", "42 xxx (500 số)") do frontend ghép từ `prefix`, `rangeFrom`, `rangeTo`, `counts.total`.
+- `updatedAt` cấp nhóm = `MAX(phone_prefix_ranges.updated_at)` các dải của nhóm; nhóm chưa có dải thì `null`. `totalNumbers` = tổng `total_numbers` các dải.
 - **Response**:
 
 ```json
