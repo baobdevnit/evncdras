@@ -227,6 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ----------------------------------------
 window.adminSession = (function () {
     let accessToken = null;          // Vue: authAdmin.accessToken (chỉ trong bộ nhớ)
+    let currentAdmin = null;         // Vue: authAdmin.admin (data của GET /admin/auth/me hoặc data.admin của login)
     let refreshPromise = null;       // dùng chung cho các request đồng thời (single-flight)
     let mockHasRefreshCookie = true; // giả lập cookie; false = chưa đăng nhập/phiên đã thu hồi
 
@@ -266,11 +267,57 @@ window.adminSession = (function () {
         window.location.href = 'login.html';
     }
 
+    // Dữ liệu mẫu đúng cấu trúc `admin` (docs/modules/04_auth_admin.md mục 3.1, 3.1.1).
+    // permissions sắp theo code; ROOT_ADMIN thật có đủ 25 mã (rút gọn ở đây).
+    const MOCK_ADMIN = {
+        id: 1,
+        username: 'root.admin@evnict.vn',
+        fullName: 'Quản trị viên Tối cao EVNICT',
+        email: 'root.admin@evnict.vn',
+        avatarUrl: null,
+        roleCode: 'ROOT_ADMIN',
+        roleName: 'Quản trị viên tối cao',
+        permissions: ['admin:manage', 'audit:view', 'cdr:download_audio', 'cdr:export', 'cdr:filter_advanced',
+            'cdr:listen_audio', 'cdr:view', 'org:manage', 'org:view', 'qos:manage', 'qos:view', 'role:view', 'system:manage']
+    };
+
+    // Giả lập backend GET /api/v1/admin/auth/me (A04): không query, không ghi CSDL.
+    // 200 data = admin; token thiếu/hết hạn hoặc tài khoản không còn ACTIVE → 401 UNAUTHORIZED
+    // (không xóa cookie; request() refresh một lần, refresh 401 thì về login).
+    function mockAdminMe(token) {
+        return new Promise(resolve => setTimeout(resolve, 200)).then(() => {
+            if (!token) {
+                return Promise.reject({
+                    success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+                    message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: now()
+                });
+            }
+            return {
+                success: true, statusCode: 200, message: 'Lấy thông tin tài khoản thành công',
+                data: Object.assign({}, MOCK_ADMIN, { permissions: MOCK_ADMIN.permissions.slice() }),
+                timestamp: now()
+            };
+        });
+    }
+
+    // Nạp `admin` vào store (chỉ khi chưa có: sau đăng nhập đã có data.admin của login).
+    function loadMe() {
+        if (currentAdmin) return Promise.resolve(currentAdmin);
+        return request(token => mockAdminMe(token)).then(res => {
+            currentAdmin = res.data;
+            renderAccount(currentAdmin);
+            return currentAdmin;
+        });
+    }
+
     // Guard lần đầu vào cổng (kể cả tải lại trang): chưa có token → refresh;
     // thành công thì gọi GET /api/v1/admin/auth/me (A04) để nạp `admin` vào store.
+    // Vue: router.beforeEach → ensureSession(), rồi kiểm tra meta.permissions với authAdmin.admin.permissions.
     function ensureSession() {
-        if (accessToken) return Promise.resolve(accessToken);
-        return refreshOnce().catch(() => { goLogin(); return null; });
+        const ready = accessToken ? Promise.resolve(accessToken) : refreshOnce();
+        return ready
+            .then(() => loadMe())
+            .catch(err => { if (!err || err.statusCode === 401) goLogin(); return null; });
     }
 
     // Bọc mọi lời gọi API cổng Admin (trừ /auth/login và /auth/refresh):
@@ -306,10 +353,30 @@ window.adminSession = (function () {
     function logout() {
         return request(token => mockAdminLogout(token))
             .catch(() => null)
-            .then(() => { accessToken = null; goLogin(); });
+            .then(() => { accessToken = null; currentAdmin = null; goLogin(); });
     }
 
-    return { ensureSession, request, refreshOnce, logout };
+    // Header AdminLayout: fullName, roleName, avatarUrl (null → ảnh chữ cái đầu từ fullName).
+    // Vue: đọc authAdmin.admin; ảnh chữ cái đầu dùng component nội bộ, không gọi dịch vụ ngoài.
+    function renderAccount(admin) {
+        const box = document.getElementById('userProfileBtn');
+        if (!box || !admin) return;
+        const nameEl = box.querySelector('.user-name');
+        const roleEl = box.querySelector('.user-role');
+        const img = box.querySelector('.avatar');
+        if (nameEl) nameEl.textContent = admin.fullName;
+        if (roleEl) roleEl.textContent = admin.roleName;
+        if (img) {
+            img.src = admin.avatarUrl ||
+                'https://ui-avatars.com/api/?name=' + encodeURIComponent(admin.fullName) + '&background=0033A0&color=fff';
+            img.alt = admin.fullName;
+        }
+    }
+
+    // Trang tĩnh: chỉ đổ dữ liệu mẫu vào header (không chạy guard, để mở từng trang HTML được).
+    document.addEventListener('DOMContentLoaded', () => renderAccount(MOCK_ADMIN));
+
+    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount };
 })();
 
 // ----------------------------------------

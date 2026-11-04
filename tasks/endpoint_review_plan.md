@@ -128,13 +128,13 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | 2026-11-04 | A01 | Template mock gọi API bằng hàm trả Promise với **đúng** envelope thành công/lỗi; không ghi token/tài khoản vào `localStorage`/`sessionStorage` (ghi chú chỗ store Pinia) | `templates/admin/login.js` (mẫu) |
 | 2026-11-04 | A02 | Mọi `401` của `refresh` (và `logout`) xóa cookie; cookie Refresh Token `Max-Age` = số giây còn lại tới `expires_at` khi `auth_sessions.remember_me = 1`; client không áp refresh-khi-`401` cho `/auth/login`, `/auth/refresh`, chỉ gửi lại một lần. Mẫu client phiên: `window.adminSession` | `01` §6.1, M03 §3.2.1, `00` §5.3.2, `templates/admin/main.js` |
 | 2026-11-04 | A03 | Đăng xuất phía client luôn xóa store, ngắt Socket.IO và về login của cổng dù API lỗi; mẫu `window.adminSession.logout()`. Endpoint thu hồi phiên theo cookie phải khớp `actor_type`/`actor_id` của token và đi theo chuỗi `ROTATED` | M03 §3.2.1, `templates/admin/main.js` |
-| 2026-11-04 | A03 | ✅ Xong 3 lớp; không đổi DDL; 4 câu hỏi chốt ngay trong phiên (audit chỉ khi thu hồi được, cookie `ROTATED` đi theo chuỗi, idempotent `200` + không thu hồi phiên người khác, giữ guard) | E-A03-01…04 | `01`, `02`, M03, M04, `templates/admin/main.js`, `templates/admin/data-permissions.html`, `templates/admin/user_group.html`, `DB_AUDIT_CONSOLIDATED.md`, file này | `85e7b8c` |
+| 2026-11-04 | A04 | Header `AdminLayout`/`MemberLayout` đọc `fullName`, `roleName`, `avatarUrl` từ store (`/auth/me` hoặc response đăng nhập), không cứng chữ; `/auth/me` chỉ gọi khi store chưa có tài khoản; tài khoản không còn `ACTIVE` → `401 UNAUTHORIZED` (áp cho U04). Mẫu `window.adminSession.loadMe`/`renderAccount` | M04 §3.1.1, `templates/admin/main.js` |
 
 ---
 
 ## 5. Bảng tiến độ
 
-**Tiến độ**: 3 / 99 ✅ · 0 ⏸ · 0 🔁
+**Tiến độ**: 4 / 99 ✅ · 0 ⏸ · 0 🔁
 
 - Một dòng `USER + ADMIN` gồm **cả hai route** (bản User và bản `/api/v1/admin/...`) và cả hai template: rà trong cùng một hội thoại.
 - Cột **Module**: `Mxx` = `docs/modules/xx_*.md`. Cột **Template**: `A/` = `templates/admin/`, `M/` = `templates/member/` (tên file HTML; JS/CSS cùng tên). Cột **CSDL chính**: gợi ý điểm bắt đầu, phải tự grep đủ.
@@ -147,7 +147,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | A01 | POST | `/api/v1/admin/auth/login` | ADMIN | M04 | `admins`, `auth_sessions`, `audit_logs` | A/login | ✅ | `26651e5` | 2026-11-04; U01 cần áp mã `401`/`400` mới và rà `member/login` |
 | A02 | POST | `/api/v1/admin/auth/refresh` | ADMIN | M04 | `auth_sessions` | A/main.js | ✅ | `72f8056` | 2026-11-04; thêm cột `auth_sessions.remember_me`; đặc tả chung ở M03 §3.2.1 |
 | A03 | POST | `/api/v1/admin/auth/logout` | ADMIN | M04 | `auth_sessions` | A/main.js | ✅ | `85e7b8c` | 2026-11-04; đặc tả chung ở M03 §3.2.1 (U03 chỉ còn rà bản User) |
-| A04 | GET | `/api/v1/admin/auth/me` | ADMIN | M04, M10 | `admins`, `admin_roles`, `permission_roles` | A/main.js | ⬜ | | |
+| A04 | GET | `/api/v1/admin/auth/me` | ADMIN | M04, M10 | `admins`, `admin_roles`, `permission_roles` | A/main.js | ✅ | *(commit này)* | 2026-11-04; đặc tả M04 §3.1.1; U04 áp cùng quy tắc `401` khi tài khoản không còn `ACTIVE` |
 | A05 | GET | `/api/v1/admin/profile` | ADMIN | M09 | `admins` | A/profile | ⬜ | | |
 | A06 | PUT | `/api/v1/admin/profile` | ADMIN | M09 | `admins`, `audit_logs` | A/profile | ⬜ | | |
 | A07 | PUT | `/api/v1/admin/profile/change-password` | ADMIN | M09 | `admins`, `auth_sessions` | A/change-password | ⬜ | | Phiên mới chép `remember_me` (A02, `01` §6.1); cookie `Max-Age` theo quy tắc chung |
@@ -173,7 +173,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | U01 | POST | `/api/v1/auth/login` | USER | M03 | `users`, `user_groups`, `auth_sessions`, `audit_logs` | M/login | ⬜ | | |
 | U02 | POST | `/api/v1/auth/refresh` | USER | M03 | `auth_sessions` | M/main.js | ⬜ | | Đặc tả M03 §3.2.1 đã viết ở A02; còn rà: chế độ bảo trì (`02` §1.2 chặn mọi API User trừ `/auth/me`, nhưng không refresh được thì không có token gọi `/auth/me`), mock `member/main.js` theo mẫu `admin/main.js` |
 | U03 | POST | `/api/v1/auth/logout` | USER | M03 | `auth_sessions` | M/main.js | ⬜ | | Đặc tả M03 §3.2.1 đã viết ở A03; còn rà: chế độ bảo trì (`02` §1.2 trả `503` cho mọi API User trừ `/auth/me`, nên không đăng xuất được, cookie không bị xóa; `503 MAINTENANCE` chưa có trong danh mục lỗi `02` §2.3), mock `member/main.js` theo `adminSession.logout` |
-| U04 | GET | `/api/v1/auth/me` | USER | M03, M10 | `users`, `user_roles`, `permission_roles`, `user_groups` | M/main.js | ⬜ | | |
+| U04 | GET | `/api/v1/auth/me` | USER | M03, M10 | `users`, `user_roles`, `permission_roles`, `user_groups` | M/main.js | ⬜ | | Theo mẫu A04 (M04 §3.1.1): `401` khi tài khoản/nhóm không còn `ACTIVE`, không ghi audit, header member đổ từ store; còn rà: `permissions` hiệu lực theo cờ nhóm, ngoại lệ chế độ bảo trì |
 | U05 | GET | `/api/v1/profile` | USER | M08 | `users`, `user_groups` | M/profile | ⬜ | | |
 | U06 | PUT | `/api/v1/profile` | USER | M08 | `users`, `audit_logs` | M/profile | ⬜ | | |
 | U07 | PUT | `/api/v1/profile/change-password` | USER | M08 | `users`, `auth_sessions` | M/change-password | ⬜ | | Phiên mới chép `remember_me` (A02) |
@@ -315,6 +315,8 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | 2026-11-04 | — | Lập kế hoạch | — | `tasks/endpoint_review_plan.md`, `DB_AUDIT_CONSOLIDATED.md` | `387684d` |
 | 2026-11-04 | A01 | ✅ Xong 3 lớp; không đổi DDL; 3 câu hỏi chốt ngay trong phiên (mã 400/401, `admin` với token giới hạn, `avatarUrl`) | E-A01-01…06 | `02`, `03`, M03, M04, `templates/admin/login.*`, `DB_AUDIT_CONSOLIDATED.md`, file này | `26651e5` |
 | 2026-11-04 | A02 | ✅ Xong 3 lớp; đổi DDL (`auth_sessions.remember_me`); 3 câu hỏi chốt ngay trong phiên (lưu `rememberMe`, không xét tuổi mật khẩu khi refresh, mọi `401` xóa cookie) | E-A02-01…05 | `00`, `01`, `02`, M03, M04, `templates/admin/main.js`, `DB_AUDIT_CONSOLIDATED.md`, file này | `72f8056` |
+| 2026-11-04 | A03 | ✅ Xong 3 lớp; không đổi DDL; 4 câu hỏi chốt ngay trong phiên (audit chỉ khi thu hồi được, cookie `ROTATED` đi theo chuỗi, idempotent `200` + không thu hồi phiên người khác, giữ guard) | E-A03-01…04 | `01`, `02`, M03, M04, `templates/admin/main.js`, `templates/admin/data-permissions.html`, `templates/admin/user_group.html`, `DB_AUDIT_CONSOLIDATED.md`, file này | `85e7b8c` |
+| 2026-11-04 | A04 | ✅ Xong 3 lớp; không đổi DDL; 3 câu hỏi chốt ngay trong phiên (`status` khác `ACTIVE` → `401`, token giới hạn trả đúng cấu trúc `admin`, mock `/me` + đổ header); chuyển dòng nhật ký A03 bị đặt nhầm ở mục 4 về mục 6 | E-A04-01…04 | `02`, M04, `templates/admin/main.js`, `DB_AUDIT_CONSOLIDATED.md`, file này | *(commit này)* |
 
 ---
 

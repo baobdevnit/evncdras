@@ -77,7 +77,7 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
       "avatarUrl": null,
       "roleCode": "ROOT_ADMIN",
       "roleName": "Quản trị viên tối cao",
-      "permissions": ["cdr:view", "cdr:listen_audio", "cdr:download_audio", "admin:manage", "system:manage", "role:view"]
+      "permissions": ["admin:manage", "cdr:download_audio", "cdr:listen_audio", "cdr:view", "role:view", "system:manage"]
     }
   },
   "timestamp": "2026-10-26T09:30:00+07:00"
@@ -93,7 +93,7 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 | `admin.roleCode`, `roleName` | `roles.code`, `roles.name` qua `admin_roles` | |
 | `admin.permissions` | `permissions.code` qua `permission_roles` của vai trò, sắp xếp theo `code` | Ví dụ trên rút gọn: `ROOT_ADMIN` có đủ 25 mã, `SYSTEM_ADMIN` 24 mã (`docs/modules/10_permissions_and_roles.md` mục 2.2) |
 
-  Token giới hạn trả **cùng cấu trúc** (`admin` đầy đủ, kể cả `permissions`), `mustChangePassword = true`; frontend thấy cờ này thì chuyển thẳng tới trang đổi mật khẩu, không vào layout chính. `admin` cũng là cấu trúc của `GET /api/v1/admin/auth/me`.
+  Token giới hạn trả **cùng cấu trúc** (`admin` đầy đủ, kể cả `permissions`), `mustChangePassword = true`; frontend thấy cờ này thì chuyển thẳng tới trang đổi mật khẩu, không vào layout chính. `admin` cũng là `data` của `GET /api/v1/admin/auth/me` (mục 3.1.1).
 - **Lỗi**:
 
 | HTTP | `errorCode` | Khi nào | `LOGIN_FAILED.reason` |
@@ -102,6 +102,46 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 | `401` | `INVALID_CREDENTIALS` | Không thấy tài khoản (kể cả `INACTIVE`) hoặc sai mật khẩu | `UNKNOWN_USER` / `BAD_PASSWORD` |
 | `403` | `ACCOUNT_LOCKED` | `status = 'LOCKED'` | `ACCOUNT_LOCKED` |
 | `423` | `ACCOUNT_TEMPORARILY_LOCKED` | `locked_until > NOW()`, `errors.lockedUntil` | `TEMPORARILY_LOCKED` |
+
+### 3.1.1. Thông tin Admin đang đăng nhập (`GET /api/v1/admin/auth/me`)
+
+- **Guard**: `AdminAuthGuard`, nhận cả token `PASSWORD_CHANGE_ONLY` (`docs/01_database_schema.md` mục 6.1); không cần mã quyền. Không bị chế độ bảo trì chặn (`docs/02_api_contracts.md` mục 1.2).
+- **Request**: không có query, không có body. Gửi query param bất kỳ trả `400 VALIDATION_ERROR`.
+- **Xử lý** (chỉ đọc, không ghi CSDL: không ghi `audit_logs`, không cập nhật `last_login_at`):
+  1. Đọc `admins` theo khóa chính `id = sub` của Access Token, join `admin_roles` → `roles` (khóa chính `admin_roles.admin_id`).
+  2. Không thấy dòng, hoặc `status` khác `ACTIVE` (bị khóa hay ngừng hoạt động trong lúc Access Token còn hạn, vì guard chỉ verify JWT): `401 UNAUTHORIZED`. Không xóa cookie (phiên đã bị thu hồi khi khóa/ngừng hoạt động, `docs/01_database_schema.md` mục 6.1), nên client refresh một lần, refresh trả `401` và frontend về trang đăng nhập. Không xét `locked_until` (khóa tạm chỉ chặn đăng nhập), `must_change_password`, tuổi mật khẩu.
+  3. `permissions` = `ROLE_PERMISSIONS[roleCode]` (nạp từ `permission_roles`, `docs/modules/10_permissions_and_roles.md` mục 2.3), sắp xếp theo `code`, giống response đăng nhập. `roleCode` đọc từ `admin_roles`; không có API đổi vai trò Admin nên luôn trùng claim `roleCode` của token mà `PermissionsGuard` dùng.
+- **Response** `200`: `data` đúng cấu trúc `admin` của mục 3.1 (cùng bảng nguồn trường), kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`; không có `mustChangePassword` (cờ này chỉ có ở response đăng nhập, và token giới hạn không có Refresh Token nên không tồn tại qua tải lại trang).
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy thông tin tài khoản thành công",
+  "data": {
+    "id": 1,
+    "username": "root.admin@evnict.vn",
+    "fullName": "Quản trị viên Tối cao EVNICT",
+    "email": "root.admin@evnict.vn",
+    "avatarUrl": null,
+    "roleCode": "ROOT_ADMIN",
+    "roleName": "Quản trị viên tối cao",
+    "permissions": ["admin:manage", "audit:view", "cdr:download_audio", "cdr:export", "cdr:filter_advanced", "cdr:listen_audio", "cdr:view"]
+  },
+  "timestamp": "2026-10-26T09:31:00+07:00"
+}
+```
+
+  Ví dụ `permissions` rút gọn (`ROOT_ADMIN` có đủ 25 mã).
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản không còn `ACTIVE` (bước 2) |
+
+- **Frontend**: chỉ gọi khi store chưa có `admin`, tức sau lần refresh lúc vào cổng hoặc tải lại trang (`docs/00_overview_and_architecture.md` mục 5.3.2); sau đăng nhập và đổi mật khẩu không gọi (đăng nhập đã trả `admin`). Gọi qua API client của cổng (`401` → refresh một lần rồi gửi lại); thành công thì lưu `data` vào `authAdmin.admin`, router guard và menu đọc `permissions` từ đây. Header của `AdminLayout` hiển thị `fullName`, `roleName`, ảnh `avatarUrl` (`null` thì ảnh chữ cái đầu tạo từ `fullName` ở frontend). Mẫu: `window.adminSession.loadMe`, `renderAccount` trong `templates/admin/main.js`.
+- Index phục vụ: khóa chính `admins`, `admin_roles`, `roles`.
 
 ### 3.2. Danh sách Quản trị viên (`GET /api/v1/admin/admins`)
 - **Guard**: `AdminAuthGuard`, `Permission: admin:manage`
@@ -247,4 +287,5 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 6. **TC-ADM-06**: Đăng nhập Admin vừa tạo (`must_change_password = 1`): `200`, `mustChangePassword = true`, có `admin` đầy đủ, không có `Set-Cookie`, không có dòng `auth_sessions` mới; gọi `GET /api/v1/admin/cdr` bằng token này trả `403 PASSWORD_CHANGE_REQUIRED`.
 7. **TC-ADM-07**: Đăng nhập Admin với `rememberMe = true`, gọi `POST /api/v1/admin/auth/refresh`: `200` có `data = { accessToken, expiresIn }`, cookie mới có `Max-Age` ≈ số giây còn lại tới `expires_at`, phiên cũ `ROTATED` và phiên mới cùng `expires_at`, `remember_me = 1`; với `rememberMe = false` cookie mới không có `Max-Age`. Khóa admin đó rồi refresh bằng cookie cũ: `401 UNAUTHORIZED`, response có `Set-Cookie` `Max-Age=0`. Gửi cookie Refresh Token của User tới route Admin: `401`.
 8. **TC-ADM-08**: Đăng nhập Admin, gọi `POST /api/v1/admin/auth/logout`: `200` với `data = null`, `Set-Cookie` `Max-Age=0`, phiên có `revoked_reason = 'LOGOUT'`, một dòng `audit_logs` `AUTH / LOGOUT` (`resource_id` = id phiên); gọi lại lần nữa: `200`, không thêm dòng audit; refresh bằng cookie cũ: `401`. Gọi logout bằng cookie vừa `ROTATED` (trong lúc tab khác refresh): phiên mới trong chuỗi bị thu hồi. Gọi bằng token `PASSWORD_CHANGE_ONLY`: `200`, không ghi audit. Gọi kèm body `{"x":1}`: `400 VALIDATION_ERROR`.
+9. **TC-ADM-09**: Đăng nhập Admin, gọi `GET /api/v1/admin/auth/me`: `200`, `data` trùng `data.admin` của response đăng nhập (`permissions` sắp theo `code`, 25 mã với `ROOT_ADMIN`, 24 với `SYSTEM_ADMIN`), không thêm dòng `audit_logs`. Gọi bằng token `PASSWORD_CHANGE_ONLY`: `200` cùng cấu trúc. Gọi kèm `?x=1`: `400 VALIDATION_ERROR`. Khóa admin đó rồi gọi lại bằng Access Token cũ (còn hạn): `401 UNAUTHORIZED`, không có `Set-Cookie`. Bật chế độ bảo trì: vẫn `200`.
 
