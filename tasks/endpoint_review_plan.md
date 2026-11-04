@@ -143,7 +143,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | ID | Method | Endpoint | Portal | Module | CSDL chính | Template | TT | Commit | Ghi chú |
 |---|---|---|---|---|---|---|---|---|---|
 | A01 | POST | `/api/v1/admin/auth/login` | ADMIN | M04 | `admins`, `auth_sessions`, `audit_logs` | A/login | ✅ | `26651e5` | 2026-11-04; U01 cần áp mã `401`/`400` mới và rà `member/login` |
-| A02 | POST | `/api/v1/admin/auth/refresh` | ADMIN | M04 | `auth_sessions` | A/main.js | ✅ | | 2026-11-04; thêm cột `auth_sessions.remember_me`; đặc tả chung ở M03 §3.2.1 |
+| A02 | POST | `/api/v1/admin/auth/refresh` | ADMIN | M04 | `auth_sessions` | A/main.js | ✅ | `72f8056` | 2026-11-04; thêm cột `auth_sessions.remember_me`; đặc tả chung ở M03 §3.2.1 |
 | A03 | POST | `/api/v1/admin/auth/logout` | ADMIN | M04 | `auth_sessions` | A/main.js | ⬜ | | |
 | A04 | GET | `/api/v1/admin/auth/me` | ADMIN | M04, M10 | `admins`, `admin_roles`, `permission_roles` | A/main.js | ⬜ | | |
 | A05 | GET | `/api/v1/admin/profile` | ADMIN | M09 | `admins` | A/profile | ⬜ | | |
@@ -312,7 +312,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 |---|---|---|---|---|---|
 | 2026-11-04 | — | Lập kế hoạch | — | `tasks/endpoint_review_plan.md`, `DB_AUDIT_CONSOLIDATED.md` | `387684d` |
 | 2026-11-04 | A01 | ✅ Xong 3 lớp; không đổi DDL; 3 câu hỏi chốt ngay trong phiên (mã 400/401, `admin` với token giới hạn, `avatarUrl`) | E-A01-01…06 | `02`, `03`, M03, M04, `templates/admin/login.*`, `DB_AUDIT_CONSOLIDATED.md`, file này | `26651e5` |
-| 2026-11-04 | A02 | ✅ Xong 3 lớp; đổi DDL (`auth_sessions.remember_me`); 3 câu hỏi chốt ngay trong phiên (lưu `rememberMe`, không xét tuổi mật khẩu khi refresh, mọi `401` xóa cookie) | E-A02-01…05 | `00`, `01`, `02`, M03, M04, `templates/admin/main.js`, `DB_AUDIT_CONSOLIDATED.md`, file này | *(xem cột Commit A02)* |
+| 2026-11-04 | A02 | ✅ Xong 3 lớp; đổi DDL (`auth_sessions.remember_me`); 3 câu hỏi chốt ngay trong phiên (lưu `rememberMe`, không xét tuổi mật khẩu khi refresh, mọi `401` xóa cookie) | E-A02-01…05 | `00`, `01`, `02`, M03, M04, `templates/admin/main.js`, `DB_AUDIT_CONSOLIDATED.md`, file này | `72f8056` |
 
 ---
 
