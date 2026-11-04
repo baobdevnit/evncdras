@@ -712,6 +712,7 @@ Seed `permissions` và `permission_roles`: `docs/modules/10_permissions_and_role
 >    - **Sửa dải** (`PUT /api/v1/admin/prefixes/:id`): phần **mở rộng** chỉ được chứa số chưa thuộc dải nào (`range_id IS NULL`), sai thì `409`; các số đó xử lý như khi cấp phát. Phần **thu hẹp** xử lý như khi thu hồi. Ghi 1 dòng `prefix_allocation_history` (`UPDATE`) và 1 dòng `phone_number_range_history` cho mỗi số thay đổi, cùng transaction.
 >    - **Không có thao tác gán/thu hồi từng số lẻ**: `range_id` của một số chỉ thay đổi qua thao tác trên dải. Thao tác trên từng số chỉ sửa `display_name`, `description` và trạng thái `RESERVED`/`LOCKED`.
 >    - **Kiểm tra giao nhau**: dải mới hoặc dải sau khi sửa không được giao với **bất kỳ** dải nào khác, kể cả dải của cùng nhóm đầu số.
+>    - **Chống giao nhau khi chạy đồng thời**: phép kiểm tra giao nhau bằng `SELECT` thường không khóa gì, nên hai request cấp phát chồng lấn chạy cùng lúc đều qua được và request sau âm thầm chuyển số của dải trước sang dải của nó. Vì kho `phone_numbers` có đủ mọi số 10000–99999, giao nhau tương đương "có số trong khoảng đã có `range_id`", nên CSDL chặn được: câu `UPDATE phone_numbers` khi cấp phát (và phần mở rộng khi sửa dải) có thêm điều kiện `AND range_id IS NULL`, và service so `affectedRows` với số lượng số của khoảng; khác nhau thì rollback, trả `409`. Câu `UPDATE` khóa từng dòng số, nên request thứ hai chờ request đầu commit rồi mới đọc lại `range_id` mới nhất.
 >    - **Nhóm đầu số của một nhóm người dùng không đổi sau khi tạo**. Muốn chuyển số sang nhóm khác: thu hồi dải ở nhóm cũ rồi cấp dải cho nhóm mới.
 > 4. **Lưu vết biến động**: Bảng `phone_number_range_history` ghi nhận lịch sử gán số vào dải số, thu hồi số về kho tự do, hoặc khóa/mở khóa số.
 
@@ -808,9 +809,9 @@ CREATE TABLE IF NOT EXISTS `prefix_allocation_history` (
 CREATE TABLE IF NOT EXISTS `phone_number_range_history` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `phone_number` varchar(10) NOT NULL COMMENT 'Số máy 5 số PABX (10000 đến 99999)',
-  `range_id` int(11) unsigned DEFAULT NULL COMMENT 'Dải đầu số liên quan',
-  `prefix_group_id` int(11) unsigned DEFAULT NULL COMMENT 'Nhóm đầu số liên quan',
-  `user_group_id` int(11) unsigned DEFAULT NULL COMMENT 'Nhóm người dùng liên quan',
+  `range_id` int(11) unsigned DEFAULT NULL COMMENT 'Dải liên quan, dùng để lọc: ASSIGN_TO_RANGE = new_range_id; REVOKE_FROM_RANGE = previous_range_id; LOCK/UNLOCK/RESERVE/UNRESERVE/UPDATE_INFO = dải đang chứa số (NULL nếu số ở kho tự do)',
+  `prefix_group_id` int(11) unsigned DEFAULT NULL COMMENT 'Nhóm đầu số của range_id tại thời điểm ghi (snapshot)',
+  `user_group_id` int(11) unsigned DEFAULT NULL COMMENT 'Nhóm người dùng của range_id tại thời điểm ghi (snapshot); lọc lịch sử theo nhóm (kể cả khu vực Member) dùng cột này, nên dòng thu hồi vẫn hiện cho nhóm bị thu hồi',
   `action_type` enum('ASSIGN_TO_RANGE','REVOKE_FROM_RANGE','LOCK','UNLOCK','RESERVE','UNRESERVE','UPDATE_INFO') NOT NULL COMMENT 'Gán vào dải, Thu hồi về kho tự do, Khóa, Mở khóa, Đặt dự phòng, Bỏ dự phòng, Sửa display_name/description',
   `previous_range_id` int(11) unsigned DEFAULT NULL COMMENT 'Dải đầu số trước biến động (NULL nếu từ kho tự do)',
   `new_range_id` int(11) unsigned DEFAULT NULL COMMENT 'Dải đầu số sau biến động (NULL nếu thu hồi về kho tự do)',
@@ -882,7 +883,7 @@ ON DUPLICATE KEY UPDATE `metric_name` = VALUES(`metric_name`);
 >   - Cảnh báo toàn hệ thống và `PABX_OFFLINE`: mọi Admin `ACTIVE`.
 >   - Cảnh báo của một nhóm: mọi Admin `ACTIVE` và các Quản trị viên nhóm `ACTIVE` của nhóm đó.
 >   - Thông báo do Admin soạn (`POST /api/v1/admin/notifications`): theo `target` = `ALL_ADMINS` | `ALL_USERS` | `GROUP:{id}` | `EVERYONE`.
-> - **Email**: chỉ gửi thông báo `CRITICAL`, tới người nhận có `user_settings.email_notification_enabled = 1`, qua SMTP cấu hình ở `system_settings` (`smtp_host`, `smtp_port`, `smtp_user`, `smtp_password` (secret), `smtp_from`). Gửi lỗi thì ghi log và để `is_emailed = 0`, không chặn việc tạo thông báo.
+> - **Email**: chỉ gửi thông báo `CRITICAL`, tới người nhận có `user_settings.email_notification_enabled = 1` (thiếu dòng `user_settings` thì coi là bật, mục 12), qua SMTP cấu hình ở `system_settings` (`smtp_host`, `smtp_port`, `smtp_user`, `smtp_password` (secret), `smtp_from`). Gửi lỗi thì ghi log và để `is_emailed = 0`, không chặn việc tạo thông báo.
 > - **WebSocket**: một sự kiện duy nhất `notification:new`, phát tới room của từng người nhận.
 
 ---
@@ -977,6 +978,9 @@ CREATE TABLE IF NOT EXISTS `user_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
+> [!IMPORTANT]
+> **Dòng `user_settings` của mỗi tài khoản**: tạo với giá trị mặc định của DDL **trong cùng transaction tạo tài khoản** (`POST /users`, `POST /admin/admins`, tạo Quản trị viên nhóm ban đầu khi tạo nhóm, `npm run seed:root`). Mọi chỗ đọc vẫn coi **thiếu dòng = giá trị mặc định** (vd. tài khoản tạo trước khi có quy tắc này): `GET /profile/preferences` trả mặc định, `PUT` dùng upsert, và truy vấn chọn người nhận email dùng `LEFT JOIN user_settings ... COALESCE(us.email_notification_enabled, 1) = 1`. Nếu dùng `JOIN` thường, tài khoản chưa từng lưu thiết lập sẽ không bao giờ nhận email cảnh báo `CRITICAL`, dù mặc định là bật.
+
 ---
 
 ## 13. Bảng Nhật ký kiểm toán an toàn thông tin (Audit Logs)
@@ -1046,9 +1050,10 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | `phone_prefix_groups` | **Xóa cứng** khi không có nhóm người dùng liên kết và không còn dải số. Muốn ngừng dùng mà vẫn giữ: `status = 'INACTIVE'` | `409` nếu còn liên kết hoặc còn dải | — | `user_groups.phone_prefix_group_id`, `phone_prefix_ranges.prefix_group_id`: RESTRICT |
 | `phone_prefix_ranges` | **Thu hồi**: dọn số theo quy tắc mục 8 → ghi `prefix_allocation_history` + `phone_number_range_history` → xóa dòng dải | — | — | `phone_numbers.range_id`: RESTRICT (bắt buộc dọn số trước) |
 | `organizations` | **Xóa cứng** khi không còn đơn vị con và không còn nhóm tham chiếu | `409` nếu còn con hoặc còn nhóm | — | `organizations.parent_id`, `user_groups.organization_id`: RESTRICT |
-| `notifications` | Xóa cứng được (dọn thông báo cũ) | — | — | `notification_recipients`: CASCADE |
+| `notifications` | Phiên bản này không có API hay job xóa: thông báo giữ vĩnh viễn. DDL cho phép DBA xóa cứng thủ công thông báo cũ khi cần | — | — | `notification_recipients`: CASCADE |
 | `roles`, `permissions` | Không xóa (seed cố định) | — | — | `permission_roles`: CASCADE; `admin_roles`/`user_roles`.`role_id`: RESTRICT |
 
+- **`INACTIVE` là trạng thái cuối** của `users`, `admins` và `user_groups`: không có API kích hoạt lại. `PUT /users/:id/status` và `PUT /admin/admins/:id/status` chỉ chuyển giữa `ACTIVE` và `LOCKED`, gọi trên tài khoản `INACTIVE` trả `409` (`ACCOUNT_INACTIVE`); `PUT /admin/user-groups/:id` không nhận `status` (`400`) và trả `409` (`GROUP_INACTIVE`) nếu nhóm đã `INACTIVE`. Lý do: kích hoạt lại tài khoản có thể đụng `UNIQUE` của `username_active`/`email_active` (tên đã được tài khoản mới dùng lại), và kích hoạt lại nhóm tạo ra nhóm `ACTIVE` không có Quản trị viên nhóm nào. Cần dùng lại thì tạo tài khoản/nhóm mới.
 - Tài khoản `INACTIVE` không đăng nhập được và bị ẩn khỏi danh sách mặc định (có bộ lọc "Đã ngừng hoạt động"). `username`/`email` của tài khoản `INACTIVE` được phép dùng lại cho tài khoản mới (UNIQUE chỉ áp cho tài khoản chưa `INACTIVE`, qua cột ảo `username_active`/`email_active`), phục vụ chuyển công tác.
 - Nhóm `INACTIVE` không cho đăng nhập thành viên, không nhận cấp phát dải số mới, nhưng vẫn xuất hiện trong báo cáo lịch sử.
 - **Mã (`code`) không được dùng lại sau xóa mềm** (chủ ý, khác với `username`/`email`): `user_groups.code` của nhóm `INACTIVE` và `phone_prefix_groups.code` của nhóm đầu số `INACTIVE` vẫn giữ `UNIQUE`, vì báo cáo lịch sử, `audit_logs` và lịch sử cấp phát tham chiếu tới nhóm cũ qua mã; dùng lại mã sẽ làm hai nhóm khác nhau trông như một. Tạo nhóm thay thế thì dùng mã mới (vd. thêm hậu tố `-2`). `organizations.code` chỉ được giải phóng khi đơn vị bị xóa cứng.
@@ -1109,19 +1114,23 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 > [!IMPORTANT]
 > **Tính lại idempotent, không cộng dồn**. Một cuộc gọi chỉ có bản ghi sau khi kết thúc, còn leg A có thể đến muộn và đổi leg chính. Nếu cộng dồn từng phần thì sẽ đếm thiếu hoặc đếm đôi, nên job luôn tính lại toàn bộ khung giờ từ `cdr_enriched`.
 > 1. **Khóa thời gian**: `stat_date = DATE(Created)`, `stat_hour = HOUR(Created)`, tức thời điểm **bắt đầu** của leg chính (bộ đếm cuộc gọi) hoặc của từng leg (khối QoS), theo "Đơn vị đếm" ở trên.
-> 2. **Job giờ** (`*/10 * * * *`): với mỗi khung giờ trong **3 giờ gần nhất**, cộng các khung giờ có trong `stats_recompute_queue`, chạy một câu `INSERT INTO stats_hourly (...) SELECT ... FROM cdr_enriched WHERE Created >= :hourStart AND Created < :hourEnd GROUP BY ...` kèm `ON DUPLICATE KEY UPDATE` (ghi đè mọi cột). Bộ đếm cuộc gọi dùng tổng có điều kiện trên leg chính (vd. `SUM(is_primary_leg = 1 AND call_status = 'ANSWERED')`), khối QoS tổng hợp trên mọi leg. Mỗi khung giờ sinh **1 dòng toàn hệ thống** (`group_id IS NULL`) và **1 dòng cho mỗi nhóm** có tham gia cuộc gọi (leg chính) hoặc có leg trong khung đó, theo quy tắc quy chiếu lưu lượng bên dưới. Dòng nhóm của khung giờ đã từng có nhưng nay không còn leg nào của nhóm thì bị xóa trong cùng transaction.
+> 2. **Job giờ** (`*/10 * * * *`): với mỗi khung giờ trong **cửa sổ trực tiếp** gồm 3 khung `H − 2`, `H − 1`, `H` (`H` = khung giờ chứa thời điểm chạy, vd. lần chạy 10:50 tính 08:00, 09:00, 10:00), cộng các khung giờ lấy từ `stats_recompute_queue` (bước 5), chạy một câu `INSERT INTO stats_hourly (...) SELECT ... FROM cdr_enriched WHERE Created >= :hourStart AND Created < :hourEnd GROUP BY ...` kèm `ON DUPLICATE KEY UPDATE` (ghi đè mọi cột). Bộ đếm cuộc gọi dùng tổng có điều kiện trên leg chính (vd. `SUM(is_primary_leg = 1 AND call_status = 'ANSWERED')`), khối QoS tổng hợp trên mọi leg. Mỗi khung giờ sinh **1 dòng toàn hệ thống** (`group_id IS NULL`) và **1 dòng cho mỗi nhóm** có tham gia cuộc gọi (leg chính) hoặc có leg trong khung đó, theo quy tắc quy chiếu lưu lượng bên dưới. Dòng nhóm của khung giờ đã từng có nhưng nay không còn leg nào của nhóm thì bị xóa trong cùng transaction.
 > 3. **Job ngày**: ngay sau job giờ, tính lại dòng `stats_daily` của các ngày vừa bị tác động, từ các dòng `stats_hourly` cùng ngày theo quy tắc roll-up (cộng bộ đếm; tỷ lệ và trung bình tính lại, không lấy trung bình của trung bình).
 > 4. **Chốt sổ** lúc 00:05: tính lại cả 24 giờ của ngày hôm trước lần cuối, rồi đặt `is_finalized = 1`. Dòng đã chốt chỉ đổi khi có yêu cầu trong `stats_recompute_queue`.
-> 5. **Dữ liệu đến trễ**: khi tiến trình làm giàu ghi một leg có `Created` cũ hơn 3 giờ, nó thêm (`stat_date`, `stat_hour`) của leg đó vào `stats_recompute_queue`. Khi đổi leg chính, nó thêm khung giờ của **cả leg chính mới và leg chính cũ** nếu khung đó cũ hơn 3 giờ, vì hai leg lệch tới 2 giây có thể nằm ở hai khung giờ khác nhau (vd. 10:59:59 và 11:00:01). Job giờ xử lý hàng đợi ở lần chạy kế tiếp, kể cả ngày đã chốt sổ, rồi xóa dòng hàng đợi đã xử lý.
+> 5. **Dữ liệu đến trễ**: khi tiến trình làm giàu ghi một leg mà khung giờ của nó **bắt đầu trước `H − 1`** (`H` = khung giờ chứa thời điểm ghi, tức khung `<= H − 2`), nó đưa (`stat_date`, `stat_hour`) của leg đó vào `stats_recompute_queue`. Điều kiện xét theo **khung giờ**, không theo tuổi của leg: lần chạy kế tiếp của job có thể đã sang giờ `H + 1` và chỉ còn tính `H − 1`..`H + 1`, nên khung `H − 2` (kể cả leg chỉ mới 2 giờ 50 phút) sẽ bị bỏ sót nếu không vào hàng đợi; khung `H − 1` và `H` luôn nằm trong cửa sổ của lần chạy kế tiếp. Khi đổi leg chính, áp dụng cùng điều kiện cho khung giờ của **cả leg chính mới và leg chính cũ**, vì hai leg lệch tới 2 giây có thể nằm ở hai khung giờ khác nhau (vd. 10:59:59 và 11:00:01).
+>    - **Ghi hàng đợi**: `INSERT INTO stats_recompute_queue (stat_date, stat_hour) VALUES (...) ON DUPLICATE KEY UPDATE queued_at = CURRENT_TIMESTAMP(6)`, không dùng `INSERT IGNORE`, để một yêu cầu mới đến trong lúc job đang tính khung đó vẫn được nhận ra.
+>    - **Xử lý hàng đợi**: mỗi lần chạy, job đọc tối đa 144 dòng cũ nhất (`ORDER BY queued_at`) kèm `queued_at` đã đọc; mỗi khung giờ tính lại trong một transaction riêng, rồi xóa dòng hàng đợi bằng `DELETE ... WHERE stat_date = ? AND stat_hour = ? AND queued_at <= :queuedAtRead`. Nếu tiến trình làm giàu vừa ghi lại khung đó thì `queued_at` đã lớn hơn nên dòng được giữ cho lần chạy sau. Giới hạn 144 dòng (6 ngày) giữ mỗi lần chạy ngắn, để cửa sổ trực tiếp không bị trễ khi có yêu cầu tính lại hàng loạt (`POST /admin/stats/recalculate` 366 ngày xong sau khoảng 61 lần chạy, tức 10 giờ). Ngày đã chốt sổ vẫn được tính lại theo hàng đợi.
+>    - **Mốc dưới (`:purgeBoundary`)**: ngày đầu của partition `cdr_enriched` cũ nhất còn giữ, tức ngày 1 của tháng (tháng hiện tại − `retention_archive_months`). Khung giờ có `stat_date` trước mốc này **không bao giờ được tính lại**: CDR của kỳ đó đã bị `DROP PARTITION`, tính lại sẽ ghi đè dòng `stats_*` bằng số liệu rỗng (hoặc chỉ vài leg lạc kỳ rơi vào partition thấp nhất) và xóa các dòng nhóm, làm mất báo cáo dài hạn. Tiến trình làm giàu không đưa các khung đó vào hàng đợi; job gặp dòng như vậy thì xóa khỏi hàng đợi mà không tính; `POST /admin/stats/recalculate` trả `400` nếu `fromDate` trước mốc.
 > 6. **Không chạy chồng**: job giữ khóa `GET_LOCK('stats_aggregation_job', 0)`; không lấy được khóa thì bỏ qua lần chạy đó. Job độc lập với tiến trình làm giàu.
 
 ```sql
 CREATE TABLE IF NOT EXISTS `stats_recompute_queue` (
   `stat_date` date NOT NULL,
   `stat_hour` tinyint(2) unsigned NOT NULL,
-  `queued_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`stat_date`, `stat_hour`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Khung giờ cần tính lại do dữ liệu đến trễ hơn cửa sổ 3 giờ';
+  `queued_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT 'Lần yêu cầu gần nhất; ghi lại khi có yêu cầu trùng (ON DUPLICATE KEY UPDATE), job chỉ xóa dòng có queued_at <= giá trị đã đọc',
+  PRIMARY KEY (`stat_date`, `stat_hour`),
+  KEY `idx_srq_queued` (`queued_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Khung giờ cần tính lại ngoài cửa sổ trực tiếp H-2..H (dữ liệu đến trễ, đổi leg chính, yêu cầu tính lại của Admin)';
 ```
 
 ### 15.1. Bảng Thống kê Tổng hợp Theo Giờ (`stats_hourly`)

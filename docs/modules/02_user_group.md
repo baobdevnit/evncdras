@@ -337,6 +337,8 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
 
 - **Mục đích**: Cập nhật thông tin nhóm người dùng.
 - **Quy tắc**:
+  - Nhóm đã `INACTIVE`: `409 CONFLICT` (`GROUP_INACTIVE`); nhóm ngừng hoạt động chỉ còn đọc, không kích hoạt lại được (`docs/01_database_schema.md` mục 14).
+  - **Không nhận `status`**: body có `status` thì trả `400`. Ngừng hoạt động chỉ qua `DELETE` (mục 3.4).
   - Cho phép cập nhật `organizationId` (gán sang đơn vị khác hoặc gán về `null` để chuyển thành nhóm độc lập).
   - **Không cho đổi `phonePrefixGroupId`** sau khi tạo nhóm: request gửi giá trị khác giá trị hiện tại thì trả `409 CONFLICT`. Muốn chuyển số sang nhóm khác thì thu hồi dải ở nhóm cũ và cấp dải cho nhóm mới (`docs/01_database_schema.md` mục 8).
   - Cập nhật tên, mô tả, người đại diện (người đại diện bắt buộc phải mang vai trò `GROUP_ADMIN` trong nhóm).
@@ -349,8 +351,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
   "organizationId": null,
   "phonePrefixGroupId": 5,
   "representativeUserId": 15,
-  "allowRecordingAccess": true,
-  "status": "ACTIVE"
+  "allowRecordingAccess": true
 }
 ```
 

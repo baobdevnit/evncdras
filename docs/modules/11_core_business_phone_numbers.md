@@ -76,9 +76,11 @@ Trong cùng transaction tạo/cập nhật dải số:
   SET range_id = :rangeId,
       status = IF(status = 'FREE', 'ALLOCATED', status),  -- RESERVED/LOCKED giữ nguyên trạng thái
       allocated_at = CURRENT_TIMESTAMP
-  WHERE phone_number >= :rangeFrom AND phone_number <= :rangeTo;
+  WHERE phone_number >= :rangeFrom AND phone_number <= :rangeTo
+    AND range_id IS NULL;  -- chốt chặn giao nhau ở mức CSDL khi hai request chạy đồng thời
+  -- affectedRows phải bằng rangeTo - rangeFrom + 1; khác thì rollback và trả 409 (cùng thông báo với mục 3.1)
   ```
-  Mọi số trong khoảng đều nhận `range_id` (kể cả `RESERVED`/`LOCKED`), nên quyền sở hữu CDR của các số này cũng thuộc nhóm (quy tắc tại `docs/01_database_schema.md` mục 8).
+  Mọi số trong khoảng đều nhận `range_id` (kể cả `RESERVED`/`LOCKED`), nên quyền sở hữu CDR của các số này cũng thuộc nhóm (quy tắc tại `docs/01_database_schema.md` mục 8). Phần mở rộng khi sửa dải dùng cùng câu lệnh và cùng phép so `affectedRows` trên khoảng mở rộng. Kiểm tra mục 3.1 chạy trước để trả thông báo rõ ràng; điều kiện `range_id IS NULL` bắt trường hợp hai request chồng lấn cùng qua được mục 3.1.
   Đồng thời ghi nhận lịch sử vào `phone_number_range_history` với `action_type = 'ASSIGN_TO_RANGE'`.
 - **Khi thu hồi dải số về kho**:
   ```sql

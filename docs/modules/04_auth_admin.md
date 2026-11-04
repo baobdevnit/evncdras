@@ -93,7 +93,9 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 
 ### 3.4. Khóa / Mở khóa Admin (`PUT /api/v1/admin/admins/:id/status`)
 - **Guard**: `AdminAuthGuard`, `Permission: admin:manage`
+- Body `{ "status": "ACTIVE" | "LOCKED" }`. Khóa thu hồi mọi phiên của admin đó (`ACCOUNT_LOCKED`).
 - Chặn không cho phép khóa tài khoản chính mình hoặc tài khoản mang vai trò `ROOT_ADMIN`.
+- Tài khoản đã `INACTIVE` trả `409` (`ACCOUNT_INACTIVE`): `INACTIVE` là trạng thái cuối, không kích hoạt lại (`docs/01_database_schema.md` mục 14).
 
 ---
 

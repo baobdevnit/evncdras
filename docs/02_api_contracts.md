@@ -136,7 +136,7 @@ Toàn bộ endpoint của mục này thuộc portal **ADMIN**.
 | `DELETE` | `/api/v1/admin/admins/:id/sessions` | `admin:manage` | Thu hồi mọi phiên của một Admin khác (`REVOKED_BY_ADMIN`) |
 | `GET` | `/api/v1/admin/admins` | `admin:manage` | Danh sách các quản trị viên hệ thống, kèm `roleCode` |
 | `POST` | `/api/v1/admin/admins` | `admin:manage` | Tạo mới quản trị viên; luôn gán vai trò `SYSTEM_ADMIN` vào `admin_roles` (chỉ vai trò `ROOT_ADMIN` có `admin:manage`) |
-| `PUT` | `/api/v1/admin/admins/:id/status` | `admin:manage` | Khóa / Kích hoạt tài khoản Admin |
+| `PUT` | `/api/v1/admin/admins/:id/status` | `admin:manage` | Khóa / Mở khóa tài khoản Admin, body `{ "status": "ACTIVE" \| "LOCKED" }`; `409` nếu tài khoản đã `INACTIVE` |
 | `PUT` | `/api/v1/admin/admins/:id` | `admin:manage` | Sửa họ tên, email, số điện thoại của Admin khác (không đổi vai trò; không có API đổi vai trò Admin) |
 | `PUT` | `/api/v1/admin/admins/:id/reset-password` | `admin:manage` | Đặt lại mật khẩu Admin khác: `must_change_password = 1`, thu hồi mọi phiên, trả mật khẩu tạm một lần |
 | `GET` | `/api/v1/admin/audit-logs` | `audit:view` | Tra cứu `audit_logs` (lọc `actorType`, `actorId`, `action`, `resourceName`, `fromDate`/`toDate` bắt buộc, phân trang) |
@@ -181,7 +181,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/user-groups/:id` | `user_group:view` | Xem chi tiết nhóm QLND và người đại diện | USER + ADMIN |
 | `GET` | `/api/v1/user-groups/me/members` | `user_group:view` | Danh bạ thành viên **nhóm của người gọi** (màn hình Danh bạ nhóm, khu vực Member): chỉ tài khoản `status = 'ACTIVE'`, trường danh bạ `id`, `fullName`, `jobTitle`, `email`, `phoneNumber`, `avatarUrl`, `roleCode`; không trả `username`, `status`, `lastLoginAt` hay thông tin phiên. Query `page`, `limit` (≤ 100), `search` (họ tên, email, chức danh, số điện thoại), `roleCode`. Đặc tả `docs/modules/02_user_group.md` mục 3.6 | USER |
 | `POST` | `/api/v1/admin/user-groups` | `user_group:manage` | Thiết lập nhóm QLND mới gắn vào nút tổ chức (kèm `allowRecordingAccess`) | ADMIN |
-| `PUT` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Cập nhật thông tin nhóm QLND (kèm quyền bật/tắt ghi âm nhóm `allowRecordingAccess`) | ADMIN |
+| `PUT` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Cập nhật thông tin nhóm QLND (kèm quyền bật/tắt ghi âm nhóm `allowRecordingAccess`); không nhận `status`; `409` nếu nhóm đã `INACTIVE` | ADMIN |
 | `DELETE` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Ngừng hoạt động nhóm (xóa mềm `status = INACTIVE`) kèm mọi thành viên chưa `INACTIVE` và phiên của họ, thu hồi dải số, trong một transaction; `409` nếu nhóm đã `INACTIVE`. Đặc tả `docs/modules/02_user_group.md` mục 3.4 | ADMIN |
 
 ### 3.5. Phân hệ Quản lý Người dùng & Phân quyền (Users & Roles)
@@ -192,7 +192,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/users/:id` | `user:view` | Chi tiết thông tin người dùng | USER + ADMIN |
 | `POST` | `/api/v1/users` | `user:create` | Tạo mới tài khoản người dùng trong nhóm, kèm `roleCode` (mặc định `REGULAR_USER`; gán `GROUP_ADMIN` cần thêm `group:manage_admin`, gán `USER_RECORDING` cần thêm `group:toggle_recording` và nhóm có `allowRecordingAccess = true`); tạo dòng `user_roles` cùng transaction | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id` | `user:edit` | Cập nhật thông tin tài khoản người dùng (họ tên, chức danh, số điện thoại, ảnh); không nhận `status`, `roleCode`, `userGroupId` (`400`) | USER + ADMIN |
-| `PUT` | `/api/v1/users/:id/status` | `user:edit` | Khóa / Mở khóa tài khoản, body `{ "status": "ACTIVE" \| "LOCKED" }`; khóa thu hồi mọi phiên (`ACCOUNT_LOCKED`); `409` nếu khóa Quản trị viên nhóm đang hoạt động cuối cùng | USER + ADMIN |
+| `PUT` | `/api/v1/users/:id/status` | `user:edit` | Khóa / Mở khóa tài khoản, body `{ "status": "ACTIVE" \| "LOCKED" }`; khóa thu hồi mọi phiên (`ACCOUNT_LOCKED`); `409` nếu khóa Quản trị viên nhóm đang hoạt động cuối cùng hoặc tài khoản đã `INACTIVE` | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/reset-password` | `user:edit` | Đặt lại mật khẩu người dùng: sinh mật khẩu tạm 16 ký tự trả **một lần** (`temporaryPassword`), đặt `must_change_password = 1`, thu hồi mọi phiên của user | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/role` | `group:manage_admin` hoặc `group:toggle_recording` | Đổi vai trò người dùng `{ "roleCode": "GROUP_ADMIN" \| "USER_RECORDING" \| "REGULAR_USER" }`: chuyển sang/khỏi `GROUP_ADMIN` cần `group:manage_admin` (chặn `409` hạ quyền Quản trị viên nhóm đang hoạt động cuối cùng); `REGULAR_USER` ↔ `USER_RECORDING` cần `group:toggle_recording` (sang `USER_RECORDING` cần nhóm có `allowRecordingAccess = true`, ngược lại `409`). Đặc tả `docs/modules/10_permissions_and_roles.md` mục 1.3, 3.2 | USER + ADMIN |
 | `DELETE` | `/api/v1/admin/users/:id/sessions` | `user:edit` | Thu hồi mọi phiên đăng nhập của một người dùng (`REVOKED_BY_ADMIN`) | ADMIN |
@@ -278,7 +278,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/dashboard/recent-calls` | Authenticated | Tối đa `limit` (mặc định 5, tối đa 20) cuộc gọi gần nhất trong 24 giờ: leg chính, cô lập nhóm, sắp `Created` giảm dần; trường giống item của `GET /cdr` (gồm `disconnectionCode`, `mos`, `callType`, `direction`, `duration`) | USER + ADMIN |
 | `GET` | `/api/v1/admin/dashboard/groups` | Authenticated | Danh sách nhóm theo lưu lượng trong kỳ (`period`, `sort` = `totalCalls`\|`totalDurationSec`\|`asrPercentage`\|`avgMos`, `order`, `page`, `limit` ≤ 100): mỗi dòng `groupId`, `groupCode`, `groupName`, `rangesText`, `totalCalls`, `totalDurationSec`, `asrPercentage`, `avgMos`; đọc từng dòng nhóm của `stats_*`, không có dòng tổng cộng | ADMIN |
 | `GET` | `/api/v1/dashboard/charts` | Authenticated | Dữ liệu biểu đồ phân bố 24 giờ trong ngày (đọc `stats_hourly`) hoặc biến thiên theo ngày (đọc `stats_daily`) | USER + ADMIN |
-| `POST` | `/api/v1/admin/stats/recalculate` | `system:manage` | Tính lại thống kê **bất đồng bộ**: body `{ "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD" }` (tối đa 366 ngày); đẩy mọi khung giờ trong khoảng vào `stats_recompute_queue`, trả `202 { "queuedHours": n }`; job tổng hợp xử lý ở các lần chạy kế tiếp, cho mọi phạm vi | ADMIN |
+| `POST` | `/api/v1/admin/stats/recalculate` | `system:manage` | Tính lại thống kê **bất đồng bộ**: body `{ "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD" }` (tối đa 366 ngày; `400` nếu `fromDate` trước mốc `:purgeBoundary` = ngày 1 của tháng hiện tại − `retention_archive_months`, vì CDR kỳ đó đã bị xóa, `docs/01_database_schema.md` mục 15.0 bước 5); đẩy mọi khung giờ trong khoảng vào `stats_recompute_queue`, trả `202 { "queuedHours": n }`; job tổng hợp xử lý ở các lần chạy kế tiếp, cho mọi phạm vi | ADMIN |
 
 ### 3.12. Phân hệ Thông báo & Cài đặt hệ thống (Notifications & Settings)
 
