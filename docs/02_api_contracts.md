@@ -149,13 +149,13 @@ Toàn bộ endpoint của mục này thuộc portal **ADMIN**.
 | `GET` | `/api/v1/admin/profile/preferences` | `AdminAuthGuard` | Lấy thiết lập giao diện của Admin (`user_settings`, `user_type = ADMIN`): 5 trường như bản User (mục 3.2) và `dashboardWidgets` (`docs/modules/09_admin_profile.md` mục 1) |
 | `PUT` | `/api/v1/admin/profile/preferences` | `AdminAuthGuard` | Cập nhật thiết lập giao diện của Admin |
 | `GET` | `/api/v1/admin/profile/recent-activity` | `AdminAuthGuard` | 20 hành động gần nhất của chính Admin trong `audit_logs` |
-| `GET` | `/api/v1/admin/auth/sessions` | `AdminAuthGuard` | Danh sách phiên đăng nhập đang hoạt động của chính Admin (IP, thiết bị, lần dùng cuối) |
-| `DELETE` | `/api/v1/admin/auth/sessions/:id` | `AdminAuthGuard` | Thu hồi một phiên của chính mình (`REVOKED_BY_SELF`) |
+| `GET` | `/api/v1/admin/auth/sessions` | `AdminAuthGuard` | Danh sách phiên đăng nhập đang hoạt động của chính Admin (IP, thiết bị, lần dùng cuối = `last_used_at`) |
+| `DELETE` | `/api/v1/admin/auth/sessions/:id` | `AdminAuthGuard` | Thu hồi một phiên của chính mình (`REVOKED_BY_SELF`); `:id` đã `ROTATED` thì đi theo `replaced_by_session_id` tới phiên đang hiệu lực (`docs/01_database_schema.md` mục 6.1) |
 | `DELETE` | `/api/v1/admin/admins/:id/sessions` | `admin:manage` | Thu hồi mọi phiên của một Admin khác (`REVOKED_BY_ADMIN`) |
 | `GET` | `/api/v1/admin/admins` | `admin:manage` | Danh sách các quản trị viên hệ thống, kèm `roleCode` |
 | `POST` | `/api/v1/admin/admins` | `admin:manage` | Tạo mới quản trị viên; luôn gán vai trò `SYSTEM_ADMIN` vào `admin_roles` (chỉ vai trò `ROOT_ADMIN` có `admin:manage`); body không có `password`, sinh mật khẩu tạm 16 ký tự trả **một lần** (`temporaryPassword`), `must_change_password = 1` (`docs/modules/04_auth_admin.md` mục 3.3); trùng `username`/`email` trả `409 ACCOUNT_DUPLICATE` |
 | `PUT` | `/api/v1/admin/admins/:id/status` | `admin:manage` | Khóa / Mở khóa tài khoản Admin, body `{ "status": "ACTIVE" \| "LOCKED" }`; khóa thu hồi mọi phiên (`ACCOUNT_LOCKED`); chặn khóa tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`) và tự khóa chính mình (`403 SELF_ACTION_FORBIDDEN`), `docs/01_database_schema.md` mục 14; `409` nếu tài khoản đã `INACTIVE` |
-| `PUT` | `/api/v1/admin/admins/:id` | `admin:manage` | Sửa họ tên, email, số điện thoại của Admin khác (không đổi vai trò; không có API đổi vai trò Admin) |
+| `PUT` | `/api/v1/admin/admins/:id` | `admin:manage` | Sửa họ tên, email, số điện thoại của Admin khác (không đổi vai trò; không có API đổi vai trò Admin); `email` trùng tài khoản chưa `INACTIVE` trả `409 ACCOUNT_DUPLICATE` |
 | `PUT` | `/api/v1/admin/admins/:id/reset-password` | `admin:manage` | Đặt lại mật khẩu Admin khác, giống `PUT /users/:id/reset-password` (mục 3.5): sinh mật khẩu tạm 16 ký tự trả **một lần** (`temporaryPassword`), đặt `must_change_password = 1`, thu hồi mọi phiên (`PASSWORD_CHANGED`), ghi `audit_logs` `AUTH / PASSWORD_RESET` |
 | `GET` | `/api/v1/admin/audit-logs` | `audit:view` | Tra cứu `audit_logs` (lọc `actorType`, `actorId`, `action`, `resourceName`, `fromDate`/`toDate` bắt buộc, phân trang) |
 | `DELETE` | `/api/v1/admin/admins/:id` | `admin:manage` | Ngừng hoạt động tài khoản Admin (xóa mềm `status = INACTIVE`; chặn tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`) và tự xóa chính mình (`403 SELF_ACTION_FORBIDDEN`)) |
@@ -171,11 +171,11 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `POST` | `/api/v1/auth/logout` | `UserAuthGuard` | Đăng xuất: thu hồi phiên hiện tại (`LOGOUT`), xóa cookie |
 | `GET` | `/api/v1/auth/me` | `UserAuthGuard` | Lấy thông tin User, nhóm, `roleCode` và `permissions` hiệu lực (quyền vai trò sau khi áp quyền nhóm, `docs/modules/10_permissions_and_roles.md` mục 2.3) |
 | `GET` | `/api/v1/profile` | `UserAuthGuard` | Xem chi tiết thông tin cá nhân |
-| `PUT` | `/api/v1/profile` | `UserAuthGuard` | Cập nhật họ tên, điện thoại; không nhận `email`, `username`, `roleCode`, `avatarUrl` (`400`) |
+| `PUT` | `/api/v1/profile` | `UserAuthGuard` | Cập nhật họ tên, điện thoại; không nhận `email`, `username`, `roleCode`, `avatarUrl` (`400`). `username`, `email` của người dùng bất biến sau khi tạo, không API nào sửa (`docs/01_database_schema.md` mục 6) |
 | `PUT` | `/api/v1/profile/change-password` | `UserAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`) | Đổi mật khẩu cá nhân; cập nhật `password_changed_at`, `must_change_password = 0`, thu hồi mọi phiên cũ (kể cả phiên đang dùng) rồi tạo một phiên mới, trả cookie mới |
 | `POST` | `/api/v1/profile/avatar` | `UserAuthGuard` | Tải ảnh đại diện (multipart, tối đa 2 MB, `image/png`/`image/jpeg`), ghi `users.avatar_url`, trả `avatarUrl`. Cách duy nhất đổi ảnh đại diện |
-| `GET` | `/api/v1/auth/sessions` | `UserAuthGuard` | Danh sách phiên đăng nhập đang hoạt động của chính User |
-| `DELETE` | `/api/v1/auth/sessions/:id` | `UserAuthGuard` | Thu hồi một phiên của chính mình (`REVOKED_BY_SELF`) |
+| `GET` | `/api/v1/auth/sessions` | `UserAuthGuard` | Danh sách phiên đăng nhập đang hoạt động của chính User (như bản Admin, mục 3.1) |
+| `DELETE` | `/api/v1/auth/sessions/:id` | `UserAuthGuard` | Thu hồi một phiên của chính mình (`REVOKED_BY_SELF`); `:id` đã `ROTATED` xử lý như bản Admin (mục 3.1) |
 | `GET` | `/api/v1/profile/preferences` | `UserAuthGuard` | Lấy thiết lập giao diện (`theme`, `isSidebarCollapsed`, `itemsPerPage`, `emailNotificationEnabled`, `soundAlertEnabled`; `docs/modules/08_user_profile.md` mục 3.5) |
 | `PUT` | `/api/v1/profile/preferences` | `UserAuthGuard` | Cập nhật thiết lập giao diện người dùng |
 
@@ -198,7 +198,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/user-groups/tree` | `user_group:view` | Cấu trúc cây nhóm QLND theo tổ chức | USER + ADMIN |
 | `GET` | `/api/v1/user-groups/:id` | `user_group:view` | Xem chi tiết nhóm QLND và người đại diện | USER + ADMIN |
 | `GET` | `/api/v1/user-groups/me/members` | `user_group:view` | Danh bạ thành viên **nhóm của người gọi** (màn hình Danh bạ nhóm, khu vực Member): chỉ tài khoản `status = 'ACTIVE'`, trường danh bạ `id`, `fullName`, `jobTitle`, `email`, `phoneNumber`, `avatarUrl`, `roleCode`; không trả `username`, `status`, `lastLoginAt` hay thông tin phiên. Query `page`, `limit` (≤ 100), `search` (họ tên, email, chức danh, số điện thoại), `roleCode`. Đặc tả `docs/modules/02_user_group.md` mục 3.6 | USER |
-| `POST` | `/api/v1/admin/user-groups` | `user_group:manage` | Thiết lập nhóm QLND mới gắn vào nút tổ chức (kèm `allowRecordingAccess`) | ADMIN |
+| `POST` | `/api/v1/admin/user-groups` | `user_group:manage` | Thiết lập nhóm QLND mới gắn vào nút tổ chức (kèm `allowRecordingAccess`). Bắt buộc `initialAdmin`: trong cùng transaction tạo nhóm đầu số, nhóm, Quản trị viên nhóm đầu tiên (`user_roles` `GROUP_ADMIN`, `representative_user_id` trỏ tới người đó) và dòng `user_settings`; trả `initialAdmin.temporaryPassword` **một lần**; trùng `username`/`email` trả `409 ACCOUNT_DUPLICATE`, không tạo gì. Đặc tả `docs/modules/02_user_group.md` mục 3.2 | ADMIN |
 | `PUT` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Cập nhật thông tin nhóm QLND (kèm quyền bật/tắt ghi âm nhóm `allowRecordingAccess`); không nhận `status`, `code`, `phonePrefixGroupId` (`400`); `409` nếu nhóm đã `INACTIVE` | ADMIN |
 | `DELETE` | `/api/v1/admin/user-groups/:id` | `user_group:manage` | Ngừng hoạt động nhóm (xóa mềm `status = INACTIVE`) kèm mọi thành viên chưa `INACTIVE` và phiên của họ, trong một transaction. Query `revokeRanges=true\|false` (mặc định `false`): `true` thì thu hồi toàn bộ dải số của nhóm trong cùng transaction; `409` nếu nhóm đã `INACTIVE`. Đặc tả `docs/modules/02_user_group.md` mục 3.4 | ADMIN |
 
@@ -206,10 +206,10 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 
 | Method | Endpoint | Quyền / Guard | Mô tả | Portal |
 | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/users` | `user:view` | Danh sách người dùng. Bản User chỉ trả user thuộc nhóm của người gọi; bản Admin trả toàn hệ thống, lọc tùy chọn `groupId`, `status` | USER + ADMIN |
+| `GET` | `/api/v1/users` | `user:view` | Danh sách người dùng. Query `page`, `limit`, `search`, `status` (cả hai bản); bản User chỉ trả user thuộc nhóm của người gọi; bản Admin trả toàn hệ thống, lọc tùy chọn `groupId` (chỉ bản Admin). Đặc tả `docs/modules/03_auth_user.md` mục 3.3 | USER + ADMIN |
 | `GET` | `/api/v1/users/:id` | `user:view` | Chi tiết thông tin người dùng | USER + ADMIN |
 | `POST` | `/api/v1/users` | `user:create` | Tạo mới tài khoản người dùng trong nhóm, kèm `roleCode`. Bản Admin bắt buộc `userGroupId`; bản User luôn tạo trong nhóm của người gọi và không nhận `userGroupId` (`400`, mục 1.1) (mặc định `REGULAR_USER`; gán `GROUP_ADMIN` cần thêm `group:manage_admin`, gán `USER_RECORDING` cần thêm `group:toggle_recording` và nhóm có `allowRecordingAccess = true`); tạo dòng `user_roles` cùng transaction. Body không có `password`: sinh mật khẩu tạm 16 ký tự trả **một lần** (`temporaryPassword`), `must_change_password = 1` (`docs/modules/03_auth_user.md` mục 3.4); trùng `username`/`email` trả `409 ACCOUNT_DUPLICATE` | USER + ADMIN |
-| `PUT` | `/api/v1/users/:id` | `user:edit` | Cập nhật thông tin tài khoản người dùng (họ tên, chức danh, số điện thoại); không nhận `status`, `roleCode`, `userGroupId`, `avatarUrl` (`400`) | USER + ADMIN |
+| `PUT` | `/api/v1/users/:id` | `user:edit` | Cập nhật thông tin tài khoản người dùng (họ tên, chức danh, số điện thoại); không nhận `status`, `roleCode`, `userGroupId`, `avatarUrl`, `username`, `email` (`400`; `username`/`email` bất biến sau khi tạo) | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/status` | `user:edit` | Khóa / Mở khóa tài khoản, body `{ "status": "ACTIVE" \| "LOCKED" }`; khóa thu hồi mọi phiên (`ACCOUNT_LOCKED`); `409` nếu khóa Quản trị viên nhóm đang hoạt động cuối cùng hoặc tài khoản đã `INACTIVE` | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/reset-password` | `user:edit` | Đặt lại mật khẩu người dùng: sinh mật khẩu tạm 16 ký tự trả **một lần** (`temporaryPassword`), đặt `must_change_password = 1`, thu hồi mọi phiên của user (`PASSWORD_CHANGED`), ghi `audit_logs` `AUTH / PASSWORD_RESET` | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/role` | `group:manage_admin` hoặc `group:toggle_recording` | Đổi vai trò người dùng `{ "roleCode": "GROUP_ADMIN" \| "USER_RECORDING" \| "REGULAR_USER" }`: chuyển sang/khỏi `GROUP_ADMIN` cần `group:manage_admin` (chặn `409` hạ quyền Quản trị viên nhóm đang hoạt động cuối cùng); `REGULAR_USER` ↔ `USER_RECORDING` cần `group:toggle_recording` (sang `USER_RECORDING` cần nhóm có `allowRecordingAccess = true`, ngược lại `409`). Đặc tả `docs/modules/10_permissions_and_roles.md` mục 1.3, 3.2 | USER + ADMIN |
@@ -223,8 +223,8 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/v1/prefixes` | `prefix:view` | Danh sách các nhóm đầu số (`phone_prefix_groups`) và dải số (`phone_prefix_ranges`) theo Nhóm người dùng | USER + ADMIN |
 | `GET` | `/api/v1/prefixes/:id` | `prefix:view` | Chi tiết dải số, tỷ lệ sử dụng kho số | USER + ADMIN |
-| `GET` | `/api/v1/admin/prefix-groups` | `prefix:view` | Danh sách nhóm đầu số (`phone_prefix_groups`) kèm nhóm người dùng liên kết và số dải. Nhóm đầu số được tạo tự động cùng nhóm người dùng (`docs/01_database_schema.md` mục 4.1), không có API tạo/xóa | ADMIN |
-| `PUT` | `/api/v1/admin/prefix-groups/:id` | `prefix:manage` | Sửa `name`, `description` của nhóm đầu số (không sửa `code`) | ADMIN |
+| `GET` | `/api/v1/admin/prefix-groups` | `prefix:view` | Danh sách nhóm đầu số (`phone_prefix_groups`) kèm nhóm người dùng liên kết và số dải. Nhóm đầu số được tạo tự động cùng nhóm người dùng (`docs/01_database_schema.md` mục 4.1), không có API tạo/xóa. Đặc tả `docs/modules/11_core_business_phone_numbers.md` mục 4.6 | ADMIN |
+| `PUT` | `/api/v1/admin/prefix-groups/:id` | `prefix:manage` | Body chỉ `{ name, description }`; có `code` hoặc trường khác trả `400`; ghi `audit_logs` `PREFIX / UPDATE_PREFIX_GROUP`. Đặc tả `docs/modules/11_core_business_phone_numbers.md` mục 4.6 | ADMIN |
 | `POST` | `/api/v1/admin/prefixes` | `prefix:manage` | Cấp phát dải số mới cho Nhóm người dùng (Kiểm tra xung đột Overlap Check); `409 GROUP_INACTIVE` nếu nhóm người dùng của nhóm đầu số đã `INACTIVE` | ADMIN |
 | `PUT` | `/api/v1/admin/prefixes/:id` | `prefix:manage` | Cập nhật dải số (body `{ rangeFrom, rangeTo, note, decisionNumber, historyNote }`, `decisionNumber` bắt buộc; không đổi được `prefix`, `prefixGroupId`, gửi giá trị khác thì `400`) (mở rộng / thu hẹp khoảng số) theo quy tắc `docs/01_database_schema.md` mục 8 (`409` nếu phần mở rộng chứa số đã thuộc dải khác; `409 GROUP_INACTIVE` nếu nhóm đã `INACTIVE`) | ADMIN |
 | `DELETE` | `/api/v1/admin/prefixes/:id` | `prefix:manage` | Thu hồi dải số về kho số dùng chung theo quy tắc `docs/01_database_schema.md` mục 8 (số `ALLOCATED` về `FREE`, `RESERVED`/`LOCKED` giữ trạng thái), ghi lịch sử và nhật ký kiểm toán, rồi mới xóa dòng dải. Body tùy chọn `{ decisionNumber?, historyNote? }` ghi vào `prefix_allocation_history`, thiếu thì NULL. Được cả khi nhóm đã `INACTIVE` | ADMIN |
@@ -262,7 +262,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/qos/summary` | `qos:view` | Thống kê tỷ lệ ASR, NER, phân khúc điểm MOS G.107, Packet Loss, Jitter, SIP Delays (đọc từ `stats_daily`/`stats_hourly`, cô lập theo nhóm) | USER + ADMIN |
 | `GET` | `/api/v1/qos/disconnection-codes` | `qos:view` | Thống kê phân bố mã ngắt kết nối SIP (200, 486, 487, 503...) và bên cúp máy (đọc từ `stats_daily`/`stats_hourly`) | USER + ADMIN |
 | `GET` | `/api/v1/admin/qos/thresholds` | `qos:view` | Lấy cấu hình ngưỡng cảnh báo MOS, Jitter, Packet Loss | ADMIN |
-| `PUT` | `/api/v1/admin/qos/thresholds` | `qos:manage` | Cập nhật ngưỡng cảnh báo QoS | ADMIN |
+| `PUT` | `/api/v1/admin/qos/thresholds` | `qos:manage` | Cập nhật ngưỡng cảnh báo QoS: body đủ 5 `metricName`; `operator` cố định theo seed (`docs/01_database_schema.md` mục 10), gửi khác trả `400`; `RTT_DELAY_MS` gửi `isEnabled: true` trả `400`. Đặc tả `docs/modules/13_core_business_qos_analysis.md` mục 3.3 | ADMIN |
 
 ### 3.9. Phân hệ Thống kê Thời lượng & Lưu lượng (Call Duration & Traffic)
 

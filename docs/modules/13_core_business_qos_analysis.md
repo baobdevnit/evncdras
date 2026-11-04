@@ -245,7 +245,7 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 }
 ```
 
-- **Kiểm tra**: `metricName` thuộc `MOS_G107`, `PACKET_LOSS_PERCENT`, `JITTER_MS`, `RTT_DELAY_MS`, `ASR_PERCENT`; với `LESS_THAN` phải có `criticalThreshold <= warningThreshold`, với `GREATER_THAN` thì ngược lại; sai trả `400`. Giá trị MOS theo thang thập phân.
+- **Kiểm tra**: body có đủ 5 `metricName` `MOS_G107`, `PACKET_LOSS_PERCENT`, `JITTER_MS`, `RTT_DELAY_MS`, `ASR_PERCENT`, mỗi mã một lần; `operator` phải bằng giá trị seed (`docs/01_database_schema.md` mục 10: `MOS_G107`, `ASR_PERCENT` là `LESS_THAN`, còn lại `GREATER_THAN`), không đổi được; `RTT_DELAY_MS` chỉ nhận `isEnabled: false` (Alert Engine không tính RTT vì RTCP của PABX luôn NULL, `docs/01_database_schema.md` mục 10, 15); với `LESS_THAN` phải có `criticalThreshold <= warningThreshold`, với `GREATER_THAN` thì ngược lại; sai trả `400`. Giá trị MOS theo thang thập phân.
 
 ---
 

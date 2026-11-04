@@ -549,8 +549,8 @@ Mỗi người dùng thuộc một `user_group`. Vai trò của người dùng (
 CREATE TABLE IF NOT EXISTS `users` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `user_group_id` int(11) unsigned NOT NULL,
-  `username` varchar(100) NOT NULL,
-  `email` varchar(150) NOT NULL,
+  `username` varchar(100) NOT NULL COMMENT 'Bất biến sau khi tạo: không API nào sửa (PUT /users/:id, PUT /profile gửi username thì 400)',
+  `email` varchar(150) NOT NULL COMMENT 'Bất biến sau khi tạo: không API nào sửa (PUT /users/:id, PUT /profile gửi email thì 400)',
   `password_hash` varchar(255) NOT NULL,
   `full_name` varchar(150) NOT NULL,
   `job_title` varchar(150) DEFAULT NULL COMMENT 'Chức danh công việc (ví dụ: Trưởng nhóm Kỹ thuật, Kỹ sư Quản trị Hệ thống)',
@@ -595,7 +595,7 @@ CREATE TABLE IF NOT EXISTS `auth_sessions` (
   `ip_address` varchar(50) DEFAULT NULL,
   `user_agent` varchar(500) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `last_used_at` datetime DEFAULT NULL COMMENT 'Lần refresh gần nhất',
+  `last_used_at` datetime DEFAULT NULL COMMENT 'Lần refresh gần nhất: phiên mới sinh ra khi xoay vòng ghi NOW(); NULL nếu chưa refresh lần nào kể từ đăng nhập',
   `expires_at` datetime NOT NULL COMMENT 'Hạn tuyệt đối = thời điểm đăng nhập + security_refresh_token_days; phiên sinh ra khi xoay vòng giữ nguyên giá trị này',
   `revoked_at` datetime DEFAULT NULL,
   `revoked_reason` enum('LOGOUT','ROTATED','REVOKED_BY_SELF','REVOKED_BY_ADMIN','PASSWORD_CHANGED','ACCOUNT_LOCKED','REUSE_DETECTED') DEFAULT NULL,
@@ -614,10 +614,11 @@ CREATE TABLE IF NOT EXISTS `auth_sessions` (
 > - **Xoay vòng**: mỗi lần refresh tạo phiên mới, phiên cũ có `revoked_reason = 'ROTATED'`. Phiên mới **giữ nguyên `expires_at`** của phiên ban đầu (hạn tuyệt đối 7 ngày kể từ lần đăng nhập, không trượt); hết hạn thì phải đăng nhập lại. Nếu một Refresh Token đã `ROTATED` bị dùng lại **ngoài khoảng ân hạn** dưới đây, **thu hồi mọi phiên** của tài khoản đó (`REUSE_DETECTED`) và ghi `audit_logs` (`action = TOKEN_REUSE_DETECTED`).
 > - **Refresh đồng thời (khoảng ân hạn 30 giây)**: các tab của cùng một cổng dùng chung cookie, và mỗi tab khi tải trang gọi `refresh` nếu chưa có Access Token (`docs/00_overview_and_architecture.md` mục 5.3.2). Mở hoặc khôi phục 2 tab cùng lúc sẽ gửi **cùng một** Refresh Token hai lần; nếu coi lần thứ hai là dùng lại thì người dùng bị đăng xuất khỏi mọi thiết bị. Quy tắc:
 >   1. Đọc phiên theo `refresh_token_hash` bằng `SELECT ... FOR UPDATE` trong transaction, để hai request cùng token chạy tuần tự.
->   2. Phiên còn hiệu lực: xoay vòng như trên, ghi `replaced_by_session_id` = id phiên mới.
+>   2. Phiên còn hiệu lực: xoay vòng như trên, ghi `replaced_by_session_id` = id phiên mới; phiên mới có `last_used_at = NOW()`.
 >   3. Phiên đã `ROTATED` và `revoked_at` cách hiện tại không quá 30 giây: đi theo chuỗi `replaced_by_session_id` tới phiên đang hiệu lực (tối đa 5 bước). Có phiên đó thì chỉ cấp Access Token mới cho phiên đó, **không** gửi `Set-Cookie` (trình duyệt đã nhận cookie mới từ response của request đầu). Không có (phiên con đã bị thu hồi vì lý do khác) thì trả `401`, không coi là dùng lại.
 >   4. Các trường hợp còn lại (đã `ROTATED` quá 30 giây) là dùng lại token: `REUSE_DETECTED`.
 > - **Logout** thu hồi phiên hiện tại (`LOGOUT`). Người dùng tự thu hồi phiên khác (`REVOKED_BY_SELF`); Root Admin thu hồi phiên của admin khác, quản trị viên thu hồi phiên của user (`REVOKED_BY_ADMIN`).
+> - **Id phiên đổi sau mỗi lần xoay vòng**: danh sách phiên (`GET .../auth/sessions`) trả các phiên `revoked_at IS NULL AND expires_at > NOW()`, "lần dùng cuối" là `last_used_at`. `DELETE .../auth/sessions/:id` nhận cả id của phiên đã `ROTATED` (danh sách đọc trước đó, phiên vừa xoay vòng): đi theo chuỗi `replaced_by_session_id` (tối đa 5 bước, như khoảng ân hạn ở trên) tới phiên đang hiệu lực và thu hồi phiên đó; không tới được phiên hiệu lực thì không thu hồi gì.
 > - **Đổi mật khẩu, đặt lại mật khẩu, khóa hoặc ngừng hoạt động tài khoản** thu hồi toàn bộ phiên: đổi mật khẩu và đặt lại mật khẩu (`reset-password`) ghi `PASSWORD_CHANGED`; khóa và ngừng hoạt động ghi `ACCOUNT_LOCKED`. Access Token đã cấp hết hiệu lực tối đa sau 15 phút. Riêng **tự đổi mật khẩu** (`change-password`): thu hồi mọi phiên cũ, kể cả phiên đang dùng để gọi API, rồi tạo đúng một phiên mới trong cùng transaction và trả cookie của phiên đó.
 > - **Khóa tạm khi sai mật khẩu**: sai `security_login_max_failed` (5) lần liên tiếp thì `locked_until = NOW() + security_lockout_minutes` (15 phút). Trong thời gian này API đăng nhập trả `423` với `errorCode = "ACCOUNT_TEMPORARILY_LOCKED"` và thời điểm mở khóa trong `errors = { "lockedUntil": "<ISO 8601>" }` (khung lỗi `docs/02_api_contracts.md` mục 2.3). Đăng nhập đúng thì đặt `failed_login_count = 0`. Khóa tạm tách biệt với `status = 'LOCKED'` do quản trị viên đặt (đăng nhập trả `403` với `errorCode = "ACCOUNT_LOCKED"`).
 >   - **Đặt lại bộ đếm khi khóa**: lúc đặt `locked_until`, đồng thời đặt `failed_login_count = 0`, nên hết khóa thì người dùng lại có đủ 5 lần thử. Nếu giữ bộ đếm, mỗi lần sai sau khi hết khóa đều tăng tiếp và cột `tinyint unsigned` tràn ở 255, khi đó câu `UPDATE` lỗi và API đăng nhập trả `500` thay vì `423`.
@@ -1076,7 +1077,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 
 | `resource_name` | `action` |
 |---|---|
-| `AUTH` | `LOGIN`, `LOGIN_FAILED` (`action_details.reason`: `BAD_PASSWORD`/`UNKNOWN_USER`/`LOCKED`/`INACTIVE`), `LOGOUT`, `SESSION_REVOKED`, `TOKEN_REUSE_DETECTED`, `PASSWORD_CHANGED`, `PASSWORD_RESET` |
+| `AUTH` | `LOGIN`, `LOGIN_FAILED` (`action_details.reason`: `BAD_PASSWORD`, `UNKNOWN_USER` (kể cả tài khoản `INACTIVE`, vì không tìm thấy qua `username_active`/`email_active`), `ACCOUNT_LOCKED` (`status = LOCKED`, `403`), `TEMPORARILY_LOCKED` (`locked_until` còn hiệu lực, `423`), `GROUP_INACTIVE` (nhóm của user đã `INACTIVE`, `403`)), `LOGOUT`, `SESSION_REVOKED`, `TOKEN_REUSE_DETECTED`, `PASSWORD_CHANGED`, `PASSWORD_RESET` |
 | `AUDIO` | `LISTEN_AUDIO`, `DOWNLOAD_AUDIO` |
 | `CDR` | `EXPORT_CDR`, `PURGE_CDR_PARTITION` (actor `SYSTEM`) |
 | `REPORT` | `EXPORT_REPORT` (`action_details.format`: `EXCEL`/`PDF`) |

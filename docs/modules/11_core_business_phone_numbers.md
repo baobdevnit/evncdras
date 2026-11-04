@@ -216,6 +216,12 @@ Trong cùng transaction tạo/cập nhật dải số:
 - **Query Params**: `groupId` (chỉ bản Admin, lọc `prefix_allocation_history.user_group_id`; bản User gửi thì `400`), `actionType` (`ALLOCATE` | `REVOKE` | `UPDATE`), `page`, `limit`. Bản User lọc theo `prefix_allocation_history.user_group_id` = nhóm của người gọi, nên dòng thu hồi vẫn hiện cho nhóm bị thu hồi.
 - **Response**: khung phân trang chung (`docs/02_api_contracts.md` mục 2.2); giá trị từng cột theo `action_type` tại `docs/01_database_schema.md` mục 8 điểm 5. Không trả `range_text` (chuỗi hiển thị, `docs/02_api_contracts.md` mục 2): khoảng số trả qua `previousRangeFrom`/`previousRangeTo`, `rangeFrom`/`rangeTo`, frontend tự ghép nhãn.
 
+### 4.6. Nhóm đầu số (`GET /api/v1/admin/prefix-groups`, `PUT /api/v1/admin/prefix-groups/:id`)
+
+- **Guard**: chỉ khu vực Admin, `AdminAuthGuard`; `GET` cần `prefix:view`, `PUT` cần `prefix:manage`. Không có API tạo/xóa: nhóm đầu số tạo tự động cùng nhóm người dùng (`docs/01_database_schema.md` mục 4.1).
+- **`GET`**: khung phân trang chung (`docs/02_api_contracts.md` mục 2.2). Mỗi phần tử gồm các cột của `phone_prefix_groups` (`id`, `code`, `name`, `description`, `createdAt`, `updatedAt`), nhóm người dùng liên kết qua `user_groups.phone_prefix_group_id` (`userGroupId`, `userGroupCode`, `userGroupName`) và số dải hiện có (`totalRanges`, đếm `phone_prefix_ranges` theo `prefix_group_id`).
+- **`PUT`**: body chỉ `{ name, description }` → `phone_prefix_groups.name` / `description`. Có `code` (bất biến, `PG-` + `user_groups.code`) hoặc trường khác thì trả `400`. Response là phần tử như `GET`. Ghi `audit_logs` `PREFIX / UPDATE_PREFIX_GROUP` (`docs/01_database_schema.md` mục 13).
+
 ---
 
 ## 5. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)

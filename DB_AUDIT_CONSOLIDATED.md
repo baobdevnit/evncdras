@@ -19,6 +19,7 @@
 - **Lần 18 (2026-11-04)**: 8 Minor, tập trung vào xác thực/phiên (M03, M04, M08, M09), xuất CDR (M12) và xuất báo cáo (M15) so với `01`/`02`, đã sửa; 4 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R18-05…R18-08). Không đổi DDL.
 - **Lần 19 (2026-11-04)**: 11 Minor, tập trung vào M05, M06, M11, M12, M13, M14 so với `01`/`02` (tên trường, giá trị enum, mã lỗi `409`), đã sửa; 9 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R19-03…R19-11). Không đổi DDL.
 - **Lần 20 (2026-11-04)**: 8 Minor, tập trung vào mã lỗi `403`/`409` (M02, M03, M04, M10, M12, M13 so với `02` §2.3), enum `theme` và đồng bộ `02` với M03/M04/M10/M11; 3 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R20-01…R20-03). Đổi DDL `user_settings.theme`.
+- **Lần 21 (2026-11-04)**: 8 Minor, rà theo chiều API (`02`) → CSDL (`01`): phiên đăng nhập khi xoay vòng, mã lý do `LOGIN_FAILED`, `username`/`email` người dùng, ngưỡng QoS, đặc tả nhóm đầu số, đồng bộ `02` với M02/M03; 5 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R21-01…R21-05). Chỉ đổi COMMENT (`auth_sessions.last_used_at`, `users.username`, `users.email`). Không phát hiện API thiếu cho dữ liệu có trong CSDL; `username`/`email` người dùng chốt là bất biến nên không thêm API.
 - **Sẵn sàng sinh migration/entity** sau khi chạy xong DDL trên MariaDB 10.6 (mục 2.1).
 
 ## 1. Các lần rà soát
@@ -46,6 +47,7 @@
 | 18 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `1d54b6e` | 8 Minor | ✅ |
 | 19 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `fa7f659` | 11 Minor | ✅ |
 | 20 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `cd6f5df` | 8 Minor | ✅ |
+| 21 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (chưa commit) | 8 Minor | ✅ |
 
 ---
 
@@ -53,7 +55,7 @@
 
 ### 2.1. Kiểm chứng DDL trên đúng phiên bản
 
-- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`). Lần 16 không đổi DDL (chỉ thêm một câu chính sách phiên ở `01` §6.1). Lần 17 không đổi DDL (chỉ sửa câu mã lỗi `423` ở `01` §6.1). Lần 18 không đổi DDL (chỉ sửa câu chính sách phiên ở `01` §6.1). Lần 19 chỉ đổi COMMENT `prefix_allocation_history.range_text`. Lần 20 đổi `user_settings.theme` thành `enum('LIGHT','DARK','SYSTEM') DEFAULT 'SYSTEM'`, chưa chạy lại.
+- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`). Lần 16 không đổi DDL (chỉ thêm một câu chính sách phiên ở `01` §6.1). Lần 17 không đổi DDL (chỉ sửa câu mã lỗi `423` ở `01` §6.1). Lần 18 không đổi DDL (chỉ sửa câu chính sách phiên ở `01` §6.1). Lần 19 chỉ đổi COMMENT `prefix_allocation_history.range_text`. Lần 20 đổi `user_settings.theme` thành `enum('LIGHT','DARK','SYSTEM') DEFAULT 'SYSTEM'`, chưa chạy lại. Lần 21 chỉ đổi COMMENT (`auth_sessions.last_used_at`, `users.username`, `users.email`).
 - **Việc cần làm**: trích toàn bộ khối ```` ```sql ```` của `01` và seed `M10` §2.1, chạy trên MariaDB 10.6, kiểm tra:
   - 27 bảng + 1 view tạo không lỗi; partition `cdr_enriched` đúng.
   - Seed: 25 mã quyền; `permission_roles` ROOT_ADMIN 25, SYSTEM_ADMIN 24, GROUP_ADMIN 17, USER_RECORDING 11, REGULAR_USER 9; 19 key `system_settings`; 5 ngưỡng QoS.
@@ -117,6 +119,11 @@ Các quy tắc sau đã ghi trong `docs/` nhưng chỉ kiểm chứng được b
 | Người dùng nhóm `INACTIVE` đăng nhập hoặc gọi API trả `403 GROUP_INACTIVE` | `02` §2.3, M03 §3.1, M10 §2.3 | R20-02 |
 | Khóa/ngừng hoạt động `ROOT_ADMIN` trả `403 ROOT_ADMIN_PROTECTED`; Admin tự khóa/tự xóa trả `403 SELF_ACTION_FORBIDDEN` | `02` §2.3, §3.1, M04 §3.4 | R20-03 |
 | Mã `403` đúng danh mục `02` §2.3 (`FORBIDDEN_SCOPE_ACCESS` khi đổi vai trò người nhóm khác, `FORBIDDEN_PERMISSION` khi gửi bộ lọc nâng cao thiếu quyền) | `02` §2.3, M10 §3.2, M12 §3.1, M13 §3.1 | R20-04 |
+| Xoay vòng ghi `last_used_at = NOW()` ở phiên mới; `DELETE .../auth/sessions/:id` với id đã `ROTATED` thu hồi phiên đang hiệu lực ở cuối chuỗi `replaced_by_session_id` | `01` §6.1, `02` §3.1–3.2 | R21-01 |
+| `LOGIN_FAILED.reason` đúng 5 mã: tài khoản `INACTIVE` ra `UNKNOWN_USER`, `423` ra `TEMPORARILY_LOCKED`, nhóm `INACTIVE` ra `GROUP_INACTIVE` | `01` §13, M03 §3.1, M04 §3.1 | R21-02 |
+| `PUT /users/:id`, `PUT /profile` có `username`/`email` trả `400` | `01` §6, `02` §3.2, §3.5, M03 §3.5 | R21-03 |
+| `PUT /admin/qos/thresholds` thiếu mã, đổi `operator` hoặc bật `RTT_DELAY_MS` trả `400` | `02` §3.8, M13 §3.3 | R21-04 |
+| `PUT /admin/prefix-groups/:id` có `code` hoặc trường ngoài `name`/`description` trả `400` | `02` §3.6, M11 §4.6 | R21-05 |
 
 ### 2.4. Cần xác nhận / ghi nhận rủi ro
 
@@ -223,7 +230,7 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 - Tách đổi trạng thái khỏi `PUT /users/:id`; `audit_logs` chỉ ghi thêm ở mức CSDL.
 - Ghi chú: nhóm sở hữu số chốt lúc làm giàu, mã nhóm không dùng lại, giới hạn `timestamp` 2038.
 
-### 3.5. Lần 6–20
+### 3.5. Lần 6–21
 
 | Mã | Mức | Vấn đề | Xử lý (nơi sửa) |
 |---|---|---|---|
@@ -353,6 +360,14 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 | R20-06 | Minor | `02` §3.5 `GET /admin/roles` nêu mỗi quyền có `groupGated`, ví dụ M10 §3.1 bỏ trường này ở quyền không chịu cổng nhóm | Ví dụ ghi `groupGated: false` |
 | R20-07 | Minor | `02` §3.6 `GET /phone-numbers/history` không có query params (M11 §4.4 có, kể cả `groupId` chỉ bản Admin), khác dòng `/prefixes/history` | Thêm query theo M11 §4.4 |
 | R20-08 | Minor | File này: 11 dòng phát hiện R19 nằm lẫn trong bảng mục 2.3 (sai số cột); tiêu đề mục 3.5 ghi "Lần 6–17"; dòng trống làm đứt bảng mục 3.5 trước R13-01 | Chuyển dòng R19 về mục 3.5, sửa tiêu đề, bỏ dòng trống |
+| R21-01 | Minor | `auth_sessions`: xoay vòng tạo dòng mới, nên phiên đang hiệu lực luôn có `last_used_at = NULL` (COMMENT "lần refresh gần nhất" chỉ có thể ghi lên dòng đã `ROTATED`), id phiên đổi mỗi lần refresh; `DELETE .../auth/sessions/:id` với id vừa đọc ở danh sách có thể trúng dòng đã `ROTATED` và không thu hồi gì, phiên thật vẫn sống. `02` §3.1 hứa "lần dùng cuối" | Chủ dự án chốt: phiên mới khi xoay vòng ghi `last_used_at = NOW()`; `DELETE` đi theo `replaced_by_session_id` (tối đa 5 bước) tới phiên đang hiệu lực rồi thu hồi. Không đổi cấu trúc. `01` §6.1 + COMMENT, `02` §3.1–3.2 |
+| R21-02 | Minor | `LOGIN_FAILED.reason` (`01` §13) = `BAD_PASSWORD`/`UNKNOWN_USER`/`LOCKED`/`INACTIVE`: `INACTIVE` không xảy ra (tài khoản `INACTIVE` không tìm thấy qua `username_active`, M03/M04 trả `UNKNOWN_USER`); `LOCKED` gộp `403 ACCOUNT_LOCKED` với `423 ACCOUNT_TEMPORARILY_LOCKED`; `403 GROUP_INACTIVE` (R20-02) không có mã | Chủ dự án chốt: `BAD_PASSWORD`, `UNKNOWN_USER`, `ACCOUNT_LOCKED`, `TEMPORARILY_LOCKED`, `GROUP_INACTIVE`. `01` §13 |
+| R21-03 | Minor | Không API nào đổi `users.username`/`users.email` (`PUT /users/:id` chỉ họ tên, chức danh, điện thoại; `PUT /profile` không nhận `email`), trong khi email Admin sửa được qua `PUT /admin/admins/:id`; `01` không nói cột bất biến | Chủ dự án chốt: bất biến sau khi tạo, không thêm API; `PUT /users/:id`, `PUT /profile` có `username`/`email` trả `400`. COMMENT `01` §6, `02` §3.2, §3.5, M03 §3.5 |
+| R21-04 | Minor | `PUT /admin/qos/thresholds` (M13 §3.3) nhận `operator` và `isEnabled` mọi chỉ số; đổi `operator` đảo nghĩa ngưỡng; bật `RTT_DELAY_MS` không có nguồn dữ liệu (Alert Engine `01` §10 không tính RTT, `01` §15 không có RTT); không nói body phải đủ 5 mã (`uniq_qos_metric`) | Chủ dự án chốt: body đủ 5 `metricName`; `operator` cố định theo seed; `RTT_DELAY_MS` chỉ nhận `isEnabled: false`; sai trả `400`. `02` §3.8, M13 §3.3 |
+| R21-05 | Minor | `GET`/`PUT /admin/prefix-groups*` chỉ có một dòng ở `02` §3.6, không module nào đặc tả body/response; "không sửa `code`" không nói gửi `code` thì sao (khác `organizations`/`user_groups` trả `400`, R14-11, R15-05) | Chủ dự án chốt: `PUT` chỉ `{ name, description }`, có `code`/trường khác trả `400`, audit `PREFIX / UPDATE_PREFIX_GROUP`; thêm M11 §4.6 theo cột `phone_prefix_groups` |
+| R21-06 | Minor | `02` §3.4 `POST /admin/user-groups` không nêu `initialAdmin` bắt buộc, tạo Quản trị viên nhóm đầu tiên cùng transaction (bất biến "nhóm `ACTIVE` có ≥ 1 `GROUP_ADMIN` `ACTIVE`", `01` §6), `temporaryPassword`, `409 ACCOUNT_DUPLICATE` (M02 §3.2 có) | Bổ sung `02` §3.4 theo M02 §3.2 |
+| R21-07 | Minor | `02` §3.5 `GET /users` ghi `status` là bộ lọc của bản Admin; M03 §3.3 và màn hình thành viên M02 §5 dùng `status` ở cả bản User (chỉ `groupId` là riêng Admin) | Theo M03: `page`, `limit`, `search`, `status` cả hai bản, `groupId` chỉ Admin. `02` §3.5 |
+| R21-08 | Minor | `02` §3.1 `PUT /admin/admins/:id` sửa `email` nhưng không nêu trùng thì `409 ACCOUNT_DUPLICATE` (danh mục `02` §2.3; DDL chặn bằng `uniq_admins_email`) | Bổ sung `02` §3.1 |
 
 Đề xuất làm gọn **bị từ chối** ở lần 10 (giữ nguyên, không đề xuất lại): gộp `phone_prefix_groups` vào `user_groups`; thay 5 bảng RBAC bằng cột `role`; bỏ `stats_daily`; bỏ dòng `phone_number_range_history` cho từng số.
 
