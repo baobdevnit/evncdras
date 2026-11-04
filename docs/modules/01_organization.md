@@ -111,7 +111,7 @@ Bảng dữ liệu MariaDB chính: `organizations` (Đã định nghĩa trong `d
 
 ### 3.4. `DELETE /api/v1/admin/organizations/:id`
 
-- Kiểm tra điều kiện xóa: Trả về lỗi `409 CONFLICT` nếu đơn vị có `children.length > 0` hoặc đang được tham chiếu bởi `user_groups` (kể cả nhóm `INACTIVE`). DB cũng chặn bằng `fk_org_parent` và `fk_ug_org` (`ON DELETE RESTRICT`), xem chính sách xóa tại `docs/01_database_schema.md` mục 14.
+- Kiểm tra điều kiện xóa: Trả về lỗi `409 ORGANIZATION_IN_USE` nếu đơn vị có `children.length > 0` hoặc đang được tham chiếu bởi `user_groups` (kể cả nhóm `INACTIVE`). DB cũng chặn bằng `fk_org_parent` và `fk_ug_org` (`ON DELETE RESTRICT`), xem chính sách xóa tại `docs/01_database_schema.md` mục 14.
 
 ---
 

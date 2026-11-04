@@ -65,7 +65,7 @@ Khi tạo hoặc sửa một dải số mới $(StartNew, EndNew)$ cho Nhóm:
    $$EndNew = \text{int}(RangeTo)$$
 2. Điều kiện giao thoa xung đột với bất kỳ dải số đã tồn tại $(StartExist, EndExist)$ (của mọi nhóm đầu số, kể cả cùng nhóm; khi sửa dải thì loại trừ chính dải đang sửa):
    $$\max(StartNew, StartExist) \le \min(EndNew, EndExist)$$
-3. Nếu phát hiện giao thoa, transaction bị rollback lập tức và trả về mã lỗi `409 CONFLICT: Dải số [StartNew - EndNew] bị trùng lặp với dải số đã cấp` (dải đã cấp có thể thuộc cùng nhóm hoặc nhóm khác).
+3. Nếu phát hiện giao thoa, transaction bị rollback lập tức và trả về `409 RANGE_OVERLAP` ("Dải số [StartNew - EndNew] bị trùng lặp với dải số đã cấp") (dải đã cấp có thể thuộc cùng nhóm hoặc nhóm khác).
 
 ### 3.2. Cơ chế đồng bộ Kho số tổng theo chuẩn 3NF (Master Pool State Transitions)
 
@@ -118,7 +118,7 @@ Trong cùng transaction tạo/cập nhật dải số:
         {
           "id": 1,
           "prefix": "42",
-          "length": 5,
+          "numberLength": 5,
           "rangeFrom": "42000",
           "rangeTo": "42499",
           "counts": { "total": 500, "allocated": 480, "reserved": 15, "locked": 5 },
@@ -127,7 +127,7 @@ Trong cùng transaction tạo/cập nhật dải số:
         {
           "id": 2,
           "prefix": "46",
-          "length": 5,
+          "numberLength": 5,
           "rangeFrom": "46500",
           "rangeTo": "46999",
           "counts": { "total": 500, "allocated": 500, "reserved": 0, "locked": 0 },
@@ -208,13 +208,13 @@ Trong cùng transaction tạo/cập nhật dải số:
 
 - **Guard**: `UserAuthGuard` trên route User (chỉ dữ liệu nhóm mình); bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1).
 - **Query Params**: `phoneNumber`, `groupId` (chỉ bản Admin, lọc `phone_number_range_history.user_group_id`; bản User gửi thì `400`), `actionType`, `page`, `limit`. Bản User lọc theo `phone_number_range_history.user_group_id` = nhóm của người gọi.
-- **Đổi trạng thái từng số** (`PUT /api/v1/admin/phone-numbers/:number`): mỗi lần đổi ghi 1 dòng `LOCK`/`UNLOCK`/`RESERVE`/`UNRESERVE`; chuyển thẳng giữa `RESERVED` và `LOCKED` ghi 2 dòng trong cùng transaction (vd. `RESERVED` → `LOCKED`: `UNRESERVE` rồi `LOCK`) (`docs/01_database_schema.md` mục 8).
+- **Đổi trạng thái từng số** (`PUT /api/v1/admin/phone-numbers/:number`): mỗi lần đổi ghi 1 dòng `LOCK`/`UNLOCK`/`RESERVE`/`UNRESERVE`; chuyển thẳng giữa `RESERVED` và `LOCKED` ghi 2 dòng trong cùng transaction (vd. `RESERVED` → `LOCKED`: `UNRESERVE` rồi `LOCK`) (`docs/01_database_schema.md` mục 8). Các dòng này ghi `decision_number = NULL`, `note = NULL`; dòng `ASSIGN_TO_RANGE`/`REVOKE_FROM_RANGE` chép `decision_number`/`note` của thao tác dải (`docs/01_database_schema.md` mục 8 điểm 4).
 
 ### 4.5. Tra cứu Lịch sử cấp phát dải số (`GET /api/v1/prefixes/history`)
 
 - **Guard**: `UserAuthGuard` trên route User (chỉ dữ liệu nhóm mình); bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1).
 - **Query Params**: `groupId` (chỉ bản Admin, lọc `prefix_allocation_history.user_group_id`; bản User gửi thì `400`), `actionType` (`ALLOCATE` | `REVOKE` | `UPDATE`), `page`, `limit`. Bản User lọc theo `prefix_allocation_history.user_group_id` = nhóm của người gọi, nên dòng thu hồi vẫn hiện cho nhóm bị thu hồi.
-- **Response**: khung phân trang chung (`docs/02_api_contracts.md` mục 2.2); giá trị từng cột theo `action_type` tại `docs/01_database_schema.md` mục 8 điểm 5.
+- **Response**: khung phân trang chung (`docs/02_api_contracts.md` mục 2.2); giá trị từng cột theo `action_type` tại `docs/01_database_schema.md` mục 8 điểm 5. Không trả `range_text` (chuỗi hiển thị, `docs/02_api_contracts.md` mục 2): khoảng số trả qua `previousRangeFrom`/`previousRangeTo`, `rangeFrom`/`rangeTo`, frontend tự ghép nhãn.
 
 ---
 

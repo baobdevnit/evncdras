@@ -38,7 +38,7 @@ Vai trò người dùng thay đổi qua `PUT /api/v1/users/:id/role` (mục 3.2)
 
 | Chuyển đổi | Quyền cần | Điều kiện |
 |---|---|---|
-| Sang hoặc khỏi `GROUP_ADMIN` | `group:manage_admin` | Hạ quyền bị chặn `409` nếu đó là Quản trị viên nhóm `ACTIVE` cuối cùng của nhóm |
+| Sang hoặc khỏi `GROUP_ADMIN` | `group:manage_admin` | Hạ quyền bị chặn `409 LAST_GROUP_ADMIN` nếu đó là Quản trị viên nhóm `ACTIVE` cuối cùng của nhóm |
 | `REGULAR_USER` → `USER_RECORDING` | `group:toggle_recording` | |
 | `USER_RECORDING` → `REGULAR_USER` | `group:toggle_recording` | Luôn được phép |
 

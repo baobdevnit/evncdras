@@ -67,7 +67,7 @@ erDiagram
 
 ## 2. Bảng CDR nguyên bản từ tổng đài PABX (Call Detail Record)
 
-Bảng `cdr` là bảng trung tâm tiếp nhận thông tin từ tổng đài PABX do hệ thống thu thập chuyên dụng bên ngoài đẩy trực tiếp vào theo thời gian thực cuộc gọi (Real-time Ingestion). Giữ nguyên toàn bộ 87 cột kỹ thuật theo đặc tả nguyên bản của tổng đài StarTrinity PABX (trong đó `Direction` lưu giá trị raw như `'remote'`, `DisconnectionStatus` lưu mã nguyên nhân SIP như `'OK'`, `'RequestTerminated'`), Hệ thống chỉ đọc bảng này (xem ghi chú bên dưới); chỉ mục và partition cho truy vấn nghiệp vụ đặt trên `cdr_enriched`. Quá trình chuẩn hóa hướng gọi nghiệp vụ (`Inbound`, `Outbound`, `Internal`) và trạng thái chuẩn (`call_status`: `ANSWERED`, `BUSY`, `NO_ANSWER`, `FAILED`, ánh xạ từ `DisconnectionCode` theo mục 2.1) sẽ được xử lý tại bảng làm giàu `cdr_enriched`. Không bao giờ lọc hoặc đếm trực tiếp theo `Direction`/`DisconnectionStatus` thô.
+Bảng `cdr` là bảng trung tâm tiếp nhận thông tin từ tổng đài PABX do hệ thống thu thập chuyên dụng bên ngoài đẩy trực tiếp vào theo thời gian thực cuộc gọi (Real-time Ingestion). Giữ nguyên toàn bộ 87 cột kỹ thuật theo đặc tả nguyên bản của tổng đài StarTrinity PABX (trong đó `Direction` lưu giá trị raw như `'remote'`, `DisconnectionStatus` lưu mã nguyên nhân SIP như `'OK'`, `'RequestTerminated'`), Hệ thống chỉ đọc bảng này (xem ghi chú bên dưới); chỉ mục và partition cho truy vấn nghiệp vụ đặt trên `cdr_enriched`. Quá trình chuẩn hóa hướng gọi nghiệp vụ (`INBOUND`, `OUTBOUND`, `INTERNAL`) và trạng thái chuẩn (`call_status`: `ANSWERED`, `BUSY`, `NO_ANSWER`, `FAILED`, ánh xạ từ `DisconnectionCode` theo mục 2.1) sẽ được xử lý tại bảng làm giàu `cdr_enriched`. Không bao giờ lọc hoặc đếm trực tiếp theo `Direction`/`DisconnectionStatus` thô.
 
 ```sql
 CREATE TABLE IF NOT EXISTS `cdr` (
@@ -224,10 +224,10 @@ Bảng `cdr_enriched` là **bảng trung tâm cho toàn bộ nghiệp vụ Backe
 > **Các cột dẫn xuất khác & hướng gọi**:
 > - **Thời lượng**: `Answered_Duration` của PABX tính bằng **mili-giây** (đã kiểm chứng 3.347/3.347 cuộc nhấc máy trong dữ liệu thật: `Answered_Duration / 1000 ≈ Destroyed − Answered`). Cột `answered_duration_sec` là nguồn duy nhất cho mọi thời lượng nghiệp vụ: `*_duration_sec` trong stats, ACD/ALOC, và trường `durationSec` trả về API (`docs/02_api_contracts.md` mục 2).
 > - **`call_type`**: lưu sẵn trên từng leg, xác định từ `caller_group_id`/`called_group_id` (quy tắc tại mục 9).
-> - **Hướng gọi (`Inbound` / `Outbound` / `Internal`) không lưu thành cột**, vì nó phụ thuộc vào nhóm của người xem: cùng một cuộc gọi là `Outbound` với nhóm gọi nhưng là `Inbound` với nhóm nhận. API tính hướng gọi lúc truy vấn theo nhóm đang xem `:g`:
->   - `Outbound`: `caller_group_id = :g AND (called_group_id <> :g OR called_group_id IS NULL)`
->   - `Inbound`: `called_group_id = :g AND (caller_group_id <> :g OR caller_group_id IS NULL)`
->   - `Internal`: `caller_group_id = :g AND called_group_id = :g`
+> - **Hướng gọi (`INBOUND` / `OUTBOUND` / `INTERNAL`) không lưu thành cột**, vì nó phụ thuộc vào nhóm của người xem: cùng một cuộc gọi là `OUTBOUND` với nhóm gọi nhưng là `INBOUND` với nhóm nhận. API tính hướng gọi lúc truy vấn theo nhóm đang xem `:g`:
+>   - `OUTBOUND`: `caller_group_id = :g AND (called_group_id <> :g OR called_group_id IS NULL)`
+>   - `INBOUND`: `called_group_id = :g AND (caller_group_id <> :g OR caller_group_id IS NULL)`
+>   - `INTERNAL`: `caller_group_id = :g AND called_group_id = :g`
 >
 >   Ở phạm vi toàn hệ thống (Admin, không chọn nhóm), bộ lọc hướng gọi được thay bằng bộ lọc `call_type`. Cột thô `Direction` (luôn là `'remote'`) không dùng cho nghiệp vụ.
 > - **MOS (ITU-T G.107 E-model)**: PABX chỉ lưu MOS đã làm tròn thành số nguyên (`RTP_*_G107MOS` ∈ {1..5}) cùng hệ số R (`RTP_*_G107R`, 0–100). Trên dữ liệu thật, `ROUND(MOS_E-model(R))` khớp 8.334/8.334 giá trị số nguyên của PABX, nên MOS thập phân được tính lại từ R khi làm giàu:
@@ -743,7 +743,7 @@ Seed `permissions` và `permission_roles`: `docs/modules/10_permissions_and_role
 >    - **Chống giao nhau khi chạy đồng thời**: phép kiểm tra giao nhau bằng `SELECT` thường không khóa gì, nên hai request cấp phát chồng lấn chạy cùng lúc đều qua được và request sau âm thầm chuyển số của dải trước sang dải của nó. Vì kho `phone_numbers` có đủ mọi số 10000–99999, giao nhau tương đương "có số trong khoảng đã có `range_id`", nên CSDL chặn được: câu `UPDATE phone_numbers` khi cấp phát (và phần mở rộng khi sửa dải) có thêm điều kiện `AND range_id IS NULL`, và service so `affectedRows` với số lượng số của khoảng; khác nhau thì rollback, trả `409`. Câu `UPDATE` khóa từng dòng số, nên request thứ hai chờ request đầu commit rồi mới đọc lại `range_id` mới nhất.
 >    - **Nhóm đầu số của một nhóm người dùng không đổi sau khi tạo**. Muốn chuyển số sang nhóm khác: thu hồi dải ở nhóm cũ rồi cấp dải cho nhóm mới.
 >    - **Chỉ cấp phát / sửa dải cho nhóm người dùng `ACTIVE`** (nhóm `INACTIVE` trả `409 GROUP_INACTIVE`). Thu hồi dải thì được cả với nhóm `INACTIVE` (dải còn giữ lại khi ngừng hoạt động nhóm, mục 14). Vì nhóm đầu số luôn được tạo cùng nhóm người dùng (mục 4.1), quyền sở hữu số chỉ đổi qua cấp phát / sửa / thu hồi dải, và các thao tác này luôn tăng `cache_version`.
-> 4. **Lưu vết biến động**: Bảng `phone_number_range_history` ghi nhận lịch sử gán số vào dải số, thu hồi số về kho tự do, hoặc khóa/mở khóa số.
+> 4. **Lưu vết biến động**: Bảng `phone_number_range_history` ghi nhận lịch sử gán số vào dải số, thu hồi số về kho tự do, hoặc khóa/mở khóa số. Nguồn `decision_number` / `note`: dòng `ASSIGN_TO_RANGE` / `REVOKE_FROM_RANGE` chép đúng giá trị `decision_number` / `note` của dòng `prefix_allocation_history` cùng thao tác dải (điểm 5, kể cả thu hồi do ngừng hoạt động nhóm); dòng `LOCK`/`UNLOCK`/`RESERVE`/`UNRESERVE`/`UPDATE_INFO` do `PUT /admin/phone-numbers/:number` ghi cả hai NULL.
 > 5. **Giá trị ghi vào `prefix_allocation_history` theo `action_type`** (mỗi thao tác trên dải ghi đúng 1 dòng):
 >
 >    | `action_type` | `previous_range_from`/`to` | `range_from`/`to` | `range_text` | `numbers_count` | `status_before` → `status_after` |
@@ -831,7 +831,7 @@ CREATE TABLE IF NOT EXISTS `prefix_allocation_history` (
   `previous_range_to` varchar(10) DEFAULT NULL COMMENT 'Chỉ UPDATE: cuối khoảng số trước khi sửa; NULL với ALLOCATE/REVOKE',
   `range_from` varchar(10) DEFAULT NULL COMMENT 'ALLOCATE: đầu khoảng được cấp; REVOKE: đầu khoảng bị thu hồi; UPDATE: đầu khoảng sau khi sửa',
   `range_to` varchar(10) DEFAULT NULL COMMENT 'ALLOCATE: cuối khoảng được cấp; REVOKE: cuối khoảng bị thu hồi; UPDATE: cuối khoảng sau khi sửa',
-  `range_text` varchar(50) NOT NULL COMMENT 'Khoảng số hiển thị. ALLOCATE/REVOKE: 15100 -> 15499; UPDATE: khoảng cũ và mới, ví dụ 48000-48499 -> 48000-48999',
+  `range_text` varchar(50) NOT NULL COMMENT 'Khoảng số hiển thị, chỉ lưu trong DB (API không trả, docs/02_api_contracts.md mục 2). ALLOCATE/REVOKE: 15100 -> 15499; UPDATE: khoảng cũ và mới, ví dụ 48000-48499 -> 48000-48999',
   `numbers_count` int(11) NOT NULL DEFAULT 0 COMMENT 'Số lượng số thay đổi range_id: ALLOCATE/REVOKE = số số của khoảng; UPDATE = số số thêm vào + số số bớt ra',
   `status_before` enum('FREE','ALLOCATED') DEFAULT NULL COMMENT 'Tình trạng khoảng số trước thao tác: FREE = Kho tự do, ALLOCATED = Đang dùng (nhãn hiển thị do API/giao diện ánh xạ)',
   `status_after` enum('FREE','ALLOCATED') DEFAULT NULL COMMENT 'Tình trạng khoảng số sau thao tác: FREE = Kho tự do, ALLOCATED = Đang dùng',

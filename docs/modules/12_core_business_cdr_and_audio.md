@@ -45,7 +45,7 @@ Hệ thống tổng đài IP PABX của EVN ghi nhận hàng ngày hàng chục 
 Bảng trung tâm lưu trữ toàn bộ dữ liệu CDR đã được làm giàu, phục vụ Backend:
 - `id`: Định danh duy nhất (khóa chính, kế thừa 1-1 từ `cdr.id`).
 - `Created`, `Answered`, `Destroyed`: Mốc thời gian khởi tạo, bắt máy, ngắt kết nối.
-- `Direction`: Giá trị thô của PABX (luôn `'remote'` trên dữ liệu thật), không mang nghĩa hướng gọi. Hướng gọi `Inbound`/`Outbound`/`Internal` được tính lúc truy vấn (xem tham số `direction` ở mục 3.1).
+- `Direction`: Giá trị thô của PABX (luôn `'remote'` trên dữ liệu thật), không mang nghĩa hướng gọi. Hướng gọi `INBOUND`/`OUTBOUND`/`INTERNAL` được tính lúc truy vấn (xem tham số `direction` ở mục 3.1).
 - `CallerId`, `CallerDisplayName`: Thông tin phía gọi.
 - `CalledId`, `CalledDisplayName`: Thông tin phía nhận.
 - `caller_group_id`: ID nhóm sở hữu số gọi đi (`user_groups.id`, `NULL` nếu chưa quy hoạch/ngoại mạng).
@@ -88,8 +88,8 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
   - `toDate`: Định dạng ISO (vd: `2026-05-25T23:59:59`)
   - `callerId`: Số gọi đi, **khớp đúng** (`CallerId = :callerId`, đi qua `idx_cdre_caller_created`) (vd: `45678`)
   - `calledId`: Số nhận, **khớp đúng** (`CalledId = :calledId`, đi qua `idx_cdre_called_created`) (vd: `46001`)
-  - `status`: `all` | `ANSWERED` | `NO_ANSWER` | `BUSY` | `FAILED` (lọc theo `cdr_enriched.call_status` của leg chính)
-  - `direction`: `all` | `Inbound` | `Outbound` | `Internal`. Hướng gọi **tính lúc truy vấn** so với nhóm đang xem `:g` (nhóm của người dùng, hoặc `groupId` Admin chọn), không lưu thành cột. Ví dụ `Outbound`: `caller_group_id = :g AND (called_group_id <> :g OR called_group_id IS NULL)`; công thức đầy đủ tại `docs/01_database_schema.md` mục 2.1. Admin không chọn `groupId` thì dùng `callType` (`INTRA_GROUP` | `INTER_GROUP` | `UNASSIGNED`) thay cho `direction`.
+  - `status`: `ANSWERED` | `NO_ANSWER` | `BUSY` | `FAILED` (lọc theo `cdr_enriched.call_status` của leg chính); không truyền = mọi trạng thái, gửi `all` trả `400`
+  - `direction`: `INBOUND` | `OUTBOUND` | `INTERNAL`; không truyền = mọi hướng, gửi `all` trả `400`. Hướng gọi **tính lúc truy vấn** so với nhóm đang xem `:g` (nhóm của người dùng, hoặc `groupId` Admin chọn), không lưu thành cột. Ví dụ `OUTBOUND`: `caller_group_id = :g AND (called_group_id <> :g OR called_group_id IS NULL)`; công thức đầy đủ tại `docs/01_database_schema.md` mục 2.1. Admin không chọn `groupId` thì dùng `callType` (`INTRA_GROUP` | `INTER_GROUP` | `UNASSIGNED`) thay cho `direction`.
   - `callType`: (Chỉ dành cho Admin Scope khi không chọn `groupId`) lọc theo `cdr_enriched.call_type`.
   - `includeArchive`: (Chỉ dành cho Admin Scope, mặc định `false`) cho phép tra cứu dữ liệu cũ hơn `retention_online_months`. Khi `true`, bắt buộc `fromDate`/`toDate`, khoảng tối đa 31 ngày. Người dùng nhóm luôn bị giới hạn trong cửa sổ trực tuyến; `fromDate` cũ hơn cửa sổ trả `400`.
   - `fromDate`/`toDate` luôn được áp dụng (mặc định 7 ngày gần nhất) để truy vấn chỉ quét đúng partition (`docs/01_database_schema.md` mục 2.1).
@@ -127,7 +127,7 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
         "code": "UMO-IT-01",
         "name": "Khối CNTT"
       },
-      "direction": "Inbound",
+      "direction": "INBOUND",
       "callStatus": "ANSWERED",
       "callType": "INTER_GROUP",
       "disconnectionCode": "200",

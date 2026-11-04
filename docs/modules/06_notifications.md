@@ -34,7 +34,7 @@ Bảng MariaDB: `notifications` và `notification_recipients` (Mô tả chi ti�
 
 ### 3.1. Danh sách thông báo (`GET /api/v1/notifications`)
 
-- **Query params**: `filter=all` (`all`, `unread`, `read`), `page=1`, `limit=20`
+- **Query params**: `filter` (`UNREAD` | `READ`; không truyền = mọi thông báo, gửi `all` trả `400`, `docs/02_api_contracts.md` mục 2), `page=1`, `limit=20`
 - **Response**:
 
 ```json

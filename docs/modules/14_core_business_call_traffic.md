@@ -96,7 +96,7 @@ Số liệu tổng hợp (`/traffic/summary`) đọc `stats_*` theo nguyên tắ
 ### 3.2. Tra cứu chi tiết bản ghi phân loại thời lượng cuộc gọi (`GET /api/v1/traffic/records`)
 
 - **Guard**: `UserAuthGuard` trên route User; bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1). `Permission: cdr:view`
-- **Query params**: `fromDate`, `toDate` (bắt buộc, tối đa 31 ngày, trong cửa sổ `retention_online_months`: `fromDate` cũ hơn cửa sổ trả `400` ở cả hai bản, dữ liệu lưu trữ chỉ tra qua `GET /api/v1/admin/cdr?includeArchive=true`, `docs/01_database_schema.md` mục 2.1), `groupId` (chỉ bản Admin), `callerId`, `calledId` (khớp đúng, như `GET /cdr`), `callType`, `page`, `limit` (≤ 100)
+- **Query params**: `fromDate`, `toDate` (bắt buộc, tối đa 31 ngày, trong cửa sổ `retention_online_months`: `fromDate` cũ hơn cửa sổ trả `400` ở cả hai bản, dữ liệu lưu trữ chỉ tra qua `GET /api/v1/admin/cdr?includeArchive=true`, `docs/01_database_schema.md` mục 2.1), `groupId` (chỉ bản Admin), `callerId`, `calledId` (khớp đúng, như `GET /cdr`), `callType` (chỉ bản Admin, như `GET /cdr`; bản User gửi lên trả `400`), `page`, `limit` (≤ 100)
 - **Nguồn**: `cdr_enriched WHERE is_primary_leg = 1 AND Created BETWEEN :fromDate AND :toDate` (cô lập nhóm: `caller_group_id = :g OR called_group_id = :g`).
 - **Response**: Danh sách cuộc gọi kèm `cdrId` (`cdr_enriched.id` của leg chính, dạng chuỗi theo `docs/02_api_contracts.md` mục 2), số gọi, số nhận, nhóm bên gọi, nhóm bên nhận, `callType` (`INTRA_GROUP`, `INTER_GROUP`, `UNASSIGNED`), `callStatus` và `durationSec` (= `answered_duration_sec`).
 

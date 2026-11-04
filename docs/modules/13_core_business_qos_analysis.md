@@ -72,7 +72,7 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 
 ### 3.1. Bảng phân tích QoS chi tiết (`GET /api/v1/qos/debug-table`)
 
-- **Query params**: `fromDate`, `toDate` (bắt buộc, tối đa 31 ngày, trong cửa sổ `retention_online_months`: `fromDate` cũ hơn cửa sổ trả `400` ở cả hai bản; `docs/01_database_schema.md` mục 2.1, 15), `callerId`, `calledId` (khớp đúng, như `GET /cdr`), `status` (enum `call_status`), `minMos`/`maxMos` (thang thập phân, so với `mos_x100 / 100`), `disconnectionCode`, `codec`, `packetLoss` (`none` | `warning` | `critical`, so với ngưỡng `PACKET_LOSS_PERCENT`), `groupId` (chỉ bản Admin, tùy chọn: chỉ truyền khi xem một nhóm, lọc `caller_group_id = :groupId OR called_group_id = :groupId`; không truyền là toàn hệ thống; bản User gửi lên trả `400`), `page`, `limit` (≤ 100)
+- **Query params**: `fromDate`, `toDate` (bắt buộc, tối đa 31 ngày, trong cửa sổ `retention_online_months`: `fromDate` cũ hơn cửa sổ trả `400` ở cả hai bản; `docs/01_database_schema.md` mục 2.1, 15), `callerId`, `calledId` (khớp đúng, như `GET /cdr`), `status` (enum `call_status`), `minMos`/`maxMos` (thang thập phân, so với `mos_x100 / 100`), `disconnectionCode`, `codec`, `packetLoss` (`NONE` | `WARNING` | `CRITICAL`, so với ngưỡng `PACKET_LOSS_PERCENT`), `groupId` (chỉ bản Admin, tùy chọn: chỉ truyền khi xem một nhóm, lọc `caller_group_id = :groupId OR called_group_id = :groupId`; không truyền là toàn hệ thống; bản User gửi lên trả `400`), `page`, `limit` (≤ 100)
 - **Bộ lọc nâng cao**: `disconnectionCode`, `codec`, `minMos`/`maxMos` cần thêm quyền `cdr:filter_advanced`, như `GET /cdr` (`docs/modules/12_core_business_cdr_and_audio.md` mục 3.1); gửi các tham số này khi thiếu quyền thì trả `403`.
 - **Đơn vị dòng**: mỗi dòng là **một leg** (`cdr_enriched`), kể cả leg phụ; các leg cùng cuộc gọi có cùng `callGroupKey` và được sắp liền nhau (leg chính trước). `durationSec` = `answered_duration_sec` (giây); `mos` = `mos_*_x100 / 100` (2 chữ số), `mosRaw` = giá trị số nguyên thô của PABX.
 - **Response**:
@@ -177,8 +177,8 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
   "data": {
     "period": { "from": "2026-10-01", "to": "2026-10-26" },
     "totalCalls": 3506,
-    "asr": 59.78,
-    "ner": 96.12,
+    "asrPercentage": 59.78,
+    "nerPercentage": 96.12,
     "avgMos": 4.40,
     "qosSampleCount": 4179,
     "mosDistribution": {
@@ -191,13 +191,16 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
     "avgJitterMs": 1.490,
     "maxJitterMs": 147.0,
     "highPacketLossLegs": 6,
-    "sipDelays": { "sip100": 118, "sip180": 241, "sip183": null, "answer": 6120 }
+    "avgSip100DelayMs": 118,
+    "avgSip180DelayMs": 241,
+    "avgSip183DelayMs": null,
+    "avgAnswerDelayMs": 6120
   }
 }
 ```
 
-- **Đơn vị**: `totalCalls`, `asr`, `ner`, `sipDelays` tính theo cuộc gọi (leg chính). `qosSampleCount`, `avgMos`, `mosDistribution`, `lossPercent`, `avgJitterMs`, `maxJitterMs`, `highPacketLossLegs` tính theo **leg** (cả leg A và leg B), để phản ánh cả đoạn máy gọi ↔ lõi và đoạn lõi ↔ máy nhận (`docs/01_database_schema.md` mục 15). Số liệu ví dụ lấy từ dữ liệu thật `voip_cdr_20250817.sql`.
-- `mosDistribution.*.percent` tính trên `qosSampleCount` (chỉ leg có MOS). `asr`, `ner` tính trên `totalCalls`. `sipDelays` đơn vị ms. `highPacketLossLegs` đếm theo ngưỡng `PACKET_LOSS_PERCENT` tại thời điểm tổng hợp từng khung giờ.
+- **Đơn vị**: `totalCalls`, `asrPercentage`, `nerPercentage`, `avgSip100DelayMs`, `avgSip180DelayMs`, `avgSip183DelayMs`, `avgAnswerDelayMs` tính theo cuộc gọi (leg chính). `qosSampleCount`, `avgMos`, `mosDistribution`, `lossPercent`, `avgJitterMs`, `maxJitterMs`, `highPacketLossLegs` tính theo **leg** (cả leg A và leg B), để phản ánh cả đoạn máy gọi ↔ lõi và đoạn lõi ↔ máy nhận (`docs/01_database_schema.md` mục 15). Số liệu ví dụ lấy từ dữ liệu thật `voip_cdr_20250817.sql`.
+- `mosDistribution.*.percent` tính trên `qosSampleCount` (chỉ leg có MOS). `asrPercentage`, `nerPercentage` tính trên `totalCalls`. Bốn trường `avg*DelayMs` đơn vị ms, cùng tên với báo cáo `failure` (`docs/modules/15_core_business_reports_export.md` mục 2.1). `highPacketLossLegs` đếm theo ngưỡng `PACKET_LOSS_PERCENT` tại thời điểm tổng hợp từng khung giờ.
 
 ### 3.2.1. Phân bố mã kết thúc SIP (`GET /api/v1/qos/disconnection-codes`)
 

@@ -138,7 +138,7 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
   "data": {
     "scope": "SYSTEM", // "SYSTEM" | "GROUP"
     "groupId": null,
-    "groupName": "Toàn Tập đoàn EVN",
+    "groupName": null,
     "totalCalls": {
       "value": 1245600,
       "trend": 12.0,
@@ -149,7 +149,7 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
       "trend": 5.4,
       "trendType": "positive"
     },
-    "asr": {
+    "asrPercentage": {
       "value": 82.5,
       "trend": 1.2,
       "trendType": "positive"
@@ -164,7 +164,7 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
 }
 ```
 
-- **Không có chuỗi hiển thị** (`docs/02_api_contracts.md` mục 2): API chỉ trả số. Frontend tự định dạng số và đơn vị (`durationSec` đổi sang phút), tự dựng nhãn so sánh từ `trend` (vd. "+12% so với kỳ trước"), và tự lấy nhãn chất lượng của `avgMos` theo bảng dải MOS (`docs/01_database_schema.md` mục 2.1). `avgMos.value = null` khi không có mẫu QoS.
+- **Không có chuỗi hiển thị** (`docs/02_api_contracts.md` mục 2): API chỉ trả số. Phạm vi `SYSTEM` trả `groupId = null`, `groupName = null`; frontend tự hiển thị nhãn toàn hệ thống. Frontend tự định dạng số và đơn vị (`durationSec` đổi sang phút), tự dựng nhãn so sánh từ `trend` (vd. "+12% so với kỳ trước"), và tự lấy nhãn chất lượng của `avgMos` theo bảng dải MOS (`docs/01_database_schema.md` mục 2.1). `avgMos.value = null` khi không có mẫu QoS.
 - **`trend`** = % thay đổi so với **kỳ liền trước cùng số ngày**, cùng phạm vi (toàn hệ thống hoặc cùng nhóm), đọc `stats_*` như kỳ đang xem: `today` so với hôm qua đến cùng giờ; `yesterday` so với hôm kia; `last_7_days` so với 7 ngày trước đó; `this_week`/`this_month` so với cùng số ngày đầu tuần/tháng trước; `last_month` so với tháng liền trước nữa; `custom` so với khoảng cùng số ngày ngay trước `fromDate`. `trend = null` (và không có `trendType`) khi kỳ trước không có dữ liệu (mẫu số bằng 0). `trendType` theo dấu của `trend`, chỉ có ở chỉ số có `trend`.
 
 ### 3.2. `GET /api/v1/dashboard/charts`

@@ -17,6 +17,7 @@
 - **Lần 16 (2026-11-04)**: 13 Minor, tập trung vào API (M03, M05, M06, M08–M10, M13, M14 so với `02`), đã sửa; 7 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R16-07…R16-13). Không đổi DDL.
 - **Lần 17 (2026-11-04)**: 12 Minor, tập trung vào M01, M02, M04, M07, M11, M12, M15 so với `01`/`02`, đã sửa; 5 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R17-01…R17-05) và xác nhận C-01. Không đổi DDL.
 - **Lần 18 (2026-11-04)**: 8 Minor, tập trung vào xác thực/phiên (M03, M04, M08, M09), xuất CDR (M12) và xuất báo cáo (M15) so với `01`/`02`, đã sửa; 4 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R18-05…R18-08). Không đổi DDL.
+- **Lần 19 (2026-11-04)**: 11 Minor, tập trung vào M05, M06, M11, M12, M13, M14 so với `01`/`02` (tên trường, giá trị enum, mã lỗi `409`), đã sửa; 9 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R19-03…R19-11). Không đổi DDL.
 - **Sẵn sàng sinh migration/entity** sau khi chạy xong DDL trên MariaDB 10.6 (mục 2.1).
 
 ## 1. Các lần rà soát
@@ -42,6 +43,7 @@
 | 16 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `eeda0b6` | 13 Minor | ✅ |
 | 17 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `c13212d` | 12 Minor | ✅ |
 | 18 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `1d54b6e` | 8 Minor | ✅ |
+| 19 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (chưa commit) | 11 Minor | ✅ |
 
 ---
 
@@ -49,7 +51,7 @@
 
 ### 2.1. Kiểm chứng DDL trên đúng phiên bản
 
-- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`). Lần 16 không đổi DDL (chỉ thêm một câu chính sách phiên ở `01` §6.1). Lần 17 không đổi DDL (chỉ sửa câu mã lỗi `423` ở `01` §6.1). Lần 18 không đổi DDL (chỉ sửa câu chính sách phiên ở `01` §6.1).
+- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`). Lần 16 không đổi DDL (chỉ thêm một câu chính sách phiên ở `01` §6.1). Lần 17 không đổi DDL (chỉ sửa câu mã lỗi `423` ở `01` §6.1). Lần 18 không đổi DDL (chỉ sửa câu chính sách phiên ở `01` §6.1). Lần 19 chỉ đổi COMMENT `prefix_allocation_history.range_text`.
 - **Việc cần làm**: trích toàn bộ khối ```` ```sql ```` của `01` và seed `M10` §2.1, chạy trên MariaDB 10.6, kiểm tra:
   - 27 bảng + 1 view tạo không lỗi; partition `cdr_enriched` đúng.
   - Seed: 25 mã quyền; `permission_roles` ROOT_ADMIN 25, SYSTEM_ADMIN 24, GROUP_ADMIN 17, USER_RECORDING 11, REGULAR_USER 9; 19 key `system_settings`; 5 ngưỡng QoS.
@@ -107,6 +109,20 @@ Các quy tắc sau đã ghi trong `docs/` nhưng chỉ kiểm chứng được b
 | Đăng nhập tài khoản `LOCKED` trả `403 ACCOUNT_LOCKED` (Admin và User) | `01` §6.1, `02` §2.3, M03 §3.1, M04 §3.1 | R18-05 |
 | `reset-password` (User và Admin) thu hồi phiên với `PASSWORD_CHANGED`, trả `temporaryPassword` 16 ký tự, ghi `AUTH / PASSWORD_RESET` | `01` §6.1, `02` §3.1, §3.5 | R18-06, R18-07 |
 | `GET /cdr/export` thiếu `format` xuất `xlsx` | `02` §3.7, M12 §3.1.1 | R18-08 |
+| R19-01 | Minor | M14 §3.2 `/traffic/records` nhận `callType` không ghi "chỉ bản Admin", trái `02` §1.1 (`callType` là tham số riêng Admin) và M12 §3.1 | Ghi chỉ bản Admin, bản User gửi trả `400` |
+| R19-02 | Minor | M11 §4.1 `GET /prefixes` trả `length`, trái quy tắc camelCase theo tên cột (`number_length`, `02` §2) | `numberLength` |
+| R19-03 | Minor | Cùng cột `stats_*.asr_percentage`/`ner_percentage` mang tên `asr`/`ner` ở M13 `/qos/summary` và thẻ `asr` ở M05 `/dashboard/stats`, trong khi M05 `/dashboard/charts`, M15, `02` §3.11 dùng `asrPercentage`/`nerPercentage` | Chủ dự án chốt: `asrPercentage`/`nerPercentage` mọi nơi. Sửa M05 §3.1, M13 §3.2 |
+| R19-04 | Minor | M13 `/qos/summary` trả `sipDelays { sip100, sip180, sip183, answer }`, M15 báo cáo `failure` trả `avgSip100DelayMs`… cho cùng chỉ số | Chủ dự án chốt: theo M15, trả phẳng `avgSip100DelayMs`, `avgSip180DelayMs`, `avgSip183DelayMs`, `avgAnswerDelayMs`. Sửa M13 §3.2 |
+| R19-05 | Minor | Giá trị enum lệch kiểu chữ: `direction` = `Inbound`/`Outbound`/`Internal` (`01` §2, §2.1, M12), `packetLoss` = `none`/`warning`/`critical` (M13), trong khi `call_status`, `call_type`, `severity` viết hoa | Chủ dự án chốt: chữ hoa `INBOUND`/`OUTBOUND`/`INTERNAL`, `NONE`/`WARNING`/`CRITICAL`; quy tắc ở `02` §2 (trừ giá trị thô PABX). Sửa `01` §2, §2.1, M12 §2, §3.1, M13 §3.1 |
+| R19-06 | Minor | Tham số lọc có giá trị `all` (`status`, `direction` của `/cdr`) | Chủ dự án chốt: bỏ `all`, không truyền tham số là không lọc, gửi `all` trả `400`. `02` §2, M12 §3.1 |
+| R19-07 | Minor | `prefix_allocation_history.range_text` là chuỗi hiển thị; `/prefixes/history` trả các cột của bảng, có thể trả `rangeText`, trái `02` §2 | Chủ dự án chốt: không trả; khoảng số qua `previousRangeFrom/To`, `rangeFrom/To`. Sửa COMMENT `01` §8.4, M11 §4.5 |
+| R19-08 | Minor | `phone_number_range_history.decision_number`/`note` không có nguồn: thao tác dải chỉ nói nguồn cho `prefix_allocation_history`; body `PUT /admin/phone-numbers/:number` không có ghi chú | Chủ dự án chốt: dòng `ASSIGN_TO_RANGE`/`REVOKE_FROM_RANGE` chép từ dòng `prefix_allocation_history` cùng thao tác; dòng do `PUT` số ghi NULL. `01` §8 điểm 4, M11 §4.4 |
+| R19-09 | Minor | M05 `/dashboard/stats` phạm vi `SYSTEM` trả `groupName = "Toàn Tập đoàn EVN"` (nhãn do server dựng, trái `02` §2; M15 trả `scope = null`) | Chủ dự án chốt: `groupName = null`. Sửa M05 §3.1 |
+| R19-10 | Minor | Nhiều lỗi `409` không có `errorCode` (Quản trị viên nhóm cuối cùng, xóa đơn vị còn phụ thuộc, dải giao nhau, trùng `username`/`email`) hoặc ghi chung `409 CONFLICT` (M01 §3.4, M02 §3.3–3.4, M11 §3.1) | Chủ dự án chốt: `LAST_GROUP_ADMIN`, `ORGANIZATION_IN_USE`, `RANGE_OVERLAP`, `ACCOUNT_DUPLICATE`, `GROUP_INACTIVE` (kể cả `DELETE` lại nhóm `INACTIVE`); danh mục `409` ở `02` §2.3. Sửa M01 §3.4, M02 §3.2–3.4, TC-UG, M03 §3.5, M10 §1.3, M11 §3.1 |
+| R19-11 | Minor | M06 §3.1 `GET /notifications` nhận `filter` = `all`/`unread`/`read`, trái quy tắc enum ở `02` §2 vừa chốt ở R19-05, R19-06 | Chủ dự án chốt: áp quy tắc chung, `filter` = `UNREAD` \| `READ`, không truyền là mọi thông báo. Sửa M06 §3.1 |
+| Tham số lọc enum nhận chữ hoa, gửi `all` trả `400` (`direction`, `status` của `/cdr`; `packetLoss` của `/qos/debug-table`; `filter` của `/notifications`) | `02` §2, M12 §3.1, M13 §3.1 | R19-05, R19-06 |
+| Mã lỗi `409` đúng theo danh mục (`LAST_GROUP_ADMIN`, `ORGANIZATION_IN_USE`, `RANGE_OVERLAP`, `ACCOUNT_DUPLICATE`, `GROUP_INACTIVE`) | `02` §2.3 | R19-10 |
+| Dòng `phone_number_range_history` của thao tác dải chép `decision_number`/`note` của `prefix_allocation_history`; dòng do `PUT /admin/phone-numbers/:number` ghi NULL | `01` §8 điểm 4, M11 §4.4 | R19-08 |
 
 ### 2.4. Cần xác nhận / ghi nhận rủi ro
 
