@@ -1,6 +1,6 @@
 # Intent: Chuẩn hóa `docs/` sẵn sàng sinh code
 
-> Chốt ngày 2026-10-23 · Nguồn: phỏng vấn sau báo cáo `DB_SCHEMA_AUDIT_2026-10-23.md`
+> Chốt ngày 2026-10-23 · Nguồn: phỏng vấn sau rà soát CSDL lần 2 (nay tổng hợp tại `DB_AUDIT_CONSOLIDATED.md`)
 >
 > **Lưu ý (2026-10-26)**: Q6 và phần `role_permissions`/`role:manage` của Q7 đã được thay thế bởi `docs/intent/roles-permissions-redesign.md`.
 

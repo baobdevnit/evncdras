@@ -117,14 +117,14 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
       "callerDisplayName": "Ban Kỹ thuật EVN",
       "callerGroup": {
         "id": 1,
-        "code": "UG-KT-01",
+        "code": "UMO-KT-01",
         "name": "Nhóm Kỹ thuật Ban KT"
       },
       "calledId": "46001",
       "calledDisplayName": "Trực ban Vận hành IT",
       "calledGroup": {
         "id": 2,
-        "code": "UG-IT-01",
+        "code": "UMO-IT-01",
         "name": "Khối CNTT"
       },
       "direction": "Inbound",
