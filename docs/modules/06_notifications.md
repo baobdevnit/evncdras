@@ -50,7 +50,6 @@ Bảng MariaDB: `notifications` và `notification_recipients` (Mô tả chi ti�
       "content": "Nhóm UMO-IT-01: MOS trung bình 2.85 (ngưỡng critical 3.0), 42 cuộc gọi",
       "isRead": false,
       "createdAt": "2026-10-12T11:00:00+07:00",
-      "timeAgo": "15 phút trước",
       "metadata": {
         "userGroupId": 1,
         "metric": "MOS_G107",
@@ -67,7 +66,8 @@ Bảng MariaDB: `notifications` và `notification_recipients` (Mô tả chi ti�
 ```
 
 - `createdAt` của `QOS_ALERT` luôn sau khi khung giờ kết thúc ít nhất 60 phút (khung 09:00–10:00 được đánh giá sớm nhất ở lần chạy 11:00, `docs/01_database_schema.md` mục 10).
-- `pagination` theo khung chung `docs/02_api_contracts.md` mục 2.2.
+- `pagination` theo khung chung `docs/02_api_contracts.md` mục 2.2. `unreadCount` (tổng số thông báo chưa đọc của người gọi, không phụ thuộc `filter`) là khóa phụ cấp cao được phép theo `docs/02_api_contracts.md` mục 2.2.
+- Không có trường thời gian tương đối (`timeAgo`): frontend tự tính từ `createdAt` (`docs/02_api_contracts.md` mục 2).
 
 ### 3.2. Đánh dấu đã đọc 1 thông báo (`PUT /api/v1/notifications/:id/read`)
 
@@ -210,7 +210,7 @@ export class MailerService {
 - **Danh sách (`.notifications-list`)**:
   - Item chưa đọc (`.notification-item.unread`): Viền xanh nổi bật, nền sáng nhẹ, icon chuông/cảnh báo.
   - Item đã đọc (`.notification-item.read`): Màu chữ mờ hơn, nền xám nhạt.
-  - Hiển thị thời gian tương đối (`timeAgo`): "Vừa xong", "15 phút trước", "2 giờ trước".
+  - Hiển thị thời gian tương đối do frontend tính từ `createdAt`: "Vừa xong", "15 phút trước", "2 giờ trước".
 - **Trạng thái rỗng (`.empty-state`)**: Hiển thị icon SVG hộp thư rỗng và dòng chữ "Không có thông báo nào" khi tab không có bản ghi.
 
 ### 5.2. Soạn thông báo (chỉ khu vực Admin)
@@ -222,11 +222,11 @@ export class MailerService {
 ### 5.3. Quản lý trạng thái Pinia Store (`useNotificationStore`)
 
 - Kết nối WebSocket khi người dùng đăng nhập thành công.
-- Lắng nghe sự kiện `notification:new` (payload `{ id, type, severity, title, content, isRead: false, createdAt, metadata }`, cùng cấu trúc phần tử mục 3.1 trừ `timeAgo`, `docs/02_api_contracts.md` mục 4):
+- Lắng nghe sự kiện `notification:new` (payload `{ id, type, severity, title, content, isRead: false, createdAt, metadata }`, cùng cấu trúc phần tử mục 3.1, `docs/02_api_contracts.md` mục 4):
   - Phát âm thanh chuông thông báo (tùy chọn trong profile).
   - Tăng `unreadCount += 1`.
   - Hiển thị Pop-up Toast góc màn hình (`#toastContainer`).
-  - Chèn thông báo mới vào đầu mảng `notifications`; `timeAgo` tính ở frontend từ `createdAt`.
+  - Chèn thông báo mới vào đầu mảng `notifications`; thời gian tương đối tính ở frontend từ `createdAt`.
 
 ---
 

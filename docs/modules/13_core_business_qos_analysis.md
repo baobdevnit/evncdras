@@ -72,7 +72,8 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 
 ### 3.1. Bảng phân tích QoS chi tiết (`GET /api/v1/qos/debug-table`)
 
-- **Query params**: `fromDate`, `toDate` (bắt buộc, tối đa 31 ngày, trong cửa sổ `retention_online_months`: `fromDate` cũ hơn cửa sổ trả `400` ở cả hai bản; `docs/01_database_schema.md` mục 2.1, 15), `callerId`, `calledId` (khớp đúng, như `GET /cdr`), `status` (enum `call_status`), `minMos`/`maxMos` (thang thập phân, so với `mos_x100 / 100`), `disconnectionCode`, `codec`, `packetLoss` (`none` | `warning` | `critical`, so với ngưỡng `PACKET_LOSS_PERCENT`), `page`, `limit` (≤ 100)
+- **Query params**: `fromDate`, `toDate` (bắt buộc, tối đa 31 ngày, trong cửa sổ `retention_online_months`: `fromDate` cũ hơn cửa sổ trả `400` ở cả hai bản; `docs/01_database_schema.md` mục 2.1, 15), `callerId`, `calledId` (khớp đúng, như `GET /cdr`), `status` (enum `call_status`), `minMos`/`maxMos` (thang thập phân, so với `mos_x100 / 100`), `disconnectionCode`, `codec`, `packetLoss` (`none` | `warning` | `critical`, so với ngưỡng `PACKET_LOSS_PERCENT`), `groupId` (chỉ bản Admin, tùy chọn: chỉ truyền khi xem một nhóm, lọc `caller_group_id = :groupId OR called_group_id = :groupId`; không truyền là toàn hệ thống; bản User gửi lên trả `400`), `page`, `limit` (≤ 100)
+- **Bộ lọc nâng cao**: `disconnectionCode`, `codec`, `minMos`/`maxMos` cần thêm quyền `cdr:filter_advanced`, như `GET /cdr` (`docs/modules/12_core_business_cdr_and_audio.md` mục 3.1); gửi các tham số này khi thiếu quyền thì trả `403`.
 - **Đơn vị dòng**: mỗi dòng là **một leg** (`cdr_enriched`), kể cả leg phụ; các leg cùng cuộc gọi có cùng `callGroupKey` và được sắp liền nhau (leg chính trước). `durationSec` = `answered_duration_sec` (giây); `mos` = `mos_*_x100 / 100` (2 chữ số), `mosRaw` = giá trị số nguyên thô của PABX.
 - **Response**:
 
@@ -151,9 +152,17 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
     "totalPages": 2,
     "hasNext": true,
     "hasPrev": false
+  },
+  "meta": {
+    "thresholds": [
+      { "metricName": "MOS_G107", "operator": "LESS_THAN", "warningThreshold": 3.5, "criticalThreshold": 3.0, "isEnabled": true },
+      { "metricName": "PACKET_LOSS_PERCENT", "operator": "GREATER_THAN", "warningThreshold": 1.0, "criticalThreshold": 2.0, "isEnabled": true }
+    ]
   }
 }
 ```
+
+- `meta.thresholds`: các dòng `qos_threshold_configs`, cùng dạng phần tử `thresholds` của `GET /api/v1/admin/qos/thresholds` (mục 3.3), để frontend tô màu (cả khu vực Member, nơi không gọi được API Admin). Khóa phụ cấp cao được phép theo `docs/02_api_contracts.md` mục 2.2.
 
 ### 3.2. Tổng hợp chất lượng (`GET /api/v1/qos/summary`)
 

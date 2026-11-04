@@ -39,7 +39,7 @@ Hệ thống EVN CDRAS phân tách rõ ràng giao diện Bảng điều khiển 
 | Thẻ KPI | Ý nghĩa nghiệp vụ | Nguồn tính toán (Zero CDR Scan) |
 | :--- | :--- | :--- |
 | **Tổng Cuộc Gọi Toàn Mạng** | Tổng số cuộc gọi phát sinh toàn EVN | `SUM(total_calls) FROM stats_daily` |
-| **Tổng Thời Lượng (Phút)** | Tổng thời gian đàm thoại thực tế | `ROUND(SUM(total_duration_sec) / 60) FROM stats_daily` |
+| **Tổng Thời Lượng (Phút)** | Tổng thời gian đàm thoại thực tế (API trả giây, frontend đổi sang phút để hiển thị) | `SUM(total_duration_sec) FROM stats_daily` |
 | **Tỉ Lệ Thành Công (ASR)** | Tỉ lệ cuộc gọi `call_status = ANSWERED` (SIP 200 OK) trên tổng cuộc gọi | `SUM(answered_calls) / NULLIF(SUM(total_calls), 0) * 100%` (cộng bộ đếm rồi mới chia, không lấy trung bình `asr_percentage`) |
 | **Điểm MOS Trung Bình** | Chất lượng âm thanh chuẩn ITU-T G.107 (thang thập phân tính từ R, xem `docs/01_database_schema.md` mục 2.1) | `SUM(avg_mos * qos_sample_count) / NULLIF(SUM(qos_sample_count), 0) / 100` từ `stats_*`; hiển thị 2 chữ số thập phân, `--` khi không có mẫu |
 
@@ -67,6 +67,8 @@ Hệ thống EVN CDRAS phân tách rõ ràng giao diện Bảng điều khiển 
 | **7 ngày qua (`period=last_7_days`)** | `stats_daily` | `WHERE stat_date BETWEEN :today - INTERVAL 6 DAY AND :today ...` | Tổng hợp KPI 7 ngày và vẽ biểu đồ biến thiên theo từng ngày. Quét tối đa 7 dòng. |
 | **Tháng này (`period=this_month`)** | `stats_daily` | `WHERE stat_date BETWEEN :firstDayOfMonth AND :today ...` | Tổng hợp KPI tháng và vẽ biểu đồ biến thiên theo từng ngày. Quét tối đa 30 dòng. |
 | **Khoảng ngày tùy chọn (`custom`)** | `stats_daily` | `WHERE stat_date BETWEEN :fromDate AND :toDate ...` | Tổng hợp KPI và biểu đồ cho bất kỳ dải ngày nào trong quá khứ hoặc hiện tại. |
+
+Bảng trên chỉ minh họa. Danh sách đủ các giá trị `period` (`today`, `yesterday`, `last_7_days`, `this_week`, `this_month`, `last_month`, `custom`) và khoảng ngày của từng giá trị theo `docs/02_api_contracts.md` mục 1.1: `today` đọc `stats_hourly`, các kỳ còn lại đọc `stats_daily`.
 
 ---
 
@@ -139,46 +141,36 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
     "groupName": "Toàn Tập đoàn EVN",
     "totalCalls": {
       "value": 1245600,
-      "formatted": "1,245,600",
       "trend": 12.0,
-      "trendLabel": "+12% so với kỳ trước",
       "trendType": "positive"
     },
     "durationSec": {
       "value": 230712000,
-      "formatted": "3,845,200 phút",
       "trend": 5.4,
-      "trendLabel": "+5.4% so với kỳ trước",
       "trendType": "positive"
     },
     "asr": {
       "value": 82.5,
-      "formatted": "82.5%",
       "trend": 1.2,
-      "trendLabel": "+1.2% so với kỳ trước",
       "trendType": "positive"
     },
     "avgMos": {
-      "value": 4.18,
-      "formatted": "4.18/5.0",
-      "qualityLabel": "Xuất sắc",
-      "trendType": "positive"
+      "value": 4.18
     },
     "intraRatio": {
-      "value": 68.5,
-      "formatted": "68.5%",
-      "label": "Tỷ trọng gọi nội bộ nhóm"
+      "value": 68.5
     }
   }
 }
 ```
 
-- **`trend`** = % thay đổi so với **kỳ liền trước cùng số ngày**, cùng phạm vi (toàn hệ thống hoặc cùng nhóm), đọc `stats_*` như kỳ đang xem: `today` so với hôm qua đến cùng giờ; `yesterday` so với hôm kia; `last_7_days` so với 7 ngày trước đó; `this_week`/`this_month` so với cùng số ngày đầu tuần/tháng trước; `last_month` so với tháng liền trước nữa; `custom` so với khoảng cùng số ngày ngay trước `fromDate`. `trend = null` (và không có `trendLabel`/`trendType`) khi kỳ trước không có dữ liệu (mẫu số bằng 0). `trendType` theo dấu của `trend`.
+- **Không có chuỗi hiển thị** (`docs/02_api_contracts.md` mục 2): API chỉ trả số. Frontend tự định dạng số và đơn vị (`durationSec` đổi sang phút), tự dựng nhãn so sánh từ `trend` (vd. "+12% so với kỳ trước"), và tự lấy nhãn chất lượng của `avgMos` theo bảng dải MOS (`docs/01_database_schema.md` mục 2.1). `avgMos.value = null` khi không có mẫu QoS.
+- **`trend`** = % thay đổi so với **kỳ liền trước cùng số ngày**, cùng phạm vi (toàn hệ thống hoặc cùng nhóm), đọc `stats_*` như kỳ đang xem: `today` so với hôm qua đến cùng giờ; `yesterday` so với hôm kia; `last_7_days` so với 7 ngày trước đó; `this_week`/`this_month` so với cùng số ngày đầu tuần/tháng trước; `last_month` so với tháng liền trước nữa; `custom` so với khoảng cùng số ngày ngay trước `fromDate`. `trend = null` (và không có `trendType`) khi kỳ trước không có dữ liệu (mẫu số bằng 0). `trendType` theo dấu của `trend`, chỉ có ở chỉ số có `trend`.
 
 ### 3.2. `GET /api/v1/dashboard/charts`
 
 - **Guard**: `UserAuthGuard` (bản Admin: `/api/v1/admin/dashboard/charts`, `AdminAuthGuard`, nhận thêm `groupId`). Không cần mã quyền.
-- **Query params**: tham số `period` theo bộ giá trị chung tại `docs/02_api_contracts.md` mục 1.1 (mặc định `today`).
+- **Query params**: tham số `period` theo bộ giá trị chung tại `docs/02_api_contracts.md` mục 1.1 (mặc định `today`), `fromDate`, `toDate` (khi `period = custom`), `groupId` (chỉ bản Admin, tùy chọn: chỉ truyền khi xem một nhóm, không truyền là toàn hệ thống; bản User gửi lên trả `400`).
 - **Nguồn**: `today` đọc `stats_hourly` (24 điểm theo giờ); các kỳ khác đọc `stats_daily` (mỗi ngày một điểm). Chỉ đọc đúng một phạm vi (toàn hệ thống hoặc một nhóm).
 - **Response**:
 
@@ -269,12 +261,12 @@ Các liên kết trong template (`*.html`) chuyển thành `router-link` tới r
    - Tổng Cuộc Gọi Toàn Mạng (`1,245,600`).
    - Tổng Thời Lượng Đàm Thoại (`3,845,200` phút, frontend đổi từ `durationSec`).
    - Tỉ Lệ Thành Công ASR (`82.5%`).
-   - Điểm MOS Trung Bình (`4.18/5.0`).
+   - Điểm MOS Trung Bình (`4.18`, thang E-model tối đa 4.5, `docs/modules/13_core_business_qos_analysis.md` mục 1).
 3. **Widget Kho số PABX EVN (90.000 số: 10000 ➔ 99999)**:
    - Tổng kho 90.000 số và 4 ô theo trạng thái từ `pool/summary`: Đang dùng (`ALLOCATED`), Dự phòng (`RESERVED`), Khóa (`LOCKED`), Rảnh (`FREE`).
    - Thanh phân bổ màu 4 phần tương ứng 4 trạng thái.
    - Nút liên kết sang route `admin.prefixes` (template: `prefix-management.html`).
-4. **2 Biểu đồ toàn mạng**:
+4. **3 Biểu đồ toàn mạng**:
    - `quantityChart`: Số cuộc gọi & thời lượng theo thời gian (giờ/ngày, từ `GET /api/v1/admin/dashboard/charts`).
    - `qualityChart`: ASR % & MOS G.107 toàn hệ thống theo thời gian.
    - `topGroupsChart`: **Top 10 nhóm người dùng theo lưu lượng** trong kỳ, từ `GET /api/v1/admin/dashboard/groups?limit=10&sort=totalCalls` (đọc từng dòng nhóm của `stats_daily` (không cộng các nhóm thành tổng).

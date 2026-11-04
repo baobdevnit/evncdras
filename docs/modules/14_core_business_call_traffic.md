@@ -90,7 +90,7 @@ Số liệu tổng hợp (`/traffic/summary`) đọc `stats_*` theo nguyên tắ
 
 - `data[]`: một phần tử cho mỗi nhóm (dòng `group_id = g`), dùng `callsOutbound`/`callsInbound`/`callsIntraGroup`.
 - `pagination`: chỉ có ở bản Admin khi không truyền `groupId` (danh sách nhóm có dòng `stats_*` trong kỳ); khi có `groupId` và ở bản User, `data[]` có đúng 1 phần tử, không có `pagination`.
-- `systemTotal`: chỉ trả về cho Admin Portal khi không truyền `groupId`, đọc từ dòng `group_id IS NULL`. **Không** tính bằng cách cộng `data[]`.
+- `systemTotal`: chỉ trả về cho Admin Portal khi không truyền `groupId`, đọc từ dòng `group_id IS NULL`. **Không** tính bằng cách cộng `data[]`. Là khóa phụ cấp cao được phép theo `docs/02_api_contracts.md` mục 2.2.
 - Thời lượng trung bình mỗi cuộc (ALOC): `avgDurationSec = SUM(total_duration_sec) / NULLIF(SUM(answered_calls), 0)` (quy tắc ACD `docs/01_database_schema.md` mục 15); `null` khi không có cuộc nhấc máy.
 
 ### 3.2. Tra cứu chi tiết bản ghi phân loại thời lượng cuộc gọi (`GET /api/v1/traffic/records`)

@@ -52,12 +52,14 @@ Authorization: Bearer <access_token>
 - Admin Access Token được ký bằng `JWT_ADMIN_SECRET`, kiểm tra bởi `AdminAuthGuard`.
 - User Access Token được ký bằng `JWT_USER_SECRET`, kiểm tra bởi `UserAuthGuard`.
 - Access Token sống 15 phút, chỉ giữ trong bộ nhớ frontend; Refresh Token 7 ngày đi qua cookie `HttpOnly; Secure; SameSite=Strict` và được xoay vòng mỗi lần refresh. Phiên lưu ở bảng `auth_sessions`. Chính sách đầy đủ tại `docs/01_database_schema.md` mục 6.1.
+- **Chế độ bảo trì** (`system_maintenance_mode = true`): mọi API của User Portal (`/api/v1/*` không có tiền tố `/admin`) trả `503` với `errorCode = "MAINTENANCE"`, trừ `GET /api/v1/auth/me`; Admin Portal không bị ảnh hưởng (`docs/modules/07_system_settings.md` mục 2).
 
 ---
 
 ## 2. Chuẩn định dạng phản hồi (Response Envelope Format)
 
 - **Tên trường**: mọi trường JSON (request body, response, query param, DTO) dùng **camelCase**, ví dụ `callerId`, `callStatus`, `userGroupId`. Cột `snake_case` của bảng ứng dụng đổi sang camelCase theo quy tắc thông thường (`is_primary_leg` → `isPrimaryLeg`, `call_status` → `callStatus`). Riêng `cdr_enriched.answered_duration_sec` có tên trường `durationSec` ở mọi API danh sách/chi tiết cuộc gọi (`GET /cdr`, `GET /cdr/:id`, `/qos/debug-table`, `/traffic/records`, `/dashboard/recent-calls`). **Mọi trường thời lượng trong API tính bằng giây** (tên có hậu tố `Sec`), kể cả API tổng hợp (`/dashboard/stats` trả `durationSec`, `/traffic/summary` trả `totalDurationSec`); không có trường thời lượng tính bằng phút, frontend tự quy đổi khi hiển thị. Chỉ có **hai ngoại lệ**: (1) object `raw` của `GET /cdr/:id` giữ **nguyên tên 87 cột PABX** (`RTP_Caller_G107MOS`, `_100_Delay`…); (2) khóa của map cài đặt hệ thống là chính `setting_key` (`analysis_internal_extension_pattern`…).
+- **Không trả chuỗi hiển thị**: API chỉ trả giá trị (số, mã enum, thời điểm ISO 8601), không trả chuỗi đã định dạng cho giao diện như số có dấu phân cách, đơn vị ("phút"), nhãn so sánh ("+12% so với kỳ trước"), nhãn chất lượng MOS hay thời gian tương đối ("15 phút trước"). Frontend tự định dạng và tự lấy nhãn (dải MOS ở `docs/01_database_schema.md` mục 2.1).
 - **Định danh CDR**: `cdr_enriched.id` và `call_group_key` (bigint, cột `id` khai báo `zerofill`) luôn trả về dạng **chuỗi số thập phân không đệm số 0** (`"5370"`) ở mọi trường `id`, `cdrId`, `callGroupKey` của CDR, để không mất chính xác với số nguyên lớn trong JavaScript. Tham số đường dẫn `/cdr/:id` nhận cả dạng có và không có số 0 đệm (so sánh theo giá trị số). Các bảng ứng dụng khác (`int`) trả `id` dạng số.
 - **Định dạng thời gian**: mọi trường thời gian trong response là ISO 8601 có offset `+07:00` (vd. `2025-06-11T08:02:37+07:00`). Tham số thời gian gửi lên (`fromDate`, `toDate`…) dùng ISO 8601; không có offset thì hiểu là giờ Việt Nam. Ngày thuần (`stat_date`, `month`) dùng `YYYY-MM-DD` / `YYYY-MM` theo giờ Việt Nam.
 
@@ -99,6 +101,14 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Khóa phụ cấp cao**: ngoài `success`, `statusCode`, `message`, `data`, `pagination`, `timestamp`, chỉ các API sau có thêm khóa cấp cao, đúng tên dưới đây; API khác không thêm khóa nào:
+
+| Khóa | API | Nội dung |
+|---|---|---|
+| `unreadCount` | `GET /notifications`, `PUT /notifications/:id/read` (cả bản Admin) | Số thông báo chưa đọc của người gọi (`docs/modules/06_notifications.md` mục 3.1) |
+| `systemTotal` | `GET /api/v1/admin/traffic/summary` khi không truyền `groupId` | Số liệu dòng toàn hệ thống (`docs/modules/14_core_business_call_traffic.md` mục 3.1) |
+| `meta.thresholds` | `GET /qos/debug-table` (cả bản Admin) | Ngưỡng QoS để tô màu (`docs/modules/13_core_business_qos_analysis.md` mục 3.1) |
+
 ### 2.3. Phản hồi lỗi chuẩn (Error Response)
 
 ```json
@@ -127,10 +137,10 @@ Toàn bộ endpoint của mục này thuộc portal **ADMIN**.
 | `POST` | `/api/v1/admin/auth/logout` | `AdminAuthGuard` | Đăng xuất: thu hồi phiên hiện tại trong `auth_sessions` (`LOGOUT`), xóa cookie |
 | `GET` | `/api/v1/admin/auth/me` | `AdminAuthGuard` | Lấy thông tin tài khoản Admin đang đăng nhập |
 | `GET` | `/api/v1/admin/profile` | `AdminAuthGuard` | Xem chi tiết hồ sơ Admin |
-| `PUT` | `/api/v1/admin/profile` | `AdminAuthGuard` | Cập nhật họ tên, điện thoại, avatar của Admin |
-| `PUT` | `/api/v1/admin/profile/change-password` | `AdminAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`) | Đổi mật khẩu Admin; cập nhật `password_changed_at`, `must_change_password = 0`, thu hồi các phiên khác |
-| `POST` | `/api/v1/admin/profile/avatar` | `AdminAuthGuard` | Tải ảnh đại diện (multipart, tối đa 2 MB, `image/png`/`image/jpeg`), trả `avatarUrl` |
-| `GET` | `/api/v1/admin/profile/preferences` | `AdminAuthGuard` | Lấy thiết lập giao diện của Admin (`user_settings`, `user_type = ADMIN`) |
+| `PUT` | `/api/v1/admin/profile` | `AdminAuthGuard` | Cập nhật họ tên, điện thoại của Admin; không nhận `email`, `avatarUrl` (`400`) |
+| `PUT` | `/api/v1/admin/profile/change-password` | `AdminAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`) | Đổi mật khẩu Admin; cập nhật `password_changed_at`, `must_change_password = 0`, thu hồi mọi phiên cũ (kể cả phiên đang dùng) rồi tạo một phiên mới, trả cookie mới |
+| `POST` | `/api/v1/admin/profile/avatar` | `AdminAuthGuard` | Tải ảnh đại diện (multipart, tối đa 2 MB, `image/png`/`image/jpeg`), ghi `admins.avatar_url`, trả `avatarUrl`. Cách duy nhất đổi ảnh đại diện |
+| `GET` | `/api/v1/admin/profile/preferences` | `AdminAuthGuard` | Lấy thiết lập giao diện của Admin (`user_settings`, `user_type = ADMIN`): 5 trường như bản User (mục 3.2) và `dashboardWidgets` (`docs/modules/09_admin_profile.md` mục 1) |
 | `PUT` | `/api/v1/admin/profile/preferences` | `AdminAuthGuard` | Cập nhật thiết lập giao diện của Admin |
 | `GET` | `/api/v1/admin/profile/recent-activity` | `AdminAuthGuard` | 20 hành động gần nhất của chính Admin trong `audit_logs` |
 | `GET` | `/api/v1/admin/auth/sessions` | `AdminAuthGuard` | Danh sách phiên đăng nhập đang hoạt động của chính Admin (IP, thiết bị, lần dùng cuối) |
@@ -155,9 +165,9 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `POST` | `/api/v1/auth/logout` | `UserAuthGuard` | Đăng xuất: thu hồi phiên hiện tại (`LOGOUT`), xóa cookie |
 | `GET` | `/api/v1/auth/me` | `UserAuthGuard` | Lấy thông tin User, nhóm, `roleCode` và `permissions` hiệu lực (quyền vai trò sau khi áp quyền nhóm, `docs/modules/10_permissions_and_roles.md` mục 2.3) |
 | `GET` | `/api/v1/profile` | `UserAuthGuard` | Xem chi tiết thông tin cá nhân |
-| `PUT` | `/api/v1/profile` | `UserAuthGuard` | Cập nhật thông tin cá nhân |
-| `PUT` | `/api/v1/profile/change-password` | `UserAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`) | Đổi mật khẩu cá nhân; cập nhật `password_changed_at`, `must_change_password = 0`, thu hồi các phiên khác |
-| `POST` | `/api/v1/profile/avatar` | `UserAuthGuard` | Tải ảnh đại diện (multipart, tối đa 2 MB, `image/png`/`image/jpeg`), trả `avatarUrl` |
+| `PUT` | `/api/v1/profile` | `UserAuthGuard` | Cập nhật họ tên, điện thoại; không nhận `email`, `username`, `roleCode`, `avatarUrl` (`400`) |
+| `PUT` | `/api/v1/profile/change-password` | `UserAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`) | Đổi mật khẩu cá nhân; cập nhật `password_changed_at`, `must_change_password = 0`, thu hồi mọi phiên cũ (kể cả phiên đang dùng) rồi tạo một phiên mới, trả cookie mới |
+| `POST` | `/api/v1/profile/avatar` | `UserAuthGuard` | Tải ảnh đại diện (multipart, tối đa 2 MB, `image/png`/`image/jpeg`), ghi `users.avatar_url`, trả `avatarUrl`. Cách duy nhất đổi ảnh đại diện |
 | `GET` | `/api/v1/auth/sessions` | `UserAuthGuard` | Danh sách phiên đăng nhập đang hoạt động của chính User |
 | `DELETE` | `/api/v1/auth/sessions/:id` | `UserAuthGuard` | Thu hồi một phiên của chính mình (`REVOKED_BY_SELF`) |
 | `GET` | `/api/v1/profile/preferences` | `UserAuthGuard` | Lấy thiết lập giao diện (`theme`, `isSidebarCollapsed`, `itemsPerPage`, `emailNotificationEnabled`, `soundAlertEnabled`; `docs/modules/08_user_profile.md` mục 3.5) |
@@ -193,13 +203,13 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/users` | `user:view` | Danh sách người dùng. Bản User chỉ trả user thuộc nhóm của người gọi; bản Admin trả toàn hệ thống, lọc tùy chọn `groupId`, `status` | USER + ADMIN |
 | `GET` | `/api/v1/users/:id` | `user:view` | Chi tiết thông tin người dùng | USER + ADMIN |
 | `POST` | `/api/v1/users` | `user:create` | Tạo mới tài khoản người dùng trong nhóm, kèm `roleCode`. Bản Admin bắt buộc `userGroupId`; bản User luôn tạo trong nhóm của người gọi và không nhận `userGroupId` (`400`, mục 1.1) (mặc định `REGULAR_USER`; gán `GROUP_ADMIN` cần thêm `group:manage_admin`, gán `USER_RECORDING` cần thêm `group:toggle_recording` và nhóm có `allowRecordingAccess = true`); tạo dòng `user_roles` cùng transaction | USER + ADMIN |
-| `PUT` | `/api/v1/users/:id` | `user:edit` | Cập nhật thông tin tài khoản người dùng (họ tên, chức danh, số điện thoại, ảnh); không nhận `status`, `roleCode`, `userGroupId` (`400`) | USER + ADMIN |
+| `PUT` | `/api/v1/users/:id` | `user:edit` | Cập nhật thông tin tài khoản người dùng (họ tên, chức danh, số điện thoại); không nhận `status`, `roleCode`, `userGroupId`, `avatarUrl` (`400`) | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/status` | `user:edit` | Khóa / Mở khóa tài khoản, body `{ "status": "ACTIVE" \| "LOCKED" }`; khóa thu hồi mọi phiên (`ACCOUNT_LOCKED`); `409` nếu khóa Quản trị viên nhóm đang hoạt động cuối cùng hoặc tài khoản đã `INACTIVE` | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/reset-password` | `user:edit` | Đặt lại mật khẩu người dùng: sinh mật khẩu tạm 16 ký tự trả **một lần** (`temporaryPassword`), đặt `must_change_password = 1`, thu hồi mọi phiên của user | USER + ADMIN |
 | `PUT` | `/api/v1/users/:id/role` | `group:manage_admin` hoặc `group:toggle_recording` | Đổi vai trò người dùng `{ "roleCode": "GROUP_ADMIN" \| "USER_RECORDING" \| "REGULAR_USER" }`: chuyển sang/khỏi `GROUP_ADMIN` cần `group:manage_admin` (chặn `409` hạ quyền Quản trị viên nhóm đang hoạt động cuối cùng); `REGULAR_USER` ↔ `USER_RECORDING` cần `group:toggle_recording` (sang `USER_RECORDING` cần nhóm có `allowRecordingAccess = true`, ngược lại `409`). Đặc tả `docs/modules/10_permissions_and_roles.md` mục 1.3, 3.2 | USER + ADMIN |
 | `DELETE` | `/api/v1/admin/users/:id/sessions` | `user:edit` | Thu hồi mọi phiên đăng nhập của một người dùng (`REVOKED_BY_ADMIN`) | ADMIN |
 | `DELETE` | `/api/v1/users/:id` | `user:delete` | Ngừng hoạt động tài khoản (xóa mềm `status = INACTIVE`; `409` nếu là Quản trị viên nhóm cuối cùng còn hoạt động; không xóa cứng) | USER + ADMIN |
-| `GET` | `/api/v1/admin/roles` | `role:view` | Danh sách 5 vai trò cố định (lọc tùy chọn `scope=ADMIN\|USER`), mỗi vai trò kèm danh sách quyền (`code`, `name`, `category`, `groupGated`) và số tài khoản đang mang vai trò (đếm `admin_roles`/`user_roles`). Chỉ đọc: không có API tạo/sửa/xóa vai trò hay sửa quyền của vai trò | ADMIN |
+| `GET` | `/api/v1/admin/roles` | `role:view` | Danh sách 5 vai trò cố định (lọc tùy chọn `scope=ADMIN\|USER`), mỗi vai trò kèm danh sách quyền (`code`, `name`, `category`, `groupGated`) và số tài khoản đang mang vai trò (đếm `admin_roles`/`user_roles`, chỉ tài khoản chưa `INACTIVE`). Chỉ đọc: không có API tạo/sửa/xóa vai trò hay sửa quyền của vai trò | ADMIN |
 
 ### 3.6. Phân hệ Quản lý Đầu số PABX, Dải số & Kho số máy lẻ (Prefixes & Phone Inventory)
 
@@ -242,7 +252,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 
 | Method | Endpoint | Quyền / Guard | Mô tả | Portal |
 | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/qos/debug-table` | `qos:view` | Bảng phân tích QoS chi tiết từng phiên đàm thoại gần đây (đọc từ `cdr_enriched`) | USER + ADMIN |
+| `GET` | `/api/v1/qos/debug-table` | `qos:view` (bộ lọc `disconnectionCode`, `codec`, `minMos`/`maxMos` cần thêm `cdr:filter_advanced`) | Bảng phân tích QoS chi tiết từng phiên đàm thoại gần đây (đọc từ `cdr_enriched`); bản Admin nhận `groupId` tùy chọn (chỉ truyền khi xem một nhóm). Đặc tả `docs/modules/13_core_business_qos_analysis.md` mục 3.1 | USER + ADMIN |
 | `GET` | `/api/v1/qos/summary` | `qos:view` | Thống kê tỷ lệ ASR, NER, phân khúc điểm MOS G.107, Packet Loss, Jitter, SIP Delays (đọc từ `stats_daily`/`stats_hourly`, cô lập theo nhóm) | USER + ADMIN |
 | `GET` | `/api/v1/qos/disconnection-codes` | `qos:view` | Thống kê phân bố mã ngắt kết nối SIP (200, 486, 487, 503...) và bên cúp máy (đọc từ `stats_daily`/`stats_hourly`) | USER + ADMIN |
 | `GET` | `/api/v1/admin/qos/thresholds` | `qos:view` | Lấy cấu hình ngưỡng cảnh báo MOS, Jitter, Packet Loss | ADMIN |

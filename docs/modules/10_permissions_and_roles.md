@@ -374,7 +374,7 @@ export class PermissionsGuard implements CanActivate {
 
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
 
-1. **TC-PERM-01**: Đăng nhập Admin `SYSTEM_ADMIN`, gọi `GET /admin/roles`, xác nhận trả 5 vai trò, mỗi vai trò có danh sách quyền khớp mục 2.2 và `accountCount` khớp số dòng `admin_roles`/`user_roles`. Xác nhận không có endpoint sửa vai trò/quyền (`PUT /admin/roles/1`, `PUT /admin/permissions/matrix` trả `404`).
+1. **TC-PERM-01**: Đăng nhập Admin `SYSTEM_ADMIN`, gọi `GET /admin/roles`, xác nhận trả 5 vai trò, mỗi vai trò có danh sách quyền khớp mục 2.2 và `accountCount` khớp số dòng `admin_roles`/`user_roles` của tài khoản chưa `INACTIVE` (mục 3.1; dòng vai trò của tài khoản `INACTIVE` vẫn còn nhưng không được đếm). Xác nhận không có endpoint sửa vai trò/quyền (`PUT /admin/roles/1`, `PUT /admin/permissions/matrix` trả `404`).
 2. **TC-PERM-02**: Đăng nhập `SYSTEM_ADMIN`, gọi `POST /admin/admins`, nhận `403 FORBIDDEN_PERMISSION`. Đăng nhập `ROOT_ADMIN` gọi lại thành công; admin mới có dòng `admin_roles` với vai trò `SYSTEM_ADMIN`.
 3. **TC-PERM-03**: Thành viên `USER_RECORDING` trong nhóm có `allow_recording_access = 1` nghe ghi âm thành công. Admin tắt Tầng 1 của nhóm; ngay request kế tiếp API nghe/tải trả `403 GROUP_RECORDING_DISABLED`, `GET /auth/me` không còn `cdr:listen_audio`; `user_roles` vẫn giữ `USER_RECORDING`.
 4. **TC-PERM-04**: Thành viên `REGULAR_USER` gọi API nghe ghi âm khi Tầng 1 mở, nhận `403 FORBIDDEN_PERMISSION`.

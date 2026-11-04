@@ -14,6 +14,7 @@
 - **Lần 13 (2026-11-04)**: 2 Major, 7 Minor, đã sửa theo quyết định chủ dự án (mục 3.5).
 - **Lần 14 (2026-11-04)**: 3 Major, 10 Minor, đã sửa; 4 điểm thiếu quy định chốt theo phỏng vấn chủ dự án (mục 3.5, R14-*).
 - **Lần 15 (2026-11-04)**: 8 Minor, đã sửa; 4 điểm thiếu quy định chốt theo phỏng vấn chủ dự án (mục 3.5, R15-*).
+- **Lần 16 (2026-11-04)**: 13 Minor, tập trung vào API (M03, M05, M06, M08–M10, M13, M14 so với `02`), đã sửa; 7 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R16-07…R16-13). Không đổi DDL.
 - **Sẵn sàng sinh migration/entity** sau khi chạy xong DDL trên MariaDB 10.6 (mục 2.1).
 
 ## 1. Các lần rà soát
@@ -36,6 +37,7 @@
 | 13 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `728e996` | 2 Major, 7 Minor | ✅ |
 | 14 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `94b96b3` | 3 Major, 10 Minor | ✅ |
 | 15 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `104660f` | 8 Minor | ✅ |
+| 16 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (chưa commit) | 13 Minor | ✅ |
 
 ---
 
@@ -43,7 +45,7 @@
 
 ### 2.1. Kiểm chứng DDL trên đúng phiên bản
 
-- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`).
+- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`). Lần 16 không đổi DDL (chỉ thêm một câu chính sách phiên ở `01` §6.1).
 - **Việc cần làm**: trích toàn bộ khối ```` ```sql ```` của `01` và seed `M10` §2.1, chạy trên MariaDB 10.6, kiểm tra:
   - 27 bảng + 1 view tạo không lỗi; partition `cdr_enriched` đúng.
   - Seed: 25 mã quyền; `permission_roles` ROOT_ADMIN 25, SYSTEM_ADMIN 24, GROUP_ADMIN 17, USER_RECORDING 11, REGULAR_USER 9; 19 key `system_settings`; 5 ngưỡng QoS.
@@ -63,6 +65,8 @@ Danh sách chi tiết theo quyết định Q/R/D nằm ở `docs/intent/docs-rea
 | `admin|member/reports.*` | Mỗi báo cáo một phạm vi, không có bộ chọn nhiều nhóm (R12-01); `period = today` có cột `hour` (R12-08) |
 | `admin/notifications.*` (form Admin soạn) | Có trường `type`; dropdown nhóm chỉ liệt kê nhóm `ACTIVE` (R12-03, R12-09) |
 | `user-settings.*` | Theme có 3 giá trị `light`/`dark`/`system` (X-09) |
+| `admin|member/dashboard.*`, `notifications.*` | Frontend tự định dạng số, đơn vị, nhãn xu hướng, nhãn MOS và thời gian tương đối; API không trả `formatted`/`trendLabel`/`qualityLabel`/`timeAgo` (R16-07) |
+| `admin|member/profile.*` | Ảnh đại diện chỉ đổi qua nút tải ảnh (`POST .../avatar`); form sửa người dùng của quản trị viên không có ô ảnh (R16-12) |
 | `03` §danh mục template | Bỏ `login_admin.html`, `users4group.html` (không tồn tại); thêm `templates/member/group-admin.html`, `group-members.html` (Phụ lục A lần 4) |
 
 Các phát hiện template gốc của lần 2 (T-01…T-25, A-02, A-03) là căn cứ của danh sách trên; chúng không còn tác dụng với `docs/`.
@@ -89,6 +93,9 @@ Các quy tắc sau đã ghi trong `docs/` nhưng chỉ kiểm chứng được b
 | `PUT /users/:id` có `userGroupId` (kể cả trùng nhóm) trả `400` | `02` §3.5, M03 §3.5 | R15-02 |
 | `PUT /admin/prefixes/:id` thiếu `decisionNumber` trả `400`; dòng `UPDATE`/`REVOKE` có `cdr_ownership_note = NULL` | `01` §8 điểm 5, M11 §4.2 | R15-06 |
 | Đổi trạng thái số `RESERVED` ↔ `LOCKED` ghi 2 dòng `phone_number_range_history` cùng transaction | `01` §8, M11 §4.4 | R14-13 |
+| `/qos/debug-table` gửi `disconnectionCode`/`codec`/`minMos`/`maxMos` khi thiếu `cdr:filter_advanced` trả `403`; bản User gửi `groupId` trả `400` | `02` §3.8, M13 §3.1 | R16-09, R16-10 |
+| Tự đổi mật khẩu thu hồi mọi phiên cũ, kể cả phiên đang dùng (`PASSWORD_CHANGED`), tạo đúng 1 phiên mới | `01` §6.1, M08 §3.4, M09 §3.3 | R16-11 |
+| `PUT /profile`, `PUT /admin/profile`, `PUT /users/:id` có `avatarUrl` trả `400`; `POST .../avatar` ghi `avatar_url` | `02` §3.1, §3.2, §3.5, M03 §3.5, M08 §3.2–3.3, M09 §3.2 | R16-12 |
 
 ### 2.4. Cần xác nhận / ghi nhận rủi ro
 
@@ -195,7 +202,7 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 - Tách đổi trạng thái khỏi `PUT /users/:id`; `audit_logs` chỉ ghi thêm ở mức CSDL.
 - Ghi chú: nhóm sở hữu số chốt lúc làm giàu, mã nhóm không dùng lại, giới hạn `timestamp` 2038.
 
-### 3.5. Lần 6–15
+### 3.5. Lần 6–16
 
 | Mã | Mức | Vấn đề | Xử lý (nơi sửa) |
 |---|---|---|---|
@@ -274,6 +281,19 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 | R15-06 | Minor | `prefix_allocation_history.cdr_ownership_note` không có nguồn cho dòng `UPDATE`/`REVOKE`; không nói `decisionNumber` của `PUT /admin/prefixes/:id` có bắt buộc | Chủ dự án chốt: chỉ `ALLOCATE` có giá trị, `UPDATE`/`REVOKE` ghi NULL; `decisionNumber` bắt buộc ở `PUT` như `POST`. `01` §8 điểm 5 + COMMENT, M11 §4.2, `02` §3.6 |
 | R15-07 | Minor | Không quy định `representative_user_id` khi người đại diện bị `LOCKED` (chỉ có quy tắc khi ngừng hoạt động và hạ quyền) | Chủ dự án chốt: giữ nguyên. `01` §14 dòng `users` |
 | R15-08 | Minor | M12 §3.1 ghi `fromDate`/`toDate` vừa "bắt buộc" vừa "mặc định 7 ngày" | Chủ dự án chốt: tùy chọn, thiếu thì 7 ngày gần nhất (vẫn luôn lọc `Created`); bắt buộc khi `includeArchive=true`. M12 §3.1, `02` §3.7 |
+| R16-01 | Minor | M05 §1.2 thẻ "Tổng Thời Lượng" lấy nguồn `ROUND(SUM(total_duration_sec) / 60)`, trái R13-09 (API chỉ trả giây) | `SUM(total_duration_sec)`, frontend đổi sang phút |
+| R16-02 | Minor | M05 §5.1 ghi "2 Biểu đồ toàn mạng" nhưng liệt kê 3 (`quantityChart`, `qualityChart`, `topGroupsChart`, khớp bộ widget M09 §1) | "3 Biểu đồ" |
+| R16-03 | Minor | M05 §3.2 `/dashboard/charts` chỉ nêu `period`, thiếu `fromDate`/`toDate` (bắt buộc với `custom`, `02` §1.1) và `groupId` bản Admin (nêu ở dòng Guard) | Thêm vào Query params |
+| R16-04 | Minor | M05 §2.1 bảng nguồn dữ liệu thiếu `yesterday`, `this_week`, `last_month` | Thêm ghi chú dẫn `02` §1.1 |
+| R16-05 | Minor | M10 TC-PERM-01 so `accountCount` với số dòng `admin_roles`/`user_roles`, trái M10 §3.1 (chỉ tính tài khoản chưa `INACTIVE`; dòng vai trò của tài khoản `INACTIVE` vẫn còn vì RESTRICT); `02` §3.5 không nêu | Theo M10 §3.1; sửa TC và `02` §3.5 |
+| R16-06 | Minor | `02` không có quy tắc chế độ bảo trì (`503 MAINTENANCE`, trừ `GET /auth/me`) dù M07 §2 và M03 §5.0 dùng | Thêm `02` §1.2 |
+| R16-07 | Minor | Chuỗi hiển thị do server dựng: M06 §3.1 `GET /notifications` có `timeAgo`, trái M06 §5.3 và `02` §4 (frontend tự tính từ `createdAt`); M05 `/dashboard/stats` có `formatted` (vd. "3,845,200 phút", lệch R13-09), `trendLabel`, `qualityLabel`, `label`; `"4.18/5.0"` trái M13 §1 (MOS E-model tối đa 4.5) | Chủ dự án chốt: API không trả chuỗi hiển thị. Quy tắc ở `02` §2; bỏ các trường trên ở M05 §3.1, M06 §3.1; `avgMos` chỉ còn `value` (bỏ `trendType` vì không có `trend`); M05 §5.1 hiển thị `4.18` |
+| R16-08 | Minor | Khóa cấp cao ngoài khung `02` §2.2: `unreadCount` (M06), `systemTotal` (M14), `meta.thresholds` (M13 §3.3 nhắc nhưng ví dụ debug-table không có) | Chủ dự án chốt: giữ tên riêng, liệt kê 3 khóa được phép ở `02` §2.2; thêm `meta.thresholds` vào ví dụ M13 §3.1 |
+| R16-09 | Minor | M12 `GET /cdr` đòi `cdr:filter_advanced` cho `disconnectionCode`, `codec`, `minMos`/`maxMos`; M13 debug-table nhận cùng tham số chỉ với `qos:view` | Chủ dự án chốt: debug-table cũng đòi `cdr:filter_advanced` (`403`). M13 §3.1, `02` §3.8 |
+| R16-10 | Minor | M13 §3.1 debug-table bản Admin không có `groupId`, khác `/cdr`, `/traffic/records` | Chủ dự án chốt: `groupId` tùy chọn, chỉ truyền khi Admin xem một nhóm; không truyền là toàn hệ thống. M13 §3.1, M05 §3.2, `02` §3.8 |
+| R16-11 | Minor | Phiên khi tự đổi mật khẩu: `01` §6.1 "thu hồi toàn bộ phiên", `02` §3.1–3.2 "thu hồi các phiên khác", M08/M09 "phiên mới, thu hồi mọi phiên khác" | Chủ dự án chốt: thu hồi mọi phiên cũ kể cả phiên đang dùng (`PASSWORD_CHANGED`), tạo 1 phiên mới. `01` §6.1, `02` §3.1–3.2, M08 §3.4, M09 §3.3 |
+| R16-12 | Minor | Cách đổi ảnh đại diện lệch nhau: M09 `PUT /admin/profile` nhận `avatarUrl`, M08 `PUT /profile` không; `02` §3.5 `PUT /users/:id` có "ảnh" nhưng không có API tải ảnh cho người khác | Chủ dự án chốt: chỉ đổi qua `POST .../avatar` (ghi luôn `avatar_url`); các `PUT` có `avatarUrl` trả `400`; quản trị viên không đổi ảnh người khác. `02` §3.1, §3.2, §3.5, M03 §3.5, M08 §3.2–3.3, M09 §1, §3.2 |
+| R16-13 | Minor | `dashboardWidgets` (M09 §1) lưu ở `custom_preferences` nhưng `02` §3.1 không nêu trường của preferences Admin hay vị trí trường này | Chủ dự án chốt: trường cấp cao `dashboardWidgets` cạnh 5 trường chung; `custom_preferences` chỉ là nơi lưu. `02` §3.1, M09 §1 |
 
 Đề xuất làm gọn **bị từ chối** ở lần 10 (giữ nguyên, không đề xuất lại): gộp `phone_prefix_groups` vào `user_groups`; thay 5 bảng RBAC bằng cột `role`; bỏ `stats_daily`; bỏ dòng `phone_number_range_history` cho từng số.
 

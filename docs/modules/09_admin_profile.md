@@ -8,12 +8,12 @@
 
 ### 1.1. Bối cảnh nghiệp vụ
 Quản trị viên hạ tầng viễn thông (Admin Portal) của EVNICT nắm quyền quản lý toàn bộ hệ thống log và file ghi âm nhạy cảm:
-1. **Quản lý hồ sơ cá nhân Quản trị viên**: Xem hồ sơ; tự cập nhật họ tên, số điện thoại trực ban, ảnh đại diện (mục 3.2). Không tự sửa email; email của Admin khác sửa qua `PUT /api/v1/admin/admins/:id` (`admin:manage`). Nhận diện cấp bậc rõ ràng giữa **Root Admin** và **System Admin**.
+1. **Quản lý hồ sơ cá nhân Quản trị viên**: Xem hồ sơ; tự cập nhật họ tên, số điện thoại trực ban (mục 3.2) và ảnh đại diện (chỉ qua `POST /api/v1/admin/profile/avatar`). Không tự sửa email; email của Admin khác sửa qua `PUT /api/v1/admin/admins/:id` (`admin:manage`). Nhận diện cấp bậc rõ ràng giữa **Root Admin** và **System Admin**.
 2. **Tiêu chuẩn An toàn thông tin cấp cao**:
    - Mật khẩu tối thiểu 10 ký tự (3 trong 4 loại ký tự), bắt đổi sau 90 ngày (`password_changed_at`). Chính sách áp dụng chung cho cả hai portal, ngưỡng cấu hình qua `system_settings` (`security_*`), chi tiết tại `docs/01_database_schema.md` mục 6.1.
    - Quản lý phiên đăng nhập đang hoạt động (Active Sessions): đọc từ bảng `auth_sessions` (`GET /api/v1/admin/auth/sessions`), cho phép thu hồi từng phiên từ xa (`DELETE /api/v1/admin/auth/sessions/:id`) khi nghi ngờ lộ lọt thông tin. Root Admin thu hồi được mọi phiên của admin khác.
    - Truy vết nhật ký hành động (Personal Audit Log): Xem lại lịch sử các tác vụ quản trị do chính tài khoản này thực hiện gần đây.
-3. **Thiết lập Dashboard Quản trị**: ẩn/hiện và sắp thứ tự các widget của Dashboard Admin. Lưu ở `user_settings.custom_preferences.dashboardWidgets` (`user_type = ADMIN`) dạng mảng `[{ "key": "kpiCards", "visible": true, "order": 1 }, ...]`, qua `GET`/`PUT /api/v1/admin/profile/preferences`. Bộ `key` cố định: `kpiCards`, `poolWidget`, `quantityChart`, `qualityChart`, `topGroupsChart`, `groupMonitorTable`. Thiếu cấu hình thì dùng thứ tự mặc định như liệt kê.
+3. **Thiết lập Dashboard Quản trị**: ẩn/hiện và sắp thứ tự các widget của Dashboard Admin. Lưu ở `user_settings.custom_preferences.dashboardWidgets` (`user_type = ADMIN`) dạng mảng `[{ "key": "kpiCards", "visible": true, "order": 1 }, ...]`, qua `GET`/`PUT /api/v1/admin/profile/preferences`. Ở API là trường cấp cao `dashboardWidgets`, cạnh 5 trường thiết lập chung của bản User (`theme`, `isSidebarCollapsed`, `itemsPerPage`, `emailNotificationEnabled`, `soundAlertEnabled`, `docs/modules/08_user_profile.md` mục 3.5); `custom_preferences` chỉ là nơi lưu, không xuất hiện trong body/response. Bộ `key` cố định: `kpiCards`, `poolWidget`, `quantityChart`, `qualityChart`, `topGroupsChart`, `groupMonitorTable`. Thiếu cấu hình thì dùng thứ tự mặc định như liệt kê.
 
 ---
 
@@ -49,11 +49,11 @@ Dữ liệu lưu tại bảng `admins`, `user_settings` (`user_type = 'ADMIN'`) 
 ```
 
 ### 3.2. `PUT /api/v1/admin/profile`
-- Cập nhật `fullName`, `phoneNumber`, `avatarUrl`.
+- Cập nhật `fullName`, `phoneNumber`. Không nhận `email`, `avatarUrl` (gửi lên trả `400`); ảnh đại diện chỉ đổi qua `POST /api/v1/admin/profile/avatar`, API này lưu file, ghi luôn `admins.avatar_url` và trả `avatarUrl` mới.
 
 ### 3.3. `PUT /api/v1/admin/profile/change-password`
 - Đổi mật khẩu Quản trị viên. Body và quy tắc giống `PUT /api/v1/profile/change-password` (`docs/modules/08_user_profile.md` mục 3.4).
-- **Response thành công** `200`: `{ "accessToken": "...", "expiresIn": 900 }` (token đầy đủ, kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`), đặt cookie Refresh Token mới (phiên mới, hạn tuyệt đối 7 ngày), thu hồi mọi phiên khác (`PASSWORD_CHANGED`), cập nhật `password_changed_at = NOW()`, `must_change_password = 0`, ghi `audit_logs` `AUTH / PASSWORD_CHANGED`. Mật khẩu mới phải đạt chính sách và khác mật khẩu hiện tại (sai thì `400`).
+- **Response thành công** `200`: `{ "accessToken": "...", "expiresIn": 900 }` (token đầy đủ, kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`), đặt cookie Refresh Token mới (phiên mới, hạn tuyệt đối 7 ngày), thu hồi mọi phiên khác (`PASSWORD_CHANGED`), cập nhật `password_changed_at = NOW()`, `must_change_password = 0`, ghi `audit_logs` `AUTH / PASSWORD_CHANGED`. Mật khẩu mới phải đạt chính sách và khác mật khẩu hiện tại (sai thì `400`). Mọi phiên cũ, kể cả phiên đang dùng, bị thu hồi (`PASSWORD_CHANGED`) trước khi tạo phiên mới, như `docs/modules/08_user_profile.md` mục 3.4.
 
 ### 3.4. `GET /api/v1/admin/profile/recent-activity`
 - **Mục đích**: Lấy 20 hành động gần nhất của Admin từ bảng `audit_logs`.
