@@ -127,6 +127,27 @@ Danh mục các Key cấu hình chuẩn (3 phân nhóm: `ANALYSIS`, `REPORTING`,
 - **Sắp xếp**: `created_at` giảm dần, rồi `id` giảm dần.
 - **Phần tử**: `id`, `actorType`, `actorId`, `actorName`, `action`, `resourceName`, `resourceId`, `ipAddress`, `userAgent`, `actionDetails` (JSON gốc của `action_details`, có thể `null`), `createdAt`. Khung phân trang theo `docs/02_api_contracts.md` mục 2.2.
 
+### 3.5. Tình trạng tiến trình nền (`GET /api/v1/admin/system/jobs`)
+
+- **Guard**: `AdminAuthGuard`, `Permission: system:manage`. Chỉ đọc, không ghi `audit_logs`.
+- **Response** `200`, `data`:
+  - `jobs[]`: mỗi dòng `worker_job_status` (`docs/01_database_schema.md` mục 2.3), thứ tự cố định như bảng lịch chạy: `jobName`, `status` (`IDLE` | `RUNNING` | `ERROR`), `lastStartedAt`, `lastFinishedAt`, `lastSuccessAt`, `lastDurationMs`, `consecutiveFailures`, `lastError`, `lastErrorAt`, `lastResult` (JSON gốc, có thể `null`), và `isStale` (boolean do API tính: `cdr-enrichment` khi `lastSuccessAt` cũ hơn 10 phút; job theo lịch khi `lastSuccessAt` cũ hơn 2 lần chu kỳ của nó, vd. `stats-aggregation` 20 phút, `session-cleanup` 48 giờ, `partition-maintenance` 32 ngày; `lastSuccessAt` NULL thì `true`).
+  - `enrichment`: `lastProcessedCdrId`, `recordsEnrichedTotal`, `lastNewCdrSeenAt`, `qosAlertEvaluatedUntil`, `cdrPurgedBefore` (từ `cdr_enrichment_state`), `quarantinedCount` (`COUNT(*)` của `cdr_enrichment_errors`), `statsQueueSize` (`COUNT(*)` của `stats_recompute_queue`), `emailPendingCount` (số dòng `notification_recipients.email_status = 'PENDING'`, qua `idx_nr_email_status`).
+- Không trả `lag` theo số bản ghi `cdr` chưa làm giàu, vì API không đọc bảng `cdr` (`docs/01_database_schema.md` mục 15).
+
+### 3.6. Danh sách CDR bị cách ly (`GET /api/v1/admin/system/enrichment-errors`)
+
+- **Guard**: `AdminAuthGuard`, `Permission: system:manage`.
+- **Query**: `page` (mặc định 1), `limit` (mặc định 20, tối đa 100). Sắp xếp `last_failed_at` giảm dần.
+- **Phần tử**: `cdrId`, `cdrCreated`, `errorMessage`, `attempts`, `firstFailedAt`, `lastFailedAt` (`docs/01_database_schema.md` mục 2.4). Khung phân trang theo `docs/02_api_contracts.md` mục 2.2.
+
+### 3.7. Làm giàu lại một CDR bị cách ly (`POST /api/v1/admin/system/enrichment-errors/:cdrId/retry`)
+
+- **Guard**: `AdminAuthGuard`, `Permission: system:manage`. Không có body.
+- Chạy `CdrEnrichmentService.enrichOne(cdrId)` theo `docs/01_database_schema.md` mục 2.4 (thường sau khi đã sửa dữ liệu nguồn hoặc phát hành bản sửa lỗi code).
+- `200` với `data = { cdrId, enriched: true }`: đã ghi `cdr_enriched`, xóa dòng cách ly. `404 NOT_FOUND`: `cdrId` không có trong `cdr_enrichment_errors`. `422 ENRICHMENT_FAILED`: vẫn lỗi, `errors = { message }`, `attempts` tăng 1.
+- Ghi `audit_logs` `SYSTEM / RETRY_ENRICHMENT` (`resource_id` = `cdrId`, `action_details = { "success": true|false }`).
+
 ---
 
 ## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)
@@ -178,6 +199,7 @@ Mỗi mục là một component trong `src/apps/admin/views/settings/sections/`,
 | `qos-thresholds` | `QosThresholdsSection.vue` | xem `qos:view`, nút Lưu cần `qos:manage` | Bảng ngưỡng warning/critical theo `metric_name`, `GET`/`PUT /api/v1/admin/qos/thresholds` (`docs/modules/13_core_business_qos_analysis.md` mục 3.3) |
 | `admins` | `AdminAccountsSection.vue` | `admin:manage` | Quản lý Quản trị viên (`docs/modules/04_auth_admin.md` mục 5.2) |
 | `audit-logs` | `AuditLogSection.vue` | `audit:view` | Bảng `GET /api/v1/admin/audit-logs`: lọc `fromDate`/`toDate` (bắt buộc), `actorType`, `actorId`, `action`, `resourceName`, phân trang; chỉ đọc |
+| `jobs` | `WorkerJobsSection.vue` | `system:manage` | "Tình trạng tiến trình nền": bảng `GET /api/v1/admin/system/jobs` (mục 3.5), mỗi job một dòng với badge trạng thái (`IDLE` xanh, `RUNNING` xanh dương, `ERROR` đỏ, `isStale` cam "Không hoạt động"), thời điểm thành công gần nhất, số lần lỗi liên tiếp, lỗi gần nhất (mở rộng xem đủ); thẻ số liệu `enrichment`; tự làm mới mỗi 30 giây. Bên dưới là bảng CDR bị cách ly (mục 3.6) với nút "Làm giàu lại" từng dòng (mục 3.7) |
 
 ---
 
@@ -187,3 +209,5 @@ Mỗi mục là một component trong `src/apps/admin/views/settings/sections/`,
 2. **TC-SET-02**: Thay đổi chu kỳ lưu trữ online từ 6 tháng thành 12 tháng, xác nhận giá trị cập nhật thành công trong bảng `system_settings`.
 3. **TC-SET-03**: Gọi `POST /api/v1/admin/settings/reload-cache` sau khi sửa trực tiếp `phone_numbers.range_id` trong DB, xác nhận CDR làm giàu sau đó dùng nhóm sở hữu mới.
 4. **TC-SET-04**: Bật Chế độ bảo trì: đăng nhập User trả `503 MAINTENANCE`, `GET /api/v1/auth/me` vẫn trả `200`; Admin Portal và job tổng hợp vẫn hoạt động.
+5. **TC-SET-05**: Dừng `backend-worker` 11 phút: `GET /admin/system/jobs` trả `cdr-enrichment.isStale = true`; có đúng 1 thông báo `SYSTEM_JOB` `CRITICAL` dù chạy 2 instance API. Chạy lại worker: các dòng đang `RUNNING` chuyển `ERROR` ("Tiến trình dừng khi job đang chạy"), có thông báo `SYSTEM_JOB` `INFO`, email `CRITICAL` được gửi sau khi worker chạy. Ban đêm không có CDR mới: `last_success_at` vẫn cập nhật, không báo `SYSTEM_JOB`.
+6. **TC-SET-06**: Chèn vào `cdr` một bản ghi làm hàm làm giàu ném lỗi dữ liệu, giữa 2 bản ghi lành cùng batch: 2 bản ghi lành có trong `cdr_enriched`, bản ghi lỗi có trong `cdr_enrichment_errors`, watermark vượt qua nó, có 1 thông báo `SYSTEM_JOB` `WARNING` trong ngày. Ngắt DB giữa batch: không có dòng cách ly nào, watermark giữ nguyên. Sửa dữ liệu rồi gọi `POST /admin/system/enrichment-errors/:cdrId/retry`: `200`, dòng cách ly bị xóa, khung giờ vào `stats_recompute_queue`, `audit_logs` có `RETRY_ENRICHMENT`; gọi khi vẫn lỗi: `422 ENRICHMENT_FAILED`, `attempts` tăng.

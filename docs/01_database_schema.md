@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS `cdr` (
 ## 2.1. Bảng CDR Làm Giàu & Cô lập dữ liệu theo nhóm (cdr_enriched)
 
 Bảng `cdr_enriched` là **bảng trung tâm cho toàn bộ nghiệp vụ Backend, API và Phân quyền** của hệ thống EVN CDR AS:
-- Tiếp nhận dữ liệu được copy và làm giàu từ bảng `cdr` thông qua tiến trình Near-Realtime Batch Scheduler (chu kỳ 3-5 giây).
+- Tiếp nhận dữ liệu được copy và làm giàu từ bảng `cdr` thông qua tiến trình Near-Realtime Batch Scheduler (chu kỳ 3 giây).
 - Bổ sung các cột làm giàu: nhóm sở hữu (`caller_group_id`, `called_group_id`), gộp leg, `call_status`, `answered_duration_sec`, `call_type`, MOS thập phân (chi tiết ở các khối quy tắc bên dưới).
 - Nếu số điện thoại thuộc dải cấp sở hữu cho nhóm người dùng (`phone_prefix_groups` -> `phone_prefix_ranges` -> `phone_numbers`), trường tương ứng lưu `id` của nhóm (`user_groups.id`).
 - Nếu số điện thoại chưa được quy hoạch cấp cho nhóm nào (số nội bộ chưa khai báo), hoặc là **số ngoài kho** (không khớp `analysis_internal_extension_pattern`: `Anonymous`, `0xxxx`, số không đủ 5 chữ số, số di động… xem mục 8), trường tương ứng nhận giá trị `NULL`. Số ngoài kho không làm lỗi tiến trình làm giàu.
@@ -377,7 +377,7 @@ PARTITION BY RANGE (TO_DAYS(`Created`)) (
 > [!IMPORTANT]
 > **Partition & vòng đời dữ liệu `cdr_enriched`**:
 > - **Partition khởi tạo**: khối DDL ở trên chỉ minh họa. Migration tạo bảng sinh danh sách partition theo dữ liệu thật: partition đầu tiên là tháng của bản ghi `cdr` đầu tiên (`SELECT Created FROM cdr ORDER BY id ASC LIMIT 1`, đọc theo PK; NULL thì dùng `Destroyed`; bảng `cdr` rỗng thì lấy tháng hiện tại), mỗi tháng một partition đến hết tháng hiện tại + 2, cuối cùng là `p_future`. Nhờ đó mỗi partition chỉ chứa đúng một tháng và `DROP PARTITION` theo hạn `retention_archive_months` xóa đúng kỳ.
-> - **Partition theo tháng** trên `Created` (`RANGE` + `TO_DAYS`). Job `src/apps/worker/partition-maintenance` (tiến trình `backend-worker`) chạy ngày 1 hằng tháng: tách `p_future` để luôn có sẵn partition cho tháng hiện tại và 2 tháng kế tiếp. Job cũng chạy **một lần khi `backend-worker` khởi động**: tách `p_future` (dùng `REORGANIZE PARTITION`, làm được cả khi `p_future` đã có dữ liệu) thành các partition tháng còn thiếu đến hết tháng hiện tại + 2 tháng.
+> - **Partition theo tháng** trên `Created` (`RANGE` + `TO_DAYS`). Job `src/apps/worker/partition-maintenance` (tiến trình `backend-worker`) chạy 02:00 ngày 1 hằng tháng (mục 2.3): tách `p_future` để luôn có sẵn partition cho tháng hiện tại và 2 tháng kế tiếp. Job cũng chạy **một lần khi `backend-worker` khởi động**: tách `p_future` (dùng `REORGANIZE PARTITION`, làm được cả khi `p_future` đã có dữ liệu) thành các partition tháng còn thiếu đến hết tháng hiện tại + 2 tháng.
 > - **Tra theo `id`** (`GET /cdr/:id`, API audio): dùng phần đầu của PK (`id`) nên quét qua mọi partition theo index, chấp nhận được vì mỗi partition chỉ trả tối đa 1 dòng. Danh sách `legs[]` của trang chi tiết đọc `WHERE call_group_key = :k AND Created BETWEEN :created - INTERVAL 2 SECOND AND :created + INTERVAL 2 SECOND` (`:created` = `Created` của leg vừa đọc; các leg cùng cuộc gọi lệch nhau không quá 2 giây theo khóa gom leg), để chỉ quét 1–2 partition.
 > - **Mọi truy vấn** trên `cdr_enriched` bắt buộc có điều kiện `Created` (khoảng thời gian) để MariaDB chỉ quét các partition liên quan (partition pruning).
 > - **Trực tuyến** (`Created >= :onlineFrom`, với `:onlineFrom` = 00:00 giờ Việt Nam của ngày hiện tại lùi `retention_online_months` tháng, do backend tính và truyền làm tham số như quy định đầu tài liệu; mặc định 6 tháng): mọi API tra cứu CDR, QoS debug, `/traffic/records` mặc định chỉ trong cửa sổ này.
@@ -398,11 +398,9 @@ CREATE TABLE IF NOT EXISTS `cdr_enrichment_state` (
   `id` tinyint(3) unsigned NOT NULL AUTO_INCREMENT,
   `last_processed_cdr_id` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Watermark ID cao nhất từ bảng cdr đã hoàn tất làm giàu',
   `batch_size` int(11) NOT NULL DEFAULT 1000 COMMENT 'Số lượng bản ghi tối đa đọc trong 1 chu kỳ polling',
-  `last_run_at` datetime DEFAULT NULL COMMENT 'Thời điểm tiến trình chạy gần nhất',
-  `last_success_at` datetime DEFAULT NULL COMMENT 'Thời điểm batch gần nhất hoàn tất thành công',
-  `records_enriched_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng số bản ghi đã làm giàu tích lũy',
-  `status` enum('IDLE','PROCESSING','ERROR') NOT NULL DEFAULT 'IDLE' COMMENT 'Trạng thái chạy hiện tại',
-  `error_message` text DEFAULT NULL COMMENT 'Chi tiết lỗi nếu phát sinh sự cố',
+  `records_enriched_total` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT 'Tổng số bản ghi đã làm giàu tích lũy (không gồm bản ghi bị cách ly)',
+  `last_new_cdr_seen_at` datetime DEFAULT NULL COMMENT 'Giờ backend (không phải giờ PABX) của batch gần nhất đọc được bản ghi cdr mới; căn cứ PABX_OFFLINE (mục 10). NULL = chưa từng đọc được bản ghi nào',
+  `qos_alert_evaluated_until` datetime DEFAULT NULL COMMENT 'Giờ bắt đầu của khung giờ gần nhất đã đánh giá cảnh báo QoS (mục 10); NULL = chưa đánh giá khung nào',
   `cache_version` int(10) unsigned NOT NULL DEFAULT 0 COMMENT 'Tăng khi dữ liệu sở hữu số hoặc system_settings thay đổi; worker và API so sánh để nạp lại cache',
   `cdr_purged_before` date DEFAULT NULL COMMENT 'Mốc :purgeBoundary: CDR có Created trước ngày này đã bị DROP PARTITION. Job partition ghi trước mỗi lần DROP; NULL = chưa xóa partition nào',
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -410,10 +408,88 @@ CREATE TABLE IF NOT EXISTS `cdr_enrichment_state` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Khởi tạo bản ghi trạng thái ban đầu:
-INSERT INTO `cdr_enrichment_state` (`id`, `last_processed_cdr_id`, `batch_size`, `status`)
-VALUES (1, 0, 1000, 'IDLE')
+INSERT INTO `cdr_enrichment_state` (`id`, `last_processed_cdr_id`, `batch_size`)
+VALUES (1, 0, 1000)
 ON DUPLICATE KEY UPDATE `id` = 1;
 ```
+
+> [!IMPORTANT]
+> - Bảng này chỉ giữ **dữ liệu điều khiển** (watermark, mốc, phiên bản cache). Trạng thái chạy của tiến trình làm giàu (đang chạy, lỗi, lần thành công gần nhất) ghi ở `worker_job_status` (mục 2.3), là dòng khác, nên ghi trạng thái không bao giờ chờ khóa `FOR UPDATE` mà batch giữ trên dòng `id = 1`.
+> - `last_new_cdr_seen_at` ghi bằng giờ của backend (`TZ=Asia/Ho_Chi_Minh`) trong cùng transaction của batch có ít nhất 1 bản ghi mới. Batch rỗng không ghi cột này.
+
+---
+
+## 2.3. Bảng Trạng thái các job nền (`worker_job_status`)
+
+Mỗi job của `backend-worker` có đúng **1 dòng**, ghi đè sau mỗi lần chạy (không lưu lịch sử từng lần chạy; việc có hậu quả như `DROP PARTITION` đã ghi `audit_logs`). Đọc qua `GET /api/v1/admin/system/jobs` (`docs/modules/07_system_settings.md` mục 3.5).
+
+```sql
+CREATE TABLE IF NOT EXISTS `worker_job_status` (
+  `job_name` varchar(50) NOT NULL COMMENT 'cdr-enrichment, stats-aggregation, qos-alert, pabx-offline, email-dispatch, partition-maintenance, session-cleanup',
+  `status` enum('IDLE','RUNNING','ERROR') NOT NULL DEFAULT 'IDLE' COMMENT 'IDLE: lần chạy gần nhất thành công; RUNNING: đang chạy; ERROR: lần chạy gần nhất lỗi',
+  `last_started_at` datetime DEFAULT NULL,
+  `last_finished_at` datetime DEFAULT NULL COMMENT 'Kết thúc lần chạy gần nhất, thành công hay lỗi',
+  `last_success_at` datetime DEFAULT NULL COMMENT 'Kết thúc lần chạy thành công gần nhất (kể cả lần không có việc, vd. batch làm giàu rỗng)',
+  `last_duration_ms` int(10) unsigned DEFAULT NULL,
+  `consecutive_failures` int(10) unsigned NOT NULL DEFAULT 0 COMMENT 'Số lần lỗi liên tiếp; về 0 khi chạy thành công',
+  `last_error` text DEFAULT NULL COMMENT 'Thông báo lỗi của lần lỗi gần nhất (cắt 2000 ký tự, không chứa mật khẩu SMTP); giữ lại khi đã chạy thành công để tra cứu',
+  `last_error_at` datetime DEFAULT NULL,
+  `last_result` json DEFAULT NULL COMMENT 'Kết quả tóm tắt của lần chạy gần nhất, khóa camelCase, vd. { "records": 1000 }, { "hoursRecomputed": 3 }, { "sent": 12, "failed": 1 }',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`job_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `worker_job_status` (`job_name`) VALUES
+  ('cdr-enrichment'), ('stats-aggregation'), ('qos-alert'), ('pabx-offline'),
+  ('email-dispatch'), ('partition-maintenance'), ('session-cleanup')
+ON DUPLICATE KEY UPDATE `job_name` = VALUES(`job_name`);
+```
+
+> [!IMPORTANT]
+> **Lịch chạy và quy tắc chung của job nền** (mọi job chạy trong `backend-worker`, đúng 1 instance):
+>
+> | Job | Lịch | Ghi chú |
+> |---|---|---|
+> | `cdr-enrichment` | mỗi 3 giây; batch đủ `batch_size` dòng thì chạy batch kế tiếp ngay, không chờ | M12 §4.2 |
+> | `stats-aggregation` | `*/10 * * * *` | mục 15.0 |
+> | `qos-alert` | ngay sau mỗi lần `stats-aggregation` (kể cả khi lần đó bị bỏ qua vì không lấy được khóa) | mục 10 |
+> | `pabx-offline` | mỗi 1 phút | mục 10 |
+> | `email-dispatch` | mỗi 1 phút | mục 11 |
+> | `partition-maintenance` | 02:00 ngày 1 hằng tháng, và một lần khi `backend-worker` khởi động | mục 2.1; `DROP`/`REORGANIZE PARTITION` giữ khóa metadata trên `cdr_enriched`, nên chạy giờ thấp điểm |
+> | `session-cleanup` | 03:00 hằng ngày | mục 6.1 |
+>
+> - **Chống chạy chồng**: mỗi job có cờ `isRunning` trong bộ nhớ (lần trước chưa xong thì bỏ qua lượt này) **và** `GET_LOCK('<job_name>', 0)` để chặn trường hợp lỡ chạy 2 instance worker. `GET_LOCK` gắn với **kết nối**, nên phải lấy trên một `QueryRunner` riêng (`connect()` trước), giữ kết nối đó suốt lần chạy và `RELEASE_LOCK` rồi `release()` trong `finally`; gọi qua `dataSource.query` sẽ lấy khóa trên một kết nối ngẫu nhiên của pool và không nhả được. Không lấy được khóa thì bỏ qua, không ghi `worker_job_status`.
+> - **Ghi trạng thái**: đầu lần chạy `status = 'RUNNING'`, `last_started_at`; cuối lần chạy `IDLE` (thành công: `last_success_at`, `consecutive_failures = 0`) hoặc `ERROR` (`last_error`, `last_error_at`, `consecutive_failures + 1`), kèm `last_finished_at`, `last_duration_ms`, `last_result`. Mọi câu ghi bảng này là autocommit, ngoài transaction nghiệp vụ của job. Riêng `cdr-enrichment` chạy 3 giây/lần: chỉ ghi `RUNNING` khi lượt trước không phải `RUNNING`, và lượt thành công liên tiếp chỉ cập nhật `last_success_at`/`last_finished_at`/`last_result` tối đa mỗi 30 giây (lỗi luôn ghi ngay), để không ghi 2 câu mỗi 3 giây.
+> - **Worker khởi động**: đặt mọi dòng `RUNNING` về `ERROR` với `last_error = 'Tiến trình dừng khi job đang chạy'`, vì lần chạy đó đã bị cắt ngang.
+> - **Giám sát từ `backend-api`** (`WorkerHealthWatcher`, mỗi instance chạy 60 giây/lần bằng `setInterval` như `CacheVersionWatcher`, `docs/00_overview_and_architecture.md` mục 5.1): nếu `cdr-enrichment.last_success_at` cũ hơn **10 phút** (hoặc NULL khi worker đã từng chạy) thì tạo thông báo `SYSTEM_JOB` `CRITICAL` "Tiến trình làm giàu CDR ngừng hoạt động", `dedupe_key = 'JOB_STALE:cdr-enrichment:{last_success_at}'`; khi `last_success_at` mới trở lại thì tạo `SYSTEM_JOB` `INFO` "Tiến trình làm giàu CDR đã hoạt động lại", `dedupe_key = 'JOB_RECOVERED:cdr-enrichment:{last_success_at mới}'`. Trạng thái đang báo hay không đọc từ thông báo `SYSTEM_JOB` có `metadata.jobName = 'cdr-enrichment'` gần nhất (như `PABX_OFFLINE`, mục 10). Nhiều instance API cùng tạo thì `uniq_notif_dedupe` chặn trùng (bắt lỗi `1062`, bỏ qua). Do batch rỗng vẫn cập nhật `last_success_at`, ban đêm không có cuộc gọi không gây báo sai. Email của cảnh báo này do `email-dispatch` gửi, nên chỉ đi khi worker chạy lại; trong lúc worker dừng chỉ có thông báo trong ứng dụng.
+
+---
+
+## 2.4. Bảng Bản ghi CDR bị cách ly khi làm giàu (`cdr_enrichment_errors`)
+
+Bản ghi `cdr` làm tiến trình làm giàu ném lỗi **dữ liệu** được cách ly ở đây để watermark đi tiếp, thay vì chặn toàn bộ pipeline.
+
+```sql
+CREATE TABLE IF NOT EXISTS `cdr_enrichment_errors` (
+  `cdr_id` bigint(20) unsigned NOT NULL COMMENT 'cdr.id của bản ghi lỗi',
+  `cdr_created` datetime DEFAULT NULL COMMENT 'cdr.Created thô (có thể NULL), để Admin lọc theo thời gian',
+  `error_message` text NOT NULL COMMENT 'Lỗi gần nhất (cắt 2000 ký tự)',
+  `attempts` int(10) unsigned NOT NULL DEFAULT 1 COMMENT 'Số lần làm giàu thất bại (lần đầu + các lần Admin bấm làm giàu lại)',
+  `first_failed_at` datetime NOT NULL,
+  `last_failed_at` datetime NOT NULL,
+  PRIMARY KEY (`cdr_id`),
+  KEY `idx_cee_last_failed` (`last_failed_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='CDR bị cách ly khi làm giàu; xóa dòng khi làm giàu lại thành công';
+```
+
+> [!IMPORTANT]
+> **Cách ly bản ghi lỗi** (M12 §4.2):
+> - Batch ném lỗi thì rollback, rồi chạy lại **từng bản ghi** của batch đó, mỗi bản ghi một transaction (vẫn khóa `FOR UPDATE` dòng `cdr_enrichment_state`). Bản ghi thành công được ghi như bình thường; bản ghi vẫn lỗi thì `INSERT ... ON DUPLICATE KEY UPDATE attempts = attempts + 1, error_message, last_failed_at` vào bảng này. Watermark tiến qua cả bản ghi bị cách ly.
+> - **Chỉ cách ly lỗi dữ liệu**. Lỗi hạ tầng (mất kết nối DB, `1205` lock wait timeout, `1213` deadlock, `ER_LOCK_*`, hết bộ nhớ, `ECONNREFUSED`…) không cách ly: rollback, ghi `worker_job_status` `ERROR`, watermark giữ nguyên, lượt sau chạy lại. Nếu không phân biệt, một lần DB chập chờn sẽ cách ly cả nghìn bản ghi lành.
+> - Bản ghi bị cách ly **không có** trong `cdr_enriched`, nên không có trong tra cứu, thống kê và cảnh báo cho đến khi làm giàu lại thành công.
+> - **Thông báo**: ngày nào có bản ghi mới bị cách ly thì tạo một thông báo `SYSTEM_JOB` `WARNING` cho mọi Admin `ACTIVE`, `dedupe_key = 'ENRICH_QUARANTINE:{YYYY-MM-DD}'` (tối đa 1 thông báo/ngày; nội dung ghi số bản ghi bị cách ly tại thời điểm tạo).
+> - **Làm giàu lại**: `POST /api/v1/admin/system/enrichment-errors/:cdrId/retry` (`docs/modules/07_system_settings.md` mục 3.7) gọi `CdrEnrichmentService.enrichOne(cdrId)` ngay trong `backend-api`: một transaction khóa `FOR UPDATE` dòng `cdr_enrichment_state` (để không chạy xen với batch, nhất là bước gộp leg), đọc `cdr` theo `id`, áp dụng đúng quy tắc mục 2.1 (kể cả gộp với leg đã có, đổi leg chính), ghi `cdr_enriched`, đưa khung giờ vào `stats_recompute_queue`, xóa dòng cách ly, cộng `records_enriched_total`. Lỗi thì rollback, tăng `attempts`, trả `422 ENRICHMENT_FAILED` kèm `errors.message`. Bản ghi có `Created` trước `cdr_purged_before` vẫn được ghi vào partition thấp nhất nhưng không đưa vào hàng đợi (mục 15.0 bước 5). Đây là ngoại lệ duy nhất cho phép API đọc bảng `cdr` (mục 15), chỉ theo khóa chính.
+> - Bảng không tự dọn: dòng chỉ mất khi làm giàu lại thành công hoặc DBA xóa.
 
 ---
 
@@ -632,7 +708,7 @@ CREATE TABLE IF NOT EXISTS `auth_sessions` (
 >     ```
 > - **Mật khẩu**: tối thiểu `security_password_min_length` (10) ký tự, có ít nhất 3 trong 4 loại (chữ hoa, chữ thường, chữ số, ký tự đặc biệt), băm `bcrypt` cost 10. Mật khẩu hết hạn sau `security_password_max_age_days` (90) ngày tính từ `password_changed_at`. Khi hết hạn hoặc `must_change_password = 1`, đăng nhập chỉ cấp một token giới hạn, chỉ được gọi API đổi mật khẩu.
 > - **Token giới hạn**: khi `must_change_password = 1` hoặc mật khẩu quá hạn, đăng nhập chỉ cấp Access Token có claim `scope: "PASSWORD_CHANGE_ONLY"` (không cấp Refresh Token). Token này chỉ được chấp nhận ở `change-password`, `logout` và `auth/me` của portal tương ứng; mọi endpoint khác trả `403` với mã `PASSWORD_CHANGE_REQUIRED`. Đổi mật khẩu thành công thì cấp cặp Access/Refresh Token đầy đủ.
-> - **Dọn dẹp**: job `src/apps/worker/session-cleanup` (tiến trình `backend-worker`, chạy hằng ngày) xóa phiên có `expires_at < NOW() - 30 ngày`.
+> - **Dọn dẹp**: job `src/apps/worker/session-cleanup` (tiến trình `backend-worker`, chạy 03:00 hằng ngày, mục 2.3) xóa phiên có `expires_at < NOW() - 30 ngày`.
 > - **Ngoài phạm vi phiên bản này**: xác thực hai lớp (2FA).
 
 ---
@@ -921,15 +997,17 @@ ON DUPLICATE KEY UPDATE `metric_name` = VALUES(`metric_name`);
 
 > [!IMPORTANT]
 > **Sinh cảnh báo (Alert Engine)**. Đây là nơi duy nhất định nghĩa ngưỡng; các module không viết cứng ngưỡng.
-> - **`QOS_ALERT` theo giờ**: ngay sau mỗi lần job tổng hợp (mục 15.0), đánh giá **khung giờ đã kết thúc ít nhất 60 phút**, tức khung giờ bắt đầu lúc `giờ hiện tại (làm tròn xuống) − 2 giờ` (vd. lần chạy 10:00–10:50 đánh giá khung 08:00–09:00), trên dòng toàn hệ thống và từng dòng nhóm của `stats_hourly`. Lý do chờ: PABX chỉ ghi `cdr` khi cuộc gọi kết thúc, nên ngay sau khi khung giờ kết thúc, cuộc gọi ngắn/thất bại đã có nhưng cuộc nhấc máy còn đang đàm thoại chưa có, làm ASR và MOS lệch. Cuộc gọi dài hơn 60 phút có thể chưa được tính vào lần đánh giá; chấp nhận được vì cảnh báo không chấm lại (chống trùng bên dưới). Chỉ xét khi `total_calls >= qos_alert_min_calls` (mặc định 20). Với mỗi ngưỡng `is_enabled = 1`: vượt `critical_threshold` thì `severity = CRITICAL`, chỉ vượt `warning_threshold` thì `WARNING`. Chỉ số so sánh: MOS = `avg_mos / 100`, mất gói = `rtp_lost_packets_total / rtp_packets_total * 100`, `avg_jitter_ms`, `asr_percentage`.
+> - **`QOS_ALERT` theo giờ**: ngay sau mỗi lần job tổng hợp (mục 15.0), đánh giá **khung giờ đã kết thúc ít nhất 60 phút**, tức khung giờ bắt đầu lúc `giờ hiện tại (làm tròn xuống) − 2 giờ` (vd. lần chạy 10:00–10:50 đánh giá khung 08:00–09:00), trên dòng toàn hệ thống và từng dòng nhóm của `stats_hourly`.
+>   - **Đánh giá bù theo mốc**: job đánh giá mọi khung giờ từ `cdr_enrichment_state.qos_alert_evaluated_until + 1 giờ` đến `H − 2` (`H` = khung giờ chứa thời điểm chạy), tối đa **24 khung** gần nhất (khung cũ hơn bỏ qua), rồi đặt mốc = `H − 2`; mốc NULL (lần chạy đầu) thì chỉ đánh giá `H − 2`. Khung `H − 2` vẫn được đánh giá lại ở mọi lần chạy trong giờ `H` (mốc đã bằng nó thì vẫn xét lại riêng khung này), để bắt trường hợp số liệu xấu đi khi cuộc gọi dài kết thúc. Nhờ mốc, worker dừng hoặc job tổng hợp bị bỏ qua quá 1 giờ không làm mất cảnh báo của khung đó. Khung không có dòng `stats_hourly` (chưa được tính hoặc không có cuộc gọi) thì không cảnh báo; khung đánh giá bù (không phải `H − 2`) ghi thêm câu "Đánh giá bù sau khi tiến trình nền gián đoạn" trong `content` và `metadata.lateEvaluation = true`. Lý do chờ: PABX chỉ ghi `cdr` khi cuộc gọi kết thúc, nên ngay sau khi khung giờ kết thúc, cuộc gọi ngắn/thất bại đã có nhưng cuộc nhấc máy còn đang đàm thoại chưa có, làm ASR và MOS lệch. Cuộc gọi dài hơn 60 phút có thể chưa được tính vào lần đánh giá; chấp nhận được vì cảnh báo không chấm lại (chống trùng bên dưới). Chỉ xét khi `total_calls >= qos_alert_min_calls` (mặc định 20). Với mỗi ngưỡng `is_enabled = 1`: vượt `critical_threshold` thì `severity = CRITICAL`, chỉ vượt `warning_threshold` thì `WARNING`. Chỉ số so sánh: MOS = `avg_mos / 100`, mất gói = `rtp_lost_packets_total / rtp_packets_total * 100`, `avg_jitter_ms`, `asr_percentage`.
 > - **Chống trùng**: `notifications.dedupe_key = 'QOS:{scope}:{metric}:{stat_date}:{stat_hour}:{severity}'` (`scope` = `SYSTEM` hoặc `G{group_id}`). Tạo lại cùng khóa thì bỏ qua. Khóa có `severity` vì cùng một khung giờ được đánh giá ở mọi lần chạy trong giờ `H` (6 lần), và số liệu của khung vẫn đổi khi cuộc gọi dài kết thúc: lần đầu có thể chỉ `WARNING`, lần sau mới vượt `CRITICAL`. Thiếu `severity` thì `CRITICAL` bị bỏ qua và không có email. Ngược lại, đã có `CRITICAL` thì không tạo `WARNING` cho cùng scope/chỉ số/khung giờ. Mỗi khung giờ có tối đa 2 cảnh báo cho mỗi chỉ số.
-> - **`PABX_OFFLINE`**: tiến trình làm giàu theo dõi thời điểm bản ghi mới nhất của PABX bằng truy vấn theo khóa chính `SELECT COALESCE(Destroyed, Created) FROM cdr ORDER BY id DESC LIMIT 1` (không dùng `MAX(cdr.Created)`: bảng `cdr` không bảo đảm có index `Created`, xem ghi chú mục 2, nên `MAX` sẽ quét toàn bảng của PABX). Dùng `Destroyed` (lúc kết thúc, gần với lúc PABX ghi bản ghi) chứ không dùng `Created` (lúc bắt đầu): PABX chỉ ghi khi cuộc gọi kết thúc, nên bản ghi vừa ghi của một cuộc dài 90 phút có `Created` cách đây 90 phút, và nếu lấy `Created` thì hệ thống báo `PABX_OFFLINE` ngay khi PABX vừa ghi dữ liệu. Không có bản ghi mới trong `pabx_offline_minutes` (mặc định 60) thì tạo một cảnh báo `CRITICAL` (`dedupe_key = 'PABX_OFFLINE:{thời điểm bản ghi cuối}'`). Khi có bản ghi mới trở lại thì tạo thông báo `type = PABX_OFFLINE`, `severity = INFO`, tiêu đề "Đã nhận lại dữ liệu từ PABX", `dedupe_key = 'PABX_RECOVERED:{thời điểm bản ghi mới đầu tiên}'`.
+> - **`PABX_OFFLINE`**: job `pabx-offline` (mỗi 1 phút, mục 2.3) so `cdr_enrichment_state.last_new_cdr_seen_at` (giờ **backend** của batch gần nhất đọc được bản ghi `cdr` mới, mục 2.2) với giờ hiện tại của backend. Không dùng thời gian trên bản ghi của PABX (`Created`/`Destroyed`): đồng hồ PABX lệch hoặc PABX ghi trễ sẽ làm báo sai, và không cần truy vấn bảng `cdr` riêng. Quá `pabx_offline_minutes` (mặc định 60) không có bản ghi mới thì tạo một cảnh báo `CRITICAL` (`dedupe_key = 'PABX_OFFLINE:{last_new_cdr_seen_at}'`). Khi có bản ghi mới trở lại thì tạo thông báo `type = PABX_OFFLINE`, `severity = INFO`, tiêu đề "Đã nhận lại dữ liệu từ PABX", `dedupe_key = 'PABX_RECOVERED:{last_new_cdr_seen_at mới}'`. `last_new_cdr_seen_at` NULL (chưa từng có CDR) thì không đánh giá.
+>   - **Hạn chế đã biết**: tiến trình làm giàu dừng thì `last_new_cdr_seen_at` cũng đứng, nên `PABX_OFFLINE` có thể báo kèm cảnh báo `SYSTEM_JOB` (mục 2.3); nội dung cảnh báo `PABX_OFFLINE` ghi chú "kiểm tra cả trạng thái tiến trình làm giàu". Chưa có số liệu về lưu lượng ban đêm/ngày nghỉ: nếu có khoảng 60 phút không có cuộc gọi nào thì cảnh báo này báo sai; Admin tăng `pabx_offline_minutes` ở màn hình Cài đặt hệ thống (không có ngưỡng riêng theo giờ trong phiên bản này).
 >   - **Trạng thái offline không giữ trong bộ nhớ** (mất khi `backend-worker` khởi động lại, làm thiếu thông báo phục hồi hoặc báo offline lặp): đọc từ thông báo `PABX_OFFLINE` gần nhất, `SELECT severity FROM notifications WHERE type = 'PABX_OFFLINE' ORDER BY id DESC LIMIT 1` (qua `idx_notif_type`). `CRITICAL` = đang offline, `INFO` hoặc không có dòng = bình thường. Thứ tự `id` dùng được vì chỉ `backend-worker` (1 instance) tạo loại thông báo này.
 > - **Người nhận** (luôn tạo **một dòng `notification_recipients` cho mỗi tài khoản**):
->   - Cảnh báo toàn hệ thống và `PABX_OFFLINE`: mọi Admin `ACTIVE`.
+>   - Cảnh báo toàn hệ thống, `PABX_OFFLINE` và `SYSTEM_JOB` (mục 2.3, 2.4): mọi Admin `ACTIVE`.
 >   - Cảnh báo của một nhóm: mọi Admin `ACTIVE` và các Quản trị viên nhóm `ACTIVE` của nhóm đó.
 >   - Thông báo do Admin soạn (`POST /api/v1/admin/notifications`): theo `target` = `ALL_ADMINS` | `ALL_USERS` | `GROUP:{id}` | `EVERYONE`, chỉ tài khoản `ACTIVE` (người dùng chỉ thuộc nhóm `ACTIVE`). `GROUP:{id}` của nhóm `INACTIVE` trả `409 GROUP_INACTIVE`, không tạo thông báo.
-> - **Email**: chỉ gửi thông báo `CRITICAL`, tới người nhận có `user_settings.email_notification_enabled = 1` (thiếu dòng `user_settings` thì coi là bật, mục 12), qua SMTP cấu hình ở `system_settings` (`smtp_host`, `smtp_port`, `smtp_user`, `smtp_password` (secret), `smtp_from`). Gửi lỗi thì ghi log và để `is_emailed = 0`, không chặn việc tạo thông báo.
+> - **Email**: chỉ gửi thông báo `CRITICAL`, tới người nhận có `user_settings.email_notification_enabled = 1` (thiếu dòng `user_settings` thì coi là bật, mục 12), qua SMTP cấu hình ở `system_settings` (`smtp_host`, `smtp_port`, `smtp_user`, `smtp_password` (secret), `smtp_from`). Email không gửi trong tiến trình tạo thông báo mà qua hàng đợi `notification_recipients.email_status` do job `email-dispatch` của `backend-worker` xử lý (mục 11), áp dụng cho mọi nguồn: cảnh báo của worker, `SYSTEM_JOB` do `backend-api` tạo, thông báo Admin soạn.
 > - **WebSocket**: một sự kiện duy nhất `notification:new`, phát tới room của từng người nhận.
 
 ---
@@ -939,7 +1017,7 @@ ON DUPLICATE KEY UPDATE `metric_name` = VALUES(`metric_name`);
 ```sql
 CREATE TABLE IF NOT EXISTS `notifications` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `type` enum('QOS_ALERT','PABX_OFFLINE','SYSTEM_MAINTENANCE','GENERAL') NOT NULL,
+  `type` enum('QOS_ALERT','PABX_OFFLINE','SYSTEM_JOB','SYSTEM_MAINTENANCE','GENERAL') NOT NULL COMMENT 'SYSTEM_JOB: cảnh báo về tiến trình nền (mục 2.3, 2.4), chỉ hệ thống tạo',
   `title` varchar(255) NOT NULL,
   `content` text NOT NULL,
   `severity` enum('INFO','WARNING','CRITICAL') NOT NULL DEFAULT 'INFO',
@@ -961,18 +1039,22 @@ CREATE TABLE IF NOT EXISTS `notification_recipients` (
   `recipient_id` int(11) unsigned NOT NULL,
   `is_read` tinyint(1) NOT NULL DEFAULT 0,
   `read_at` datetime DEFAULT NULL,
-  `is_emailed` tinyint(1) NOT NULL DEFAULT 0,
-  `emailed_at` datetime DEFAULT NULL,
+  `email_status` enum('NOT_REQUIRED','PENDING','SENT','FAILED') NOT NULL DEFAULT 'NOT_REQUIRED' COMMENT 'PENDING khi thông báo CRITICAL và người nhận bật email lúc tạo; job email-dispatch gửi (mục 11)',
+  `email_attempts` tinyint(3) unsigned NOT NULL DEFAULT 0 COMMENT 'Số lần đã thử gửi',
+  `email_last_error` varchar(500) DEFAULT NULL COMMENT 'Lỗi SMTP của lần thử gần nhất',
+  `emailed_at` datetime DEFAULT NULL COMMENT 'Thời điểm gửi thành công',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_notif_recipient` (`notification_id`, `recipient_type`, `recipient_id`) COMMENT 'Mỗi người nhận tối đa 1 dòng cho mỗi thông báo',
   KEY `idx_notif_recipient` (`recipient_type`, `recipient_id`, `is_read`),
+  KEY `idx_nr_email_status` (`email_status`, `id`) COMMENT 'email-dispatch đọc các dòng PENDING',
   CONSTRAINT `fk_nr_notif` FOREIGN KEY (`notification_id`) REFERENCES `notifications` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 > [!IMPORTANT]
 > **Ghi và phát thông báo**:
-> - Dòng `notifications` và **toàn bộ** dòng `notification_recipients` của nó được ghi trong **một transaction**, không gửi email hay gọi mạng bên trong transaction đó (email gửi sau khi commit, rồi cập nhật `is_emailed`). Nhờ vậy, khi poller thấy dòng `notifications` thì đã thấy đủ người nhận.
+> - Dòng `notifications` và **toàn bộ** dòng `notification_recipients` của nó được ghi trong **một transaction**, không gửi email hay gọi mạng bên trong transaction đó. Nhờ vậy, khi poller thấy dòng `notifications` thì đã thấy đủ người nhận.
+> - **Hàng đợi email (`email_status`)**: khi tạo dòng người nhận, `email_status = 'PENDING'` nếu thông báo `CRITICAL` và người nhận bật email (`COALESCE(us.email_notification_enabled, 1) = 1`, mục 12); ngược lại `NOT_REQUIRED`. Job `email-dispatch` (`backend-worker`, mỗi 1 phút, mục 2.3) đọc tối đa 200 dòng `PENDING` theo `idx_nr_email_status`, lấy email của tài khoản (`admins.email` / `users.email`), gửi bằng `MailerService` (`docs/modules/06_notifications.md` mục 4.2), rồi cập nhật từng dòng: thành công `SENT` + `emailed_at`; lỗi thì `email_attempts + 1`, `email_last_error`, và chuyển `FAILED` khi đủ **3 lần** thử. Lần thử kế tiếp của một dòng lỗi cách lần trước ít nhất `5 × email_attempts` phút (5, 10 phút). Dòng `PENDING` của thông báo tạo quá **24 giờ** chuyển `FAILED` (`email_last_error = 'EXPIRED'`) mà không gửi, để worker dừng lâu rồi chạy lại không gửi dồn email cũ. `smtp_host` rỗng thì job không gửi, không tăng `email_attempts` (dòng giữ `PENDING` tới khi cấu hình SMTP hoặc hết 24 giờ). Tài khoản đã `INACTIVE`/`LOCKED` lúc gửi thì chuyển `NOT_REQUIRED`. Worker chết giữa lúc gửi và lúc cập nhật có thể làm một email gửi 2 lần; chấp nhận (ít hơn mất email).
 > - **Không dùng watermark `id` cho poller**: `backend-api` và `backend-worker` ghi thông báo đồng thời, nên `AUTO_INCREMENT` được cấp lúc `INSERT` nhưng commit có thể đảo thứ tự (thông báo `EVERYONE` id 101 với hàng nghìn người nhận commit sau thông báo id 102). Poller đọc thấy 102, đặt watermark 102, và id 101 không bao giờ được phát. Poller dùng cửa sổ thời gian kèm danh sách id đã phát (`docs/modules/06_notifications.md` mục 4.1).
 
 ---
@@ -1085,7 +1167,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | `USER_GROUP` | `CREATE`, `UPDATE`, `DEACTIVATE`, `TOGGLE_GROUP_RECORDING` (`allow_recording_access`) |
 | `PREFIX` | `UPDATE_PREFIX_GROUP`, `ALLOCATE_RANGE`, `UPDATE_RANGE`, `REVOKE_RANGE`, `UPDATE_NUMBER` |
 | `ORGANIZATION` | `CREATE`, `UPDATE`, `DELETE` |
-| `SYSTEM` | `UPDATE_SETTINGS` (kể cả nạp lại bộ nhớ đệm, `action_details.op = "RELOAD_CACHE"`, và `PUT /admin/qos/thresholds` sửa `qos_threshold_configs`), `RECALCULATE_STATS` (`POST /admin/stats/recalculate`; `action_details = { "fromDate", "toDate", "queuedHours" }`), `CREATE_NOTIFICATION` (`POST /admin/notifications`; `resource_id` = `notifications.id`, `action_details = { "type", "severity", "target" }`) |
+| `SYSTEM` | `UPDATE_SETTINGS` (kể cả nạp lại bộ nhớ đệm, `action_details.op = "RELOAD_CACHE"`, và `PUT /admin/qos/thresholds` sửa `qos_threshold_configs`), `RECALCULATE_STATS` (`POST /admin/stats/recalculate`; `action_details = { "fromDate", "toDate", "queuedHours" }`), `CREATE_NOTIFICATION` (`POST /admin/notifications`; `resource_id` = `notifications.id`, `action_details = { "type", "severity", "target" }`), `RETRY_ENRICHMENT` (`POST /admin/system/enrichment-errors/:cdrId/retry`; `resource_id` = `cdr_id`, `action_details = { "success": true|false }`) |
 | (mọi resource) | `ACCESS_DENIED`: thao tác bị chặn có ý nghĩa an ninh (vd. thử xóa Root Admin, gọi API ngoài phạm vi nhóm) |
 
 ---
@@ -1124,7 +1206,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 > [!IMPORTANT]
 > **Nguyên tắc Thiết kế Zero CDR Scan**:
 > - **Số liệu tổng hợp** (thẻ KPI, biểu đồ, thống kê QoS/lưu lượng, xem trước và xuất báo cáo Excel/PDF) **chỉ đọc `stats_hourly` / `stats_daily`**, không bao giờ `GROUP BY` trên `cdr` hay `cdr_enriched`.
-> - **Danh sách từng cuộc gọi** (lịch sử CDR, chi tiết cuộc gọi, QoS debug, `/traffic/records`, cuộc gọi gần đây, xuất danh sách CDR) **được đọc `cdr_enriched`** với 3 điều kiện bắt buộc: (1) có khoảng `Created` tối đa 31 ngày; (2) truy vấn đi qua index có `Created`; (3) có giới hạn: trang tối đa 100 dòng, xuất file tối đa 100.000 dòng (vượt thì `400` kèm yêu cầu thu hẹp bộ lọc). Bảng `cdr` của PABX không bao giờ được truy vấn bởi API.
+> - **Danh sách từng cuộc gọi** (lịch sử CDR, chi tiết cuộc gọi, QoS debug, `/traffic/records`, cuộc gọi gần đây, xuất danh sách CDR) **được đọc `cdr_enriched`** với 3 điều kiện bắt buộc: (1) có khoảng `Created` tối đa 31 ngày; (2) truy vấn đi qua index có `Created`; (3) có giới hạn: trang tối đa 100 dòng, xuất file tối đa 100.000 dòng (vượt thì `400` kèm yêu cầu thu hẹp bộ lọc). Bảng `cdr` của PABX không bao giờ được truy vấn bởi API, trừ việc làm giàu lại một bản ghi bị cách ly theo khóa chính (mục 2.4).
 >
 > **Cơ chế Cô lập Dữ liệu (Data Isolation / Multi-tenancy)**:
 > - `group_id IS NULL`: Lưu trữ dữ liệu thống kê tổng hợp của **Toàn hệ thống** (System Scope - dành riêng cho Quản trị viên hệ thống).
@@ -1180,7 +1262,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 >    - **Ghi hàng đợi**: `INSERT INTO stats_recompute_queue (stat_date, stat_hour) VALUES (...) ON DUPLICATE KEY UPDATE queued_at = CURRENT_TIMESTAMP(6)`, không dùng `INSERT IGNORE`, để một yêu cầu mới đến trong lúc job đang tính khung đó vẫn được nhận ra.
 >    - **Xử lý hàng đợi**: mỗi lần chạy, job đọc (a) **mọi** dòng có khung giờ từ `H − 2` trở đi (`H` = khung giờ chứa thời điểm chạy; tối đa 3 dòng), rồi (b) tối đa 144 dòng cũ nhất còn lại (`ORDER BY queued_at`), kèm `queued_at` đã đọc của từng dòng. Phần (a) đi trước để số liệu gần thời gian thực và cảnh báo QoS (mục 10) không bị trễ khi hàng đợi đang có yêu cầu tính lại hàng loạt (`POST /admin/stats/recalculate` 366 ngày xong sau khoảng 61 lần chạy, tức 10 giờ). Mỗi khung giờ tính lại trong một transaction riêng, rồi xóa dòng hàng đợi bằng `DELETE ... WHERE stat_date = ? AND stat_hour = ? AND queued_at <= :queuedAtRead`. Nếu tiến trình làm giàu vừa ghi lại khung đó thì `queued_at` đã lớn hơn nên dòng được giữ cho lần chạy sau.
 >    - **Mốc dưới (`:purgeBoundary`)**: giá trị `cdr_enrichment_state.cdr_purged_before` (NULL = không giới hạn), **không** tính từ setting `retention_archive_months`: Admin có thể tăng setting này sau khi partition đã bị xóa (vd. 60 → 72 tháng), khi đó mốc tính từ setting lùi về 12 tháng mà CDR không còn, và `POST /admin/stats/recalculate` sẽ ghi đè 12 tháng thống kê bằng số liệu rỗng. Khung giờ có `stat_date` trước mốc này **không bao giờ được tính lại**: CDR của kỳ đó đã bị `DROP PARTITION`, tính lại sẽ ghi đè dòng `stats_*` bằng số liệu rỗng (hoặc chỉ vài leg lạc kỳ rơi vào partition thấp nhất) và xóa các dòng nhóm, làm mất báo cáo dài hạn. Tiến trình làm giàu không đưa các khung đó vào hàng đợi; job gặp dòng như vậy thì xóa khỏi hàng đợi mà không tính; `POST /admin/stats/recalculate` trả `400` nếu `fromDate` trước mốc.
-> 6. **Không chạy chồng**: job giữ khóa `GET_LOCK('stats_aggregation_job', 0)`; không lấy được khóa thì bỏ qua lần chạy đó. Job độc lập với tiến trình làm giàu.
+> 6. **Không chạy chồng**: job giữ khóa `GET_LOCK('stats-aggregation', 0)` trên một `QueryRunner` riêng theo quy tắc chung ở mục 2.3; không lấy được khóa thì bỏ qua lần chạy đó (job `qos-alert` vẫn chạy sau đó, mục 10). Job độc lập với tiến trình làm giàu.
 
 ```sql
 CREATE TABLE IF NOT EXISTS `stats_recompute_queue` (

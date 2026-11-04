@@ -13,13 +13,14 @@
 Hệ thống giám sát viễn thông EVN đòi hỏi khả năng cảnh báo sớm khi phát hiện các bất thường:
 
 1. **Sự cố Chất lượng thoại (`QOS_ALERT`)**: sinh **theo giờ** khi chỉ số của khung giờ đã kết thúc ít nhất 60 phút (toàn hệ thống hoặc một nhóm) vượt ngưỡng trong `qos_threshold_configs` (MOS, mất gói, jitter, ASR), với khung giờ có ít nhất `qos_alert_min_calls` cuộc gọi. Không cảnh báo từng cuộc gọi. Ngưỡng, chống trùng và người nhận định nghĩa tại `docs/01_database_schema.md` mục 10.
-2. **Mất kết nối Tổng đài PABX (`PABX_OFFLINE`)**: không có bản ghi `cdr` mới trong `pabx_offline_minutes` (mặc định 60 phút); khi có dữ liệu trở lại thì tạo thông báo `INFO`.
-3. **Bảo trì hệ thống (Maintenance Notice)**: Thông báo lịch nâng cấp định kỳ do EVNICT phát động.
+2. **Mất kết nối Tổng đài PABX (`PABX_OFFLINE`)**: tiến trình làm giàu không đọc được bản ghi `cdr` mới trong `pabx_offline_minutes` (mặc định 60 phút, tính theo giờ backend); khi có dữ liệu trở lại thì tạo thông báo `INFO`.
+3. **Sự cố tiến trình nền (`SYSTEM_JOB`)**: chỉ gửi Admin. `CRITICAL` khi tiến trình làm giàu CDR không chạy thành công quá 10 phút (do `backend-api` phát hiện, nên báo được cả khi worker chết), `INFO` khi chạy lại; `WARNING` tối đa 1 lần/ngày khi có CDR bị cách ly vì lỗi dữ liệu (`docs/01_database_schema.md` mục 2.3, 2.4).
+4. **Bảo trì hệ thống (Maintenance Notice)**: Thông báo lịch nâng cấp định kỳ do EVNICT phát động.
 
 ### 1.2. Kênh phát thông báo
 
 - **In-App Realtime Notification**: Bắn tín hiệu tức thời qua WebSocket (Socket.IO). Cập nhật số đếm badge chưa đọc (`.notification-badge-global`) trên thanh Sidebar mà không cần F5 trình duyệt.
-- **Email Notification**: chỉ với thông báo `CRITICAL`, gửi qua SMTP cấu hình trong `system_settings` (`smtp_*`) tới người nhận đã bật `email_notification_enabled`. Gửi lỗi không chặn việc tạo thông báo.
+- **Email Notification**: chỉ với thông báo `CRITICAL`, tới người nhận đã bật `email_notification_enabled`. Tạo thông báo chỉ đặt `notification_recipients.email_status = 'PENDING'`; job `email-dispatch` của `backend-worker` gửi qua SMTP (`smtp_*` trong `system_settings`) mỗi 1 phút, thử tối đa 3 lần, bỏ email của thông báo quá 24 giờ (`docs/01_database_schema.md` mục 11). Gửi lỗi không chặn việc tạo thông báo.
 - **Người nhận**: luôn tạo một dòng `notification_recipients` cho mỗi tài khoản nhận (không có thông báo "global" không có người nhận). Admin soạn thông báo qua `POST /api/v1/admin/notifications` với `type` = `SYSTEM_MAINTENANCE` | `GENERAL` và `target` = `ALL_ADMINS` | `ALL_USERS` | `GROUP:{id}` | `EVERYONE`. Người nhận chỉ gồm tài khoản `ACTIVE` (người dùng chỉ thuộc nhóm `ACTIVE`); `GROUP:{id}` của nhóm `INACTIVE` trả `409 GROUP_INACTIVE` (`docs/01_database_schema.md` mục 10). Mỗi thông báo Admin soạn ghi `audit_logs` `SYSTEM / CREATE_NOTIFICATION` (`docs/01_database_schema.md` mục 13).
 
 ---
@@ -65,7 +66,7 @@ Bảng MariaDB: `notifications` và `notification_recipients` (Mô tả chi ti�
 }
 ```
 
-- `createdAt` của `QOS_ALERT` luôn sau khi khung giờ kết thúc ít nhất 60 phút (khung 09:00–10:00 được đánh giá sớm nhất ở lần chạy 11:00, `docs/01_database_schema.md` mục 10).
+- `createdAt` của `QOS_ALERT` luôn sau khi khung giờ kết thúc ít nhất 60 phút (khung 09:00–10:00 được đánh giá sớm nhất ở lần chạy 11:00, `docs/01_database_schema.md` mục 10). Cảnh báo đánh giá bù sau khi worker gián đoạn có `metadata.lateEvaluation = true`.
 - `pagination` theo khung chung `docs/02_api_contracts.md` mục 2.2. `unreadCount` (tổng số thông báo chưa đọc của người gọi, không phụ thuộc `filter`) là khóa phụ cấp cao được phép theo `docs/02_api_contracts.md` mục 2.2.
 - Không có trường thời gian tương đối (`timeAgo`): frontend tự tính từ `createdAt` (`docs/02_api_contracts.md` mục 2).
 
@@ -102,6 +103,7 @@ backend/src/
 │   ├── member-notifications.module.ts
 │   └── notifications.controller.ts     <-- /api/v1/notifications*
 ├── apps/worker/qos-alert/, apps/worker/pabx-offline/   <-- tạo cảnh báo QOS_ALERT / PABX_OFFLINE qua NotificationsService (docs/modules/13 mục 3)
+├── apps/worker/email-dispatch/      <-- email-dispatch.job.ts: mỗi 1 phút gửi email các dòng email_status = PENDING qua MailerService
 └── realtime/                           <-- chỉ chạy ở backend-api (AppModule)
     ├── realtime.module.ts
     ├── admin-notifications.gateway.ts  <-- namespace /admin/notifications (JWT_ADMIN_SECRET)
@@ -161,6 +163,8 @@ export class AdminNotificationsGateway extends BaseNotificationsGateway {
   - Socket.IO không phát được tới client của instance khác, nên mỗi instance chỉ phát tới client đang kết nối vào chính nó; vì mọi instance cùng đọc mọi thông báo, người nhận ở instance nào cũng nhận đúng một lần.
 
 ### 4.2. Implementation `MailerService`
+
+`MailerService` chỉ được gọi từ job `email-dispatch` (`backend-worker`); `NotificationsService` (dùng ở cả API và worker) không gửi email, chỉ đặt `email_status` khi tạo dòng người nhận. Quy tắc hàng đợi (200 dòng/lượt, 3 lần thử, giãn cách `5 × email_attempts` phút, hết hạn 24 giờ, `smtp_host` rỗng thì giữ `PENDING`) tại `docs/01_database_schema.md` mục 11.
 
 Thông số SMTP đọc từ `system_settings` (`smtp_host`, `smtp_port`, `smtp_user`, `smtp_password`, `smtp_from`) **mỗi lần gửi**, không lấy từ biến môi trường, để Admin đổi cấu hình là có hiệu lực ngay. `smtp_host` rỗng thì bỏ qua gửi email (ghi log cảnh báo).
 
@@ -236,4 +240,4 @@ export class MailerService {
 1. **TC-NOTIF-01**: Khi khung giờ đã kết thúc ít nhất 60 phút của một nhóm có MOS trung bình dưới ngưỡng critical (và đủ số cuộc gọi tối thiểu), WebSocket gửi sự kiện `notification:new` tới trình duyệt, kiểm tra số badge trên Sidebar tự động tăng lên 1 đơn vị.
 2. **TC-NOTIF-02**: Nhấn vào tab "Chưa đọc", xác nhận danh sách chỉ chứa các mục có `isRead == false`.
 3. **TC-NOTIF-03**: Nhấn nút "Đánh dấu đã đọc tất cả", kiểm tra số badge trở về 0 và toàn bộ mục chuyển sang class `.read`.
-4. **TC-NOTIF-04**: Cấu hình `smtp_*` trong `system_settings` qua `PUT /api/v1/admin/settings/system`, tạo một cảnh báo `CRITICAL`: email được gửi tới người nhận có `email_notification_enabled = 1` và `notification_recipients.is_emailed = 1`. Để `smtp_host` rỗng: thông báo vẫn được tạo, không có email, `is_emailed = 0`.
+4. **TC-NOTIF-04**: Cấu hình `smtp_*` trong `system_settings` qua `PUT /api/v1/admin/settings/system`, tạo một cảnh báo `CRITICAL`: dòng người nhận có `email_notification_enabled = 1` được tạo với `email_status = 'PENDING'`, người tắt email và thông báo không phải `CRITICAL` là `NOT_REQUIRED`; trong vòng 1 phút email được gửi, `email_status = 'SENT'`. SMTP lỗi: `email_attempts` tăng tới 3 rồi `FAILED`, `email_last_error` có nội dung. Để `smtp_host` rỗng: thông báo vẫn được tạo, dòng giữ `PENDING`, sau 24 giờ chuyển `FAILED` (`EXPIRED`); cấu hình SMTP trước 24 giờ thì email được gửi.

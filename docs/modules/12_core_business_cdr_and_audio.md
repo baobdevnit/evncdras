@@ -12,7 +12,7 @@ Hệ thống tổng đài IP PABX của EVN ghi nhận hàng ngày hàng chục 
   - Danh sách lịch sử CDR mặc định chỉ hiển thị leg chính (`is_primary_leg = 1`), mỗi cuộc gọi một dòng.
   - Modal chi tiết và trang QoS debug hiển thị đủ các leg cùng `call_group_key`, kèm file ghi âm và chỉ số QoS riêng của từng leg.
 - **Tiến trình làm giàu dữ liệu (Enrichment Pipeline)**:
-  - Một tiến trình Batch Scheduler chạy ngầm định thời (Near-Realtime Polling mỗi 3 - 5 giây) tự động đọc các bản ghi mới từ bảng `cdr`, xác định nhóm sở hữu số gọi đi và số gọi đến, rồi sao chép sang bảng `cdr_enriched` kèm 2 trường `caller_group_id` và `called_group_id`.
+  - Một tiến trình Batch Scheduler chạy ngầm định thời (Near-Realtime Polling mỗi 3 giây) tự động đọc các bản ghi mới từ bảng `cdr`, xác định nhóm sở hữu số gọi đi và số gọi đến, rồi sao chép sang bảng `cdr_enriched` kèm 2 trường `caller_group_id` và `called_group_id`.
   - Nếu số điện thoại thuộc dải số do một nhóm người dùng quản lý (tra cứu **duy nhất** qua chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, quy tắc tại `docs/01_database_schema.md` mục 8); không so khớp theo `prefix` hay `range_from..range_to`), trường tương ứng nhận ID nhóm; nếu chưa quy hoạch hoặc ngoại mạng thì nhận giá trị `NULL`.
 - **Nguyên tắc Cô lập dữ liệu theo nhóm (Group-Based Data Isolation)**:
   - **Mọi tương tác của Backend đối với dữ liệu CDR (truy vấn danh sách, xem chi tiết, thống kê QoS, thống kê thời lượng & lưu lượng thoại) đều thực hiện độc quyền trên bảng `cdr_enriched`**.
@@ -65,10 +65,11 @@ Bảng trung tâm lưu trữ toàn bộ dữ liệu CDR đã được làm giàu
 - `Sip_Pcap_FileName`, `Sip_And_Rtp_Pcap_FileName`: PABX có ghi (`Sip_And_Rtp_Pcap_FileName` có ở ~98 % bản ghi), hệ thống chưa khai thác trong phiên bản này; không có API cho PCAP.
 
 ### 2.2. Bảng Trạng thái Đồng bộ Làm giàu `cdr_enrichment_state`
-Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 giây):
-- `last_processed_cdr_id`: ID bản ghi cao nhất đã đọc từ bảng `cdr`.
+Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3 giây; batch đầy thì chạy tiếp ngay):
+- `last_processed_cdr_id`: ID bản ghi cao nhất đã đọc từ bảng `cdr` (kể cả bản ghi bị cách ly).
 - `batch_size`: Số bản ghi xử lý trong 1 mẻ (mặc định 1000).
-- `status`: `IDLE`, `PROCESSING`, `ERROR`.
+- `last_new_cdr_seen_at`: giờ backend của batch gần nhất có bản ghi mới, căn cứ `PABX_OFFLINE`.
+- Trạng thái chạy (đang chạy, lỗi, lần thành công gần nhất) **không** nằm ở bảng này mà ở `worker_job_status` dòng `cdr-enrichment` (`docs/01_database_schema.md` mục 2.3). Bản ghi lỗi dữ liệu được cách ly ở `cdr_enrichment_errors` (mục 2.4).
 
 ### 2.3. Truy cập file ghi âm từ backend
 - Thư mục ghi âm của PABX (`D:\StarTrinity\recordings\`, chia theo ngày `YYYY_MM_DD`) được chia sẻ qua SMB/NFS và **gắn chỉ đọc** lên server backend, ví dụ `/mnt/pabx_recordings/`. Hệ thống không sao chép, không chuyển mã và không xóa file (việc dọn file thuộc phía PABX).
@@ -226,7 +227,7 @@ backend/src/
 │       └── group-data-isolation.guard.ts <-- Kiểm tra quyền truy cập bản ghi theo nhóm người dùng
 └── apps/worker/cdr-enrichment/
     ├── cdr-enrichment-worker.module.ts
-    └── cdr-enrichment.scheduler.ts      <-- Direct Batch Scheduler polling 3-5s, gọi CdrEnrichmentService
+    └── cdr-enrichment.scheduler.ts      <-- Direct Batch Scheduler polling 3s, gọi CdrEnrichmentService
 ```
 
 ### 4.1. Implementation Stream Audio với HTTP 206 trong `audio-stream.service.ts`
@@ -284,7 +285,7 @@ export class AudioStreamService {
 
 Tiến trình áp dụng đúng các quy tắc tại `docs/01_database_schema.md` mục 2.1 (gộp leg, `call_status`, cột dẫn xuất, MOS) và mục 8 (quyền sở hữu số). Mỗi batch chạy trong **một transaction**: watermark chỉ tiến lên khi toàn bộ batch đã ghi xong.
 
-Lớp lịch chạy nằm ở phần Chạy ngầm, chỉ giữ nhịp và chống chạy chồng:
+Lớp lịch chạy nằm ở phần Chạy ngầm, chỉ giữ nhịp, chống chạy chồng và ghi `worker_job_status` (quy tắc chung `docs/01_database_schema.md` mục 2.3):
 
 ```typescript
 // backend/src/apps/worker/cdr-enrichment/cdr-enrichment.scheduler.ts
@@ -295,6 +296,8 @@ export class CdrEnrichmentScheduler {
   constructor(
     private readonly cacheVersion: CacheVersionWatcher,
     private readonly enrichment: CdrEnrichmentService,
+    private readonly jobStatus: WorkerJobStatusService, // core/worker-status: ghi worker_job_status (autocommit), giãn ghi 30 giây khi thành công liên tiếp
+    private readonly jobLock: JobLockService,           // GET_LOCK trên QueryRunner riêng, RELEASE_LOCK + release() trong finally
   ) {}
 
   @Interval(3000)
@@ -302,8 +305,20 @@ export class CdrEnrichmentScheduler {
     if (this.isRunning) return;
     this.isRunning = true;
     try {
-      await this.cacheVersion.reloadIfChanged(); // nạp lại cache sở hữu số / system_settings khi cache_version đổi
-      await this.enrichment.runBatch();
+      await this.jobLock.run('cdr-enrichment', async () => {
+        await this.jobStatus.start('cdr-enrichment');
+        try {
+          await this.cacheVersion.reloadIfChanged(); // nạp lại cache sở hữu số / system_settings khi cache_version đổi
+          let total = 0, quarantined = 0, result;
+          do {                                        // batch đầy thì chạy batch kế tiếp ngay (backfill), tối đa 20 batch/lượt
+            result = await this.enrichment.runBatch();
+            total += result.records; quarantined += result.quarantined;
+          } while (result.full && total < 20 * result.batchSize);
+          await this.jobStatus.success('cdr-enrichment', { records: total, quarantined }); // batch rỗng cũng là thành công
+        } catch (err: any) {
+          await this.jobStatus.fail('cdr-enrichment', err);   // lỗi hạ tầng: watermark giữ nguyên, lượt sau chạy lại
+        }
+      });
     } finally {
       this.isRunning = false;
     }
@@ -317,95 +332,134 @@ Logic một batch nằm ở phần lõi:
 // backend/src/core/cdr/cdr-enrichment.service.ts
 @Injectable()
 export class CdrEnrichmentService {
-  private readonly logger = new Logger(CdrEnrichmentService.name);
-
   constructor(
     private readonly dataSource: DataSource,
     private readonly numberOwnership: NumberOwnershipCacheService, // map số 5 chữ số -> user_groups.id, dựng từ phone_numbers.range_id
     private readonly settings: SystemSettingsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
+  /** Trả { records, quarantined, full, batchSize }. Ném lỗi khi gặp lỗi hạ tầng (không cách ly, watermark giữ nguyên). */
   async runBatch() {
-    // 0. Báo trạng thái đang chạy (autocommit) TRƯỚC khi mở transaction, để màn hình giám sát thấy ngay.
-    //    Không được ghi dòng này bằng kết nối khác sau bước 1: transaction đang giữ khóa FOR UPDATE trên id = 1,
-    //    câu UPDATE ở kết nối khác sẽ chờ khóa đó trong khi code lại chờ câu UPDATE xong (InnoDB không phát hiện
-    //    được vì hai bên nằm ở hai kết nối khác nhau), hết innodb_lock_wait_timeout thì lỗi 1205 và batch bị rollback.
-    await this.dataSource.query(
-      "UPDATE cdr_enrichment_state SET status = 'PROCESSING', last_run_at = NOW() WHERE id = 1",
-    );
+    try {
+      return await this.inTx(async (qr, state) => {
+        const rows = await qr.query('SELECT * FROM cdr WHERE id > ? ORDER BY id ASC LIMIT ?', [
+          state.last_processed_cdr_id, state.batch_size,
+        ]);
+        for (const r of rows) await this.enrichRow(qr, r);           // bước 2-4
+        if (rows.length > 0) await this.advanceWatermark(qr, rows);  // bước 5
+        return { records: rows.length, quarantined: 0, full: rows.length === state.batch_size, batchSize: state.batch_size };
+      });
+    } catch (err: any) {
+      if (isInfrastructureError(err)) throw err;   // 1205, 1213, mất kết nối... (01 §2.4)
+      return this.runOneByOne();                    // lỗi dữ liệu: cô lập bản ghi lỗi
+    }
+  }
 
+  /** Chạy lại batch lỗi, mỗi bản ghi một transaction; bản ghi lỗi dữ liệu vào cdr_enrichment_errors, watermark đi qua nó. */
+  private async runOneByOne() {
+    const [st] = await this.dataSource.query(
+      'SELECT last_processed_cdr_id, batch_size FROM cdr_enrichment_state WHERE id = 1');
+    const ids: { id: string }[] = await this.dataSource.query(
+      'SELECT id FROM cdr WHERE id > ? ORDER BY id ASC LIMIT ?', [st.last_processed_cdr_id, st.batch_size]);
+    let records = 0, quarantined = 0;
+    for (const { id } of ids) {
+      try {
+        await this.inTx(async (qr) => {
+          const [r] = await qr.query('SELECT * FROM cdr WHERE id = ?', [id]);
+          await this.enrichRow(qr, r);
+          await this.advanceWatermark(qr, [r]);
+        });
+        records++;
+      } catch (err: any) {
+        if (isInfrastructureError(err)) throw err;
+        await this.inTx(async (qr) => {   // ghi cách ly + tiến watermark qua bản ghi lỗi, cùng một transaction
+          await qr.query(
+            `INSERT INTO cdr_enrichment_errors (cdr_id, cdr_created, error_message, attempts, first_failed_at, last_failed_at)
+             SELECT id, Created, ?, 1, ?, ? FROM cdr WHERE id = ?
+             ON DUPLICATE KEY UPDATE attempts = attempts + 1, error_message = VALUES(error_message), last_failed_at = VALUES(last_failed_at)`,
+            [truncate(err.message, 2000), new Date(), new Date(), id]);
+          await qr.query(
+            'UPDATE cdr_enrichment_state SET last_processed_cdr_id = ?, last_new_cdr_seen_at = ? WHERE id = 1', [id, new Date()]);
+        });
+        quarantined++;
+      }
+    }
+    if (quarantined > 0) await this.notifications.createQuarantineWarning(todayVn()); // SYSTEM_JOB WARNING, dedupe ENRICH_QUARANTINE:{ngày}
+    return { records, quarantined, full: ids.length === st.batch_size, batchSize: st.batch_size };
+  }
+
+  /** Transaction khóa dòng watermark. Trong lúc này mọi câu ghi dòng id = 1 phải đi qua qr. */
+  private async inTx<T>(fn: (qr: QueryRunner, state: any) => Promise<T>): Promise<T> {
     const qr = this.dataSource.createQueryRunner();
     await qr.connect();
     await qr.startTransaction();
     try {
-      // 1. Khóa và đọc watermark (FOR UPDATE chỉ có tác dụng bên trong transaction)
       const [state] = await qr.query(
-        'SELECT last_processed_cdr_id, batch_size FROM cdr_enrichment_state WHERE id = 1 FOR UPDATE',
-      );
-      const rows = await qr.query('SELECT * FROM cdr WHERE id > ? ORDER BY id ASC LIMIT ?', [
-        state.last_processed_cdr_id, state.batch_size,
-      ]);
-      if (rows.length === 0) {
-        // Ghi trạng thái bằng chính qr (đang giữ khóa), không dùng kết nối khác
-        await qr.query("UPDATE cdr_enrichment_state SET status = 'IDLE' WHERE id = 1");
-        await qr.commitTransaction();
-        return;
-      }
-
-      const coreIps = this.settings.getList('pabx_core_ip_list');
-      const internalPattern = new RegExp(this.settings.get('analysis_internal_extension_pattern'));
-
-      for (const r of rows) {
-        // 2. Cột dẫn xuất của từng leg
-        const callerGroupId = internalPattern.test(r.CallerId ?? '') ? this.numberOwnership.resolve(r.CallerId) : null;
-        const calledGroupId = internalPattern.test(r.CalledId ?? '') ? this.numberOwnership.resolve(r.CalledId) : null;
-        const callStatus = mapCallStatus(r.DisconnectionCode); // bảng ánh xạ 01 §2.1
-        const mosCaller = mosX100FromR(r.RTP_Caller_G107R);    // E-model, NULL nếu R NULL
-        const mosCalled = mosX100FromR(r.RTP_Called_G107R);
-        const leg = {
-          // Chép các cột kỹ thuật của PABX theo danh sách cột cố định (87 cột của cdr, trừ created_at/updated_at)
-          ...pickPabxColumns(r),
-          Created: r.Created ?? r.Destroyed ?? r.created_at ?? new Date(), // thứ tự dự phòng theo 01 §2.1
-          caller_group_id: callerGroupId,
-          called_group_id: calledGroupId,
-          leg_role: coreIps.includes(r.CalledIp) ? 'A_LEG' : coreIps.includes(r.CallerIp) ? 'B_LEG' : 'UNKNOWN',
-          call_status: callStatus,
-          answered_duration_sec: callStatus === 'ANSWERED' ? Math.round((r.Answered_Duration ?? 0) / 1000) : 0,
-          call_type: classifyCallType(callerGroupId, calledGroupId), // INTRA_GROUP / INTER_GROUP / UNASSIGNED
-          mos_caller_x100: mosCaller,
-          mos_called_x100: mosCalled,
-          mos_x100: avgNullable(mosCaller, mosCalled),
-          call_group_key: r.id,  // tạm thời: chính nó; bước 4 có thể đổi
-          is_primary_leg: 1,
-          enriched_at: new Date(),
-        };
-
-        // 3. Ghi leg (idempotent khi chạy lại batch)
-        await upsertCdrEnriched(qr, leg);
-
-        // 4. Gộp leg: tìm leg đối ứng (khác leg_role, cùng CallerId/CalledId, Created lệch <= 2s, chưa có cặp)
-        await regroupLegs(qr, leg); // đặt call_group_key chung, is_primary_leg theo quy tắc 3 của 01 §2.1
-      }
-
-      // 5. Tiến watermark trong cùng transaction
-      await qr.query(
-        `UPDATE cdr_enrichment_state
-            SET last_processed_cdr_id = ?, records_enriched_total = records_enriched_total + ?,
-                last_run_at = NOW(), last_success_at = NOW(), status = 'IDLE', error_message = NULL
-          WHERE id = 1`,
-        [rows[rows.length - 1].id, rows.length],
-      );
+        'SELECT last_processed_cdr_id, batch_size FROM cdr_enrichment_state WHERE id = 1 FOR UPDATE');
+      const out = await fn(qr, state);
       await qr.commitTransaction();
-    } catch (err: any) {
-      await qr.rollbackTransaction(); // nhả khóa trước, rồi mới ghi ERROR bằng kết nối khác
-      this.logger.error(`Lỗi tiến trình CDR Enrichment: ${err.message}`, err.stack);
-      await this.dataSource.query(
-        "UPDATE cdr_enrichment_state SET status = 'ERROR', error_message = ?, last_run_at = NOW() WHERE id = 1",
-        [err.message],
-      );
+      return out;
+    } catch (err) {
+      await qr.rollbackTransaction();
+      throw err;
     } finally {
       await qr.release();
     }
+  }
+
+  private async enrichRow(qr: QueryRunner, r: any) {
+    const coreIps = this.settings.getList('pabx_core_ip_list');
+    const internalPattern = new RegExp(this.settings.get('analysis_internal_extension_pattern'));
+    // 2. Cột dẫn xuất của từng leg
+    const callerGroupId = internalPattern.test(r.CallerId ?? '') ? this.numberOwnership.resolve(r.CallerId) : null;
+    const calledGroupId = internalPattern.test(r.CalledId ?? '') ? this.numberOwnership.resolve(r.CalledId) : null;
+    const callStatus = mapCallStatus(r.DisconnectionCode); // bảng ánh xạ 01 §2.1
+    const mosCaller = mosX100FromR(r.RTP_Caller_G107R);    // E-model, NULL nếu R NULL
+    const mosCalled = mosX100FromR(r.RTP_Called_G107R);
+    const leg = {
+      // Chép các cột kỹ thuật của PABX theo danh sách cột cố định (87 cột của cdr, trừ created_at/updated_at)
+      ...pickPabxColumns(r),
+      Created: r.Created ?? r.Destroyed ?? r.created_at ?? new Date(), // thứ tự dự phòng theo 01 §2.1
+      caller_group_id: callerGroupId,
+      called_group_id: calledGroupId,
+      leg_role: coreIps.includes(r.CalledIp) ? 'A_LEG' : coreIps.includes(r.CallerIp) ? 'B_LEG' : 'UNKNOWN',
+      call_status: callStatus,
+      answered_duration_sec: callStatus === 'ANSWERED' ? Math.round((r.Answered_Duration ?? 0) / 1000) : 0,
+      call_type: classifyCallType(callerGroupId, calledGroupId), // INTRA_GROUP / INTER_GROUP / UNASSIGNED
+      mos_caller_x100: mosCaller,
+      mos_called_x100: mosCalled,
+      mos_x100: avgNullable(mosCaller, mosCalled),
+      call_group_key: r.id,  // tạm thời: chính nó; bước 4 có thể đổi
+      is_primary_leg: 1,
+      enriched_at: new Date(),
+    };
+    // 3. Ghi leg (idempotent khi chạy lại batch)
+    await upsertCdrEnriched(qr, leg);
+    // 4. Gộp leg: tìm leg đối ứng (khác leg_role, cùng CallerId/CalledId, Created lệch <= 2s, chưa có cặp);
+    //    đặt call_group_key chung, is_primary_leg theo quy tắc 3 của 01 §2.1; đưa khung giờ vào stats_recompute_queue
+    await regroupLegs(qr, leg);
+  }
+
+  // 5. Tiến watermark trong cùng transaction
+  private async advanceWatermark(qr: QueryRunner, rows: any[]) {
+    await qr.query(
+      `UPDATE cdr_enrichment_state
+          SET last_processed_cdr_id = ?, records_enriched_total = records_enriched_total + ?, last_new_cdr_seen_at = ?
+        WHERE id = 1`,
+      [rows[rows.length - 1].id, rows.length, new Date()],
+    );
+  }
+
+  /** Làm giàu lại một bản ghi bị cách ly (POST /admin/system/enrichment-errors/:cdrId/retry, 01 §2.4). */
+  async enrichOne(cdrId: string) {
+    await this.inTx(async (qr) => {
+      const [r] = await qr.query('SELECT * FROM cdr WHERE id = ?', [cdrId]);
+      await this.enrichRow(qr, r);
+      await qr.query('DELETE FROM cdr_enrichment_errors WHERE cdr_id = ?', [cdrId]);
+      await qr.query('UPDATE cdr_enrichment_state SET records_enriched_total = records_enriched_total + 1 WHERE id = 1');
+    });
+    // Lỗi: caller (controller) tăng attempts trong cdr_enrichment_errors rồi trả 422 ENRICHMENT_FAILED
   }
 }
 ```
@@ -413,7 +467,8 @@ export class CdrEnrichmentService {
 - `NumberOwnershipCacheService` dựng map `phone_number → user_groups.id` **chỉ** từ chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, theo `01` §8). Không tra theo `prefix` hay `range_from..range_to`. Cache được nạp khi khởi động và nạp lại khi `cdr_enrichment_state.cache_version` khác bản đang giữ (kiểm tra ở đầu mỗi chu kỳ); API tăng `cache_version` trong cùng transaction của mỗi thao tác cấp phát/sửa/thu hồi dải số (`docs/01_database_schema.md` mục 8, `docs/00_overview_and_architecture.md` mục 2.1).
 - `CdrEnrichmentScheduler` nằm trong `src/apps/worker/cdr-enrichment/`, chỉ được `WorkerAppModule` import và chạy ở tiến trình `backend-worker` (đúng 1 instance). `CdrModule` trong `core` chỉ export `CdrEnrichmentService`, không chứa lớp lịch chạy (`docs/00_overview_and_architecture.md` mục 2.1, 5.1).
 - Thay đổi `analysis_internal_extension_pattern` hoặc `pabx_core_ip_list` chỉ áp dụng cho bản ghi làm giàu sau thời điểm lưu.
-- **Khóa dòng `cdr_enrichment_state`**: trong lúc transaction của batch còn mở, mọi câu ghi vào dòng `id = 1` phải đi qua chính `qr`. Ghi bằng `this.dataSource.query` (kết nối khác) chỉ được làm trước `startTransaction()` hoặc sau `commit`/`rollback`.
+- **Khóa dòng `cdr_enrichment_state`**: trong lúc transaction của batch còn mở, mọi câu ghi vào dòng `id = 1` phải đi qua chính `qr`. Ghi bằng `this.dataSource.query` (kết nối khác) chỉ được làm trước `startTransaction()` hoặc sau `commit`/`rollback`. Trạng thái chạy ghi ở `worker_job_status` (dòng khác) nên không vướng khóa này.
+- **Cách ly bản ghi lỗi**: chỉ lỗi dữ liệu mới cách ly; `isInfrastructureError` nhận lỗi kết nối, `1205`, `1213`, `ER_LOCK_*`, `ECONNREFUSED`, `PROTOCOL_CONNECTION_LOST` (`docs/01_database_schema.md` mục 2.4). Khi `enrichOne` chạy trong `backend-api`, dùng cache sở hữu số của chính instance đó.
 - Watermark theo `id` giả định PABX là **một tiến trình ghi duy nhất**, cấp `id` tăng dần theo thứ tự commit (đúng với dữ liệu thật).
 - Mỗi batch, trong cùng transaction ghi `cdr_enriched`, tiến trình đưa (`DATE(Created)`, `HOUR(Created)`) của **mọi** leg vừa ghi vào `stats_recompute_queue` bằng `INSERT ... ON DUPLICATE KEY UPDATE queued_at = CURRENT_TIMESTAMP(6)` (không dùng `INSERT IGNORE`; mỗi khung khác nhau một dòng). Khi đổi leg chính, đưa thêm khung giờ của leg chính cũ (hai leg lệch tới 2 giây có thể nằm ở hai khung giờ). Bỏ qua khung có ngày trước mốc `:purgeBoundary`. Job tổng hợp tính lại các khung đó (`docs/01_database_schema.md` mục 15.0, bước 5).
 - Nhóm sở hữu số được **chốt tại thời điểm làm giàu**: cấp phát/thu hồi dải sau đó không đổi `caller_group_id`/`called_group_id` của bản ghi đã làm giàu. Ở lần cài đặt đầu tiên, tiến trình làm giàu toàn bộ CDR lịch sử từ `id = 0` theo dải số tại thời điểm cài, nên Admin phải cấp phát xong dải số **trước** khi bật `backend-worker` nếu muốn CDR lịch sử được gán đúng nhóm.

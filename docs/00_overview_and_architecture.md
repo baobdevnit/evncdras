@@ -51,9 +51,11 @@ flowchart TD
         end
 
         subgraph WorkerProcess["backend-worker: main.worker.ts - WorkerAppModule (không mở HTTP, đúng 1 instance)"]
-            EnrichScheduler["cdr-enrichment: Direct Batch Scheduler (Polling 3-5s, In-Memory Prefix Cache)"]
+            EnrichScheduler["cdr-enrichment: Direct Batch Scheduler (Polling 3s, In-Memory Prefix Cache, cách ly bản ghi lỗi)"]
             CronStatsJob["stats-aggregation: 10m, xử lý stats_recompute_queue"]
-            AlertEngine["qos-alert, pabx-offline: Alert Engine (QOS_ALERT, PABX_OFFLINE, Email)"]
+            AlertEngine["qos-alert, pabx-offline: Alert Engine (QOS_ALERT, PABX_OFFLINE)"]
+            EmailJob["email-dispatch: 1m, gửi email CRITICAL đang PENDING"]
+            MaintJobs["partition-maintenance, session-cleanup"]
         end
 
         subgraph Core["src/core - dùng chung, không có controller/gateway/job"]
@@ -128,11 +130,11 @@ flowchart TD
 - **Mô hình ứng dụng (1 ứng dụng, 3 phần, 2 tiến trình)**: một project `backend/`, build một lần. Mã nguồn chia thành 3 phần độc lập như 3 ứng dụng, cùng dựa trên phần lõi dùng chung (cây thư mục tại mục 5.1):
   - **Phần Quản trị** (`src/apps/admin`, `AdminAppModule`): mọi controller của API `/api/v1/admin/*`, `AdminAuthGuard` + JWT strategy ký bằng `JWT_ADMIN_SECRET`. Phạm vi dữ liệu toàn hệ thống, có bộ lọc theo nhóm.
   - **Phần Thành viên** (`src/apps/member`, `MemberAppModule`): mọi controller của API `/api/v1/*` (trừ `/api/v1/admin`), `UserAuthGuard` + JWT strategy ký bằng `JWT_USER_SECRET`, áp phạm vi nhóm của người dùng đăng nhập (mục 2.4).
-  - **Phần Chạy ngầm** (`src/apps/worker`, `WorkerAppModule`): Direct Batch Scheduler làm giàu CDR, job tổng hợp `stats_*`, Alert Engine (`QOS_ALERT`, `PABX_OFFLINE`, gửi email), job bảo trì partition và dọn phiên đăng nhập. Không có controller.
+  - **Phần Chạy ngầm** (`src/apps/worker`, `WorkerAppModule`): Direct Batch Scheduler làm giàu CDR, job tổng hợp `stats_*`, Alert Engine (`QOS_ALERT`, `PABX_OFFLINE`), job `email-dispatch` gửi mọi email cảnh báo, job bảo trì partition và dọn phiên đăng nhập. Mỗi job ghi trạng thái vào `worker_job_status` (lịch chạy và quy tắc chung tại `docs/01_database_schema.md` mục 2.3). Không có controller.
   - **Phần lõi** (`src/core`): entity, migration, seed, service nghiệp vụ, `PermissionsGuard`, cache, mailer, tiện ích chung. Không chứa controller, gateway hay job.
   - **Socket.IO** (`src/realtime`): `NotificationsGateway` + `NotificationPushPoller`, phục vụ cả hai cổng, chỉ `AppModule` import.
   - **Hai tiến trình chạy từ cùng bản build**:
-    - **`backend-api`** (`src/main.ts`, `AppModule` = `AdminAppModule` + `MemberAppModule` + `RealtimeModule`): phục vụ REST API của cả hai cổng và Socket.IO. Không chạy job định kỳ nào ngoài bộ đọc thông báo mới (bên dưới). Có thể chạy nhiều instance sau Nginx.
+    - **`backend-api`** (`src/main.ts`, `AppModule` = `AdminAppModule` + `MemberAppModule` + `RealtimeModule`): phục vụ REST API của cả hai cổng và Socket.IO. Không chạy job định kỳ nào ngoài các vòng lặp ngắn: bộ đọc thông báo mới (bên dưới), `CacheVersionWatcher` và `WorkerHealthWatcher` (60 giây, cảnh báo `SYSTEM_JOB` khi tiến trình làm giàu ngừng quá 10 phút, `docs/01_database_schema.md` mục 2.3). Có thể chạy nhiều instance sau Nginx.
     - **`backend-worker`** (`src/main.worker.ts`, `WorkerAppModule`, khởi động bằng `NestFactory.createApplicationContext`, không mở cổng HTTP): chạy phần Chạy ngầm. **Luôn chạy đúng 1 instance**.
   - **Ranh giới mã**: `apps/admin`, `apps/member`, `apps/worker` **không import lẫn nhau**; logic dùng chung đặt vào `core`. `core` không import `apps/*` hay `realtime`. Hai cổng khác nhau ở controller, DTO, guard JWT và phạm vi dữ liệu; nghiệp vụ (truy vấn CDR, thống kê, cấp phát số…) viết một lần trong service của `core`, nhận phạm vi dữ liệu làm tham số. Quy tắc được ép bằng ESLint (mục 5.1).
   - **Lý do tách worker thành tiến trình riêng**: scale API nhiều instance không làm job chạy trùng; job enrich/tổng hợp nặng không chiếm event loop của API; deploy, restart API không làm gián đoạn việc làm giàu CDR và ngược lại.
@@ -167,7 +169,7 @@ flowchart TD
 ```
 [Tổng đài PABX] ──(Ghi trực tiếp)──> [Bảng cdr]
                                           │
-                               (Batch Polling 3-5s)
+                               (Batch Polling 3s)
                                           ▼
         [Direct Batch Scheduler (src/apps/worker, tiến trình backend-worker)]
                                           │
@@ -192,7 +194,7 @@ WHERE caller_group_id = G      Xem toàn bộ bản ghi
 ```
 
 1. **Tiến trình chạy ngầm định thời (Direct Batch Scheduler)**:
-   - Chạy trong tiến trình `backend-worker` (đúng 1 instance, mục 2.1), polling mỗi **3 - 5 giây**.
+   - Chạy trong tiến trình `backend-worker` (đúng 1 instance, mục 2.1), polling mỗi **3 giây**; batch đủ `batch_size` dòng thì chạy batch kế tiếp ngay (khi làm giàu CDR lịch sử).
    - Truy vấn bản ghi mới từ bảng `cdr` theo cơ chế Watermark ID (`WHERE id > last_processed_cdr_id ORDER BY id ASC LIMIT 1000`) lưu trong bảng `cdr_enrichment_state`.
 2. **Thuật toán xác định nhóm sở hữu số (Number Ownership Lookup)**:
    - Phần lớn cuộc gọi là mạng thoại nội bộ dùng riêng EVN giữa các máy lẻ 5 số `[H][C][XXX]` (kho 10000–99999). Rà soát dữ liệu thật vẫn có số ngoài kho (`Anonymous`, `0xxxx` dịch vụ đặc biệt, số di động, số không đủ 5 chữ số), các số này được coi là số chưa quy hoạch và có nhóm sở hữu = NULL.
@@ -342,12 +344,13 @@ backend/
 │   │   │
 │   │   └── worker/                <-- PHẦN CHẠY NGẦM: không có controller
 │   │       ├── worker-app.module.ts   <-- CoreModule + ScheduleModule.forRoot() + các module con bên dưới
-│   │       ├── cdr-enrichment/    <-- cdr-enrichment.scheduler.ts (polling 3-5s, watermark, cache_version)
+│   │       ├── cdr-enrichment/    <-- cdr-enrichment.scheduler.ts (polling 3s, batch đầy chạy tiếp ngay, watermark, cache_version, cách ly bản ghi lỗi)
 │   │       ├── stats-aggregation/ <-- stats-aggregation.job.ts (*/10 phút, chỉ xử lý stats_recompute_queue)
 │   │       ├── qos-alert/         <-- qos-alert.job.ts (đánh giá khung giờ đã kết thúc ≥ 60 phút, gọi sau stats-aggregation)
-│   │       ├── pabx-offline/      <-- pabx-offline.job.ts (PABX_OFFLINE / PABX_RECOVERED)
-│   │       ├── partition-maintenance/ <-- partition-maintenance.job.ts (khi khởi động + ngày 1 hằng tháng)
-│   │       └── session-cleanup/   <-- session-cleanup.job.ts (xóa auth_sessions hết hạn > 30 ngày)
+│   │       ├── pabx-offline/      <-- pabx-offline.job.ts (mỗi 1 phút; PABX_OFFLINE / PABX_RECOVERED theo last_new_cdr_seen_at)
+│   │       ├── email-dispatch/    <-- email-dispatch.job.ts (mỗi 1 phút; gửi notification_recipients.email_status = PENDING)
+│   │       ├── partition-maintenance/ <-- partition-maintenance.job.ts (khi khởi động + 02:00 ngày 1 hằng tháng)
+│   │       └── session-cleanup/   <-- session-cleanup.job.ts (03:00 hằng ngày; xóa auth_sessions hết hạn > 30 ngày)
 │   │
 │   ├── realtime/                  <-- Socket.IO cho cả 2 cổng, chỉ AppModule import
 │   │   ├── realtime.module.ts
@@ -385,6 +388,7 @@ backend/
 │       ├── notifications/         <-- entity + NotificationsService, MailerService
 │       ├── system-settings/       <-- entity + SystemSettingsService (cache trong bộ nhớ)
 │       ├── cache/                 <-- NumberOwnershipCacheService, CacheVersionWatcher (đọc cdr_enrichment_state.cache_version)
+│       ├── worker-status/         <-- WorkerJobStatusService (ghi worker_job_status), JobLockService (GET_LOCK trên QueryRunner riêng), WorkerHealthWatcher (chỉ chạy ở backend-api)
 │       └── audit/                 <-- entity audit_logs + AuditLogsService
 ├── .eslintrc.cjs                  <-- ép ranh giới import giữa các phần (bên dưới)
 ├── package.json                   <-- scripts: start:api (node dist/main.js), start:worker (node dist/main.worker.js)
@@ -396,8 +400,8 @@ backend/
 
 1. Controller trong `apps/admin` khai báo path **không** có tiền tố `admin` (vd. `@Controller('cdr')`); `RouterModule` của `AdminAppModule` thêm tiền tố, prefix toàn cục `api/v1` đặt ở `main.ts`. Mỗi thư mục tính năng trong `apps/admin` / `apps/member` chỉ chứa controller, DTO đầu vào riêng của cổng (query/body) và module NestJS mỏng import service từ `core`. Không viết truy vấn DB hay nghiệp vụ trong `apps/*`.
 2. Route `USER + ADMIN` (`docs/02_api_contracts.md` mục 1.1) có 2 controller: `apps/member/<x>/` (cô lập nhóm) và `apps/admin/<x>/` (toàn hệ thống, thêm tham số Admin), cùng gọi một service trong `core/<x>/` và trả cùng DTO response đặt trong `core/<x>/dto/`. Phạm vi dữ liệu truyền vào service dưới dạng tham số `scope: { kind: 'SYSTEM', groupId?: number } | { kind: 'GROUP', groupId: number }`.
-3. `apps/worker` chỉ chứa lớp `*.scheduler.ts` / `*.job.ts` (lịch chạy, khóa `GET_LOCK`, log); phần tính toán nằm trong service của `core` để có thể gọi lại từ API (ví dụ `POST /admin/stats/recalculate` ghi `stats_recompute_queue`, không gọi trực tiếp job).
-4. Phụ thuộc cho phép: `apps/admin` → `core`; `apps/member` → `core`; `apps/worker` → `core`; `realtime` → `core`; `app.module.ts` → `apps/admin`, `apps/member`, `realtime`, `core`. Cấm mọi chiều khác. `@nestjs/schedule` chỉ được dùng trong `apps/worker`; vòng lặp ngắn chạy trong tiến trình API (`NotificationPushPoller` 3 giây, `CacheVersionWatcher` 5 giây) dùng `setInterval` trong `onModuleInit` và dừng ở `onModuleDestroy`. Cấu hình ESLint mẫu:
+3. `apps/worker` chỉ chứa lớp `*.scheduler.ts` / `*.job.ts` (lịch chạy, khóa `GET_LOCK` qua `JobLockService`, ghi `worker_job_status`, log); phần tính toán nằm trong service của `core` để có thể gọi lại từ API (ví dụ `POST /admin/stats/recalculate` ghi `stats_recompute_queue`, không gọi trực tiếp job).
+4. Phụ thuộc cho phép: `apps/admin` → `core`; `apps/member` → `core`; `apps/worker` → `core`; `realtime` → `core`; `app.module.ts` → `apps/admin`, `apps/member`, `realtime`, `core`. Cấm mọi chiều khác. `@nestjs/schedule` chỉ được dùng trong `apps/worker`; vòng lặp ngắn chạy trong tiến trình API (`NotificationPushPoller` 3 giây, `CacheVersionWatcher` 5 giây, `WorkerHealthWatcher` 60 giây) dùng `setInterval` trong `onModuleInit` và dừng ở `onModuleDestroy`. Cấu hình ESLint mẫu:
 
 ```js
 // backend/.eslintrc.cjs (trích)
@@ -418,11 +422,11 @@ module.exports = {
 | Service | Lệnh | Số instance | Cổng | Ghi chú |
 | :--- | :--- | :--- | :--- | :--- |
 | `backend-api` | `node dist/main.js` | 1..N | 3000 | Nginx proxy `/api/`, `/socket.io/` tới đây. Nhiều instance thì bật sticky session cho `/socket.io/` (Socket.IO polling fallback). |
-| `backend-worker` | `node dist/main.worker.js` | **đúng 1** | không | Cần quyền đọc DB, ghi `cdr_enriched`/`stats_*`/`notifications` và truy cập SMTP; không cần gắn thư mục ghi âm. |
+| `backend-worker` | `node dist/main.worker.js` | **đúng 1** | không | Cần quyền đọc DB, ghi `cdr_enriched`/`stats_*`/`notifications`/`worker_job_status` và truy cập SMTP (chỉ worker gửi email); không cần gắn thư mục ghi âm. |
 
 - Cả hai đặt `TZ=Asia/Ho_Chi_Minh` và dùng chung biến môi trường DB (mục 2.3).
 - Khi dev: `npm run start:dev` (API) và `npm run start:worker:dev` chạy song song trong 2 terminal.
-- Worker dừng thì API vẫn phục vụ bình thường; dữ liệu `cdr_enriched` và `stats_*` chỉ ngừng cập nhật. Trạng thái worker xem qua `cdr_enrichment_state.status` / `last_success_at`.
+- Worker dừng thì API vẫn phục vụ bình thường; dữ liệu `cdr_enriched` và `stats_*` ngừng cập nhật và email cảnh báo chờ trong hàng đợi (bỏ nếu quá 24 giờ). Trạng thái từng job xem ở `GET /api/v1/admin/system/jobs` (màn hình Cài đặt hệ thống, mục "Tình trạng tiến trình nền", `docs/modules/07_system_settings.md` mục 3.5); tiến trình làm giàu ngừng quá 10 phút thì `backend-api` tạo cảnh báo `SYSTEM_JOB`.
 
 ### 5.2. Frontend (`frontend/`) – 1 ứng dụng, 2 khu vực
 

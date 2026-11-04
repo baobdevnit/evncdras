@@ -265,7 +265,7 @@ backend/src/
 │   ├── qos.service.ts                  <-- debug-table, summary, disconnection-codes; nhận scope SYSTEM | GROUP
 │   ├── qos-thresholds.service.ts
 │   ├── qos-evaluator.service.ts        <-- Thuật toán đánh giá MOS G.107 & cảnh báo
-│   ├── qos-alert.service.ts            <-- đánh giá khung giờ đã kết thúc ≥ 60 phút, tạo QOS_ALERT qua core/notifications
+│   ├── qos-alert.service.ts            <-- đánh giá khung giờ đã kết thúc ≥ 60 phút (kể cả đánh giá bù từ mốc qos_alert_evaluated_until, tối đa 24 khung), tạo QOS_ALERT qua core/notifications
 │   ├── dto/
 │   │   ├── qos-debug-query.dto.ts
 │   │   └── qos-summary-response.dto.ts
@@ -280,7 +280,7 @@ backend/src/
 │   └── qos.controller.ts               <-- /api/v1/qos/* (scope GROUP)
 └── apps/worker/qos-alert/
     ├── qos-alert-worker.module.ts
-    └── qos-alert.job.ts                <-- chạy sau mỗi lần stats-aggregation, gọi QosAlertService
+    └── qos-alert.job.ts                <-- chạy sau mỗi lần stats-aggregation (kể cả lần bị bỏ qua vì không lấy được khóa), gọi QosAlertService
 ```
 
 ---
