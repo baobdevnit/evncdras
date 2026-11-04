@@ -31,7 +31,7 @@
 | 10 | 2026-11-04 | `db_audit_10.md` | `1b1a309` | 2 Major, 3 Minor (làm gọn) | ✅ |
 | 11 | 2026-11-04 | `db_audit_11.md` | `b30e46c` | 3 Major, 6 Minor | ✅ |
 | 12 | 2026-11-04 | `db_audit_12.md` | `9084f1d`, `bbbc0f9` | 3 Major, 7 Minor, 2 ngoài CSDL | ✅ |
-| 13 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | chưa commit | 2 Major, 7 Minor | ✅ |
+| 13 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `728e996` | 2 Major, 7 Minor | ✅ |
 
 ---
 
