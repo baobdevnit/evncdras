@@ -37,10 +37,12 @@
 | R12-09 | M06 ví dụ `QOS_ALERT` khung 09:00–10:00 có `createdAt` 09:30, trái quy tắc đánh giá khung đã kết thúc ít nhất 60 phút (`01` §10); `GET /notifications` có `page`/`limit` nhưng response không có `pagination`; modal soạn thông báo thiếu `type` (`02` ghi `SYSTEM_MAINTENANCE`/`GENERAL`) | Sửa `createdAt` 11:00 kèm ghi chú; thêm `pagination` theo `02` §2.2; thêm `type` vào M06 §1.2, §5.2 |
 | R12-10 | `02` §3.2 ghi preferences User chỉ có `theme`, `itemsPerPage`; M08 §3.5 có 5 trường khớp cột `user_settings` | Đồng bộ `02` theo M08 |
 
-## Ngoài phạm vi CSDL (chưa sửa)
+## Ngoài phạm vi CSDL (đã sửa theo yêu cầu bổ sung)
 
-- M06 §4.2: tiêu đề email cố định "Sự cố chất lượng thoại" dùng cho mọi thông báo `CRITICAL` (kể cả `PABX_OFFLINE` và thông báo Admin soạn).
-- `02` §4: payload `notification:new` chỉ có `{ id, title, content, severity, createdAt }`, nhưng M06 §5.3 chèn thẳng vào danh sách (cần `type`, `isRead`, `metadata`).
+| Mã | Vấn đề | Đã sửa |
+|---|---|---|
+| R12-11 | M06 §4.2: tiêu đề email cố định "Sự cố chất lượng thoại" dùng cho mọi thông báo `CRITICAL` (kể cả `PABX_OFFLINE` và thông báo Admin soạn) | Tiêu đề và nội dung email lấy từ `notifications.title`/`content`/`created_at`; escape HTML nội dung (M06 §4.2) |
+| R12-12 | `02` §4: payload `notification:new` chỉ có `{ id, title, content, severity, createdAt }`, nhưng M06 §5.3 chèn thẳng vào danh sách (cần `type`, `isRead`, `metadata`) | Payload cùng cấu trúc phần tử `GET /notifications`: `{ id, type, severity, title, content, isRead: false, createdAt, metadata }`, `timeAgo` tính ở frontend; poller đọc dòng `notifications` để dựng payload (`02` §4, M06 §4.1, §5.3) |
 
 ## Đã rà, không phát hiện lỗi
 

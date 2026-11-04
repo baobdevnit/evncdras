@@ -300,4 +300,4 @@ Dùng cho việc bắn thông báo tức thời về giao diện người dùng:
 - **Client Connect**: Socket.IO với **hai namespace tách theo portal**: User kết nối `/notifications` (xác minh bằng `JWT_USER_SECRET`), Admin kết nối `/admin/notifications` (xác minh bằng `JWT_ADMIN_SECRET`). Access Token gửi trong payload `auth: { token }` lúc handshake, **không** đặt trên query string. Khi token hết hạn, client refresh rồi kết nối lại.
 - **Room**: `user:{id}` và `group:{groupId}` ở namespace User; `admin:{id}` và `admins` ở namespace Admin.
 - **Server Events**:
-  - `notification:new`: Khi có thông báo mới (sự cố QoS, cảnh báo tổng đài, thông báo hệ thống). Payload: `{ id, title, content, severity, createdAt }`.
+  - `notification:new`: Khi có thông báo mới (sự cố QoS, cảnh báo tổng đài, thông báo hệ thống). Payload cùng cấu trúc phần tử của `GET /notifications` (`docs/modules/06_notifications.md` mục 3.1) để frontend chèn thẳng vào danh sách: `{ id, type, severity, title, content, isRead: false, createdAt, metadata }`. Không có `timeAgo`: frontend tự tính từ `createdAt`.
