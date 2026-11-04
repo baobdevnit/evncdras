@@ -47,7 +47,7 @@ Hệ thống EVN CDRAS phân tách rõ ràng giao diện Bảng điều khiển 
 | Thẻ KPI | Ý nghĩa nghiệp vụ | Nguồn tính toán (Group Isolation) |
 | :--- | :--- | :--- |
 | **Tổng Cuộc Gọi Đơn Vị** | Cuộc gọi phát sinh liên quan đến dải số của nhóm | `SUM(total_calls) WHERE group_id = :userGroupId` |
-| **Thời Lượng Đàm Thoại** | Tổng phút đàm thoại của nhóm | `ROUND(SUM(total_duration_sec) / 60) WHERE group_id = :userGroupId` |
+| **Thời Lượng Đàm Thoại** | Tổng thời lượng đàm thoại của nhóm (API trả giây, frontend đổi sang phút để hiển thị) | `SUM(total_duration_sec) WHERE group_id = :userGroupId` |
 | **Tỉ Lệ Trả Lời (ASR) Đơn Vị**| Tỷ lệ bắt máy của đơn vị (không so với toàn EVN: bản User không đọc dòng toàn hệ thống) | `SUM(answered_calls) / NULLIF(SUM(total_calls), 0) * 100%` (nhóm) |
 | **Tỷ Trọng Gọi Nội Bộ (%)** | % cuộc gọi nội bộ nhóm / Tổng cuộc gọi phát sinh | `SUM(calls_intra_group) / SUM(total_calls) * 100%` |
 
@@ -87,7 +87,7 @@ SELECT
     COALESCE(SUM(calls_inter_group), 0) AS calls_inter_group,   -- chỉ có giá trị ở dòng toàn hệ thống
     COALESCE(SUM(calls_unassigned), 0) AS calls_unassigned,     -- chỉ có giá trị ở dòng toàn hệ thống
     COALESCE(SUM(answered_calls), 0) AS answered_calls,
-    COALESCE(ROUND(SUM(total_duration_sec) / 60), 0) AS total_duration_minutes,
+    COALESCE(SUM(total_duration_sec), 0) AS total_duration_sec,
     ROUND(COALESCE(SUM(answered_calls), 0) / NULLIF(SUM(total_calls), 0) * 100, 2) AS asr_percentage,
     ROUND(SUM(avg_mos * qos_sample_count) / NULLIF(SUM(qos_sample_count), 0) / 100, 2) AS avg_mos -- NULL khi không có mẫu QoS
 FROM stats_hourly
@@ -107,7 +107,7 @@ SELECT
     COALESCE(SUM(calls_inter_group), 0) AS calls_inter_group,   -- chỉ có giá trị ở dòng toàn hệ thống
     COALESCE(SUM(calls_unassigned), 0) AS calls_unassigned,     -- chỉ có giá trị ở dòng toàn hệ thống
     COALESCE(SUM(answered_calls), 0) AS answered_calls,
-    COALESCE(ROUND(SUM(total_duration_sec) / 60), 0) AS total_duration_minutes,
+    COALESCE(SUM(total_duration_sec), 0) AS total_duration_sec,
     ROUND(COALESCE(SUM(answered_calls), 0) / NULLIF(SUM(total_calls), 0) * 100, 2) AS asr_percentage,
     ROUND(SUM(avg_mos * qos_sample_count) / NULLIF(SUM(qos_sample_count), 0) / 100, 2) AS avg_mos -- NULL khi không có mẫu QoS
 FROM stats_daily
@@ -144,9 +144,9 @@ WHERE stat_date BETWEEN :fromDate AND :toDate
       "trendLabel": "+12% so với kỳ trước",
       "trendType": "positive"
     },
-    "durationMinutes": {
-      "value": 3845200,
-      "formatted": "3,845,200",
+    "durationSec": {
+      "value": 230712000,
+      "formatted": "3,845,200 phút",
       "trend": 5.4,
       "trendLabel": "+5.4% so với kỳ trước",
       "trendType": "positive"
@@ -267,7 +267,7 @@ Các liên kết trong template (`*.html`) chuyển thành `router-link` tới r
    - Tiêu đề: "Tổng quan Hệ thống EVN CDRAS" - Toàn Tập đoàn Điện lực Việt Nam. Không có nút chuyển sang Dashboard thành viên (hai app tách riêng).
 2. **4 Thẻ KPI toàn hệ thống**:
    - Tổng Cuộc Gọi Toàn Mạng (`1,245,600`).
-   - Tổng Thời Lượng Đàm Thoại (`3,845,200` phút).
+   - Tổng Thời Lượng Đàm Thoại (`3,845,200` phút, frontend đổi từ `durationSec`).
    - Tỉ Lệ Thành Công ASR (`82.5%`).
    - Điểm MOS Trung Bình (`4.18/5.0`).
 3. **Widget Kho số PABX EVN (90.000 số: 10000 ➔ 99999)**:
@@ -287,7 +287,7 @@ Các liên kết trong template (`*.html`) chuyển thành `router-link` tới r
    - Huy hiệu nhận diện nhóm: `Group Isolation: 51xxx`.
 2. **4 Thẻ KPI chuyên biệt cho Đơn vị**:
    - Tổng Cuộc Gọi Đơn Vị (`42,350` cuộc).
-   - Thời Lượng Đàm Thoại (`148,200` phút).
+   - Thời Lượng Đàm Thoại (`148,200` phút, frontend đổi từ `durationSec`).
    - Tỉ Lệ Trả Lời ASR Đơn Vị (`84.2%`).
    - Tỷ Trọng Gọi Nội Bộ (`68.5%`).
 3. **Widget Dải số Cấp phát cho Đơn vị** (từ `GET /api/v1/prefixes`, mỗi dải có `counts { total, allocated, reserved, locked }`):

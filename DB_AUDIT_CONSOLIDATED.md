@@ -10,7 +10,8 @@
 ## 0. Kết luận
 
 - **`docs/` không còn phát hiện Critical/Major/Minor nào về CSDL đang mở.** Đã kiểm lại ngày 2026-11-04 (mục 4): mọi mục của 12 lần rà soát đều đã phản ánh trong `docs/`. Lần kiểm này sửa thêm 1 lỗi Minor còn sót: ví dụ mã nhóm `UG-KT-01`/`UG-IT-01` ở M12 §3.1, đổi thành `UMO-KT-01`/`UMO-IT-01` theo quy ước `user_groups.code` (`01` §5).
-- **Còn mở (mục 2)**: chạy lại DDL + seed trên **MariaDB 10.6**; sửa `templates/`; viết test cho các quy tắc tầng service khi có backend; xác nhận một điểm diễn giải về `trend` ở M05.
+- **Còn mở (mục 2)**: chạy lại DDL + seed trên **MariaDB 10.6**; sửa `templates/`; viết test cho các quy tắc tầng service khi có backend; xác nhận một điểm diễn giải về `trend` ở M05 (C-01).
+- **Lần 13 (2026-11-04)**: 2 Major, 7 Minor, đã sửa theo quyết định chủ dự án (mục 3.5).
 - **Sẵn sàng sinh migration/entity** sau khi chạy xong DDL trên MariaDB 10.6 (mục 2.1).
 
 ## 1. Các lần rà soát
@@ -30,6 +31,7 @@
 | 10 | 2026-11-04 | `db_audit_10.md` | `1b1a309` | 2 Major, 3 Minor (làm gọn) | ✅ |
 | 11 | 2026-11-04 | `db_audit_11.md` | `b30e46c` | 3 Major, 6 Minor | ✅ |
 | 12 | 2026-11-04 | `db_audit_12.md` | `9084f1d`, `bbbc0f9` | 3 Major, 7 Minor, 2 ngoài CSDL | ✅ |
+| 13 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | chưa commit | 2 Major, 7 Minor | ✅ |
 
 ---
 
@@ -37,7 +39,7 @@
 
 ### 2.1. Kiểm chứng DDL trên đúng phiên bản
 
-- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại.
+- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại.
 - **Việc cần làm**: trích toàn bộ khối ```` ```sql ```` của `01` và seed `M10` §2.1, chạy trên MariaDB 10.6, kiểm tra:
   - 27 bảng + 1 view tạo không lỗi; partition `cdr_enriched` đúng.
   - Seed: 25 mã quyền; `permission_roles` ROOT_ADMIN 25, SYSTEM_ADMIN 24, GROUP_ADMIN 17, USER_RECORDING 11, REGULAR_USER 9; 19 key `system_settings`; 5 ngưỡng QoS.
@@ -84,7 +86,7 @@ Các quy tắc sau đã ghi trong `docs/` nhưng chỉ kiểm chứng được b
 | ID | Nội dung | Tham chiếu |
 |---|---|---|
 | C-01 | Định nghĩa `trend` cho `last_month` (so với tháng liền trước nữa) và `custom` (khoảng cùng số ngày ngay trước `fromDate`) là cách áp dụng quyết định "kỳ liền trước cùng số ngày"; cần chủ dự án xác nhận | M05 §3.1 (R12-05) |
-| I-01 | `high_packet_loss_calls_count` phụ thuộc ngưỡng tại thời điểm tính; đổi ngưỡng rồi tính lại sẽ đổi số liệu lịch sử của các khung được tính lại | `01` §10, §15 |
+| I-01 | `high_packet_loss_legs_count` phụ thuộc ngưỡng tại thời điểm tính; đổi ngưỡng rồi tính lại sẽ đổi số liệu lịch sử của các khung được tính lại | `01` §15 |
 | I-02 | `representative_user_id` phải là GROUP_ADMIN cùng nhóm: chỉ service bảo đảm | `01` §5, M10 |
 | I-03 | `cdr_enriched` có nhiều index phụ trên bảng ghi liên tục; truy vấn `caller_group_id = g OR called_group_id = g` cần index merge hoặc `UNION`. Đo trên dữ liệu thật trước khi chốt bộ index | `01` §2.1 |
 | I-04 | `groupGated` trong `GET` quyền là hằng số trong code (M10), không phải cột | `02`, M10 |
@@ -184,7 +186,7 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 - Tách đổi trạng thái khỏi `PUT /users/:id`; `audit_logs` chỉ ghi thêm ở mức CSDL.
 - Ghi chú: nhóm sở hữu số chốt lúc làm giàu, mã nhóm không dùng lại, giới hạn `timestamp` 2038.
 
-### 3.5. Lần 6–12
+### 3.5. Lần 6–13
 
 | Mã | Mức | Vấn đề | Xử lý (nơi sửa) |
 |---|---|---|---|
@@ -232,6 +234,16 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 | R12-10 | Minor | preferences User ở `02` thiếu trường | Đồng bộ theo M08 |
 | R12-11 | — | Tiêu đề email CRITICAL cố định | Lấy từ `notifications` |
 | R12-12 | — | Payload `notification:new` thiếu trường | Cùng cấu trúc `GET /notifications` |
+
+| R13-01 | Major | Cùng cột `cdr_enriched.call_status`/`answered_duration_sec` mang 4 cặp tên khác nhau giữa API: M12 `status`/`duration`, M13 `callStatus`/`duration`, M14 `callStatus`/`durationSec`, `02` §2.2 `callStatus`/`answeredDurationSec` | Chủ dự án chốt `callStatus` + `durationSec` cho mọi API danh sách/chi tiết cuộc gọi; `02` §2 ghi ngoại lệ tên `durationSec`; sửa M12 §2.1, §3.1, §3.2, M13 §3.1, `02` §2.2, §3.11 |
+| R13-02 | Major | `prefix_allocation_history`: `status_before`/`status_after` là varchar tự do không có quy tắc (dải số đã bỏ cột trạng thái); dòng `UPDATE` không quy định lưu khoảng nào, `numbers_count` đếm gì, nên không tái dựng được khoảng trước khi sửa | Chủ dự án chốt: `status_*` thành `enum('FREE','ALLOCATED')` (nhãn "Kho tự do"/"Đang dùng"); thêm `previous_range_from`/`previous_range_to` (chỉ `UPDATE`); `range_from`/`to` = khoảng sau thao tác; `range_text` của `UPDATE` ghi cũ và mới; `numbers_count` = số số thay đổi. Bảng giá trị theo `action_type` ở `01` §8 điểm 5; M11 §3.2 tham chiếu |
+| R13-03 | Minor | `POST /admin/stats/recalculate` và `POST /admin/notifications` là thao tác ghi của Admin nhưng không có mã trong danh mục `audit_logs` | Chủ dự án chốt ghi cả hai: `SYSTEM / RECALCULATE_STATS`, `SYSTEM / CREATE_NOTIFICATION` (`01` §13, `02` §3.11–3.12, M06 §1.2, M07 §5) |
+| R13-04 | Minor | M13 debug-table trả `callerGroup`/`calledGroup` dạng chuỗi tên nhóm, M12 trả object `{ id, code, name }` cho cùng tên trường | Theo M12 (object) |
+| R13-05 | Minor | M11 `GET /phone-numbers/pool` dùng `data: { total, page, limit, items }`, khác khung phân trang chung `02` §2.2 | Đổi sang `data: []` + `pagination` |
+| R13-06 | Minor | M11 `pool`, `phone-numbers/history` nhận `userGroupId` trên cả route User, trái `02` §1.1 (R12-04) | Ghi rõ chỉ bản Admin, bản User gửi thì `400`; bản User lọc theo `phone_number_range_history.user_group_id` (theo COMMENT `01` §8.5) |
+| R13-07 | Minor | Ví dụ lệch quy ước: M02 `phonePrefixGroup.code` `PG-IT-01`/`PG-AUDIT` (quy tắc `PG-` + `user_groups.code`); M11 `GET /prefixes` thiếu `counts` mô tả ở cùng mục, `updatedAt` không theo ISO 8601 (`02` §2) | `PG-UMO-IT`, `PG-UMO-AUDIT`; thêm `counts`; `updatedAt` có giờ và `+07:00` |
+| R13-08 | Minor | Ví dụ `pagination` thiếu `hasNext`/`hasPrev` (M02 §3.1, §3.6, M12 §3.1, M13 §3.1); file này ghi `high_packet_loss_calls_count` thay vì tên cột `high_packet_loss_legs_count` (I-01) | Sửa |
+| R13-09 | Minor | Đơn vị thời lượng ở API tổng hợp lệch: M05 `/dashboard/stats` trả `durationMinutes`, M14 `/traffic/summary` trả cả `totalDurationSec` và `totalDurationMinutes`, các API khác dùng giây | Chủ dự án chốt chỉ dùng giây: M05 đổi `durationMinutes` → `durationSec` (SQL bỏ `/ 60`), M14 bỏ `totalDurationMinutes`, frontend tự đổi sang phút; quy tắc ghi ở `02` §2 |
 
 Đề xuất làm gọn **bị từ chối** ở lần 10 (giữ nguyên, không đề xuất lại): gộp `phone_prefix_groups` vào `user_groups`; thay 5 bảng RBAC bằng cột `role`; bỏ `stats_daily`; bỏ dòng `phone_number_range_history` cho từng số.
 

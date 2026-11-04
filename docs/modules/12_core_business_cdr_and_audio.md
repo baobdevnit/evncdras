@@ -58,7 +58,7 @@ Bảng trung tâm lưu trữ toàn bộ dữ liệu CDR đã được làm giàu
 - `DisconnectionCode`: Mã ngắt cuộc gọi chuẩn SIP (ví dụ: `200`, `480`, `486`, `487`, `503`).
 - `call_status`: Trạng thái chuẩn hóa `ANSWERED` | `BUSY` | `NO_ANSWER` | `FAILED`, ánh xạ từ `DisconnectionCode` theo bảng tại `docs/01_database_schema.md` mục 2.1. Mọi bộ lọc trạng thái và thống kê dùng cột này.
 - `Answered_Duration`: Thời lượng đàm thoại thô do PABX ghi, tính bằng **mili-giây**. Không dùng trực tiếp.
-- `answered_duration_sec`: Thời lượng đàm thoại (giây) = `ROUND(Answered_Duration / 1000)` nếu `call_status = ANSWERED`, ngược lại `0`. Trường `duration` của API lấy từ cột này.
+- `answered_duration_sec`: Thời lượng đàm thoại (giây) = `ROUND(Answered_Duration / 1000)` nếu `call_status = ANSWERED`, ngược lại `0`. Trường `durationSec` của API lấy từ cột này.
 - `call_type`: `INTRA_GROUP` / `INTER_GROUP` / `UNASSIGNED` (quy tắc tại `docs/01_database_schema.md` mục 9).
 - `Recorded_Mix_FileName`: Đường dẫn **tuyệt đối trên máy PABX** (Windows) của file ghi âm `.wav` kênh trộn của leg, ví dụ `D:\StarTrinity\recordings\2025_06_11\08_03_06_591_42118_42200_<SipCallId>.wav`. Có ở 100 % bản ghi thật. Backend đổi sang đường dẫn cục bộ theo setting `recording_path_map` (mục 2.3).
 - `Recorded_RX_FileName`, `Recorded_TX_FileName`: luôn NULL trên dữ liệu thật; giữ cột nhưng **không dùng** (hệ thống chỉ có kênh Mix).
@@ -128,12 +128,12 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
         "name": "Khối CNTT"
       },
       "direction": "Inbound",
-      "status": "ANSWERED",
+      "callStatus": "ANSWERED",
       "callType": "INTER_GROUP",
       "disconnectionCode": "200",
       "disconnectionStatus": "OK",
       "mos": 4.41,
-      "duration": 135,
+      "durationSec": 135,
       "durationFormatted": "02:15",
       "hasAudio": true,
       "audioFileName": "10_15_32_120_45678_46001_0_656507171@10.65.7.1.wav",
@@ -144,7 +144,9 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
     "page": 1,
     "limit": 10,
     "total": 1245,
-    "totalPages": 125
+    "totalPages": 125,
+    "hasNext": true,
+    "hasPrev": false
   }
 }
 ```
@@ -167,7 +169,7 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
 ### 3.2. Xem chi tiết 87 tham số CDR (`GET /api/v1/cdr/:id`)
 - **Backend xử lý**: Truy vấn từ `cdr_enriched`. Kiểm tra cô lập dữ liệu nhóm nếu người gọi thuộc User Portal (`caller_group_id = user.user_group_id OR called_group_id = user.user_group_id`). Nếu không đúng -> `403 FORBIDDEN`. Không giới hạn theo cửa sổ `retention_online_months`: người dùng nhóm vẫn mở được bản ghi lưu trữ của nhóm mình qua `id` (áp dụng cả API audio mục 3.3, 3.4; `docs/01_database_schema.md` mục 2.1).
 - **Response** gồm hai phần:
-  - **Trường nghiệp vụ camelCase** ở cấp trên cùng: toàn bộ trường của item `GET /cdr` (`id`, `created`, `answered`, `destroyed`, `callerId`, `callerDisplayName`, `callerGroup`, `calledId`, `calledDisplayName`, `calledGroup`, `direction`, `status`, `callType`, `disconnectionCode`, `disconnectionStatus`, `releasedBy`, `duration`, `mos`, `hasAudio`, `canAccessAudio`), cộng thêm `callGroupKey`, `legRole`, `isPrimaryLeg`, `legs[]`, `qos` (`mosCaller`, `mosCalled`, `rFactorCaller`, `rFactorCalled`, `lossPercent`, `jitterMeanMs`, `jitterMaxMs`, `codec`) và `sipDelays` (`sip100DelayMs`, `sip180DelayMs`, `sip183DelayMs`, `answerDelayMs`).
+  - **Trường nghiệp vụ camelCase** ở cấp trên cùng: toàn bộ trường của item `GET /cdr` (`id`, `created`, `answered`, `destroyed`, `callerId`, `callerDisplayName`, `callerGroup`, `calledId`, `calledDisplayName`, `calledGroup`, `direction`, `callStatus`, `callType`, `disconnectionCode`, `disconnectionStatus`, `releasedBy`, `durationSec`, `mos`, `hasAudio`, `canAccessAudio`), cộng thêm `callGroupKey`, `legRole`, `isPrimaryLeg`, `legs[]`, `qos` (`mosCaller`, `mosCalled`, `rFactorCaller`, `rFactorCalled`, `lossPercent`, `jitterMeanMs`, `jitterMaxMs`, `codec`) và `sipDelays` (`sip100DelayMs`, `sip180DelayMs`, `sip183DelayMs`, `answerDelayMs`).
   - **Object `raw`**: đủ **87 cột của bảng `cdr` với nguyên tên cột PABX** (`"RTP_Caller_G107MOS": 4`, `"_100_Delay": 14`, `"Recorded_Mix_FileName": "..."`…), giá trị giữ nguyên như trong DB (thời gian theo định dạng ISO `+07:00`). Dùng cho tab "Thông số kỹ thuật"; đường dẫn file ghi âm trong `raw` chỉ trả cho người có quyền nghe/tải.
 - `:id` là `cdr_enriched.id` của một leg bất kỳ. Response có thêm mảng `legs[]` gồm mọi leg cùng `call_group_key`, đọc kèm `Created` trong khoảng ±2 giây quanh `Created` của leg `:id` để chỉ quét 1–2 partition (`docs/01_database_schema.md` mục 2.1) (mỗi phần tử: `id`, `legRole`, `isPrimaryLeg`, `callerIp`, `calledIp`, `mos`, `hasAudio`), leg chính đứng đầu. Các API audio `/cdr/:id/audio/*` phát file ghi âm của **đúng leg** có `id` đó.
 

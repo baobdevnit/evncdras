@@ -203,7 +203,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
       "hierarchyPath": ["Tổng công ty 71", "Khối CNTT"],
       "phonePrefixGroup": {
         "id": 10,
-        "code": "PG-IT-01",
+        "code": "PG-UMO-IT",
         "name": "Nhóm đầu số Khối CNTT",
         "prefixes": ["42xxx", "46xxx"],
         "totalNumbers": 2000
@@ -241,7 +241,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
       "hierarchyPath": [],
       "phonePrefixGroup": {
         "id": 12,
-        "code": "PG-AUDIT",
+        "code": "PG-UMO-AUDIT",
         "name": "Nhóm đầu số Ban Kiểm toán",
         "prefixes": ["49xxx"],
         "totalNumbers": 1000
@@ -270,7 +270,9 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
     "page": 1,
     "limit": 10,
     "total": 2,
-    "totalPages": 1
+    "totalPages": 1,
+    "hasNext": false,
+    "hasPrev": false
   }
 }
 ```
@@ -402,7 +404,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
       "roleCode": "GROUP_ADMIN"
     }
   ],
-  "pagination": { "page": 1, "limit": 20, "total": 45, "totalPages": 3 }
+  "pagination": { "page": 1, "limit": 20, "total": 45, "totalPages": 3, "hasNext": true, "hasPrev": false }
 }
 ```
 

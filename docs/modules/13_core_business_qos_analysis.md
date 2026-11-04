@@ -73,7 +73,7 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 ### 3.1. Bảng phân tích QoS chi tiết (`GET /api/v1/qos/debug-table`)
 
 - **Query params**: `fromDate`, `toDate` (bắt buộc, tối đa 31 ngày, trong cửa sổ `retention_online_months`: `fromDate` cũ hơn cửa sổ trả `400` ở cả hai bản; `docs/01_database_schema.md` mục 2.1, 15), `callerId`, `calledId` (khớp đúng, như `GET /cdr`), `status` (enum `call_status`), `minMos`/`maxMos` (thang thập phân, so với `mos_x100 / 100`), `disconnectionCode`, `codec`, `packetLoss` (`none` | `warning` | `critical`, so với ngưỡng `PACKET_LOSS_PERCENT`), `page`, `limit` (≤ 100)
-- **Đơn vị dòng**: mỗi dòng là **một leg** (`cdr_enriched`), kể cả leg phụ; các leg cùng cuộc gọi có cùng `callGroupKey` và được sắp liền nhau (leg chính trước). `duration` = `answered_duration_sec` (giây); `mos` = `mos_*_x100 / 100` (2 chữ số), `mosRaw` = giá trị số nguyên thô của PABX.
+- **Đơn vị dòng**: mỗi dòng là **một leg** (`cdr_enriched`), kể cả leg phụ; các leg cùng cuộc gọi có cùng `callGroupKey` và được sắp liền nhau (leg chính trước). `durationSec` = `answered_duration_sec` (giây); `mos` = `mos_*_x100 / 100` (2 chữ số), `mosRaw` = giá trị số nguyên thô của PABX.
 - **Response**:
 
 ```json
@@ -91,13 +91,13 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
       "created": "2025-06-11T08:02:37+07:00",
       "answered": "2025-06-11T08:02:40+07:00",
       "destroyed": "2025-06-11T08:03:06+07:00",
-      "duration": 26,
+      "durationSec": 26,
       "callerId": "42118",
       "callerDisplayName": "LONGNT",
-      "callerGroup": "Khối CNTT",
+      "callerGroup": { "id": 2, "code": "UMO-IT-01", "name": "Khối CNTT" },
       "calledId": "42200",
       "calledDisplayName": "",
-      "calledGroup": "Khối CNTT",
+      "calledGroup": { "id": 2, "code": "UMO-IT-01", "name": "Khối CNTT" },
       "sip": {
         "callId": "26183508-5060-3@BA.BGG.A.BFB",
         "disconnectionCode": "200",
@@ -148,7 +148,9 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
     "page": 1,
     "limit": 10,
     "total": 18,
-    "totalPages": 2
+    "totalPages": 2,
+    "hasNext": true,
+    "hasPrev": false
   }
 }
 ```

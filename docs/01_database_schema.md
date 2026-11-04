@@ -743,6 +743,15 @@ Seed `permissions` và `permission_roles`: `docs/modules/10_permissions_and_role
 >    - **Nhóm đầu số của một nhóm người dùng không đổi sau khi tạo**. Muốn chuyển số sang nhóm khác: thu hồi dải ở nhóm cũ rồi cấp dải cho nhóm mới.
 >    - **Chỉ cấp phát / sửa dải cho nhóm người dùng `ACTIVE`** (nhóm `INACTIVE` trả `409 GROUP_INACTIVE`). Thu hồi dải thì được cả với nhóm `INACTIVE` (dải còn giữ lại khi ngừng hoạt động nhóm, mục 14). Vì nhóm đầu số luôn được tạo cùng nhóm người dùng (mục 4.1), quyền sở hữu số chỉ đổi qua cấp phát / sửa / thu hồi dải, và các thao tác này luôn tăng `cache_version`.
 > 4. **Lưu vết biến động**: Bảng `phone_number_range_history` ghi nhận lịch sử gán số vào dải số, thu hồi số về kho tự do, hoặc khóa/mở khóa số.
+> 5. **Giá trị ghi vào `prefix_allocation_history` theo `action_type`** (mỗi thao tác trên dải ghi đúng 1 dòng):
+>
+>    | `action_type` | `previous_range_from`/`to` | `range_from`/`to` | `range_text` | `numbers_count` | `status_before` → `status_after` |
+>    |---|---|---|---|---|---|
+>    | `ALLOCATE` | NULL | khoảng được cấp | `từ -> đến` | số số của khoảng | `FREE` → `ALLOCATED` |
+>    | `REVOKE` | NULL | khoảng bị thu hồi | `từ -> đến` | số số của khoảng | `ALLOCATED` → `FREE` |
+>    | `UPDATE` | khoảng trước khi sửa | khoảng sau khi sửa | `cũ_từ-cũ_đến -> mới_từ-mới_đến` | số số thêm vào + số số bớt ra | `ALLOCATED` → `ALLOCATED` |
+>
+>    Nhãn hiển thị: `FREE` = "Kho tự do", `ALLOCATED` = "Đang dùng". `status_*` mô tả khoảng số của dải, không phải trạng thái từng số (số `RESERVED`/`LOCKED` giữ trạng thái riêng, lịch sử từng số ở `phone_number_range_history`).
 
 ```sql
 -- 8.1. Bảng Dải số chi tiết thuộc Nhóm đầu số (phone_prefix_ranges)
@@ -813,12 +822,14 @@ CREATE TABLE IF NOT EXISTS `prefix_allocation_history` (
   `user_group_id` int(11) unsigned DEFAULT NULL COMMENT 'Nhóm người dùng thụ hưởng/bị thu hồi',
   `action_type` enum('ALLOCATE','REVOKE','UPDATE') NOT NULL COMMENT 'ALLOCATE: cấp dải mới, REVOKE: thu hồi dải, UPDATE: mở rộng/thu hẹp dải',
   `range_id` int(11) unsigned DEFAULT NULL COMMENT 'Snapshot id dải tác động (không FK: dải có thể đã bị xóa cứng khi thu hồi)',
-  `range_from` varchar(10) DEFAULT NULL COMMENT 'Snapshot đầu khoảng số tại thời điểm thao tác',
-  `range_to` varchar(10) DEFAULT NULL COMMENT 'Snapshot cuối khoảng số tại thời điểm thao tác',
-  `range_text` varchar(50) NOT NULL COMMENT 'Khoảng số hiển thị (ví dụ: 15100 -> 15499)',
-  `numbers_count` int(11) NOT NULL DEFAULT 0 COMMENT 'Số lượng số biến động',
-  `status_before` varchar(50) DEFAULT NULL COMMENT 'Tình trạng trước (Đang dùng, Kho tự do...)',
-  `status_after` varchar(50) DEFAULT NULL COMMENT 'Tình trạng sau (Đang dùng, Kho tự do...)',
+  `previous_range_from` varchar(10) DEFAULT NULL COMMENT 'Chỉ UPDATE: đầu khoảng số trước khi sửa; NULL với ALLOCATE/REVOKE',
+  `previous_range_to` varchar(10) DEFAULT NULL COMMENT 'Chỉ UPDATE: cuối khoảng số trước khi sửa; NULL với ALLOCATE/REVOKE',
+  `range_from` varchar(10) DEFAULT NULL COMMENT 'ALLOCATE: đầu khoảng được cấp; REVOKE: đầu khoảng bị thu hồi; UPDATE: đầu khoảng sau khi sửa',
+  `range_to` varchar(10) DEFAULT NULL COMMENT 'ALLOCATE: cuối khoảng được cấp; REVOKE: cuối khoảng bị thu hồi; UPDATE: cuối khoảng sau khi sửa',
+  `range_text` varchar(50) NOT NULL COMMENT 'Khoảng số hiển thị. ALLOCATE/REVOKE: 15100 -> 15499; UPDATE: khoảng cũ và mới, ví dụ 48000-48499 -> 48000-48999',
+  `numbers_count` int(11) NOT NULL DEFAULT 0 COMMENT 'Số lượng số thay đổi range_id: ALLOCATE/REVOKE = số số của khoảng; UPDATE = số số thêm vào + số số bớt ra',
+  `status_before` enum('FREE','ALLOCATED') DEFAULT NULL COMMENT 'Tình trạng khoảng số trước thao tác: FREE = Kho tự do, ALLOCATED = Đang dùng (nhãn hiển thị do API/giao diện ánh xạ)',
+  `status_after` enum('FREE','ALLOCATED') DEFAULT NULL COMMENT 'Tình trạng khoảng số sau thao tác: FREE = Kho tự do, ALLOCATED = Đang dùng',
   `decision_number` varchar(100) DEFAULT NULL COMMENT 'Căn cứ pháp lý (QĐ 1444/EVN-VT&CNTT, QĐ 214/QĐ-EVN...)',
   `performed_by_admin_id` int(11) unsigned DEFAULT NULL COMMENT 'Quản trị viên thực hiện',
   `performed_by_name` varchar(150) NOT NULL COMMENT 'Tên người thực hiện',
@@ -1068,7 +1079,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | `USER_GROUP` | `CREATE`, `UPDATE`, `DEACTIVATE`, `TOGGLE_GROUP_RECORDING` (`allow_recording_access`) |
 | `PREFIX` | `UPDATE_PREFIX_GROUP`, `ALLOCATE_RANGE`, `UPDATE_RANGE`, `REVOKE_RANGE`, `UPDATE_NUMBER` |
 | `ORGANIZATION` | `CREATE`, `UPDATE`, `DELETE` |
-| `SYSTEM` | `UPDATE_SETTINGS` (kể cả nạp lại bộ nhớ đệm, `action_details.op = "RELOAD_CACHE"`) |
+| `SYSTEM` | `UPDATE_SETTINGS` (kể cả nạp lại bộ nhớ đệm, `action_details.op = "RELOAD_CACHE"`), `RECALCULATE_STATS` (`POST /admin/stats/recalculate`; `action_details = { "fromDate", "toDate", "queuedHours" }`), `CREATE_NOTIFICATION` (`POST /admin/notifications`; `resource_id` = `notifications.id`, `action_details = { "type", "severity", "target" }`) |
 | (mọi resource) | `ACCESS_DENIED`: thao tác bị chặn có ý nghĩa an ninh (vd. thử xóa Root Admin, gọi API ngoài phạm vi nhóm) |
 
 ---

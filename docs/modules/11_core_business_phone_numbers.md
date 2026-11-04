@@ -92,6 +92,7 @@ Trong cùng transaction tạo/cập nhật dải số:
   DELETE FROM phone_prefix_ranges WHERE id = :rangeId;  -- chỉ chạy được sau khi đã dọn số (fk_pn_range RESTRICT)
   ```
   Đồng thời ghi nhận lịch sử vào `phone_number_range_history` với `action_type = 'REVOKE_FROM_RANGE'` và `prefix_allocation_history` với `action_type = 'REVOKE'`, cùng một transaction.
+- Giá trị các cột `previous_range_from`/`previous_range_to`, `range_from`/`range_to`, `range_text`, `numbers_count`, `status_before`/`status_after` của dòng `prefix_allocation_history` theo từng `action_type` (`ALLOCATE`, `REVOKE`, `UPDATE`): bảng tại `docs/01_database_schema.md` mục 8, điểm 5.
 
 ---
 
@@ -123,6 +124,7 @@ Trong cùng transaction tạo/cập nhật dải số:
           "fullRange": "42000 - 42499",
           "badgeText": "42 xxx (500 số)",
           "count": 500,
+          "counts": { "total": 500, "allocated": 480, "reserved": 15, "locked": 5 },
           "note": "Trụ sở chính Cửa Bắc"
         },
         {
@@ -134,12 +136,13 @@ Trong cùng transaction tạo/cập nhật dải số:
           "fullRange": "46500 - 46999",
           "badgeText": "46 xxx (500 số)",
           "count": 500,
+          "counts": { "total": 500, "allocated": 500, "reserved": 0, "locked": 0 },
           "note": "Chi nhánh Cầu Giấy"
         }
       ],
       "totalRanges": 2,
       "totalNumbers": 1000,
-      "updatedAt": "2026-05-24"
+      "updatedAt": "2026-05-24T09:30:00+07:00"
     }
   ]
 }
@@ -170,49 +173,45 @@ Trong cùng transaction tạo/cập nhật dải số:
 ### 4.3. Tra cứu Kho số tổng thể 90.000 số (`GET /api/v1/phone-numbers/pool`)
 
 - **Guard**: `UserAuthGuard` trên route User (chỉ dữ liệu nhóm mình); bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1).
-- **Query Params**: `rangeId`, `userGroupId`, `status` (`FREE`, `ALLOCATED`, `RESERVED`, `LOCKED`), `keyword` (tìm số `10000` - `99999`, tên bàn trực), `page`, `limit`.
+- **Query Params**: `rangeId`, `userGroupId` (chỉ bản Admin; bản User gửi thì `400` theo `docs/02_api_contracts.md` mục 1.1), `status` (`FREE`, `ALLOCATED`, `RESERVED`, `LOCKED`), `keyword` (tìm số `10000` - `99999`, tên bàn trực), `page`, `limit`.
 - **Response**:
 
 ```json
 {
   "success": true,
   "statusCode": 200,
-  "data": {
-    "total": 90000,
-    "page": 1,
-    "limit": 50,
-    "items": [
-      {
-        "id": 32101,
-        "phoneNumber": "42100",
-        "rangeId": 1,
-        "userGroupId": 1,
-        "userGroupName": "Khối Công nghệ Thông tin",
-        "status": "ALLOCATED",
-        "displayName": "Bàn trực Điều độ A0",
-        "description": "Vị trí bàn trực ca 24/7",
-        "allocatedAt": "2026-01-15T08:00:00+07:00"
-      },
-      {
-        "id": 90000,
-        "phoneNumber": "99999",
-        "rangeId": null,
-        "userGroupId": null,
-        "userGroupName": null,
-        "status": "FREE",
-        "displayName": null,
-        "description": null,
-        "allocatedAt": null
-      }
-    ]
-  }
+  "data": [
+    {
+      "id": 32101,
+      "phoneNumber": "42100",
+      "rangeId": 1,
+      "userGroupId": 1,
+      "userGroupName": "Khối Công nghệ Thông tin",
+      "status": "ALLOCATED",
+      "displayName": "Bàn trực Điều độ A0",
+      "description": "Vị trí bàn trực ca 24/7",
+      "allocatedAt": "2026-01-15T08:00:00+07:00"
+    },
+    {
+      "id": 90000,
+      "phoneNumber": "99999",
+      "rangeId": null,
+      "userGroupId": null,
+      "userGroupName": null,
+      "status": "FREE",
+      "displayName": null,
+      "description": null,
+      "allocatedAt": null
+    }
+  ],
+  "pagination": { "page": 1, "limit": 50, "total": 90000, "totalPages": 1800, "hasNext": true, "hasPrev": false }
 }
 ```
 
 ### 4.4. Tra cứu Lịch sử điều chuyển số vào dải (`GET /api/v1/phone-numbers/history`)
 
 - **Guard**: `UserAuthGuard` trên route User (chỉ dữ liệu nhóm mình); bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1).
-- **Query Params**: `phoneNumber`, `userGroupId`, `actionType`, `page`, `limit`.
+- **Query Params**: `phoneNumber`, `userGroupId` (chỉ bản Admin; bản User gửi thì `400`), `actionType`, `page`, `limit`. Bản User lọc theo `phone_number_range_history.user_group_id` = nhóm của người gọi.
 
 ---
 

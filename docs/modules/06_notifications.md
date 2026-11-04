@@ -20,7 +20,7 @@ Hệ thống giám sát viễn thông EVN đòi hỏi khả năng cảnh báo s�
 
 - **In-App Realtime Notification**: Bắn tín hiệu tức thời qua WebSocket (Socket.IO). Cập nhật số đếm badge chưa đọc (`.notification-badge-global`) trên thanh Sidebar mà không cần F5 trình duyệt.
 - **Email Notification**: chỉ với thông báo `CRITICAL`, gửi qua SMTP cấu hình trong `system_settings` (`smtp_*`) tới người nhận đã bật `email_notification_enabled`. Gửi lỗi không chặn việc tạo thông báo.
-- **Người nhận**: luôn tạo một dòng `notification_recipients` cho mỗi tài khoản nhận (không có thông báo "global" không có người nhận). Admin soạn thông báo qua `POST /api/v1/admin/notifications` với `type` = `SYSTEM_MAINTENANCE` | `GENERAL` và `target` = `ALL_ADMINS` | `ALL_USERS` | `GROUP:{id}` | `EVERYONE`. Người nhận chỉ gồm tài khoản `ACTIVE` (người dùng chỉ thuộc nhóm `ACTIVE`); `GROUP:{id}` của nhóm `INACTIVE` trả `409 GROUP_INACTIVE` (`docs/01_database_schema.md` mục 10).
+- **Người nhận**: luôn tạo một dòng `notification_recipients` cho mỗi tài khoản nhận (không có thông báo "global" không có người nhận). Admin soạn thông báo qua `POST /api/v1/admin/notifications` với `type` = `SYSTEM_MAINTENANCE` | `GENERAL` và `target` = `ALL_ADMINS` | `ALL_USERS` | `GROUP:{id}` | `EVERYONE`. Người nhận chỉ gồm tài khoản `ACTIVE` (người dùng chỉ thuộc nhóm `ACTIVE`); `GROUP:{id}` của nhóm `INACTIVE` trả `409 GROUP_INACTIVE` (`docs/01_database_schema.md` mục 10). Mỗi thông báo Admin soạn ghi `audit_logs` `SYSTEM / CREATE_NOTIFICATION` (`docs/01_database_schema.md` mục 13).
 
 ---
 

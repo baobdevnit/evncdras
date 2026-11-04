@@ -72,7 +72,6 @@ Số liệu tổng hợp (`/traffic/summary`) đọc `stats_*` theo nguyên tắ
       "groupName": "Khối Công nghệ Thông tin - Nhóm Vận hành",
       "totalCalls": 4520,
       "totalDurationSec": 747000,
-      "totalDurationMinutes": 12450,
       "callsOutbound": 1820,
       "callsInbound": 1450,
       "callsIntraGroup": 1250,
@@ -163,7 +162,7 @@ export class TrafficClassifierService {
   - Tỷ trọng cuộc gọi nội bộ nhóm (`calls_intra_group / total_calls * 100%`).
   - Thời lượng đàm thoại trung bình mỗi cuộc (ALOC - Average Length of Call).
 - **Bảng tổng hợp lưu lượng theo nhóm**:
-  - Mã nhóm, Tên nhóm người dùng, Gọi đi ngoại nhóm, Gọi đến từ ngoại nhóm, Gọi nội bộ nhóm, Tổng thời lượng (phút), Thời lượng trung bình (giây).
+  - Mã nhóm, Tên nhóm người dùng, Gọi đi ngoại nhóm, Gọi đến từ ngoại nhóm, Gọi nội bộ nhóm, Tổng thời lượng (phút, frontend đổi từ `totalDurationSec`), Thời lượng trung bình (giây).
   - Nút "Xuất Excel" gọi `POST /api/v1/reports/export/excel` với `reportType = traffic` và cùng `period`, `groupId` đang chọn (không có endpoint xuất riêng); nút "Xem chi tiết nhật ký CDR".
 
 ---

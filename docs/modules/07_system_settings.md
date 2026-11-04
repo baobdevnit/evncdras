@@ -156,7 +156,7 @@ backend/src/
     - **Vùng Phân tích (`#section-analysis`)**: Biểu thức chính quy nhận dạng máy lẻ 5 số, danh sách IP lõi PABX.
     - **Vùng Báo cáo & Lưu trữ (`#section-reporting`)**: Chu kỳ tra cứu trực tuyến (tháng) và thời hạn giữ CDR trước khi xóa (tháng).
     - **Vùng Nâng cao (`#section-advanced`)**: Công tắc Chế độ bảo trì, ánh xạ đường dẫn ghi âm, cảnh báo & SMTP, chính sách xác thực, và nút "Nạp lại bộ nhớ đệm" (gọi `POST /api/v1/admin/settings/reload-cache`).
-- **Nút "Tính lại thống kê"** trong vùng Báo cáo & Lưu trữ: chọn `fromDate`/`toDate` (≤ 366 ngày), gọi `POST /api/v1/admin/stats/recalculate`, hiển thị số khung giờ đã xếp hàng (`queuedHours`).
+- **Nút "Tính lại thống kê"** trong vùng Báo cáo & Lưu trữ: chọn `fromDate`/`toDate` (≤ 366 ngày), gọi `POST /api/v1/admin/stats/recalculate`, hiển thị số khung giờ đã xếp hàng (`queuedHours`). API ghi `audit_logs` `SYSTEM / RECALCULATE_STATS` (`docs/01_database_schema.md` mục 13).
 
 ### 5.2. Các mục bổ sung (không có trong template, dựng theo cùng bố cục `.settings-section`)
 
