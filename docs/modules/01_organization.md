@@ -21,7 +21,7 @@ Hệ thống mạng điện thoại PABX của EVN phục vụ cơ cấu tổ ch
 
 1. Hiển thị danh mục tổ chức theo dạng bảng cây (Tree Table View): Bảng dữ liệu có nút thu gọn/mở rộng từng cấp cha-con, hiển thị Tên tổ chức, Mã đơn vị, Hành động (Sửa, Thêm đơn vị con, Xóa).
 2. Thêm mới đơn vị trực thuộc (Root node hoặc Child node có `parent_id`).
-3. Chỉnh sửa thông tin đơn vị tổ chức (Tên, Mã đơn vị, Người đại diện, Điện thoại, Email, Thứ tự sắp xếp).
+3. Chỉnh sửa thông tin đơn vị tổ chức (Tên, Người đại diện, Điện thoại, Email, Thứ tự sắp xếp, đơn vị cha, trạng thái). Mã đơn vị bất biến sau khi tạo (mục 3.3).
 4. Xóa đơn vị tổ chức: Ràng buộc an toàn - chỉ được phép xóa khi không còn đơn vị con và không có nhóm người dùng (`user_groups`) nào đang tham chiếu trực thuộc.
 5. Cung cấp API Tree Structure để: chọn đơn vị khi tạo/sửa nhóm người dùng; hiển thị đường dẫn phân cấp (`hierarchyPath`) của nhóm; và trên màn hình Admin, **lọc danh sách nhóm** theo một nhánh cây (để chọn nhóm nhanh hơn). Cây tổ chức **không** dùng để phân quyền dữ liệu, không làm tham số lọc CDR/báo cáo và không dùng để cộng số liệu; mọi số liệu luôn theo `user_groups.id`.
 
@@ -105,6 +105,7 @@ Bảng dữ liệu MariaDB chính: `organizations` (Đã định nghĩa trong `d
 ### 3.3. `PUT /api/v1/admin/organizations/:id`
 
 - Cập nhật thông tin đơn vị theo `id`. Không cho phép chỉnh sửa `parentId` thành chính nó hoặc con cháu của nó (tránh circular loop).
+- **Không nhận `code`**: mã đơn vị bất biến sau khi tạo; body có trường này thì trả `400` (`docs/01_database_schema.md` mục 4).
 - Đổi `parentId`: cha mới phải `ACTIVE` (`409 ORGANIZATION_INACTIVE`); trong một transaction tính lại `level` của đơn vị và toàn bộ nhánh con theo quy tắc mục 3.2. Nếu có đơn vị trong nhánh vượt `level` 3 thì trả `400`, không đổi gì.
 - Chuyển `status` sang `INACTIVE` không ảnh hưởng nhóm người dùng đã gắn hay đơn vị con hiện có; chỉ chặn gắn mới vào đơn vị này (đơn vị con mới, nhóm người dùng mới hoặc đổi sang đơn vị này), xem `docs/01_database_schema.md` mục 4.
 

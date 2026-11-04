@@ -462,7 +462,7 @@ Phản ánh cấu trúc phân cấp ngành điện: Tập đoàn -> Tổng công
 CREATE TABLE IF NOT EXISTS `organizations` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `parent_id` int(11) unsigned DEFAULT NULL,
-  `code` varchar(50) NOT NULL COMMENT 'Mã đơn vị (ví dụ: EVN, TC-71, EVNNPC, IT-01)',
+  `code` varchar(50) NOT NULL COMMENT 'Mã đơn vị (ví dụ: EVN, TC-71, EVNNPC, IT-01). Bất biến sau khi tạo (PUT gửi code thì 400); chỉ được giải phóng khi đơn vị bị xóa cứng (mục 14)',
   `name` varchar(255) NOT NULL COMMENT 'Tên đơn vị (ví dụ: Tổng công ty 71, Khối CNTT)',
   `description` text DEFAULT NULL,
   `representative_name` varchar(150) DEFAULT NULL COMMENT 'Người đại diện đơn vị',
@@ -482,6 +482,7 @@ CREATE TABLE IF NOT EXISTS `organizations` (
 
 > [!NOTE]
 > **Quy tắc `level` và `status` của đơn vị** (chi tiết API tại `docs/modules/01_organization.md` mục 3):
+> - `code` bất biến sau khi tạo: `PUT` có trường `code` thì `400`.
 > - `level` không nhận từ request. Tạo đơn vị: gốc = 0, con = `parent.level + 1`; vượt 3 thì `400`. `PUT` đổi `parentId` thì tính lại `level` của đơn vị và **toàn bộ nhánh con** trong cùng transaction; nhánh nào sau khi chuyển có `level` > 3 thì `400`, không đổi gì.
 > - `status = 'INACTIVE'` không ảnh hưởng nhóm người dùng đã gắn và số liệu. Chỉ chặn (`409 ORGANIZATION_INACTIVE`): tạo đơn vị con dưới đơn vị `INACTIVE`, chuyển đơn vị sang cha `INACTIVE`, tạo nhóm người dùng hoặc đổi `organization_id` của nhóm sang đơn vị `INACTIVE` (sửa nhóm mà giữ nguyên `organization_id` thì không bị chặn).
 
@@ -751,7 +752,9 @@ Seed `permissions` và `permission_roles`: `docs/modules/10_permissions_and_role
 >    | `REVOKE` | NULL | khoảng bị thu hồi | `từ -> đến` | số số của khoảng | `ALLOCATED` → `FREE` |
 >    | `UPDATE` | khoảng trước khi sửa | khoảng sau khi sửa | `cũ_từ-cũ_đến -> mới_từ-mới_đến` | số số thêm vào + số số bớt ra | `ALLOCATED` → `ALLOCATED` |
 >
->    Nguồn `decision_number` / `note`: `ALLOCATE` lấy `decisionNumber` (bắt buộc) / `historyNote` của `POST /admin/prefixes`; `UPDATE` lấy từ body `PUT /admin/prefixes/:id`; `REVOKE` qua `DELETE /admin/prefixes/:id` lấy từ body tùy chọn `{ decisionNumber?, historyNote? }`, thiếu thì NULL; `REVOKE` do ngừng hoạt động nhóm (`revokeRanges=true`, mục 14) ghi `decision_number = NULL`, `note` nêu lý do ngừng hoạt động nhóm.
+>    Nguồn `decision_number` / `note`: `ALLOCATE` lấy `decisionNumber` (bắt buộc) / `historyNote` của `POST /admin/prefixes`; `UPDATE` lấy từ body `PUT /admin/prefixes/:id`; `REVOKE` qua `DELETE /admin/prefixes/:id` lấy từ body tùy chọn `{ decisionNumber?, historyNote? }`, thiếu thì NULL; `REVOKE` do ngừng hoạt động nhóm (`revokeRanges=true`, mục 14) ghi `decision_number = NULL`, `note` nêu lý do ngừng hoạt động nhóm. `decisionNumber` bắt buộc ở cả `POST` và `PUT`, tùy chọn ở `DELETE`.
+>
+>    Nguồn `cdr_ownership_note`: chỉ `ALLOCATE` có giá trị (`cdrOwnershipNote`, bắt buộc, của `POST /admin/prefixes`); dòng `UPDATE` và `REVOKE` ghi NULL.
 >
 >    Nhãn hiển thị: `FREE` = "Kho tự do", `ALLOCATED` = "Đang dùng". `status_*` mô tả khoảng số của dải, không phải trạng thái từng số (số `RESERVED`/`LOCKED` giữ trạng thái riêng, lịch sử từng số ở `phone_number_range_history`).
 
@@ -836,7 +839,7 @@ CREATE TABLE IF NOT EXISTS `prefix_allocation_history` (
   `performed_by_admin_id` int(11) unsigned DEFAULT NULL COMMENT 'Quản trị viên thực hiện',
   `performed_by_name` varchar(150) NOT NULL COMMENT 'Tên người thực hiện',
   `note` text DEFAULT NULL COMMENT 'Lý do / Ghi chú thu hồi hoặc cấp phát',
-  `cdr_ownership_note` text DEFAULT NULL COMMENT 'Quy định chốt quyền CDR của nhóm',
+  `cdr_ownership_note` text DEFAULT NULL COMMENT 'Quy định chốt quyền CDR của nhóm; chỉ ALLOCATE có giá trị, UPDATE/REVOKE ghi NULL',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_pah_group` (`prefix_group_id`),
@@ -1094,7 +1097,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | Thực thể | Thao tác "xóa" của API | Điều kiện xóa / Lỗi | Điều kiện khóa (`status = 'LOCKED'`) | Khóa ngoại liên quan |
 |---|---|---|---|---|
 | `user_groups` | **Xóa mềm** (`DELETE /api/v1/admin/user-groups/:id?revokeRanges=true\|false`, mặc định `false`): trong một transaction, chuyển **mọi** user chưa `INACTIVE` của nhóm sang `INACTIVE` (kể cả Quản trị viên nhóm cuối cùng) và thu hồi toàn bộ phiên của họ (`ACCOUNT_LOCKED`), đặt `representative_user_id = NULL`, `status = 'INACTIVE'`. Chỉ khi `revokeRanges=true` mới thu hồi toàn bộ dải số của nhóm (quy tắc thu hồi mục 8). Không thu hồi thì các số vẫn thuộc nhóm `INACTIVE`, CDR mới của các số đó vẫn gán cho nhóm này; Admin thu hồi sau bằng `DELETE /api/v1/admin/prefixes/:id`. Giữ liên kết `phone_prefix_group_id`, CDR và stats để báo cáo lịch sử vẫn đúng | Không chặn theo số thành viên. Giao diện hiển thị số thành viên sẽ bị ngừng hoạt động, số dải đang có và ô chọn "Thu hồi toàn bộ dải số" (mặc định không chọn), yêu cầu xác nhận | — | `stats_*.group_id`, `users.user_group_id`: RESTRICT; `cdr_enriched.*_group_id` là tham chiếu logic (bảng partition, không FK) |
-| `users` | **Xóa mềm**: `status = 'INACTIVE'`; nếu là `representative_user_id` của nhóm thì set NULL | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm `ACTIVE`. Ngoại lệ duy nhất: thao tác ngừng hoạt động cả nhóm (dòng `user_groups` ở trên) | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm (giống xóa mềm). Áp dụng cho mọi đường đổi trạng thái (`PUT /users/:id/status`, `DELETE /users/:id`) | `user_groups.representative_user_id`: SET NULL; `user_roles.user_id`: RESTRICT (giữ dòng vai trò) |
+| `users` | **Xóa mềm**: `status = 'INACTIVE'`; nếu là `representative_user_id` của nhóm thì set NULL | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm `ACTIVE`. Ngoại lệ duy nhất: thao tác ngừng hoạt động cả nhóm (dòng `user_groups` ở trên) | Chặn `409` nếu là `GROUP_ADMIN` cuối cùng còn hoạt động của nhóm (giống xóa mềm). Áp dụng cho mọi đường đổi trạng thái (`PUT /users/:id/status`, `DELETE /users/:id`). Khóa **không** đổi `representative_user_id`: người đại diện bị `LOCKED` vẫn giữ vị trí (chỉ đặt NULL khi ngừng hoạt động hoặc hạ quyền khỏi `GROUP_ADMIN`) | `user_groups.representative_user_id`: SET NULL; `user_roles.user_id`: RESTRICT (giữ dòng vai trò) |
 | `admins` | **Xóa mềm**: `status = 'INACTIVE'` | Chặn nếu admin mang vai trò `ROOT_ADMIN` hoặc tự xóa chính mình | Chặn nếu admin mang vai trò `ROOT_ADMIN` hoặc tự khóa chính mình | `*.performed_by_admin_id`, `admins.created_by_admin_id`: SET NULL (chỉ áp dụng nếu sau này có xóa cứng bằng tay); `admin_roles.admin_id`: RESTRICT (giữ dòng vai trò) |
 | `phone_prefix_groups` | Không xóa, không có trạng thái riêng: tạo và ngừng hoạt động cùng nhóm người dùng (mục 4.1) | — | — | `user_groups.phone_prefix_group_id`, `phone_prefix_ranges.prefix_group_id`: RESTRICT |
 | `phone_prefix_ranges` | **Thu hồi**: dọn số theo quy tắc mục 8 → ghi `prefix_allocation_history` + `phone_number_range_history` → xóa dòng dải | — | — | `phone_numbers.range_id`: RESTRICT (bắt buộc dọn số trước) |

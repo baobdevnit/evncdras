@@ -84,7 +84,7 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
 ### 3.1. Tra cứu danh sách CDR (`GET /api/v1/cdr`)
 - **Headers**: `Authorization: Bearer <token>`
 - **Query Parameters**:
-  - `fromDate`, `toDate`: bắt buộc, ISO 8601 (vd: `2026-05-25T00:00:00+07:00`); khoảng tối đa **31 ngày**, mặc định 7 ngày gần nhất; vượt quá trả `400`. Ngoài cửa sổ `retention_online_months` chỉ Admin truy cập được qua `includeArchive=true`.
+  - `fromDate`, `toDate`: tùy chọn, ISO 8601 (vd: `2026-05-25T00:00:00+07:00`); thiếu thì backend tự đặt 7 ngày gần nhất (truy vấn luôn có điều kiện `Created`); khoảng tối đa **31 ngày**, vượt quá trả `400`. Bắt buộc khi `includeArchive=true`. Ngoài cửa sổ `retention_online_months` chỉ Admin truy cập được qua `includeArchive=true`.
   - `toDate`: Định dạng ISO (vd: `2026-05-25T23:59:59`)
   - `callerId`: Số gọi đi, **khớp đúng** (`CallerId = :callerId`, đi qua `idx_cdre_caller_created`) (vd: `45678`)
   - `calledId`: Số nhận, **khớp đúng** (`CalledId = :calledId`, đi qua `idx_cdre_called_created`) (vd: `46001`)
@@ -411,7 +411,7 @@ export class CdrEnrichmentService {
 }
 ```
 
-- `NumberOwnershipCacheService` dựng map `phone_number → user_groups.id` **chỉ** từ chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, theo `01` §8). Không tra theo `prefix` hay `range_from..range_to`. Cache được nạp khi khởi động và nạp lại khi `cdr_enrichment_state.cache_version` khác bản đang giữ (kiểm tra ở đầu mỗi chu kỳ); API tăng `cache_version` sau mỗi thao tác cấp phát/thu hồi dải số.
+- `NumberOwnershipCacheService` dựng map `phone_number → user_groups.id` **chỉ** từ chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, theo `01` §8). Không tra theo `prefix` hay `range_from..range_to`. Cache được nạp khi khởi động và nạp lại khi `cdr_enrichment_state.cache_version` khác bản đang giữ (kiểm tra ở đầu mỗi chu kỳ); API tăng `cache_version` trong cùng transaction của mỗi thao tác cấp phát/sửa/thu hồi dải số (`docs/01_database_schema.md` mục 8, `docs/00_overview_and_architecture.md` mục 2.1).
 - `CdrEnrichmentScheduler` nằm trong `src/apps/worker/cdr-enrichment/`, chỉ được `WorkerAppModule` import và chạy ở tiến trình `backend-worker` (đúng 1 instance). `CdrModule` trong `core` chỉ export `CdrEnrichmentService`, không chứa lớp lịch chạy (`docs/00_overview_and_architecture.md` mục 2.1, 5.1).
 - Thay đổi `analysis_internal_extension_pattern` hoặc `pabx_core_ip_list` chỉ áp dụng cho bản ghi làm giàu sau thời điểm lưu.
 - **Khóa dòng `cdr_enrichment_state`**: trong lúc transaction của batch còn mở, mọi câu ghi vào dòng `id = 1` phải đi qua chính `qr`. Ghi bằng `this.dataSource.query` (kết nối khác) chỉ được làm trước `startTransaction()` hoặc sau `commit`/`rollback`.

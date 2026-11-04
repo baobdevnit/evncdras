@@ -169,7 +169,8 @@ Trong cùng transaction tạo/cập nhật dải số:
 ```
 
 - `note` → `phone_prefix_ranges.note`; `decisionNumber` (bắt buộc) → `prefix_allocation_history.decision_number`; `historyNote` → `prefix_allocation_history.note`; `cdrOwnershipNote` (bắt buộc) → `prefix_allocation_history.cdr_ownership_note`.
-- **Thu hồi** (`DELETE /api/v1/admin/prefixes/:id`): body tùy chọn `{ "decisionNumber"?: string, "historyNote"?: string }` → `decision_number` / `note` của dòng `REVOKE`, thiếu thì NULL. Thu hồi do ngừng hoạt động nhóm (`revokeRanges=true`) ghi `decision_number = NULL` (`docs/01_database_schema.md` mục 8 điểm 5).
+- **Sửa dải** (`PUT /api/v1/admin/prefixes/:id`): body `{ rangeFrom, rangeTo, note, decisionNumber, historyNote }`, `decisionNumber` bắt buộc như khi cấp phát; dòng `UPDATE` ghi `cdr_ownership_note = NULL` (`docs/01_database_schema.md` mục 8 điểm 5).
+- **Thu hồi** (`DELETE /api/v1/admin/prefixes/:id`): body tùy chọn `{ "decisionNumber"?: string, "historyNote"?: string }` → `decision_number` / `note` của dòng `REVOKE`, thiếu thì NULL; `cdr_ownership_note` luôn NULL. Thu hồi do ngừng hoạt động nhóm (`revokeRanges=true`) ghi `decision_number = NULL` (`docs/01_database_schema.md` mục 8 điểm 5).
 
 ### 4.3. Tra cứu Kho số tổng thể 90.000 số (`GET /api/v1/phone-numbers/pool`)
 

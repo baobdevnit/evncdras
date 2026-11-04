@@ -13,6 +13,7 @@
 - **Còn mở (mục 2)**: chạy lại DDL + seed trên **MariaDB 10.6**; sửa `templates/`; viết test cho các quy tắc tầng service khi có backend; xác nhận một điểm diễn giải về `trend` ở M05 (C-01).
 - **Lần 13 (2026-11-04)**: 2 Major, 7 Minor, đã sửa theo quyết định chủ dự án (mục 3.5).
 - **Lần 14 (2026-11-04)**: 3 Major, 10 Minor, đã sửa; 4 điểm thiếu quy định chốt theo phỏng vấn chủ dự án (mục 3.5, R14-*).
+- **Lần 15 (2026-11-04)**: 8 Minor, đã sửa; 4 điểm thiếu quy định chốt theo phỏng vấn chủ dự án (mục 3.5, R15-*).
 - **Sẵn sàng sinh migration/entity** sau khi chạy xong DDL trên MariaDB 10.6 (mục 2.1).
 
 ## 1. Các lần rà soát
@@ -34,6 +35,7 @@
 | 12 | 2026-11-04 | `db_audit_12.md` | `9084f1d`, `bbbc0f9` | 3 Major, 7 Minor, 2 ngoài CSDL | ✅ |
 | 13 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `728e996` | 2 Major, 7 Minor | ✅ |
 | 14 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `94b96b3` | 3 Major, 10 Minor | ✅ |
+| 15 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (chưa commit) | 8 Minor | ✅ |
 
 ---
 
@@ -41,7 +43,7 @@
 
 ### 2.1. Kiểm chứng DDL trên đúng phiên bản
 
-- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`).
+- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`).
 - **Việc cần làm**: trích toàn bộ khối ```` ```sql ```` của `01` và seed `M10` §2.1, chạy trên MariaDB 10.6, kiểm tra:
   - 27 bảng + 1 view tạo không lỗi; partition `cdr_enriched` đúng.
   - Seed: 25 mã quyền; `permission_roles` ROOT_ADMIN 25, SYSTEM_ADMIN 24, GROUP_ADMIN 17, USER_RECORDING 11, REGULAR_USER 9; 19 key `system_settings`; 5 ngưỡng QoS.
@@ -83,6 +85,9 @@ Các quy tắc sau đã ghi trong `docs/` nhưng chỉ kiểm chứng được b
 | Đổi cha tổ chức tính lại `level` cả nhánh; tối đa 3 | `01` §4, M01 §3.2–3.3 | R11-03 |
 | Route User nhận tham số riêng của Admin trả `400` (kể cả `userGroupId` trong body `POST /users`) | `02` §1.1, M03 §3.4 | R12-04, R14-06 |
 | `PUT /admin/user-groups/:id` có `code` trả `400` | `01` §5, M02 §3.3 | R14-11 |
+| `PUT /admin/organizations/:id` có `code` trả `400` | `01` §4, M01 §3.3 | R15-05 |
+| `PUT /users/:id` có `userGroupId` (kể cả trùng nhóm) trả `400` | `02` §3.5, M03 §3.5 | R15-02 |
+| `PUT /admin/prefixes/:id` thiếu `decisionNumber` trả `400`; dòng `UPDATE`/`REVOKE` có `cdr_ownership_note = NULL` | `01` §8 điểm 5, M11 §4.2 | R15-06 |
 | Đổi trạng thái số `RESERVED` ↔ `LOCKED` ghi 2 dòng `phone_number_range_history` cùng transaction | `01` §8, M11 §4.4 | R14-13 |
 
 ### 2.4. Cần xác nhận / ghi nhận rủi ro
@@ -190,7 +195,7 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 - Tách đổi trạng thái khỏi `PUT /users/:id`; `audit_logs` chỉ ghi thêm ở mức CSDL.
 - Ghi chú: nhóm sở hữu số chốt lúc làm giàu, mã nhóm không dùng lại, giới hạn `timestamp` 2038.
 
-### 3.5. Lần 6–13
+### 3.5. Lần 6–15
 
 | Mã | Mức | Vấn đề | Xử lý (nơi sửa) |
 |---|---|---|---|
@@ -261,6 +266,14 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 | R14-11 | Major | Không quy định `user_groups.code` sửa được hay không; nếu sửa thì `phone_prefix_groups.code` (`PG-` + mã, không sửa được) lệch, mã cũ được giải phóng đụng `uniq_ppg_code` khi tạo nhóm mới | Chủ dự án chốt: bất biến, gửi `code` trong `PUT` trả `400`. `01` §5 COMMENT, `02` §3.4, M02 §3.3 |
 | R14-12 | Minor | `GET /prefixes/history` (USER + ADMIN) không có query params, không nói bản User lọc theo cột nào | Chủ dự án chốt theo R13-06: `userGroupId` chỉ bản Admin, bản User lọc `prefix_allocation_history.user_group_id`; thêm M11 §4.5, `02` §3.6 |
 | R14-13 | Minor | `PUT /admin/phone-numbers/:number` không quy định chuyển thẳng `RESERVED` ↔ `LOCKED` ghi lịch sử thế nào | Chủ dự án chốt: cho chuyển, ghi 2 dòng (vd. `UNRESERVE` rồi `LOCK`) cùng transaction. `01` §8, `02` §3.6, M11 §4.4 |
+| R15-01 | Minor | M03 §1.2 ghi "kích hoạt lại tài khoản `INACTIVE` ... trả `409`", trái `01` §14 (`INACTIVE` là trạng thái cuối, không có API kích hoạt lại) | Bỏ câu, dẫn `01` §14 |
+| R15-02 | Minor | M03 §3.5 chỉ chặn `userGroupId` **khác** nhóm hiện tại; `02` §3.5 ghi `PUT /users/:id` không nhận `userGroupId` (`400`) | Theo `02`: có trường là `400`, kể cả trùng nhóm |
+| R15-03 | Minor | M02 §5.1 ví dụ `PG-IT-01` sai quy ước `PG-` + `user_groups.code`; M02 §5.2 store còn `availablePrefixGroups` (chọn nhóm đầu số đã bỏ ở R10-01) | `PG-UMO-IT`; bỏ `availablePrefixGroups` |
+| R15-04 | Minor | M12 §4.2 và `00` §3 ghi tăng `cache_version` "sau mỗi cấp phát/thu hồi", thiếu sửa dải (`01` §8) và lệch vị trí "câu ghi cuối trước commit" (`00` §2.1) | "trong cùng transaction của mỗi cấp phát/sửa/thu hồi dải" |
+| R15-05 | Minor | Không quy định `organizations.code` sửa được hay không: M01 §1.2 liệt kê "Mã đơn vị" trong trường sửa được, `01` §14 ngầm coi mã cố định | Chủ dự án chốt: bất biến, `PUT` có `code` trả `400`. `01` §4 COMMENT + ghi chú, M01 §1.2, §3.3, `02` §3.3 |
+| R15-06 | Minor | `prefix_allocation_history.cdr_ownership_note` không có nguồn cho dòng `UPDATE`/`REVOKE`; không nói `decisionNumber` của `PUT /admin/prefixes/:id` có bắt buộc | Chủ dự án chốt: chỉ `ALLOCATE` có giá trị, `UPDATE`/`REVOKE` ghi NULL; `decisionNumber` bắt buộc ở `PUT` như `POST`. `01` §8 điểm 5 + COMMENT, M11 §4.2, `02` §3.6 |
+| R15-07 | Minor | Không quy định `representative_user_id` khi người đại diện bị `LOCKED` (chỉ có quy tắc khi ngừng hoạt động và hạ quyền) | Chủ dự án chốt: giữ nguyên. `01` §14 dòng `users` |
+| R15-08 | Minor | M12 §3.1 ghi `fromDate`/`toDate` vừa "bắt buộc" vừa "mặc định 7 ngày" | Chủ dự án chốt: tùy chọn, thiếu thì 7 ngày gần nhất (vẫn luôn lọc `Created`); bắt buộc khi `includeArchive=true`. M12 §3.1, `02` §3.7 |
 
 Đề xuất làm gọn **bị từ chối** ở lần 10 (giữ nguyên, không đề xuất lại): gộp `phone_prefix_groups` vào `user_groups`; thay 5 bảng RBAC bằng cột `role`; bỏ `stats_daily`; bỏ dòng `phone_number_range_history` cho từng số.
 

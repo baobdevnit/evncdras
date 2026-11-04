@@ -507,7 +507,7 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
 - **Table Data Grid**:
   - Cột "Tổ chức QLND": Tên nhóm, Mã nhóm.
   - Cột "Đơn vị trên cây tổ chức": Hiển thị chuỗi cấp bậc `.hierarchy-path` (nếu có) hoặc thẻ badge màu trung tính `.badge-standalone: "Nhóm độc lập"`.
-  - Cột "Nhóm đầu số điện thoại (1-1)": Badge hiển thị mã nhóm đầu số và danh sách prefix (`PG-IT-01: 42xxx, 46xxx`).
+  - Cột "Nhóm đầu số điện thoại (1-1)": Badge hiển thị mã nhóm đầu số và danh sách prefix (`PG-UMO-IT: 42xxx, 46xxx`).
   - Cột "Quản trị viên nhóm": Hiển thị danh sách avatar/tên các admin kèm badge số lượng (`badge-admin-count`), đánh dấu người đại diện chính.
   - Cột "Số thành viên": Badge đếm tổng số users trực thuộc nhóm (`.badge-count`).
 - **Modal Thiết lập mới / Chỉnh sửa (`#userGroupModal`)**:
@@ -516,7 +516,7 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
 
 ### 5.2. Khu vực Admin – Pinia Store (`useUserGroupStore`)
 
-- State: `userGroups: UserGroupItem[]`, `loading: boolean`, `pagination: PaginationInfo`, `availablePrefixGroups: PhonePrefixGroupItem[]`.
+- State: `userGroups: UserGroupItem[]`, `loading: boolean`, `pagination: PaginationInfo` (không có danh sách nhóm đầu số để chọn: nhóm đầu số tạo tự động, mục 3.2).
 - Actions:
   - `fetchUserGroups(query)`: Lấy danh sách nhóm (hỗ trợ filter orgId hoặc standalone).
   - `createUserGroup(payload)`: Kiểm tra ràng buộc 1-1 và admin tối thiểu $\ge 1$.

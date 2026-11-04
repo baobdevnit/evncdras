@@ -171,7 +171,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/organizations` | `org:view` | Lấy danh sách tổ chức phẳng (hỗ trợ filter, pagination) | USER + ADMIN |
 | `GET` | `/api/v1/organizations/:id` | `org:view` | Xem chi tiết 1 đơn vị tổ chức | USER + ADMIN |
 | `POST` | `/api/v1/admin/organizations` | `org:manage` | Thêm mới đơn vị / phòng ban trực thuộc | ADMIN |
-| `PUT` | `/api/v1/admin/organizations/:id` | `org:manage` | Sửa thông tin đơn vị tổ chức | ADMIN |
+| `PUT` | `/api/v1/admin/organizations/:id` | `org:manage` | Sửa thông tin đơn vị tổ chức; không nhận `code` (`400`), không nhận `level` | ADMIN |
 | `DELETE` | `/api/v1/admin/organizations/:id` | `org:manage` | Xóa cứng đơn vị (`409` nếu còn đơn vị con hoặc còn nhóm người dùng tham chiếu) | ADMIN |
 
 ### 3.4. Phân hệ Nhóm người dùng (User Groups - Tổ chức QLND)
@@ -210,7 +210,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `GET` | `/api/v1/admin/prefix-groups` | `prefix:view` | Danh sách nhóm đầu số (`phone_prefix_groups`) kèm nhóm người dùng liên kết và số dải. Nhóm đầu số được tạo tự động cùng nhóm người dùng (`docs/01_database_schema.md` mục 4.1), không có API tạo/xóa | ADMIN |
 | `PUT` | `/api/v1/admin/prefix-groups/:id` | `prefix:manage` | Sửa `name`, `description` của nhóm đầu số (không sửa `code`) | ADMIN |
 | `POST` | `/api/v1/admin/prefixes` | `prefix:manage` | Cấp phát dải số mới cho Nhóm người dùng (Kiểm tra xung đột Overlap Check); `409 GROUP_INACTIVE` nếu nhóm người dùng của nhóm đầu số đã `INACTIVE` | ADMIN |
-| `PUT` | `/api/v1/admin/prefixes/:id` | `prefix:manage` | Cập nhật dải số (body `{ rangeFrom, rangeTo, note, decisionNumber, historyNote }`; không đổi được `prefix`, `prefixGroupId`, gửi giá trị khác thì `400`) (mở rộng / thu hẹp khoảng số) theo quy tắc `docs/01_database_schema.md` mục 8 (`409` nếu phần mở rộng chứa số đã thuộc dải khác; `409 GROUP_INACTIVE` nếu nhóm đã `INACTIVE`) | ADMIN |
+| `PUT` | `/api/v1/admin/prefixes/:id` | `prefix:manage` | Cập nhật dải số (body `{ rangeFrom, rangeTo, note, decisionNumber, historyNote }`, `decisionNumber` bắt buộc; không đổi được `prefix`, `prefixGroupId`, gửi giá trị khác thì `400`) (mở rộng / thu hẹp khoảng số) theo quy tắc `docs/01_database_schema.md` mục 8 (`409` nếu phần mở rộng chứa số đã thuộc dải khác; `409 GROUP_INACTIVE` nếu nhóm đã `INACTIVE`) | ADMIN |
 | `DELETE` | `/api/v1/admin/prefixes/:id` | `prefix:manage` | Thu hồi dải số về kho số dùng chung theo quy tắc `docs/01_database_schema.md` mục 8 (số `ALLOCATED` về `FREE`, `RESERVED`/`LOCKED` giữ trạng thái), ghi lịch sử và nhật ký kiểm toán, rồi mới xóa dòng dải. Body tùy chọn `{ decisionNumber?, historyNote? }` ghi vào `prefix_allocation_history`, thiếu thì NULL. Được cả khi nhóm đã `INACTIVE` | ADMIN |
 | `GET` | `/api/v1/prefixes/history` | `prefix:view` | Tra cứu lịch sử cấp phát / thu hồi dải số (`prefix_allocation_history`). Query `actionType`, `page`, `limit`, `userGroupId` (chỉ bản Admin); bản User lọc `prefix_allocation_history.user_group_id` = nhóm của người gọi (`docs/modules/11_core_business_phone_numbers.md` mục 4.5) | USER + ADMIN |
 | `GET` | `/api/v1/phone-numbers/pool` | `prefix:view` | Tra cứu kho số tổng thể 90.000 số máy 5 số PABX (`v_phone_numbers_detail` / `phone_numbers` - hỗ trợ lọc theo nhóm, dải số, trạng thái FREE/ALLOCATED/RESERVED/LOCKED, số máy; cấu trúc bảng vật lý tuân thủ chuẩn hóa 3NF chỉ giữ `range_id`) | USER + ADMIN |
@@ -229,7 +229,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 
 | Method | Endpoint | Quyền / Guard | Mô tả | Portal |
 | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/cdr` | `cdr:view` | Tra cứu lịch sử cuộc gọi từ `cdr_enriched` (luôn lọc theo `fromDate`/`toDate`; mặc định trong `retention_online_months`, Admin dùng `includeArchive=true` để xem dữ liệu lưu trữ; Cô lập dữ liệu nhóm; nếu nhóm chưa cấp quyền ghi âm thì ẩn cột và trả về hasAudio=false; Admin xem toàn bộ kèm badge nhóm và lọc `groupId`) | USER + ADMIN |
+| `GET` | `/api/v1/cdr` | `cdr:view` | Tra cứu lịch sử cuộc gọi từ `cdr_enriched` (luôn lọc theo `fromDate`/`toDate`, thiếu thì mặc định 7 ngày gần nhất, tối đa 31 ngày; mặc định trong `retention_online_months`, Admin dùng `includeArchive=true` để xem dữ liệu lưu trữ; Cô lập dữ liệu nhóm; nếu nhóm chưa cấp quyền ghi âm thì ẩn cột và trả về hasAudio=false; Admin xem toàn bộ kèm badge nhóm và lọc `groupId`) | USER + ADMIN |
 | `GET` | `/api/v1/cdr/:id` | `cdr:view` | Xem chi tiết 87 tham số kỹ thuật + thông tin nhóm (Kiểm tra cô lập nhóm với User Portal; nếu nhóm chưa kích hoạt ghi âm thì thay player bằng thông báo) | USER + ADMIN |
 | `GET` | `/api/v1/cdr/export` | `cdr:export` | Xuất danh sách cuộc gọi (Excel / CSV) theo đúng bộ lọc của `GET /api/v1/cdr` (chỉ leg chính, cô lập nhóm; không kèm file ghi âm) | USER + ADMIN |
 | `GET` | `/api/v1/cdr/:id/audio/stream` | `cdr:listen_audio` | Stream phát âm thanh HTTP 206 (`PermissionsGuard`: quyền nhóm `allowRecordingAccess` rồi quyền vai trò; service kiểm tra cô lập nhóm) | USER + ADMIN |

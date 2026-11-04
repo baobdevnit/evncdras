@@ -22,7 +22,7 @@ Hệ thống EVN CDR AS phân tách người dùng thành hai tầng dữ liệu
 1. **Người dùng luôn thuộc một nhóm người dùng cố định ngay từ lúc tạo (Không chuyển nhóm)**:
    - Mọi tài khoản `users` bắt buộc phải được gán vào đúng một nhóm người dùng (`user_group_id NOT NULL`) ngay thời điểm khởi tạo (bản chất là người dùng thuộc về đơn vị tổ chức sở hữu nhóm đó).
    - **Tính bất biến (Immutability)**: Thuộc tính `user_group_id` là bất biến. Hệ thống **tuyệt đối không có khái niệm chuyển người dùng giữa các nhóm** (No Group Transfer).
-   - Khi cập nhật thông tin người dùng (`PUT /api/v1/users/:id`), trường `user_group_id` không được phép chỉnh sửa. Nếu nhân sự chuyển đơn vị công tác: đặt tài khoản cũ `status = INACTIVE`, rồi tạo tài khoản mới ở nhóm mới, **được dùng lại cùng `username`/`email`** (ràng buộc UNIQUE chỉ áp cho tài khoản chưa `INACTIVE`, qua cột ảo `username_active`/`email_active`, `docs/01_database_schema.md` mục 6). Lịch sử của tài khoản cũ giữ nguyên. Kích hoạt lại tài khoản `INACTIVE` mà username/email đã có tài khoản khác đang dùng thì trả `409`.
+   - Khi cập nhật thông tin người dùng (`PUT /api/v1/users/:id`), trường `user_group_id` không được phép chỉnh sửa. Nếu nhân sự chuyển đơn vị công tác: đặt tài khoản cũ `status = INACTIVE`, rồi tạo tài khoản mới ở nhóm mới, **được dùng lại cùng `username`/`email`** (ràng buộc UNIQUE chỉ áp cho tài khoản chưa `INACTIVE`, qua cột ảo `username_active`/`email_active`, `docs/01_database_schema.md` mục 6). Lịch sử của tài khoản cũ giữ nguyên. `INACTIVE` là trạng thái cuối, không có API kích hoạt lại (`docs/01_database_schema.md` mục 14).
 2. **Thẩm quyền tạo người dùng (Quản trị hệ thống & Quản trị nhóm)**:
    - Tài khoản người dùng có thể được tạo ra bởi 2 chủ thể:
      - **Quản trị viên hệ thống (System Admin / Root Admin)**: Thuộc tầng Quản trị (`admins`), có toàn quyền tạo tài khoản người dùng cho bất kỳ Nhóm người dùng nào trong toàn hệ thống (tùy ý chỉ định `userGroupId`).
@@ -148,7 +148,7 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 - **Tối thiểu 1 Quản trị viên nhóm**: `PUT /users/:id/status` sang `LOCKED` và `DELETE /users/:id` đều bị chặn `409` nếu tài khoản là `GROUP_ADMIN` `ACTIVE` cuối cùng của nhóm (`docs/01_database_schema.md` mục 14). Ngoại lệ duy nhất là khi Quản trị viên hệ thống ngừng hoạt động cả nhóm (`docs/modules/02_user_group.md` mục 3.4).
 - **Quy tắc bất biến nhóm (Group Immutability Rule)**:
   - **Nghiêm cấm thay đổi `user_group_id`**: Người dùng gắn liền với đơn vị tổ chức/nhóm người dùng suốt vòng đời tài khoản. Tuyệt đối không có khái niệm chuyển người dùng giữa các nhóm.
-  - Nếu request body có truyền `userGroupId` khác với nhóm hiện tại của người dùng, hệ thống chặn với mã lỗi `400 BAD REQUEST: Thuộc tính nhóm người dùng là cố định từ lúc tạo, không thể thay đổi hoặc chuyển nhóm`.
+  - DTO không có trường `userGroupId`: body có trường này (kể cả trùng nhóm hiện tại) thì chặn với mã lỗi `400 BAD REQUEST: Thuộc tính nhóm người dùng là cố định từ lúc tạo, không thể thay đổi hoặc chuyển nhóm` (`docs/02_api_contracts.md` mục 3.5).
 
 ### 3.6. Đổi vai trò người dùng (`PUT /api/v1/users/:id/role`)
 
