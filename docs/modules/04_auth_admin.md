@@ -55,10 +55,10 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
   3. Xác thực `bcrypt.compare(password, admin.password_hash)`. Sai: tăng `failed_login_count` bằng một câu `UPDATE` nguyên tử; đạt `security_login_max_failed` thì đặt `locked_until` và đặt lại `failed_login_count = 0` trong cùng câu lệnh (`docs/01_database_schema.md` mục 6.1); trả `401 INVALID_CREDENTIALS` (cùng mã, cùng thông điệp với bước 1, kể cả lần sai làm tài khoản bị khóa tạm), ghi `LOGIN_FAILED` (`reason = BAD_PASSWORD`).
   4. Đúng mật khẩu: một câu `UPDATE admins SET failed_login_count = 0, last_login_at = NOW()`. Đọc vai trò từ `admin_roles` (join `roles`) và `permissions` từ `permission_roles` của vai trò đó.
   5. Xác định loại token:
-     - **Đầy đủ** (bình thường): Access Token (`security_access_token_minutes`, mặc định 15 phút) ký bằng `JWT_ADMIN_SECRET`, mang `sub`, `roleCode`; tạo một dòng `auth_sessions` (`actor_type = 'ADMIN'`, `actor_id`, `refresh_token_hash` = SHA-256 của Refresh Token, `ip_address`, `user_agent` của request, `expires_at = NOW() + security_refresh_token_days`, mặc định 7 ngày) và gửi Refresh Token qua cookie.
+     - **Đầy đủ** (bình thường): Access Token (`security_access_token_minutes`, mặc định 15 phút) ký bằng `JWT_ADMIN_SECRET`, mang `sub`, `roleCode`; tạo một dòng `auth_sessions` (`actor_type = 'ADMIN'`, `actor_id`, `refresh_token_hash` = SHA-256 của Refresh Token, `ip_address`, `user_agent` của request, `remember_me` = `rememberMe`, `expires_at = NOW() + security_refresh_token_days`, mặc định 7 ngày) và gửi Refresh Token qua cookie.
      - **Giới hạn**, khi `must_change_password = 1` hoặc `password_changed_at` quá `security_password_max_age_days`: chỉ cấp Access Token có thêm claim `scope: "PASSWORD_CHANGE_ONLY"`; **không** tạo dòng `auth_sessions`, không gửi cookie; response có `mustChangePassword: true`. Chính sách đầy đủ tại `docs/01_database_schema.md` mục 6.1.
   6. Ghi `audit_logs` `AUTH / LOGIN` (`actor_type = ADMIN`, `actor_id`, `ip_address`, `user_agent`) cho cả hai loại token. Bước 4–6 trong một transaction.
-- **Refresh Token** gửi qua cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth`, không nằm trong body response. `rememberMe = true` thì cookie có `Max-Age` = `security_refresh_token_days`; `false` thì không đặt `Max-Age` (mất khi đóng trình duyệt), hạn phiên phía server vẫn là `expires_at`. Token giới hạn không có cookie nên `rememberMe` không có tác dụng.
+- **Refresh Token** gửi qua cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth`, không nằm trong body response. `rememberMe = true` thì cookie có `Max-Age` = `security_refresh_token_days` (lúc đăng nhập bằng số giây còn lại tới `expires_at`; các lần refresh giữ quy tắc này nhờ cột `auth_sessions.remember_me`, mục 3.5); `false` thì không đặt `Max-Age` (mất khi đóng trình duyệt), hạn phiên phía server vẫn là `expires_at`. Token giới hạn không có cookie nên `rememberMe` không có tác dụng.
 - **Response** `200`:
 ```json
 {
@@ -132,7 +132,14 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 
 ### 3.5. Làm mới phiên và Đăng xuất (`POST /api/v1/admin/auth/refresh`, `POST /api/v1/admin/auth/logout`)
 
-- Hành vi giống hệt bản User (`docs/modules/03_auth_user.md` mục 3.2.1), khác ở cookie `Path=/api/v1/admin/auth`, secret `JWT_ADMIN_SECRET` và bảng `admins`. `logout` dùng `AdminAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`), ghi `audit_logs` `AUTH / LOGOUT` với `actor_type = ADMIN`.
+- **`refresh`**: xử lý, response và lỗi theo đặc tả chung `docs/modules/03_auth_user.md` mục 3.2.1. Khác bản User:
+  - Cookie `Path=/api/v1/admin/auth`; tìm phiên với `actor_type = 'ADMIN'` (phiên của User không bao giờ khớp, kể cả khi cookie bị gửi nhầm).
+  - Bước kiểm tra tài khoản: `admins.status` khác `ACTIVE` thì `401 UNAUTHORIZED` (không có điều kiện nhóm).
+  - Access Token ký bằng `JWT_ADMIN_SECRET`, mang `sub`, `roleCode` đọc lại từ `admin_roles` lúc cấp.
+  - Không bị chế độ bảo trì chặn (`docs/02_api_contracts.md` mục 1.2).
+  - `audit_logs` `TOKEN_REUSE_DETECTED` ghi `actor_type = ADMIN`.
+  - Index phục vụ: `uniq_session_token` (tìm phiên), `idx_session_actor` (thu hồi mọi phiên khi dùng lại token).
+- **`logout`**: hành vi giống bản User, khác ở cookie `Path=/api/v1/admin/auth`, secret `JWT_ADMIN_SECRET` và bảng `admins`. Dùng `AdminAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`), ghi `audit_logs` `AUTH / LOGOUT` với `actor_type = ADMIN`.
 
 ### 3.6. Đặt lại mật khẩu Admin khác (`PUT /api/v1/admin/admins/:id/reset-password`)
 
@@ -233,4 +240,5 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 4. **TC-ADM-04**: Thử xóa tài khoản Root Admin, xác nhận hệ thống từ chối với `403 ROOT_ADMIN_PROTECTED` và ghi nhận cảnh báo an ninh vào `audit_logs` (`action = ACCESS_DENIED`, `resource_name = ADMIN`).
 5. **TC-ADM-05**: Đăng nhập Admin với username không tồn tại, với username của tài khoản `INACTIVE` và với mật khẩu sai: cả ba trả `401 INVALID_CREDENTIALS` cùng thông điệp; `audit_logs` có `LOGIN_FAILED` với `reason` lần lượt `UNKNOWN_USER`, `UNKNOWN_USER`, `BAD_PASSWORD`. Sai lần thứ 5 vẫn trả `401`, lần thứ 6 trả `423` với `errors.lockedUntil`.
 6. **TC-ADM-06**: Đăng nhập Admin vừa tạo (`must_change_password = 1`): `200`, `mustChangePassword = true`, có `admin` đầy đủ, không có `Set-Cookie`, không có dòng `auth_sessions` mới; gọi `GET /api/v1/admin/cdr` bằng token này trả `403 PASSWORD_CHANGE_REQUIRED`.
+7. **TC-ADM-07**: Đăng nhập Admin với `rememberMe = true`, gọi `POST /api/v1/admin/auth/refresh`: `200` có `data = { accessToken, expiresIn }`, cookie mới có `Max-Age` ≈ số giây còn lại tới `expires_at`, phiên cũ `ROTATED` và phiên mới cùng `expires_at`, `remember_me = 1`; với `rememberMe = false` cookie mới không có `Max-Age`. Khóa admin đó rồi refresh bằng cookie cũ: `401 UNAUTHORIZED`, response có `Set-Cookie` `Max-Age=0`. Gửi cookie Refresh Token của User tới route Admin: `401`.
 

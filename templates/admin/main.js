@@ -216,6 +216,78 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ----------------------------------------
+// Mock phiên Admin – POST /api/v1/admin/auth/refresh (docs/modules/03_auth_user.md mục 3.2.1,
+// docs/modules/04_auth_admin.md mục 3.5, docs/00_overview_and_architecture.md mục 5.3.2).
+// Vue: store Pinia `authAdmin` + API client của cổng Admin (src/apps/admin/api/).
+// - Access Token chỉ giữ trong bộ nhớ (biến/store), KHÔNG ghi localStorage/sessionStorage.
+// - Refresh Token là cookie HttpOnly `Path=/api/v1/admin/auth`: JS không đọc/ghi được,
+//   trình duyệt tự gửi kèm request refresh (mock dưới giả lập bằng biến `mockHasRefreshCookie`).
+// - Template tĩnh không tự chạy guard (để mở từng trang HTML được); Vue gọi ensureSession()
+//   trong router.beforeEach của cổng Admin.
+// ----------------------------------------
+window.adminSession = (function () {
+    let accessToken = null;          // Vue: authAdmin.accessToken (chỉ trong bộ nhớ)
+    let refreshPromise = null;       // dùng chung cho các request đồng thời (single-flight)
+    let mockHasRefreshCookie = true; // giả lập cookie; false = chưa đăng nhập/phiên đã thu hồi
+
+    const now = () => new Date().toISOString();
+
+    // Giả lập backend: thành công 200 { accessToken, expiresIn } (cookie mới qua Set-Cookie,
+    // không nằm trong body); mọi lỗi phiên/tài khoản 401 UNAUTHORIZED (backend đồng thời xóa cookie).
+    function mockAdminRefresh() {
+        return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+            if (!mockHasRefreshCookie) {
+                return Promise.reject({
+                    success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+                    message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: now()
+                });
+            }
+            return {
+                success: true, statusCode: 200, message: 'Làm mới phiên thành công',
+                data: { accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-refreshed', expiresIn: 900 },
+                timestamp: now()
+            };
+        });
+    }
+
+    // Gọi refresh đúng một lần cho mọi request đang chờ.
+    function refreshOnce() {
+        if (!refreshPromise) {
+            refreshPromise = mockAdminRefresh()
+                .then(res => { accessToken = res.data.accessToken; return accessToken; })
+                .catch(err => { accessToken = null; mockHasRefreshCookie = false; throw err; })
+                .finally(() => { refreshPromise = null; });
+        }
+        return refreshPromise;
+    }
+
+    function goLogin() {
+        // Vue: authAdmin.clear(); router.replace({ name: 'admin.login' })
+        window.location.href = 'login.html';
+    }
+
+    // Guard lần đầu vào cổng (kể cả tải lại trang): chưa có token → refresh;
+    // thành công thì gọi GET /api/v1/admin/auth/me (A04) để nạp `admin` vào store.
+    function ensureSession() {
+        if (accessToken) return Promise.resolve(accessToken);
+        return refreshOnce().catch(() => { goLogin(); return null; });
+    }
+
+    // Bọc mọi lời gọi API cổng Admin (trừ /auth/login và /auth/refresh):
+    // 401 → refresh một lần rồi gửi lại một lần; refresh lỗi → về trang đăng nhập.
+    function request(callApi) {
+        return callApi(accessToken).catch(err => {
+            if (!err || err.statusCode !== 401) throw err;
+            return refreshOnce()
+                .then(token => callApi(token))
+                .catch(e => { if (e && e.statusCode === 401) goLogin(); throw e; });
+        });
+    }
+
+    return { ensureSession, request, refreshOnce };
+})();
+
+// ----------------------------------------
 // Global Helpers for DashboardLayout
 // ----------------------------------------
 window.openLogoutModal = function() {
