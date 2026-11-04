@@ -107,6 +107,11 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 - Trả về payload tương tự đối tượng `user` khi login để Vue Frontend khôi phục Auth State khi reload trang.
 - `permissions` là quyền hiệu lực: quyền của vai trò, bỏ `cdr:listen_audio`/`cdr:download_audio` khi nhóm có `allowRecordingAccess = false` (`docs/modules/10_permissions_and_roles.md` mục 2.3).
 
+### 3.2.1. Làm mới phiên và Đăng xuất (`POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`)
+
+- **`POST /auth/refresh`**: public, không có body; đọc Refresh Token từ cookie (`Path=/api/v1/auth`). Xoay vòng phiên, khoảng ân hạn 30 giây và phát hiện dùng lại theo `docs/01_database_schema.md` mục 6.1. Thành công trả `200` với `data = { accessToken, expiresIn }` và `Set-Cookie` cookie mới (trừ trường hợp trong khoảng ân hạn: không gửi `Set-Cookie`). Không có cookie, phiên hết hạn hoặc đã thu hồi trả `401`; tài khoản đã `LOCKED`/`INACTIVE` hoặc nhóm đã `INACTIVE` cũng `401` (phiên đã bị thu hồi khi khóa/ngừng hoạt động).
+- **`POST /auth/logout`**: `UserAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`), không có body. Thu hồi phiên ứng với cookie hiện tại (`revoked_reason = 'LOGOUT'`), xóa cookie (`Set-Cookie` cùng `Path`, `Max-Age=0`), ghi `audit_logs` `AUTH / LOGOUT`, trả `200` với `data = null`. Không có cookie hoặc phiên đã bị thu hồi thì vẫn xóa cookie và trả `200` (idempotent). Access Token đang giữ hết hiệu lực tự nhiên sau tối đa 15 phút; frontend xóa token khỏi bộ nhớ và chuyển về `/login`.
+
 ### 3.3. Danh sách người dùng (`GET /api/v1/users`)
 
 - **Scoped Query**:

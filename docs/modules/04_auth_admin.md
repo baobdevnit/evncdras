@@ -97,6 +97,24 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 - Chặn không cho phép khóa tài khoản chính mình (`403 SELF_ACTION_FORBIDDEN`) hoặc tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`).
 - Tài khoản đã `INACTIVE` trả `409` (`ACCOUNT_INACTIVE`): `INACTIVE` là trạng thái cuối, không kích hoạt lại (`docs/01_database_schema.md` mục 14).
 
+### 3.5. Làm mới phiên và Đăng xuất (`POST /api/v1/admin/auth/refresh`, `POST /api/v1/admin/auth/logout`)
+
+- Hành vi giống hệt bản User (`docs/modules/03_auth_user.md` mục 3.2.1), khác ở cookie `Path=/api/v1/admin/auth`, secret `JWT_ADMIN_SECRET` và bảng `admins`. `logout` dùng `AdminAuthGuard` (nhận cả token `PASSWORD_CHANGE_ONLY`), ghi `audit_logs` `AUTH / LOGOUT` với `actor_type = ADMIN`.
+
+### 3.6. Đặt lại mật khẩu Admin khác (`PUT /api/v1/admin/admins/:id/reset-password`)
+
+- **Guard**: `AdminAuthGuard`, `Permission: admin:manage`. Không có body.
+- Sinh mật khẩu tạm 16 ký tự đạt chính sách (`docs/01_database_schema.md` mục 6.1), lưu bản băm, đặt `must_change_password = 1`; thu hồi mọi phiên của admin đó (`PASSWORD_CHANGED`); ghi `audit_logs` `AUTH / PASSWORD_RESET` (`resource_id` = id admin được đặt lại). Tất cả trong một transaction.
+- **Response** `200`: `data = { "id": 5, "temporaryPassword": "<16 ký tự>" }`, trả **một lần**, không có API xem lại.
+- Chặn đặt lại cho chính mình (`403 SELF_ACTION_FORBIDDEN`; tự đổi qua `PUT /admin/profile/change-password`) và cho tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`). Tài khoản `INACTIVE` trả `409 ACCOUNT_INACTIVE`. Tài khoản `LOCKED` vẫn đặt lại được, trạng thái giữ `LOCKED`.
+
+### 3.7. Thu hồi mọi phiên của Admin khác (`DELETE /api/v1/admin/admins/:id/sessions`)
+
+- **Guard**: `AdminAuthGuard`, `Permission: admin:manage`. Không có body.
+- Thu hồi mọi phiên còn hiệu lực của admin `:id` (`revoked_reason = 'REVOKED_BY_ADMIN'`), ghi `audit_logs` `AUTH / SESSION_REVOKED` với `action_details = { "targetActorType": "ADMIN", "revokedCount": n }`. Response `200`: `data = { "revokedCount": n }` (0 nếu không còn phiên nào).
+- Chặn chính mình (`403 SELF_ACTION_FORBIDDEN`; thu hồi phiên của mình qua `DELETE /admin/auth/sessions/:id`) và tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`). Tài khoản `INACTIVE` không còn phiên nên trả `200` với `revokedCount = 0`.
+- Bản tương ứng cho người dùng đơn vị là `DELETE /api/v1/admin/users/:id/sessions` (quyền `user:edit`, `docs/modules/03_auth_user.md`), cùng cách xử lý, `targetActorType = "USER"`.
+
 ---
 
 ## 4. Kiến trúc Backend NestJS (`backend/src/core`, `apps/*`)

@@ -281,6 +281,42 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
 }
 ```
 
+### 3.1.1. `GET /api/v1/user-groups/tree`
+
+- **Mục đích**: dữ liệu cho tab `tree-view` (mục 1.4 ý 4, mục 5.1): nhóm người dùng gom theo nút trên cây tổ chức, kèm nhánh "Nhóm độc lập".
+- **Guard / quyền**: `user_group:view`; có bản Admin `/api/v1/admin/user-groups/tree` (`docs/02_api_contracts.md` mục 1.1).
+- **Query params**: `status` (`ACTIVE` | `INACTIVE`, không truyền là cả hai). Không phân trang.
+- **Dựng cây**: dùng cùng thuật toán của `GET /organizations/tree` (`docs/modules/01_organization.md` mục 4.1), mỗi nút thêm mảng `userGroups` là các nhóm có `organization_id` = nút đó. Chỉ giữ các nút có nhóm ở chính nút hoặc ở nút con; nút không có nhóm nào trong cả nhánh bị lược khỏi cây. Nhóm có `organization_id = NULL` nằm ở `standaloneGroups`.
+- **Phạm vi**: bản Admin trả mọi nhóm. Bản User chỉ trả nhóm của người gọi: cây chỉ còn đường đi từ gốc tới nút của nhóm đó, hoặc `organizations = []` và nhóm nằm trong `standaloneGroups` nếu nhóm không gắn đơn vị.
+- **Phần tử nhóm**: `id`, `code`, `name`, `status`, `userCount` (thành viên chưa `INACTIVE`, như `userCount` của mục 3.1). Chi tiết khác (dải số, người đại diện) lấy từ mục 3.1 hoặc `GET /user-groups/:id`.
+- **Response**:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy cây nhóm người dùng thành công",
+  "data": {
+    "organizations": [
+      {
+        "id": 1, "parentId": null, "code": "TC-71", "name": "Tổng công ty 71", "level": 0,
+        "userGroups": [],
+        "children": [
+          {
+            "id": 2, "parentId": 1, "code": "IT-01", "name": "Khối Công nghệ Thông tin", "level": 1,
+            "userGroups": [ { "id": 1, "code": "UMO-IT", "name": "Khối Công nghệ Thông tin", "status": "ACTIVE", "userCount": 45 } ],
+            "children": []
+          }
+        ]
+      }
+    ],
+    "standaloneGroups": [
+      { "id": 7, "code": "UMO-DVKH", "name": "Trung tâm Dịch vụ khách hàng", "status": "ACTIVE", "userCount": 12 }
+    ]
+  }
+}
+```
+
 ---
 
 ### 3.2. `POST /api/v1/admin/user-groups`
