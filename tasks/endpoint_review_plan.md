@@ -147,7 +147,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | A01 | POST | `/api/v1/admin/auth/login` | ADMIN | M04 | `admins`, `auth_sessions`, `audit_logs` | A/login | ✅ | `26651e5` | 2026-11-04; U01 cần áp mã `401`/`400` mới và rà `member/login` |
 | A02 | POST | `/api/v1/admin/auth/refresh` | ADMIN | M04 | `auth_sessions` | A/main.js | ✅ | `72f8056` | 2026-11-04; thêm cột `auth_sessions.remember_me`; đặc tả chung ở M03 §3.2.1 |
 | A03 | POST | `/api/v1/admin/auth/logout` | ADMIN | M04 | `auth_sessions` | A/main.js | ✅ | `85e7b8c` | 2026-11-04; đặc tả chung ở M03 §3.2.1 (U03 chỉ còn rà bản User) |
-| A04 | GET | `/api/v1/admin/auth/me` | ADMIN | M04, M10 | `admins`, `admin_roles`, `permission_roles` | A/main.js | ✅ | *(commit này)* | 2026-11-04; đặc tả M04 §3.1.1; U04 áp cùng quy tắc `401` khi tài khoản không còn `ACTIVE` |
+| A04 | GET | `/api/v1/admin/auth/me` | ADMIN | M04, M10 | `admins`, `admin_roles`, `permission_roles` | A/main.js | ✅ | `74e3b1d` | 2026-11-04; đặc tả M04 §3.1.1; U04 áp cùng quy tắc `401` khi tài khoản không còn `ACTIVE` |
 | A05 | GET | `/api/v1/admin/profile` | ADMIN | M09 | `admins` | A/profile | ⬜ | | |
 | A06 | PUT | `/api/v1/admin/profile` | ADMIN | M09 | `admins`, `audit_logs` | A/profile | ⬜ | | |
 | A07 | PUT | `/api/v1/admin/profile/change-password` | ADMIN | M09 | `admins`, `auth_sessions` | A/change-password | ⬜ | | Phiên mới chép `remember_me` (A02, `01` §6.1); cookie `Max-Age` theo quy tắc chung |
@@ -316,7 +316,7 @@ Mỗi endpoint được rà và tinh chỉnh **đồng thời ở 3 lớp**, sao
 | 2026-11-04 | A01 | ✅ Xong 3 lớp; không đổi DDL; 3 câu hỏi chốt ngay trong phiên (mã 400/401, `admin` với token giới hạn, `avatarUrl`) | E-A01-01…06 | `02`, `03`, M03, M04, `templates/admin/login.*`, `DB_AUDIT_CONSOLIDATED.md`, file này | `26651e5` |
 | 2026-11-04 | A02 | ✅ Xong 3 lớp; đổi DDL (`auth_sessions.remember_me`); 3 câu hỏi chốt ngay trong phiên (lưu `rememberMe`, không xét tuổi mật khẩu khi refresh, mọi `401` xóa cookie) | E-A02-01…05 | `00`, `01`, `02`, M03, M04, `templates/admin/main.js`, `DB_AUDIT_CONSOLIDATED.md`, file này | `72f8056` |
 | 2026-11-04 | A03 | ✅ Xong 3 lớp; không đổi DDL; 4 câu hỏi chốt ngay trong phiên (audit chỉ khi thu hồi được, cookie `ROTATED` đi theo chuỗi, idempotent `200` + không thu hồi phiên người khác, giữ guard) | E-A03-01…04 | `01`, `02`, M03, M04, `templates/admin/main.js`, `templates/admin/data-permissions.html`, `templates/admin/user_group.html`, `DB_AUDIT_CONSOLIDATED.md`, file này | `85e7b8c` |
-| 2026-11-04 | A04 | ✅ Xong 3 lớp; không đổi DDL; 3 câu hỏi chốt ngay trong phiên (`status` khác `ACTIVE` → `401`, token giới hạn trả đúng cấu trúc `admin`, mock `/me` + đổ header); chuyển dòng nhật ký A03 bị đặt nhầm ở mục 4 về mục 6 | E-A04-01…04 | `02`, M04, `templates/admin/main.js`, `DB_AUDIT_CONSOLIDATED.md`, file này | *(commit này)* |
+| 2026-11-04 | A04 | ✅ Xong 3 lớp; không đổi DDL; 3 câu hỏi chốt ngay trong phiên (`status` khác `ACTIVE` → `401`, token giới hạn trả đúng cấu trúc `admin`, mock `/me` + đổ header); chuyển dòng nhật ký A03 bị đặt nhầm ở mục 4 về mục 6 | E-A04-01…04 | `02`, M04, `templates/admin/main.js`, `DB_AUDIT_CONSOLIDATED.md`, file này | `74e3b1d` |
 
 ---
 
