@@ -59,7 +59,7 @@ Authorization: Bearer <access_token>
 ## 2. Chuẩn định dạng phản hồi (Response Envelope Format)
 
 - **Tên trường**: mọi trường JSON (request body, response, query param, DTO) dùng **camelCase**, ví dụ `callerId`, `callStatus`, `userGroupId`. Cột `snake_case` của bảng ứng dụng đổi sang camelCase theo quy tắc thông thường (`is_primary_leg` → `isPrimaryLeg`, `call_status` → `callStatus`). Riêng `cdr_enriched.answered_duration_sec` có tên trường `durationSec` ở mọi API danh sách/chi tiết cuộc gọi (`GET /cdr`, `GET /cdr/:id`, `/qos/debug-table`, `/traffic/records`, `/dashboard/recent-calls`). **Mọi trường thời lượng trong API tính bằng giây** (tên có hậu tố `Sec`), kể cả API tổng hợp (`/dashboard/stats` trả `durationSec`, `/traffic/summary` trả `totalDurationSec`); không có trường thời lượng tính bằng phút, frontend tự quy đổi khi hiển thị. Chỉ có **hai ngoại lệ**: (1) object `raw` của `GET /cdr/:id` giữ **nguyên tên 87 cột PABX** (`RTP_Caller_G107MOS`, `_100_Delay`…); (2) khóa của map cài đặt hệ thống là chính `setting_key` (`analysis_internal_extension_pattern`…).
-- **Không trả chuỗi hiển thị**: API chỉ trả giá trị (số, mã enum, thời điểm ISO 8601), không trả chuỗi đã định dạng cho giao diện như số có dấu phân cách, đơn vị ("phút"), nhãn so sánh ("+12% so với kỳ trước"), nhãn chất lượng MOS hay thời gian tương đối ("15 phút trước"). Frontend tự định dạng và tự lấy nhãn (dải MOS ở `docs/01_database_schema.md` mục 2.1).
+- **Không trả chuỗi hiển thị**: API chỉ trả giá trị (số, mã enum, thời điểm ISO 8601), không trả chuỗi đã định dạng cho giao diện như số có dấu phân cách, đơn vị ("phút"), thời lượng dạng `mm:ss`, nhãn so sánh ("+12% so với kỳ trước"), nhãn chất lượng MOS, thời gian tương đối ("15 phút trước") hay nhãn dải số ("42000 - 42499", "42xxx"); dải số trả dạng `{ rangeFrom, rangeTo }`. Frontend tự định dạng và tự lấy nhãn (dải MOS ở `docs/01_database_schema.md` mục 2.1).
 - **Định danh CDR**: `cdr_enriched.id` và `call_group_key` (bigint, cột `id` khai báo `zerofill`) luôn trả về dạng **chuỗi số thập phân không đệm số 0** (`"5370"`) ở mọi trường `id`, `cdrId`, `callGroupKey` của CDR, để không mất chính xác với số nguyên lớn trong JavaScript. Tham số đường dẫn `/cdr/:id` nhận cả dạng có và không có số 0 đệm (so sánh theo giá trị số). Các bảng ứng dụng khác (`int`) trả `id` dạng số.
 - **Định dạng thời gian**: mọi trường thời gian trong response là ISO 8601 có offset `+07:00` (vd. `2025-06-11T08:02:37+07:00`). Tham số thời gian gửi lên (`fromDate`, `toDate`…) dùng ISO 8601; không có offset thì hiểu là giờ Việt Nam. Ngày thuần (`stat_date`, `month`) dùng `YYYY-MM-DD` / `YYYY-MM` theo giờ Việt Nam.
 
@@ -121,6 +121,9 @@ Authorization: Bearer <access_token>
   "timestamp": "2026-10-12T09:45:00+07:00"
 }
 ```
+
+- Lỗi `403` do cô lập nhóm (route User truy cập bản ghi không thuộc nhóm mình, vd. `GET /cdr/:id`, `/cdr/:id/audio/*`) dùng `errorCode = "FORBIDDEN_SCOPE_ACCESS"` như ví dụ trên; thiếu mã quyền dùng `FORBIDDEN_PERMISSION`.
+- Dữ liệu chi tiết của lỗi nằm trong `errors`, không thêm khóa cấp cao, vd. `423 ACCOUNT_TEMPORARILY_LOCKED` có `errors = { "lockedUntil": "..." }` (`docs/01_database_schema.md` mục 6.1), `409 RETENTION_PURGE_CONFIRM_REQUIRED` có `errors = { currentMonths, newMonths, monthsToPurge }`.
 
 ---
 
@@ -222,7 +225,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `POST` | `/api/v1/admin/prefixes` | `prefix:manage` | Cấp phát dải số mới cho Nhóm người dùng (Kiểm tra xung đột Overlap Check); `409 GROUP_INACTIVE` nếu nhóm người dùng của nhóm đầu số đã `INACTIVE` | ADMIN |
 | `PUT` | `/api/v1/admin/prefixes/:id` | `prefix:manage` | Cập nhật dải số (body `{ rangeFrom, rangeTo, note, decisionNumber, historyNote }`, `decisionNumber` bắt buộc; không đổi được `prefix`, `prefixGroupId`, gửi giá trị khác thì `400`) (mở rộng / thu hẹp khoảng số) theo quy tắc `docs/01_database_schema.md` mục 8 (`409` nếu phần mở rộng chứa số đã thuộc dải khác; `409 GROUP_INACTIVE` nếu nhóm đã `INACTIVE`) | ADMIN |
 | `DELETE` | `/api/v1/admin/prefixes/:id` | `prefix:manage` | Thu hồi dải số về kho số dùng chung theo quy tắc `docs/01_database_schema.md` mục 8 (số `ALLOCATED` về `FREE`, `RESERVED`/`LOCKED` giữ trạng thái), ghi lịch sử và nhật ký kiểm toán, rồi mới xóa dòng dải. Body tùy chọn `{ decisionNumber?, historyNote? }` ghi vào `prefix_allocation_history`, thiếu thì NULL. Được cả khi nhóm đã `INACTIVE` | ADMIN |
-| `GET` | `/api/v1/prefixes/history` | `prefix:view` | Tra cứu lịch sử cấp phát / thu hồi dải số (`prefix_allocation_history`). Query `actionType`, `page`, `limit`, `userGroupId` (chỉ bản Admin); bản User lọc `prefix_allocation_history.user_group_id` = nhóm của người gọi (`docs/modules/11_core_business_phone_numbers.md` mục 4.5) | USER + ADMIN |
+| `GET` | `/api/v1/prefixes/history` | `prefix:view` | Tra cứu lịch sử cấp phát / thu hồi dải số (`prefix_allocation_history`). Query `actionType`, `page`, `limit`, `groupId` (chỉ bản Admin); bản User lọc `prefix_allocation_history.user_group_id` = nhóm của người gọi (`docs/modules/11_core_business_phone_numbers.md` mục 4.5) | USER + ADMIN |
 | `GET` | `/api/v1/phone-numbers/pool` | `prefix:view` | Tra cứu kho số tổng thể 90.000 số máy 5 số PABX (`v_phone_numbers_detail` / `phone_numbers` - hỗ trợ lọc theo nhóm, dải số, trạng thái FREE/ALLOCATED/RESERVED/LOCKED, số máy; cấu trúc bảng vật lý tuân thủ chuẩn hóa 3NF chỉ giữ `range_id`) | USER + ADMIN |
 | `GET` | `/api/v1/admin/phone-numbers/pool/summary` | `prefix:view` | Số lượng số trong kho theo trạng thái (`FREE`, `ALLOCATED`, `RESERVED`, `LOCKED`) và tổng 90.000 | ADMIN |
 | `PUT` | `/api/v1/admin/phone-numbers/:number` | `prefix:manage` | Body `{ displayName?, description?, status?: "LOCKED" \| "RESERVED" \| "NORMAL" }`; `NORMAL` = bỏ khóa/bỏ dự phòng (về `ALLOCATED` nếu có `range_id`, ngược lại `FREE`); lịch sử `phone_number_range_history`: đổi trạng thái ghi `LOCK`/`UNLOCK`/`RESERVE`/`UNRESERVE` (chuyển thẳng giữa `RESERVED` và `LOCKED` ghi 2 dòng, vd. `UNRESERVE` rồi `LOCK`, `docs/01_database_schema.md` mục 8), đổi thông tin ghi 1 dòng `UPDATE_INFO` mỗi request | ADMIN |
@@ -275,7 +278,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 
 | Method | Endpoint | Quyền / Guard | Mô tả | Portal |
 | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/reports/summary` | `report:view` | Xem trước dữ liệu báo cáo tổng hợp lưu lượng & chất lượng (đọc tức thì từ `stats_daily`, lọc theo `groupId`) | USER + ADMIN |
+| `GET` | `/api/v1/reports/summary` | `report:view` | Xem trước dữ liệu báo cáo tổng hợp lưu lượng & chất lượng (đọc tức thì từ `stats_daily`, riêng `period=today` đọc `stats_hourly`; lọc theo `groupId`). Đặc tả `docs/modules/15_core_business_reports_export.md` mục 2.1 | USER + ADMIN |
 | `POST` | `/api/v1/reports/export/excel` | `report:export` | Xuất file Excel (.xlsx) chuẩn biểu mẫu EVN từ dữ liệu `stats_daily` theo `groupId` (thời gian xử lý $< 1\text{s}$) | USER + ADMIN |
 | `POST` | `/api/v1/reports/export/pdf` | `report:export` | Xuất file PDF chuẩn khổ A4 từ dữ liệu `stats_daily` theo `groupId` (thời gian xử lý $< 1\text{s}$) | USER + ADMIN |
 
@@ -285,7 +288,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/v1/dashboard/stats` | Authenticated | Dữ liệu KPI Dashboard (Hôm nay: đọc `stats_hourly`; Tuần/Tháng/Khoảng ngày: đọc `stats_daily`). Cô lập nhóm tự động | USER + ADMIN |
 | `GET` | `/api/v1/dashboard/recent-calls` | Authenticated | Tối đa `limit` (mặc định 5, tối đa 20) cuộc gọi gần nhất trong 24 giờ: leg chính, cô lập nhóm, sắp `Created` giảm dần; trường giống item của `GET /cdr` (gồm `callStatus`, `disconnectionCode`, `mos`, `callType`, `direction`, `durationSec`) | USER + ADMIN |
-| `GET` | `/api/v1/admin/dashboard/groups` | Authenticated | Danh sách nhóm theo lưu lượng trong kỳ (`period`, `sort` = `totalCalls`\|`totalDurationSec`\|`asrPercentage`\|`avgMos`, `order`, `page`, `limit` ≤ 100): mỗi dòng `groupId`, `groupCode`, `groupName`, `rangesText`, `totalCalls`, `totalDurationSec`, `asrPercentage`, `avgMos`; đọc từng dòng nhóm của `stats_*`, không có dòng tổng cộng | ADMIN |
+| `GET` | `/api/v1/admin/dashboard/groups` | Authenticated | Danh sách nhóm theo lưu lượng trong kỳ (`period`, `sort` = `totalCalls`\|`totalDurationSec`\|`asrPercentage`\|`avgMos`, `order`, `page`, `limit` ≤ 100): mỗi dòng `groupId`, `groupCode`, `groupName`, `ranges` (mảng `{ rangeFrom, rangeTo }` các dải hiện có của nhóm; frontend tự ghép nhãn), `totalCalls`, `totalDurationSec`, `asrPercentage`, `avgMos`; đọc từng dòng nhóm của `stats_*`, không có dòng tổng cộng | ADMIN |
 | `GET` | `/api/v1/dashboard/charts` | Authenticated | Dữ liệu biểu đồ phân bố 24 giờ trong ngày (đọc `stats_hourly`) hoặc biến thiên theo ngày (đọc `stats_daily`) | USER + ADMIN |
 | `POST` | `/api/v1/admin/stats/recalculate` | `system:manage` | Tính lại thống kê **bất đồng bộ**: body `{ "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD" }` (tối đa 366 ngày; `400` nếu `fromDate` trước mốc `:purgeBoundary` = `cdr_enrichment_state.cdr_purged_before` (ngày đầu còn CDR sau các lần `DROP PARTITION`; NULL thì không chặn), vì CDR kỳ đó đã bị xóa, `docs/01_database_schema.md` mục 15.0 bước 5); đẩy mọi khung giờ trong khoảng vào `stats_recompute_queue`, trả `202 { "queuedHours": n }`; job tổng hợp xử lý ở các lần chạy kế tiếp, cho mọi phạm vi; ghi `audit_logs` `SYSTEM / RECALCULATE_STATS` | ADMIN |
 
@@ -298,7 +301,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `POST` | `/api/v1/admin/notifications` | `system:manage` | Admin soạn thông báo `SYSTEM_MAINTENANCE`/`GENERAL` (`title`, `content`, `severity`, `target` = `ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` \| `EVERYONE`); tạo một dòng người nhận cho mỗi tài khoản `ACTIVE` (người dùng chỉ thuộc nhóm `ACTIVE`); `GROUP:{id}` của nhóm `INACTIVE` trả `409 GROUP_INACTIVE`; ghi `audit_logs` `SYSTEM / CREATE_NOTIFICATION` | ADMIN |
 | `PUT` | `/api/v1/notifications/mark-all-read` | Authenticated | Đánh dấu tất cả thông báo đã đọc | USER + ADMIN |
 | `GET` | `/api/v1/admin/settings/system` | `system:manage` | Lấy cấu hình hệ thống (Quy tắc phân tích, retention, bảo trì...) | ADMIN |
-| `PUT` | `/api/v1/admin/settings/system` | `system:manage` | Lưu cấu hình hệ thống. Giảm `retention_archive_months` phải kèm `confirmPurge: true`, thiếu thì `409 RETENTION_PURGE_CONFIRM_REQUIRED` (`docs/modules/07_system_settings.md` mục 3.2) | ADMIN |
+| `PUT` | `/api/v1/admin/settings/system` | `system:manage` | Lưu cấu hình hệ thống. Key bí mật (`smtp_password`) thiếu hoặc bằng mặt nạ `********` thì giữ giá trị cũ, `""` thì xóa. Giảm `retention_archive_months` phải kèm `confirmPurge: true`, thiếu thì `409 RETENTION_PURGE_CONFIRM_REQUIRED` (`docs/modules/07_system_settings.md` mục 3.2) | ADMIN |
 | `POST` | `/api/v1/admin/settings/reload-cache` | `system:manage` | Nạp lại cache sở hữu số và cache setting trên mọi tiến trình backend (API và worker, qua `cache_version`) | ADMIN |
 
 ---

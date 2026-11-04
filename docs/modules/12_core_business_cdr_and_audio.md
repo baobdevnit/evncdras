@@ -134,7 +134,6 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
       "disconnectionStatus": "OK",
       "mos": 4.41,
       "durationSec": 135,
-      "durationFormatted": "02:15",
       "hasAudio": true,
       "audioFileName": "10_15_32_120_45678_46001_0_656507171@10.65.7.1.wav",
       "canAccessAudio": true
@@ -167,9 +166,9 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
 - **Lưu ý route**: khai báo `/cdr/export` trước `/cdr/:id` trong controller để không bị bắt nhầm thành `:id = 'export'`.
 
 ### 3.2. Xem chi tiết 87 tham số CDR (`GET /api/v1/cdr/:id`)
-- **Backend xử lý**: Truy vấn từ `cdr_enriched`. Kiểm tra cô lập dữ liệu nhóm nếu người gọi thuộc User Portal (`caller_group_id = user.user_group_id OR called_group_id = user.user_group_id`). Nếu không đúng -> `403 FORBIDDEN`. Không giới hạn theo cửa sổ `retention_online_months`: người dùng nhóm vẫn mở được bản ghi lưu trữ của nhóm mình qua `id` (áp dụng cả API audio mục 3.3, 3.4; `docs/01_database_schema.md` mục 2.1).
+- **Backend xử lý**: Truy vấn từ `cdr_enriched`. Kiểm tra cô lập dữ liệu nhóm nếu người gọi thuộc User Portal (`caller_group_id = user.user_group_id OR called_group_id = user.user_group_id`). Nếu không đúng -> `403 FORBIDDEN_SCOPE_ACCESS` (`docs/02_api_contracts.md` mục 2.3). Không giới hạn theo cửa sổ `retention_online_months`: người dùng nhóm vẫn mở được bản ghi lưu trữ của nhóm mình qua `id` (áp dụng cả API audio mục 3.3, 3.4; `docs/01_database_schema.md` mục 2.1).
 - **Response** gồm hai phần:
-  - **Trường nghiệp vụ camelCase** ở cấp trên cùng: toàn bộ trường của item `GET /cdr` (`id`, `created`, `answered`, `destroyed`, `callerId`, `callerDisplayName`, `callerGroup`, `calledId`, `calledDisplayName`, `calledGroup`, `direction`, `callStatus`, `callType`, `disconnectionCode`, `disconnectionStatus`, `releasedBy`, `durationSec`, `mos`, `hasAudio`, `canAccessAudio`), cộng thêm `callGroupKey`, `legRole`, `isPrimaryLeg`, `legs[]`, `qos` (`mosCaller`, `mosCalled`, `rFactorCaller`, `rFactorCalled`, `lossPercent`, `jitterMeanMs`, `jitterMaxMs`, `codec`) và `sipDelays` (`sip100DelayMs`, `sip180DelayMs`, `sip183DelayMs`, `answerDelayMs`).
+  - **Trường nghiệp vụ camelCase** ở cấp trên cùng: toàn bộ trường của item `GET /cdr` (mục 3.1: `id`, `created`, `callerId`, `callerDisplayName`, `callerGroup`, `calledId`, `calledDisplayName`, `calledGroup`, `direction`, `callStatus`, `callType`, `disconnectionCode`, `disconnectionStatus`, `mos`, `durationSec`, `hasAudio`, `audioFileName`, `canAccessAudio`), cộng thêm `answered`, `destroyed`, `releasedBy`, `callGroupKey`, `legRole`, `isPrimaryLeg`, `legs[]`, `qos` (`mosCaller`, `mosCalled`, `rFactorCaller`, `rFactorCalled`, `lossPercent`, `jitterMeanMs`, `jitterMaxMs`, `codec`) và `sipDelays` (`sip100DelayMs`, `sip180DelayMs`, `sip183DelayMs`, `answerDelayMs`).
   - **Object `raw`**: đủ **87 cột của bảng `cdr` với nguyên tên cột PABX** (`"RTP_Caller_G107MOS": 4`, `"_100_Delay": 14`, `"Recorded_Mix_FileName": "..."`…), giá trị giữ nguyên như trong DB (thời gian theo định dạng ISO `+07:00`). Dùng cho tab "Thông số kỹ thuật"; đường dẫn file ghi âm trong `raw` chỉ trả cho người có quyền nghe/tải.
 - `:id` là `cdr_enriched.id` của một leg bất kỳ. Response có thêm mảng `legs[]` gồm mọi leg cùng `call_group_key`, đọc kèm `Created` trong khoảng ±2 giây quanh `Created` của leg `:id` để chỉ quét 1–2 partition (`docs/01_database_schema.md` mục 2.1) (mỗi phần tử: `id`, `legRole`, `isPrimaryLeg`, `callerIp`, `calledIp`, `mos`, `hasAudio`), leg chính đứng đầu. Các API audio `/cdr/:id/audio/*` phát file ghi âm của **đúng leg** có `id` đó.
 
@@ -179,7 +178,7 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
 - **Xử lý Kiểm tra Nghiêm ngặt tại Backend (2-Tier Recording Gate Check)**:
   1. Truy vấn bản ghi từ `cdr_enriched` theo `:id`.
   2. **Kiểm tra Cô lập Dữ liệu (Group Isolation Check)**:
-     - Nếu là User Portal: Kiểm tra `(record.caller_group_id == user.user_group_id || record.called_group_id == user.user_group_id)`. Nếu sai -> ném `ForbiddenException('Bạn không có quyền truy cập dữ liệu cuộc gọi của nhóm khác')`.
+     - Nếu là User Portal: Kiểm tra `(record.caller_group_id == user.user_group_id || record.called_group_id == user.user_group_id)`. Nếu sai -> `403 FORBIDDEN_SCOPE_ACCESS` ('Bạn không có quyền truy cập dữ liệu cuộc gọi của nhóm khác').
   3. **Kiểm tra Phân quyền Ghi âm 2 Tầng (2-Tier Recording Gate)**: do `PermissionsGuard` thực hiện trước khi vào service (`@RequirePermissions('cdr:listen_audio')`, thuật toán `docs/modules/10_permissions_and_roles.md` mục 2.3):
      - Nếu là User Portal:
        + **Tầng 1 (Quyền nhóm)**: `user_groups.allow_recording_access = 1`. Nếu bằng 0 -> `403 GROUP_RECORDING_DISABLED` ('Tổ chức/Nhóm người dùng của bạn chưa được Quản trị viên hệ thống kích hoạt tính năng ghi âm').

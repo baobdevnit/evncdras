@@ -271,7 +271,7 @@ Các liên kết trong template (`*.html`) chuyển thành `router-link` tới r
    - `qualityChart`: ASR % & MOS G.107 toàn hệ thống theo thời gian.
    - `topGroupsChart`: **Top 10 nhóm người dùng theo lưu lượng** trong kỳ, từ `GET /api/v1/admin/dashboard/groups?limit=10&sort=totalCalls` (đọc từng dòng nhóm của `stats_daily` (không cộng các nhóm thành tổng).
 5. **Bảng Giám sát các Nhóm người dùng** (`GET /api/v1/admin/dashboard/groups`, có phân trang và sắp xếp):
-   - Cột: Nhóm người dùng, Dải số quy hoạch, Lưu lượng hôm nay, Thời lượng, ASR %, MOS G.107 (đọc các dòng nhóm của `stats_hourly` hôm nay). Không có cột trạng thái Trunk SIP (không có nguồn dữ liệu).
+   - Cột: Nhóm người dùng, Dải số quy hoạch (frontend ghép từ `ranges[]`, `docs/02_api_contracts.md` mục 3.11), Lưu lượng hôm nay, Thời lượng, ASR %, MOS G.107 (đọc các dòng nhóm của `stats_hourly` hôm nay). Không có cột trạng thái Trunk SIP (không có nguồn dữ liệu).
 
 ### 5.2. Dashboard Thành viên đơn vị (Khu vực Member)
 1. **Tiêu đề trang & Huy hiệu Nhóm**:

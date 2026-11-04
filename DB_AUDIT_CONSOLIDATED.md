@@ -10,11 +10,12 @@
 ## 0. Kết luận
 
 - **`docs/` không còn phát hiện Critical/Major/Minor nào về CSDL đang mở.** Đã kiểm lại ngày 2026-11-04 (mục 4): mọi mục của 12 lần rà soát đều đã phản ánh trong `docs/`. Lần kiểm này sửa thêm 1 lỗi Minor còn sót: ví dụ mã nhóm `UG-KT-01`/`UG-IT-01` ở M12 §3.1, đổi thành `UMO-KT-01`/`UMO-IT-01` theo quy ước `user_groups.code` (`01` §5).
-- **Còn mở (mục 2)**: chạy lại DDL + seed trên **MariaDB 10.6**; sửa `templates/`; viết test cho các quy tắc tầng service khi có backend; xác nhận một điểm diễn giải về `trend` ở M05 (C-01).
+- **Còn mở (mục 2)**: chạy lại DDL + seed trên **MariaDB 10.6**; sửa `templates/`; viết test cho các quy tắc tầng service khi có backend. C-01 (`trend` M05) đã được chủ dự án xác nhận ở lần 17.
 - **Lần 13 (2026-11-04)**: 2 Major, 7 Minor, đã sửa theo quyết định chủ dự án (mục 3.5).
 - **Lần 14 (2026-11-04)**: 3 Major, 10 Minor, đã sửa; 4 điểm thiếu quy định chốt theo phỏng vấn chủ dự án (mục 3.5, R14-*).
 - **Lần 15 (2026-11-04)**: 8 Minor, đã sửa; 4 điểm thiếu quy định chốt theo phỏng vấn chủ dự án (mục 3.5, R15-*).
 - **Lần 16 (2026-11-04)**: 13 Minor, tập trung vào API (M03, M05, M06, M08–M10, M13, M14 so với `02`), đã sửa; 7 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R16-07…R16-13). Không đổi DDL.
+- **Lần 17 (2026-11-04)**: 12 Minor, tập trung vào M01, M02, M04, M07, M11, M12, M15 so với `01`/`02`, đã sửa; 5 điểm chốt theo phỏng vấn chủ dự án (mục 3.5, R17-01…R17-05) và xác nhận C-01. Không đổi DDL.
 - **Sẵn sàng sinh migration/entity** sau khi chạy xong DDL trên MariaDB 10.6 (mục 2.1).
 
 ## 1. Các lần rà soát
@@ -38,6 +39,7 @@
 | 14 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `94b96b3` | 3 Major, 10 Minor | ✅ |
 | 15 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `104660f` | 8 Minor | ✅ |
 | 16 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `eeda0b6` | 13 Minor | ✅ |
+| 17 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | (commit lần 17) | 12 Minor | ✅ |
 
 ---
 
@@ -45,7 +47,7 @@
 
 ### 2.1. Kiểm chứng DDL trên đúng phiên bản
 
-- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`). Lần 16 không đổi DDL (chỉ thêm một câu chính sách phiên ở `01` §6.1).
+- DDL + seed mới chỉ chạy thật trên **MariaDB 13.0.2** (lần 4, 6, 7, 8, 10, từng phần). Tài liệu yêu cầu **MariaDB 10.6**. Lần 9 không chạy được (thiếu thông tin đăng nhập container), lần 11 đổi `organizations.level DEFAULT 0` chưa chạy lại, lần 13 đổi `prefix_allocation_history` (thêm `previous_range_from`/`previous_range_to`, `status_before`/`status_after` thành `enum`) chưa chạy lại. Lần 14 chỉ đổi COMMENT (`admin_roles.assigned_at`, `user_groups.code`, `user_settings.custom_preferences`). Lần 15 chỉ đổi COMMENT (`organizations.code`, `prefix_allocation_history.cdr_ownership_note`). Lần 16 không đổi DDL (chỉ thêm một câu chính sách phiên ở `01` §6.1). Lần 17 không đổi DDL (chỉ sửa câu mã lỗi `423` ở `01` §6.1).
 - **Việc cần làm**: trích toàn bộ khối ```` ```sql ```` của `01` và seed `M10` §2.1, chạy trên MariaDB 10.6, kiểm tra:
   - 27 bảng + 1 view tạo không lỗi; partition `cdr_enriched` đúng.
   - Seed: 25 mã quyền; `permission_roles` ROOT_ADMIN 25, SYSTEM_ADMIN 24, GROUP_ADMIN 17, USER_RECORDING 11, REGULAR_USER 9; 19 key `system_settings`; 5 ngưỡng QoS.
@@ -96,12 +98,16 @@ Các quy tắc sau đã ghi trong `docs/` nhưng chỉ kiểm chứng được b
 | `/qos/debug-table` gửi `disconnectionCode`/`codec`/`minMos`/`maxMos` khi thiếu `cdr:filter_advanced` trả `403`; bản User gửi `groupId` trả `400` | `02` §3.8, M13 §3.1 | R16-09, R16-10 |
 | Tự đổi mật khẩu thu hồi mọi phiên cũ, kể cả phiên đang dùng (`PASSWORD_CHANGED`), tạo đúng 1 phiên mới | `01` §6.1, M08 §3.4, M09 §3.3 | R16-11 |
 | `PUT /profile`, `PUT /admin/profile`, `PUT /users/:id` có `avatarUrl` trả `400`; `POST .../avatar` ghi `avatar_url` | `02` §3.1, §3.2, §3.5, M03 §3.5, M08 §3.2–3.3, M09 §3.2 | R16-12 |
+| Bản User của `/phone-numbers/pool`, `/phone-numbers/history`, `/prefixes/history` gửi `groupId` trả `400` | `02` §1.1, M11 §4.3–4.5 | R17-01 |
+| Khóa tạm đăng nhập trả `423 ACCOUNT_TEMPORARILY_LOCKED`, `errors.lockedUntil` | `01` §6.1, M03 §3.1, M04 §3.1 | R17-04 |
+| `PUT /admin/settings/system` có `smtp_password` thiếu hoặc `********` giữ giá trị cũ; `""` xóa | M07 §3.2, `02` §3.12 | R17-05 |
+| Route User đọc CDR/ghi âm của nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS` | `02` §2.3, M12 §3.2–3.3 | R17-08 |
 
 ### 2.4. Cần xác nhận / ghi nhận rủi ro
 
 | ID | Nội dung | Tham chiếu |
 |---|---|---|
-| C-01 | Định nghĩa `trend` cho `last_month` (so với tháng liền trước nữa) và `custom` (khoảng cùng số ngày ngay trước `fromDate`) là cách áp dụng quyết định "kỳ liền trước cùng số ngày"; cần chủ dự án xác nhận | M05 §3.1 (R12-05) |
+| C-01 | ✅ **Đã xác nhận** (lần 17): `trend` cho `last_month` so với tháng liền trước nữa, `custom` so với khoảng cùng số ngày ngay trước `fromDate`, giữ như M05 | M05 §3.1 (R12-05) |
 | I-01 | `high_packet_loss_legs_count` phụ thuộc ngưỡng tại thời điểm tính; đổi ngưỡng rồi tính lại sẽ đổi số liệu lịch sử của các khung được tính lại | `01` §15 |
 | I-02 | `representative_user_id` phải là GROUP_ADMIN cùng nhóm: chỉ service bảo đảm | `01` §5, M10 |
 | I-03 | `cdr_enriched` có nhiều index phụ trên bảng ghi liên tục; truy vấn `caller_group_id = g OR called_group_id = g` cần index merge hoặc `UNION`. Đo trên dữ liệu thật trước khi chốt bộ index | `01` §2.1 |
@@ -202,7 +208,7 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 - Tách đổi trạng thái khỏi `PUT /users/:id`; `audit_logs` chỉ ghi thêm ở mức CSDL.
 - Ghi chú: nhóm sở hữu số chốt lúc làm giàu, mã nhóm không dùng lại, giới hạn `timestamp` 2038.
 
-### 3.5. Lần 6–16
+### 3.5. Lần 6–17
 
 | Mã | Mức | Vấn đề | Xử lý (nơi sửa) |
 |---|---|---|---|
@@ -294,6 +300,18 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 | R16-11 | Minor | Phiên khi tự đổi mật khẩu: `01` §6.1 "thu hồi toàn bộ phiên", `02` §3.1–3.2 "thu hồi các phiên khác", M08/M09 "phiên mới, thu hồi mọi phiên khác" | Chủ dự án chốt: thu hồi mọi phiên cũ kể cả phiên đang dùng (`PASSWORD_CHANGED`), tạo 1 phiên mới. `01` §6.1, `02` §3.1–3.2, M08 §3.4, M09 §3.3 |
 | R16-12 | Minor | Cách đổi ảnh đại diện lệch nhau: M09 `PUT /admin/profile` nhận `avatarUrl`, M08 `PUT /profile` không; `02` §3.5 `PUT /users/:id` có "ảnh" nhưng không có API tải ảnh cho người khác | Chủ dự án chốt: chỉ đổi qua `POST .../avatar` (ghi luôn `avatar_url`); các `PUT` có `avatarUrl` trả `400`; quản trị viên không đổi ảnh người khác. `02` §3.1, §3.2, §3.5, M03 §3.5, M08 §3.2–3.3, M09 §1, §3.2 |
 | R16-13 | Minor | `dashboardWidgets` (M09 §1) lưu ở `custom_preferences` nhưng `02` §3.1 không nêu trường của preferences Admin hay vị trí trường này | Chủ dự án chốt: trường cấp cao `dashboardWidgets` cạnh 5 trường chung; `custom_preferences` chỉ là nơi lưu. `02` §3.1, M09 §1 |
+| R17-01 | Minor | Tham số lọc nhóm của bản Admin lệch tên: `groupId` ở `/users`, `/cdr`, `/qos/*`, `/traffic/*`, `/dashboard/*`, `/reports/*`; `userGroupId` ở `/phone-numbers/pool`, `/phone-numbers/history`, `/prefixes/history` (M11 §4.3–4.5, `02` §3.6) | Chủ dự án chốt: `groupId` cho mọi API. Sửa M11 §4.3–4.5, `02` §3.6 |
+| R17-02 | Minor | Tham số tìm kiếm văn bản lệch tên: `search` ở `GET /users`, `/user-groups/me/members`; `keyword` ở `GET /user-groups` (M02 §3.1), `/phone-numbers/pool` (M11 §4.3) | Chủ dự án chốt: `search`. Sửa M02 §3.1, M11 §4.3 |
+| R17-03 | Minor | Chuỗi hiển thị còn sót, trái R16-07: M12 `durationFormatted` ("02:15"); M11 `fullRange`, `badgeText` ("42 xxx (500 số)") và `count` trùng `counts.total`; M02 `phonePrefixGroup.prefixes` (`["42xxx"]`); `02` §3.11 `rangesText` của `/admin/dashboard/groups` | Chủ dự án chốt: bỏ; dải số trả mảng `ranges: [{ rangeFrom, rangeTo }]`, frontend tự ghép nhãn. Quy tắc bổ sung ở `02` §2; sửa M02 §3.1, M05 §5.1, M11 §4.1, M12 §3.1, `02` §3.11 |
+| R17-04 | Minor | Khóa tạm đăng nhập: `01` §6.1 và TC-USR-02 ghi `423 LOCKED`, M03/M04 ghi `errorCode = ACCOUNT_TEMPORARILY_LOCKED` với `lockedUntil` ở cấp cao, ngoài khung lỗi `02` §2.3 | Chủ dự án chốt: `ACCOUNT_TEMPORARILY_LOCKED`, `errors = { lockedUntil }`. Sửa `01` §6.1, M03 §3.1, §5, TC-USR-02, M04 §3.1; quy tắc "chi tiết lỗi nằm trong `errors`" ở `02` §2.3 |
+| R17-05 | Minor | M07 §3.1 trả `smtp_password` dạng `********` nhưng §3.2 không nói `PUT` xử lý giá trị mặt nạ | Chủ dự án chốt: thiếu hoặc bằng `********` thì giữ giá trị cũ, `""` thì xóa. M07 §3.2, `02` §3.12 |
+| R17-06 | Minor | M15 §1.2 ghi User Portal có bộ chọn nhóm bị khóa (nhãn "🔒 Khóa theo phân quyền nhóm…"), M15 §4.1 và TC-REP-02 ghi không có bộ chọn | Theo §4.1: không có bộ chọn |
+| R17-07 | Minor | `02` §3.10 `/reports/summary` ghi chỉ đọc `stats_daily`, M15 §2.1 đọc `stats_hourly` khi `period=today` | Thêm `stats_hourly` cho `today` ở `02` §3.10 |
+| R17-08 | Minor | Mã lỗi cô lập nhóm không thống nhất: M12 §3.2 `403 FORBIDDEN`, M12 §3.3 chỉ có thông điệp; `02` §2.3 ví dụ `FORBIDDEN_SCOPE_ACCESS` đúng cho trường hợp này | `FORBIDDEN_SCOPE_ACCESS` (theo ví dụ `02` §2.3); ghi quy tắc ở `02` §2.3, sửa M12 §3.2, §3.3 |
+| R17-09 | Minor | M12 §3.2 nói chi tiết CDR gồm "toàn bộ trường của item `GET /cdr`" nhưng liệt kê `answered`, `destroyed`, `releasedBy` (item không có) và thiếu `audioFileName` (item có) | Liệt kê đúng trường item, ba trường kia chuyển sang "cộng thêm" |
+| R17-10 | Minor | M04 §3.1 không nêu mã HTTP khi không tìm thấy tài khoản Admin; M03 §3.1 trả `401` | `401` như M03 |
+| R17-11 | Minor | M02 BR-UG-02 chỉ chặn hạ quyền/xóa Quản trị viên nhóm cuối cùng; `01` §14 chặn cả khóa (`LOCKED`) | Thêm khóa, dẫn `01` §14 |
+| R17-12 | Minor | M11 §3.1 thông báo `409` "trùng lặp với dải số của đơn vị khác", trong khi dải trùng có thể cùng nhóm (M11 §1.2, `01` §8) | "trùng lặp với dải số đã cấp" |
 
 Đề xuất làm gọn **bị từ chối** ở lần 10 (giữ nguyên, không đề xuất lại): gộp `phone_prefix_groups` vào `user_groups`; thay 5 bảng RBAC bằng cột `role`; bỏ `stats_daily`; bỏ dòng `phone_number_range_history` cho từng số.
 

@@ -65,7 +65,7 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 - **Validation**:
   - Trường `username` nhận **username hoặc email**: tìm theo `username_active`, nếu không thấy thì theo `email_active` (chỉ tài khoản chưa `INACTIVE`). Không thấy thì trả `401` và ghi `LOGIN_FAILED` (`reason = UNKNOWN_USER`).
   - Kiểm tra `status == 'ACTIVE'`. Nếu `LOCKED`, trả về `403 FORBIDDEN: Tài khoản đã bị khóa` (tài khoản `INACTIVE` không tìm thấy qua `username_active` nên trả `401`). Nhóm của user có `status = 'INACTIVE'` cũng trả `403`.
-  - Nếu `locked_until > NOW()` (khóa tạm do sai mật khẩu), trả về `423` với body `{ "success": false, "statusCode": 423, "errorCode": "ACCOUNT_TEMPORARILY_LOCKED", "lockedUntil": "2026-10-26T09:45:00+07:00" }`.
+  - Nếu `locked_until > NOW()` (khóa tạm do sai mật khẩu), trả về `423` với body `{ "success": false, "statusCode": 423, "errorCode": "ACCOUNT_TEMPORARILY_LOCKED", "message": "...", "errors": { "lockedUntil": "2026-10-26T09:45:00+07:00" }, "timestamp": "..." }` (khung lỗi `docs/02_api_contracts.md` mục 2.3).
   - Sai mật khẩu: tăng `failed_login_count` bằng một câu `UPDATE` nguyên tử; đạt `security_login_max_failed` (mặc định 5) thì `locked_until = NOW() + security_lockout_minutes` (mặc định 15 phút) và đặt lại `failed_login_count = 0` trong cùng câu lệnh (câu SQL tại `docs/01_database_schema.md` mục 6.1). Đúng: đặt `failed_login_count = 0`.
 - **`rememberMe`**: `false` thì cookie Refresh Token không đặt `Max-Age` (mất khi đóng trình duyệt); hạn phiên phía server vẫn là 7 ngày.
 - **Token**: Access Token 15 phút (ký `JWT_USER_SECRET`, mang `sub`, `userGroupId`, `roleCode` đọc từ `user_roles` lúc cấp), Refresh Token 7 ngày lưu dạng băm trong `auth_sessions` và gửi qua cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`, không nằm trong body. Nếu `must_change_password = 1` hoặc mật khẩu quá 90 ngày: chỉ cấp Access Token `scope: "PASSWORD_CHANGE_ONLY"` (không có Refresh Token), `mustChangePassword: true`. Chính sách đầy đủ tại `docs/01_database_schema.md` mục 6.1.
@@ -235,7 +235,7 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
 ### 5.0. Màn hình Đăng nhập (Khu vực Member – `LoginView.vue`)
 
 - Form nhận username hoặc email, mật khẩu, `rememberMe`; gọi `POST /api/v1/auth/login`, lưu Access Token vào `authUser` store (không lưu trình duyệt).
-- `mustChangePassword: true` → chuyển sang `member.change-password`; `423` → hiển thị thời điểm mở khóa (`lockedUntil`); `503 MAINTENANCE` → thông báo bảo trì.
+- `mustChangePassword: true` → chuyển sang `member.change-password`; `423` → hiển thị thời điểm mở khóa (`errors.lockedUntil`); `503 MAINTENANCE` → thông báo bảo trì.
 - Liên kết "Dành cho Quản trị viên hệ thống" là `<RouterLink :to="{ name: 'admin.login' }">` (cùng router, chuyển cổng không mất phiên, `docs/00_overview_and_architecture.md` mục 5.3.2). Hộp "tài khoản mẫu" trong template không triển khai.
 
 ### 5.1. Khu vực Admin – `UserListView.vue`: Bố cục Split-View (Theo `templates/admin/users.html`)
@@ -265,7 +265,7 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
 
 1. **TC-USR-01**: Đăng nhập bằng tài khoản user hợp lệ, kiểm tra nhận về Access Token (chỉ giữ trong Pinia, không có trong `localStorage`) và cookie Refresh Token `HttpOnly`; có 1 dòng mới trong `auth_sessions`.
-2. **TC-USR-02**: Đăng nhập sai mật khẩu 5 lần liên tiếp, kiểm tra lần thứ 6 (kể cả đúng mật khẩu) trả về `423 LOCKED`; sau 15 phút đăng nhập đúng được và `failed_login_count` về 0.
+2. **TC-USR-02**: Đăng nhập sai mật khẩu 5 lần liên tiếp, kiểm tra lần thứ 6 (kể cả đúng mật khẩu) trả về `423 ACCOUNT_TEMPORARILY_LOCKED` kèm `errors.lockedUntil`; sau 15 phút đăng nhập đúng được và `failed_login_count` về 0.
    - **TC-USR-02b**: Dùng lại một Refresh Token đã được xoay vòng, kiểm tra mọi phiên của tài khoản bị thu hồi (`revoked_reason = 'REUSE_DETECTED'`).
    - **TC-USR-02c**: Gửi đồng thời 2 request `refresh` cùng một Refresh Token (giả lập 2 tab), kiểm tra cả hai nhận Access Token, chỉ request đầu có `Set-Cookie`, không phiên nào bị `REUSE_DETECTED`. Dùng lại token đó sau 30 giây thì mọi phiên bị thu hồi.
 3. **TC-USR-03**: Gọi `PUT /users/:id/role` đổi Quản trị viên nhóm duy nhất trong nhóm sang `REGULAR_USER`, kiểm tra hệ thống chặn `409` với cảnh báo thích hợp và `user_roles` không đổi.
