@@ -110,6 +110,8 @@ Danh mục các Key cấu hình chuẩn (3 phân nhóm: `ANALYSIS`, `REPORTING`,
 }
 ```
 
+- **Giảm `retention_archive_months`**: nếu giá trị mới nhỏ hơn giá trị đang lưu, body bắt buộc có `"confirmPurge": true` (cùng cấp với `settings`). Thiếu thì trả `409` mã `RETENTION_PURGE_CONFIRM_REQUIRED`, `errors = { "currentMonths": 60, "newMonths": 12, "monthsToPurge": 48 }`, không lưu setting nào trong request. Giao diện hiện hộp xác nhận nêu số tháng CDR sẽ bị xóa vĩnh viễn ở lần chạy job partition kế tiếp, người dùng đồng ý thì gửi lại kèm `confirmPurge: true` (`docs/01_database_schema.md` mục 2.1). Tăng giá trị hoặc giữ nguyên thì bỏ qua `confirmPurge`.
+
 ### 3.3. Nạp lại bộ nhớ đệm (`POST /api/v1/admin/settings/reload-cache`)
 
 - **Guard**: `AdminAuthGuard`, `Permission: system:manage`

@@ -378,11 +378,12 @@ PARTITION BY RANGE (TO_DAYS(`Created`)) (
 > **Partition & vòng đời dữ liệu `cdr_enriched`**:
 > - **Partition khởi tạo**: khối DDL ở trên chỉ minh họa. Migration tạo bảng sinh danh sách partition theo dữ liệu thật: partition đầu tiên là tháng của bản ghi `cdr` đầu tiên (`SELECT Created FROM cdr ORDER BY id ASC LIMIT 1`, đọc theo PK; NULL thì dùng `Destroyed`; bảng `cdr` rỗng thì lấy tháng hiện tại), mỗi tháng một partition đến hết tháng hiện tại + 2, cuối cùng là `p_future`. Nhờ đó mỗi partition chỉ chứa đúng một tháng và `DROP PARTITION` theo hạn `retention_archive_months` xóa đúng kỳ.
 > - **Partition theo tháng** trên `Created` (`RANGE` + `TO_DAYS`). Job `src/apps/worker/partition-maintenance` (tiến trình `backend-worker`) chạy ngày 1 hằng tháng: tách `p_future` để luôn có sẵn partition cho tháng hiện tại và 2 tháng kế tiếp. Job cũng chạy **một lần khi `backend-worker` khởi động**: tách `p_future` (dùng `REORGANIZE PARTITION`, làm được cả khi `p_future` đã có dữ liệu) thành các partition tháng còn thiếu đến hết tháng hiện tại + 2 tháng.
-> - **Tra theo `id`** (`GET /cdr/:id`, API audio): dùng phần đầu của PK (`id`) nên quét qua mọi partition theo index, chấp nhận được vì mỗi partition chỉ trả tối đa 1 dòng.
+> - **Tra theo `id`** (`GET /cdr/:id`, API audio): dùng phần đầu của PK (`id`) nên quét qua mọi partition theo index, chấp nhận được vì mỗi partition chỉ trả tối đa 1 dòng. Danh sách `legs[]` của trang chi tiết đọc `WHERE call_group_key = :k AND Created BETWEEN :created - INTERVAL 2 SECOND AND :created + INTERVAL 2 SECOND` (`:created` = `Created` của leg vừa đọc; các leg cùng cuộc gọi lệch nhau không quá 2 giây theo khóa gom leg), để chỉ quét 1–2 partition.
 > - **Mọi truy vấn** trên `cdr_enriched` bắt buộc có điều kiện `Created` (khoảng thời gian) để MariaDB chỉ quét các partition liên quan (partition pruning).
 > - **Trực tuyến** (`Created >= :onlineFrom`, với `:onlineFrom` = 00:00 giờ Việt Nam của ngày hiện tại lùi `retention_online_months` tháng, do backend tính và truyền làm tham số như quy định đầu tài liệu; mặc định 6 tháng): mọi API tra cứu CDR, QoS debug, `/traffic/records` mặc định chỉ trong cửa sổ này.
-> - **Lưu trữ** (từ `retention_online_months` đến `retention_archive_months`, mặc định 6–60 tháng): dữ liệu **vẫn nằm trong `cdr_enriched`** (các partition cũ). Chỉ Admin truy cập được, qua tham số `includeArchive=true` trên `GET /api/v1/admin/cdr`, bắt buộc kèm `fromDate`/`toDate`, khoảng tối đa 31 ngày. Người dùng nhóm không xem được dữ liệu lưu trữ.
+> - **Lưu trữ** (từ `retention_online_months` đến `retention_archive_months`, mặc định 6–60 tháng): dữ liệu **vẫn nằm trong `cdr_enriched`** (các partition cũ). Chỉ Admin truy cập được, qua tham số `includeArchive=true` trên `GET /api/v1/admin/cdr`, bắt buộc kèm `fromDate`/`toDate`, khoảng tối đa 31 ngày. Người dùng nhóm không tra cứu được dữ liệu lưu trữ qua các API danh sách (`fromDate` cũ hơn `:onlineFrom` trả `400`, `docs/modules/12_core_business_cdr_and_audio.md` mục 3.1). Riêng tra theo `id` (`GET /cdr/:id`, API audio) **không** giới hạn theo cửa sổ trực tuyến: người dùng nhóm vẫn mở được chi tiết và ghi âm của bản ghi lưu trữ thuộc nhóm mình (vẫn kiểm tra cô lập nhóm và quyền ghi âm 2 tầng).
 > - **Xóa hẳn**: job hằng tháng `ALTER TABLE cdr_enriched DROP PARTITION` các partition có toàn bộ `Created` cũ hơn `retention_archive_months` (60 tháng), ghi `audit_logs` (`actor_type = 'SYSTEM'`, `action = 'PURGE_CDR_PARTITION'`). **Trước** mỗi `DROP PARTITION`, job ghi (autocommit) `cdr_enrichment_state.cdr_purged_before = GREATEST(COALESCE(cdr_purged_before, :bound), :bound)` với `:bound` = cận trên (`VALUES LESS THAN`) của partition sắp xóa. `DROP PARTITION` là DDL, tự commit, không gộp được vào transaction, nên ghi mốc trước: nếu `DROP` lỗi thì mốc chỉ chặn sớm việc tính lại kỳ sắp bị xóa (vô hại, lần chạy sau xóa tiếp); ghi sau thì job dừng giữa chừng sẽ để lại kỳ đã mất CDR mà vẫn được tính lại.
+> - **Giảm `retention_archive_months` phải xác nhận**: giảm giá trị này làm job tháng kế tiếp `DROP PARTITION` các kỳ cũ hơn mốc mới, không khôi phục được. `PUT /api/v1/admin/settings/system` có giá trị mới nhỏ hơn giá trị đang lưu thì bắt buộc kèm `confirmPurge: true`; thiếu thì trả `409` (`RETENTION_PURGE_CONFIRM_REQUIRED`) kèm số tháng CDR sẽ bị xóa, không lưu gì (`docs/modules/07_system_settings.md` mục 3.2). Tăng giá trị thì không cần xác nhận.
 > - **Không bị dọn**: `stats_hourly`, `stats_daily`, `audit_logs`, `prefix_allocation_history`, `phone_number_range_history`. Đây là các bảng nhỏ cần cho báo cáo dài hạn và kiểm toán. Báo cáo theo thống kê vẫn chạy được cho kỳ đã bị xóa CDR.
 > - **Phương án không làm**: tách bảng lưu trữ nén riêng qua `EXCHANGE PARTITION`. Cách này không khả thi, vì `EXCHANGE PARTITION` yêu cầu hai bảng cùng định nghĩa, kể cả `ROW_FORMAT`.
 
@@ -467,7 +468,7 @@ CREATE TABLE IF NOT EXISTS `organizations` (
   `representative_name` varchar(150) DEFAULT NULL COMMENT 'Người đại diện đơn vị',
   `representative_phone` varchar(30) DEFAULT NULL,
   `representative_email` varchar(150) DEFAULT NULL,
-  `level` tinyint(2) NOT NULL DEFAULT 1 COMMENT '0: Tập đoàn, 1: Tổng công ty, 2: Khối/Công ty, 3: Phòng ban/Điện lực',
+  `level` tinyint(2) NOT NULL DEFAULT 0 COMMENT 'Độ sâu trên cây, backend tự tính: gốc (parent_id NULL) = 0, con = parent.level + 1, tối đa 3. 0: Tập đoàn, 1: Tổng công ty, 2: Khối/Công ty, 3: Phòng ban/Điện lực',
   `sort_order` int(11) NOT NULL DEFAULT 0,
   `status` enum('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -478,6 +479,11 @@ CREATE TABLE IF NOT EXISTS `organizations` (
   CONSTRAINT `fk_org_parent` FOREIGN KEY (`parent_id`) REFERENCES `organizations` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
+
+> [!NOTE]
+> **Quy tắc `level` và `status` của đơn vị** (chi tiết API tại `docs/modules/01_organization.md` mục 3):
+> - `level` không nhận từ request. Tạo đơn vị: gốc = 0, con = `parent.level + 1`; vượt 3 thì `400`. `PUT` đổi `parentId` thì tính lại `level` của đơn vị và **toàn bộ nhánh con** trong cùng transaction; nhánh nào sau khi chuyển có `level` > 3 thì `400`, không đổi gì.
+> - `status = 'INACTIVE'` không ảnh hưởng nhóm người dùng đã gắn và số liệu. Chỉ chặn (`409 ORGANIZATION_INACTIVE`): tạo đơn vị con dưới đơn vị `INACTIVE`, chuyển đơn vị sang cha `INACTIVE`, tạo nhóm người dùng hoặc đổi `organization_id` của nhóm sang đơn vị `INACTIVE` (sửa nhóm mà giữ nguyên `organization_id` thì không bị chặn).
 
 ---
 

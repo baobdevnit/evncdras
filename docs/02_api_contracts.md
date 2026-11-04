@@ -57,6 +57,7 @@ Authorization: Bearer <access_token>
 ## 2. Chuẩn định dạng phản hồi (Response Envelope Format)
 
 - **Tên trường**: mọi trường JSON (request body, response, query param, DTO) dùng **camelCase**, ví dụ `callerId`, `callStatus`, `answeredDurationSec`, `userGroupId`. Cột `snake_case` của bảng ứng dụng đổi sang camelCase theo quy tắc thông thường (`is_primary_leg` → `isPrimaryLeg`). Chỉ có **hai ngoại lệ**: (1) object `raw` của `GET /cdr/:id` giữ **nguyên tên 87 cột PABX** (`RTP_Caller_G107MOS`, `_100_Delay`…); (2) khóa của map cài đặt hệ thống là chính `setting_key` (`analysis_internal_extension_pattern`…).
+- **Định danh CDR**: `cdr_enriched.id` và `call_group_key` (bigint, cột `id` khai báo `zerofill`) luôn trả về dạng **chuỗi số thập phân không đệm số 0** (`"5370"`) ở mọi trường `id`, `cdrId`, `callGroupKey` của CDR, để không mất chính xác với số nguyên lớn trong JavaScript. Tham số đường dẫn `/cdr/:id` nhận cả dạng có và không có số 0 đệm (so sánh theo giá trị số). Các bảng ứng dụng khác (`int`) trả `id` dạng số.
 - **Định dạng thời gian**: mọi trường thời gian trong response là ISO 8601 có offset `+07:00` (vd. `2025-06-11T08:02:37+07:00`). Tham số thời gian gửi lên (`fromDate`, `toDate`…) dùng ISO 8601; không có offset thì hiểu là giờ Việt Nam. Ngày thuần (`stat_date`, `month`) dùng `YYYY-MM-DD` / `YYYY-MM` theo giờ Việt Nam.
 
 ### 2.1. Phản hồi thành công đơn bản ghi (Single Item Success)
@@ -83,7 +84,7 @@ Authorization: Bearer <access_token>
   "statusCode": 200,
   "message": "Lấy danh sách thành công",
   "data": [
-    { "id": "00000000000000005370", "callerId": "45678", "calledId": "46001", "callStatus": "ANSWERED", "answeredDurationSec": 135 }
+    { "id": "5370", "callerId": "45678", "calledId": "46001", "callStatus": "ANSWERED", "answeredDurationSec": 135 }
   ],
   "pagination": {
     "page": 1,
@@ -286,7 +287,7 @@ Toàn bộ endpoint của mục này thuộc portal **USER**.
 | `POST` | `/api/v1/admin/notifications` | `system:manage` | Admin soạn thông báo `SYSTEM_MAINTENANCE`/`GENERAL` (`title`, `content`, `severity`, `target` = `ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` \| `EVERYONE`); tạo một dòng người nhận cho mỗi tài khoản | ADMIN |
 | `PUT` | `/api/v1/notifications/mark-all-read` | Authenticated | Đánh dấu tất cả thông báo đã đọc | USER + ADMIN |
 | `GET` | `/api/v1/admin/settings/system` | `system:manage` | Lấy cấu hình hệ thống (Quy tắc phân tích, retention, bảo trì...) | ADMIN |
-| `PUT` | `/api/v1/admin/settings/system` | `system:manage` | Lưu cấu hình hệ thống | ADMIN |
+| `PUT` | `/api/v1/admin/settings/system` | `system:manage` | Lưu cấu hình hệ thống. Giảm `retention_archive_months` phải kèm `confirmPurge: true`, thiếu thì `409 RETENTION_PURGE_CONFIRM_REQUIRED` (`docs/modules/07_system_settings.md` mục 3.2) | ADMIN |
 | `POST` | `/api/v1/admin/settings/reload-cache` | `system:manage` | Nạp lại cache sở hữu số và cache setting trên mọi tiến trình backend (API và worker, qua `cache_version`) | ADMIN |
 
 ---

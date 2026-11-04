@@ -86,8 +86,8 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
 - **Query Parameters**:
   - `fromDate`, `toDate`: bắt buộc, ISO 8601 (vd: `2026-05-25T00:00:00+07:00`); khoảng tối đa **31 ngày**, mặc định 7 ngày gần nhất; vượt quá trả `400`. Ngoài cửa sổ `retention_online_months` chỉ Admin truy cập được qua `includeArchive=true`.
   - `toDate`: Định dạng ISO (vd: `2026-05-25T23:59:59`)
-  - `callerId`: Chuỗi tìm kiếm số gọi đi (vd: `45678`)
-  - `calledId`: Chuỗi tìm kiếm số nhận (vd: `46001`)
+  - `callerId`: Số gọi đi, **khớp đúng** (`CallerId = :callerId`, đi qua `idx_cdre_caller_created`) (vd: `45678`)
+  - `calledId`: Số nhận, **khớp đúng** (`CalledId = :calledId`, đi qua `idx_cdre_called_created`) (vd: `46001`)
   - `status`: `all` | `ANSWERED` | `NO_ANSWER` | `BUSY` | `FAILED` (lọc theo `cdr_enriched.call_status` của leg chính)
   - `direction`: `all` | `Inbound` | `Outbound` | `Internal`. Hướng gọi **tính lúc truy vấn** so với nhóm đang xem `:g` (nhóm của người dùng, hoặc `groupId` Admin chọn), không lưu thành cột. Ví dụ `Outbound`: `caller_group_id = :g AND (called_group_id <> :g OR called_group_id IS NULL)`; công thức đầy đủ tại `docs/01_database_schema.md` mục 2.1. Admin không chọn `groupId` thì dùng `callType` (`INTRA_GROUP` | `INTER_GROUP` | `UNASSIGNED`) thay cho `direction`.
   - `callType`: (Chỉ dành cho Admin Scope khi không chọn `groupId`) lọc theo `cdr_enriched.call_type`.
@@ -111,7 +111,7 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
   "statusCode": 200,
   "data": [
     {
-      "id": "00000000000000005370",
+      "id": "5370",
       "created": "2026-05-25T10:15:32+07:00",
       "callerId": "45678",
       "callerDisplayName": "Ban Kỹ thuật EVN",
@@ -161,15 +161,15 @@ Quản lý High-Watermark cho tiến trình Batch Scheduler định thời (3-5 
 
 - **Guard**: `UserAuthGuard` trên route User; bản sao `/api/v1/admin/...` dùng `AdminAuthGuard` (quy tắc tách portal tại `docs/02_api_contracts.md` mục 1.1). `Permission: cdr:export`
 - **Query params**: giống `GET /api/v1/cdr` (trừ `page`, `limit`), thêm `format=xlsx|csv`.
-- **Phạm vi**: chỉ leg chính (`is_primary_leg = 1`), cô lập nhóm như API danh sách. File không kèm ghi âm. Mỗi lần xuất ghi `audit_logs` (`resource_name = CDR`, `action = EXPORT_CDR`).
+- **Phạm vi**: chỉ leg chính (`is_primary_leg = 1`), cô lập nhóm như API danh sách. File không kèm ghi âm. Tối đa 100.000 dòng; kết quả vượt mức này trả `400` kèm yêu cầu thu hẹp bộ lọc (`docs/01_database_schema.md` mục 15). Mỗi lần xuất ghi `audit_logs` (`resource_name = CDR`, `action = EXPORT_CDR`).
 - **Lưu ý route**: khai báo `/cdr/export` trước `/cdr/:id` trong controller để không bị bắt nhầm thành `:id = 'export'`.
 
 ### 3.2. Xem chi tiết 87 tham số CDR (`GET /api/v1/cdr/:id`)
-- **Backend xử lý**: Truy vấn từ `cdr_enriched`. Kiểm tra cô lập dữ liệu nhóm nếu người gọi thuộc User Portal (`caller_group_id = user.user_group_id OR called_group_id = user.user_group_id`). Nếu không đúng -> `403 FORBIDDEN`.
+- **Backend xử lý**: Truy vấn từ `cdr_enriched`. Kiểm tra cô lập dữ liệu nhóm nếu người gọi thuộc User Portal (`caller_group_id = user.user_group_id OR called_group_id = user.user_group_id`). Nếu không đúng -> `403 FORBIDDEN`. Không giới hạn theo cửa sổ `retention_online_months`: người dùng nhóm vẫn mở được bản ghi lưu trữ của nhóm mình qua `id` (áp dụng cả API audio mục 3.3, 3.4; `docs/01_database_schema.md` mục 2.1).
 - **Response** gồm hai phần:
   - **Trường nghiệp vụ camelCase** ở cấp trên cùng: toàn bộ trường của item `GET /cdr` (`id`, `created`, `answered`, `destroyed`, `callerId`, `callerDisplayName`, `callerGroup`, `calledId`, `calledDisplayName`, `calledGroup`, `direction`, `status`, `callType`, `disconnectionCode`, `disconnectionStatus`, `releasedBy`, `duration`, `mos`, `hasAudio`, `canAccessAudio`), cộng thêm `callGroupKey`, `legRole`, `isPrimaryLeg`, `legs[]`, `qos` (`mosCaller`, `mosCalled`, `rFactorCaller`, `rFactorCalled`, `lossPercent`, `jitterMeanMs`, `jitterMaxMs`, `codec`) và `sipDelays` (`sip100DelayMs`, `sip180DelayMs`, `sip183DelayMs`, `answerDelayMs`).
   - **Object `raw`**: đủ **87 cột của bảng `cdr` với nguyên tên cột PABX** (`"RTP_Caller_G107MOS": 4`, `"_100_Delay": 14`, `"Recorded_Mix_FileName": "..."`…), giá trị giữ nguyên như trong DB (thời gian theo định dạng ISO `+07:00`). Dùng cho tab "Thông số kỹ thuật"; đường dẫn file ghi âm trong `raw` chỉ trả cho người có quyền nghe/tải.
-- `:id` là `cdr_enriched.id` của một leg bất kỳ. Response có thêm mảng `legs[]` gồm mọi leg cùng `call_group_key` (mỗi phần tử: `id`, `legRole`, `isPrimaryLeg`, `callerIp`, `calledIp`, `mos`, `hasAudio`), leg chính đứng đầu. Các API audio `/cdr/:id/audio/*` phát file ghi âm của **đúng leg** có `id` đó.
+- `:id` là `cdr_enriched.id` của một leg bất kỳ. Response có thêm mảng `legs[]` gồm mọi leg cùng `call_group_key`, đọc kèm `Created` trong khoảng ±2 giây quanh `Created` của leg `:id` để chỉ quét 1–2 partition (`docs/01_database_schema.md` mục 2.1) (mỗi phần tử: `id`, `legRole`, `isPrimaryLeg`, `callerIp`, `calledIp`, `mos`, `hasAudio`), leg chính đứng đầu. Các API audio `/cdr/:id/audio/*` phát file ghi âm của **đúng leg** có `id` đó.
 
 ### 3.3. Phát luồng âm thanh ghi âm (`GET /api/v1/cdr/:id/audio/stream`)
 - **Query params**: không có (chỉ có kênh Mix).

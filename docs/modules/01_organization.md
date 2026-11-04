@@ -59,7 +59,7 @@ Bảng dữ liệu MariaDB chính: `organizations` (Đã định nghĩa trong `d
       "code": "TC-71",
       "name": "Tổng công ty 71",
       "representativeName": "Nguyễn Văn A",
-      "level": 1,
+      "level": 0,
       "status": "ACTIVE",
       "children": [
         {
@@ -68,7 +68,7 @@ Bảng dữ liệu MariaDB chính: `organizations` (Đã định nghĩa trong `d
           "code": "IT-01",
           "name": "Khối Công nghệ Thông tin",
           "representativeName": "Trần Thị B",
-          "level": 2,
+          "level": 1,
           "status": "ACTIVE",
           "children": []
         }
@@ -99,11 +99,14 @@ Bảng dữ liệu MariaDB chính: `organizations` (Đã định nghĩa trong `d
 - **Validation Rules**:
   - `code`: Bắt buộc, chuỗi không dấu/gạch nối, viết hoa, không trùng lặp.
   - `name`: Bắt buộc, từ 3-255 ký tự.
-  - `parentId`: Tùy chọn. Nếu có, phải tồn tại trong CSDL. `level` tự động tính bằng `parent.level + 1`.
+  - `parentId`: Tùy chọn. Nếu có, phải tồn tại trong CSDL và đang `ACTIVE` (cha `INACTIVE` trả `409 ORGANIZATION_INACTIVE`).
+  - `level`: không nhận từ body. Backend tính: không có cha = `0`, có cha = `parent.level + 1`; kết quả lớn hơn `3` trả `400` (`docs/01_database_schema.md` mục 4).
 
 ### 3.3. `PUT /api/v1/admin/organizations/:id`
 
 - Cập nhật thông tin đơn vị theo `id`. Không cho phép chỉnh sửa `parentId` thành chính nó hoặc con cháu của nó (tránh circular loop).
+- Đổi `parentId`: cha mới phải `ACTIVE` (`409 ORGANIZATION_INACTIVE`); trong một transaction tính lại `level` của đơn vị và toàn bộ nhánh con theo quy tắc mục 3.2. Nếu có đơn vị trong nhánh vượt `level` 3 thì trả `400`, không đổi gì.
+- Chuyển `status` sang `INACTIVE` không ảnh hưởng nhóm người dùng đã gắn hay đơn vị con hiện có; chỉ chặn gắn mới vào đơn vị này (đơn vị con mới, nhóm người dùng mới hoặc đổi sang đơn vị này), xem `docs/01_database_schema.md` mục 4.
 
 ### 3.4. `DELETE /api/v1/admin/organizations/:id`
 

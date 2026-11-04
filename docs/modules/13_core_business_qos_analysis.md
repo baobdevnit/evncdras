@@ -72,7 +72,7 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
 
 ### 3.1. Bảng phân tích QoS chi tiết (`GET /api/v1/qos/debug-table`)
 
-- **Query params**: `fromDate`, `toDate` (bắt buộc), `callerId`, `calledId`, `status` (enum `call_status`), `minMos`/`maxMos` (thang thập phân, so với `mos_x100 / 100`), `disconnectionCode`, `codec`, `packetLoss` (`none` | `warning` | `critical`, so với ngưỡng `PACKET_LOSS_PERCENT`), `page`, `limit`
+- **Query params**: `fromDate`, `toDate` (bắt buộc), `callerId`, `calledId` (khớp đúng, như `GET /cdr`), `status` (enum `call_status`), `minMos`/`maxMos` (thang thập phân, so với `mos_x100 / 100`), `disconnectionCode`, `codec`, `packetLoss` (`none` | `warning` | `critical`, so với ngưỡng `PACKET_LOSS_PERCENT`), `page`, `limit`
 - **Đơn vị dòng**: mỗi dòng là **một leg** (`cdr_enriched`), kể cả leg phụ; các leg cùng cuộc gọi có cùng `callGroupKey` và được sắp liền nhau (leg chính trước). `duration` = `answered_duration_sec` (giây); `mos` = `mos_*_x100 / 100` (2 chữ số), `mosRaw` = giá trị số nguyên thô của PABX.
 - **Response**:
 
@@ -82,8 +82,8 @@ Chất lượng cuộc gọi trên hạ tầng VoIP PABX phụ thuộc chặt ch
   "statusCode": 200,
   "data": [
     {
-      "id": 1,
-      "callGroupKey": 1,
+      "id": "1",
+      "callGroupKey": "1",
       "legRole": "A_LEG",
       "isPrimaryLeg": true,
       "callStatus": "ANSWERED",

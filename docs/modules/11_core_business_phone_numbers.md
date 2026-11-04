@@ -183,7 +183,7 @@ Trong cùng transaction tạo/cập nhật dải số:
     "limit": 50,
     "items": [
       {
-        "id": 42100,
+        "id": 32101,
         "phoneNumber": "42100",
         "rangeId": 1,
         "userGroupId": 1,
@@ -194,7 +194,7 @@ Trong cùng transaction tạo/cập nhật dải số:
         "allocatedAt": "2026-01-15T08:00:00+07:00"
       },
       {
-        "id": 99999,
+        "id": 90000,
         "phoneNumber": "99999",
         "rangeId": null,
         "userGroupId": null,
