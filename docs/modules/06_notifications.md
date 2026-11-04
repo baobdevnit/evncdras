@@ -101,7 +101,7 @@ backend/src/
     ├── realtime.module.ts
     ├── admin-notifications.gateway.ts  <-- namespace /admin/notifications (JWT_ADMIN_SECRET)
     ├── user-notifications.gateway.ts   <-- namespace /notifications (JWT_USER_SECRET)
-    └── notification-push.poller.ts     <-- Đọc notifications mới (watermark id) rồi gọi gateway
+    └── notification-push.poller.ts     <-- Đọc notifications mới (cửa sổ 5 phút + tập id đã phát) rồi gọi gateway
 ```
 
 ### 4.1. Implementation Gateway WebSocket (2 namespace theo portal)
@@ -149,8 +149,10 @@ export class AdminNotificationsGateway extends BaseNotificationsGateway {
 
 - Không có hàm broadcast toàn namespace: thông báo luôn được phát tới room của **từng người nhận** sau khi đã tạo dòng `notification_recipients`.
 - **Nguồn phát duy nhất là `NotificationPushPoller`** (`docs/00_overview_and_architecture.md` mục 2.1). Cảnh báo do `backend-worker` tạo (QoS, PABX offline) và thông báo do Admin soạn qua API đều chỉ ghi DB; không service nào gọi `sendToRecipient` trực tiếp. Mỗi instance `backend-api` chạy poller riêng:
-  - Khởi động: `lastId = SELECT MAX(id) FROM notifications` (không phát lại thông báo cũ).
-  - Mỗi 3 giây: đọc `notification_recipients` JOIN `notifications` với `notifications.id > lastId` (`ORDER BY id`, tối đa 500 dòng), gọi `sendToRecipient` của gateway đúng `recipient_type`, rồi đặt `lastId` = id lớn nhất đã đọc.
+  - Poller giữ trong bộ nhớ tập `pushedIds` (id thông báo đã phát trong 5 phút gần nhất). **Không dùng watermark `id`**: thông báo được ghi đồng thời từ `backend-api` và `backend-worker`, id nhỏ hơn có thể commit sau id lớn hơn, nên watermark sẽ bỏ sót thông báo (`docs/01_database_schema.md` mục 11).
+  - Khởi động: nạp vào `pushedIds` mọi id có `created_at >= :since` (`:since` = thời điểm hiện tại − 5 phút, backend tính), nên không phát lại thông báo cũ.
+  - Mỗi 3 giây: `SELECT id FROM notifications WHERE created_at >= :since ORDER BY id` (index `idx_notif_created`), bỏ các id đã có trong `pushedIds`. Với mỗi id mới, đọc **toàn bộ** người nhận `SELECT recipient_type, recipient_id FROM notification_recipients WHERE notification_id = ?` (không cắt theo số dòng; một thông báo `EVERYONE` có thể có hàng nghìn người nhận), gọi `sendToRecipient` của gateway đúng `recipient_type`, rồi thêm id vào `pushedIds`. Xóa khỏi `pushedIds` các id có `created_at` cũ hơn cửa sổ.
+  - Cửa sổ 5 phút đủ an toàn vì transaction tạo thông báo chỉ gồm các câu `INSERT` (không gửi email bên trong, `01` mục 11), commit trong vài giây.
   - Socket.IO không phát được tới client của instance khác, nên mỗi instance chỉ phát tới client đang kết nối vào chính nó; vì mọi instance cùng đọc mọi thông báo, người nhận ở instance nào cũng nhận đúng một lần.
 
 ### 4.2. Implementation `MailerService`

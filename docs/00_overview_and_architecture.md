@@ -111,7 +111,7 @@ flowchart TD
 
     AlertEngine -->|Ghi notifications + recipients| AppDB
     AlertEngine -->|Email CRITICAL| MailServer
-    Realtime -->|"Đọc notifications mới - Watermark ID, push notification:new"| AppDB
+    Realtime -->|"Đọc notifications mới - cửa sổ 5 phút, push notification:new"| AppDB
 
     ModCDR -->|Truy vấn theo nhóm| TableCDREnriched
     ModCDR --> FileServer
@@ -140,7 +140,7 @@ flowchart TD
 - **Đồng bộ cache giữa các tiến trình**: cache sở hữu số (`NumberOwnershipCacheService`) và cache `system_settings` nằm trong bộ nhớ của **từng** tiến trình. Mọi thao tác làm đổi dữ liệu này (cấp phát/thu hồi dải số, sửa nhóm sở hữu, lưu `system_settings`, `POST /api/v1/admin/settings/reload-cache`) tăng `cdr_enrichment_state.cache_version` trong cùng transaction. Worker đọc `cache_version` ở đầu mỗi chu kỳ làm giàu, mỗi instance API đọc mỗi 5 giây; giá trị khác với bản đang giữ thì nạp lại cache.
 - **File Streaming**: Hỗ trợ HTTP Range Requests (`206 Partial Content`) để người dùng có thể tua âm thanh nghe ghi âm tức thì mà không cần load toàn bộ file.
 - **Exporting**: `exceljs` để xuất báo cáo Excel định dạng chuẩn EVN, `pdfmake` hoặc `puppeteer` để xuất báo cáo PDF (trích xuất tức thì từ `stats_daily`, thời gian phản hồi $< 1\text{s}$).
-- **Realtime**: `@nestjs/websockets` (Socket.IO) chạy trong `backend-api`, gửi thông báo tức thời (In-app alerts). Worker không giữ kết nối WebSocket: nó chỉ ghi `notifications` + `notification_recipients`. Mỗi instance API chạy bộ đọc `NotificationPushPoller` (mỗi 3 giây, đọc `notifications.id >` watermark trong bộ nhớ, khởi tạo bằng `MAX(id)` lúc khởi động) và phát `notification:new` tới room người nhận đang kết nối vào chính instance đó. Thông báo do Admin soạn qua API **cũng** đi đường này, không emit trực tiếp, để mỗi thông báo chỉ được phát một lần.
+- **Realtime**: `@nestjs/websockets` (Socket.IO) chạy trong `backend-api`, gửi thông báo tức thời (In-app alerts). Worker không giữ kết nối WebSocket: nó chỉ ghi `notifications` + `notification_recipients`. Mỗi instance API chạy bộ đọc `NotificationPushPoller` (mỗi 3 giây, đọc thông báo có `created_at` trong 5 phút gần nhất và chưa có trong tập id đã phát giữ trong bộ nhớ; không dùng watermark `id` vì thông báo commit có thể đảo thứ tự, `docs/modules/06_notifications.md` mục 4.1) và phát `notification:new` tới room người nhận đang kết nối vào chính instance đó. Thông báo do Admin soạn qua API **cũng** đi đường này, không emit trực tiếp, để mỗi thông báo chỉ được phát một lần.
 
 ### 2.2. Frontend: Vue.js 3
 
@@ -354,7 +354,7 @@ backend/
 │   │   ├── realtime.module.ts
 │   │   ├── admin-notifications.gateway.ts   <-- namespace /admin/notifications (JWT_ADMIN_SECRET)
 │   │   ├── user-notifications.gateway.ts    <-- namespace /notifications (JWT_USER_SECRET)
-│   │   └── notification-push.poller.ts      <-- đọc notifications mới (watermark id) mỗi 3 giây, phát notification:new
+│   │   └── notification-push.poller.ts      <-- đọc notifications mới (cửa sổ 5 phút + tập id đã phát) mỗi 3 giây, phát notification:new
 │   │
 │   └── core/                      <-- PHẦN LÕI DÙNG CHUNG: KHÔNG có controller, gateway, scheduler/job
 │       ├── core.module.ts         <-- @Global: ConfigModule, DatabaseModule, các module domain bên dưới

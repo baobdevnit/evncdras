@@ -325,6 +325,14 @@ export class CdrEnrichmentService {
   ) {}
 
   async runBatch() {
+    // 0. Báo trạng thái đang chạy (autocommit) TRƯỚC khi mở transaction, để màn hình giám sát thấy ngay.
+    //    Không được ghi dòng này bằng kết nối khác sau bước 1: transaction đang giữ khóa FOR UPDATE trên id = 1,
+    //    câu UPDATE ở kết nối khác sẽ chờ khóa đó trong khi code lại chờ câu UPDATE xong (InnoDB không phát hiện
+    //    được vì hai bên nằm ở hai kết nối khác nhau), hết innodb_lock_wait_timeout thì lỗi 1205 và batch bị rollback.
+    await this.dataSource.query(
+      "UPDATE cdr_enrichment_state SET status = 'PROCESSING', last_run_at = NOW() WHERE id = 1",
+    );
+
     const qr = this.dataSource.createQueryRunner();
     await qr.connect();
     await qr.startTransaction();
@@ -336,12 +344,12 @@ export class CdrEnrichmentService {
       const rows = await qr.query('SELECT * FROM cdr WHERE id > ? ORDER BY id ASC LIMIT ?', [
         state.last_processed_cdr_id, state.batch_size,
       ]);
-      if (rows.length === 0) { await qr.commitTransaction(); return; }
-
-      // Báo trạng thái đang chạy bằng kết nối riêng, để màn hình giám sát thấy ngay (transaction chưa commit)
-      await this.dataSource.query(
-        "UPDATE cdr_enrichment_state SET status = 'PROCESSING', last_run_at = NOW() WHERE id = 1",
-      );
+      if (rows.length === 0) {
+        // Ghi trạng thái bằng chính qr (đang giữ khóa), không dùng kết nối khác
+        await qr.query("UPDATE cdr_enrichment_state SET status = 'IDLE' WHERE id = 1");
+        await qr.commitTransaction();
+        return;
+      }
 
       const coreIps = this.settings.getList('pabx_core_ip_list');
       const internalPattern = new RegExp(this.settings.get('analysis_internal_extension_pattern'));
@@ -388,7 +396,7 @@ export class CdrEnrichmentService {
       );
       await qr.commitTransaction();
     } catch (err: any) {
-      await qr.rollbackTransaction();
+      await qr.rollbackTransaction(); // nhả khóa trước, rồi mới ghi ERROR bằng kết nối khác
       this.logger.error(`Lỗi tiến trình CDR Enrichment: ${err.message}`, err.stack);
       await this.dataSource.query(
         "UPDATE cdr_enrichment_state SET status = 'ERROR', error_message = ?, last_run_at = NOW() WHERE id = 1",
@@ -404,6 +412,7 @@ export class CdrEnrichmentService {
 - `NumberOwnershipCacheService` dựng map `phone_number → user_groups.id` **chỉ** từ chuỗi `phone_numbers.range_id → phone_prefix_ranges.prefix_group_id → user_groups.phone_prefix_group_id` (mọi trạng thái số, theo `01` §8). Không tra theo `prefix` hay `range_from..range_to`. Cache được nạp khi khởi động và nạp lại khi `cdr_enrichment_state.cache_version` khác bản đang giữ (kiểm tra ở đầu mỗi chu kỳ); API tăng `cache_version` sau mỗi thao tác cấp phát/thu hồi dải số.
 - `CdrEnrichmentScheduler` nằm trong `src/apps/worker/cdr-enrichment/`, chỉ được `WorkerAppModule` import và chạy ở tiến trình `backend-worker` (đúng 1 instance). `CdrModule` trong `core` chỉ export `CdrEnrichmentService`, không chứa lớp lịch chạy (`docs/00_overview_and_architecture.md` mục 2.1, 5.1).
 - Thay đổi `analysis_internal_extension_pattern` hoặc `pabx_core_ip_list` chỉ áp dụng cho bản ghi làm giàu sau thời điểm lưu.
+- **Khóa dòng `cdr_enrichment_state`**: trong lúc transaction của batch còn mở, mọi câu ghi vào dòng `id = 1` phải đi qua chính `qr`. Ghi bằng `this.dataSource.query` (kết nối khác) chỉ được làm trước `startTransaction()` hoặc sau `commit`/`rollback`.
 - Watermark theo `id` giả định PABX là **một tiến trình ghi duy nhất**, cấp `id` tăng dần theo thứ tự commit (đúng với dữ liệu thật).
 - Khi ghi một leg mà khung giờ của nó là `H − 2` hoặc cũ hơn (`H` = khung giờ hiện tại; điều kiện theo khung giờ, không theo tuổi leg), tiến trình đưa (`DATE(Created)`, `HOUR(Created)`) vào `stats_recompute_queue` bằng `INSERT ... ON DUPLICATE KEY UPDATE queued_at = CURRENT_TIMESTAMP(6)` (không dùng `INSERT IGNORE`). Khi đổi leg chính, áp dụng cùng điều kiện cho khung giờ của cả leg chính mới và leg chính cũ (hai leg lệch tới 2 giây có thể nằm ở hai khung giờ). Bỏ qua khung có ngày trước mốc `:purgeBoundary`. Job tổng hợp tính lại các khung đó (`docs/01_database_schema.md` mục 15.0, bước 5).
 - Nhóm sở hữu số được **chốt tại thời điểm làm giàu**: cấp phát/thu hồi dải sau đó không đổi `caller_group_id`/`called_group_id` của bản ghi đã làm giàu. Ở lần cài đặt đầu tiên, tiến trình làm giàu toàn bộ CDR lịch sử từ `id = 0` theo dải số tại thời điểm cài, nên Admin phải cấp phát xong dải số **trước** khi bật `backend-worker` nếu muốn CDR lịch sử được gán đúng nhóm.
