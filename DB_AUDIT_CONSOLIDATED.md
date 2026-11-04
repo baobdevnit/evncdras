@@ -56,6 +56,7 @@
 | 23 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `94c7d7b` | 6 Minor | ✅ phía `docs/`; C-03 chờ xác nhận |
 | 24 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `6489527` | 14 Minor | ✅ phía `docs/`; C-04 chờ xác nhận |
 | 25 | 2026-11-04 | (ghi thẳng vào file này, mục 3.5) | `69cb536` | 3 Major, 7 Minor | ✅ phía `docs/`; R25-07 ghi nhận rủi ro (I-07) |
+| 26 | 2026-11-04 → | Kế hoạch `tasks/endpoint_review_plan.md` (rà từng endpoint: API + CSDL + `templates/`) | theo từng endpoint (cột Commit của kế hoạch) | 0 / 99 endpoint | 🔄 Đang làm |
 
 ---
 
@@ -439,6 +440,15 @@ Quyết định Q1–Q11 (lần 2), R1–R13 (vòng 2), D1–D4 (vòng 3) ghi đ
 | R25-10 | Minor | Cảnh báo job nền không có loại thông báo phù hợp (`SYSTEM_MAINTENANCE` dành cho Admin soạn) | Chủ dự án chốt: thêm `SYSTEM_JOB` vào `notifications.type`, người nhận mọi Admin `ACTIVE`. `01` §10–11, M06 §1.1, `03` |
 
 Đề xuất làm gọn **bị từ chối** ở lần 10 (giữ nguyên, không đề xuất lại): gộp `phone_prefix_groups` vào `user_groups`; thay 5 bảng RBAC bằng cột `role`; bỏ `stats_daily`; bỏ dòng `phone_number_range_history` cho từng số.
+
+
+### 3.6. Lần 26 – Rà soát từng endpoint (API + CSDL + templates)
+
+Kế hoạch, quy trình và tiến độ: `tasks/endpoint_review_plan.md`. Mỗi hội thoại rà một endpoint, ghi phát hiện vào bảng dưới với mã `E-<ID endpoint>-<nn>` (vd. `E-A01-01`); không có phát hiện thì ghi một dòng "không có phát hiện".
+
+| ID | Mức | Phát hiện | Cách sửa |
+|---|---|---|---|
+| — | — | *(chưa có)* | — |
 
 ---
 
