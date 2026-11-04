@@ -32,6 +32,7 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 ## 3. Đặc tả API Contracts
 
 ### 3.1. Đăng nhập Admin (`POST /api/v1/admin/auth/login`)
+- **Guard**: Public (không cần Access Token). Không bị chế độ bảo trì chặn (`docs/02_api_contracts.md` mục 1.2).
 - **Request Body**:
 ```json
 {
@@ -40,16 +41,25 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
   "rememberMe": true
 }
 ```
-- **Xử lý Backend**:
-  1. Truy vấn `admins` theo `username_active` hoặc `email_active` (chỉ tài khoản chưa `INACTIVE`; không thấy thì trả `401` và ghi `LOGIN_FAILED` với `reason = UNKNOWN_USER`, như `docs/modules/03_auth_user.md` mục 3.1).
-  2. Kiểm tra `status == 'ACTIVE'` (`LOCKED` thì `403` với `errorCode = "ACCOUNT_LOCKED"`) và `locked_until` (còn hiệu lực thì `423` với body `{ "success": false, "statusCode": 423, "errorCode": "ACCOUNT_TEMPORARILY_LOCKED", "message": "...", "errors": { "lockedUntil": "2026-10-26T09:45:00+07:00" }, "timestamp": "..." }`, khung lỗi `docs/02_api_contracts.md` mục 2.3).
-  3. Xác thực `bcrypt.compare(password, admin.password_hash)`. Sai: tăng `failed_login_count` bằng một câu `UPDATE` nguyên tử; đạt `security_login_max_failed` thì đặt `locked_until` và đặt lại `failed_login_count = 0` trong cùng câu lệnh (`docs/01_database_schema.md` mục 6.1). Đúng: đặt `failed_login_count = 0`.
-  4. Đọc vai trò từ `admin_roles` (join `roles`). Tạo Access Token (`security_access_token_minutes`, mặc định 15 phút) ký bằng `JWT_ADMIN_SECRET`, mang `sub`, `roleCode`; và Refresh Token (`security_refresh_token_days`, mặc định 7 ngày) lưu dạng băm vào `auth_sessions`. Chính sách đầy đủ tại `docs/01_database_schema.md` mục 6.1.
-  5. Nếu `must_change_password = 1` hoặc mật khẩu quá hạn: chỉ cấp Access Token `scope: "PASSWORD_CHANGE_ONLY"` (không có Refresh Token, xem `docs/01_database_schema.md` mục 6.1), response có `"mustChangePassword": true`.
-  6. Cập nhật `last_login_at = NOW()`.
-  7. Ghi Audit Log: `resource_name = AUTH`, `action = LOGIN` khi thành công; `LOGIN_FAILED` khi thất bại (kèm `action_details.reason`, `actor_id` NULL nếu username không tồn tại).
-- **Refresh Token** gửi qua cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth`, không nằm trong body response. `rememberMe = false` thì cookie không đặt `Max-Age` (mất khi đóng trình duyệt).
-- **Response**:
+
+| Trường | Kiểu | Bắt buộc | Ràng buộc |
+|---|---|---|---|
+| `username` | string | Có | Username **hoặc** email; cắt khoảng trắng hai đầu; 1–150 ký tự (`admins.username` ≤ 100, `admins.email` ≤ 150) |
+| `password` | string | Có | 1–255 ký tự; không cắt khoảng trắng, không kiểm tra chính sách mật khẩu ở bước đăng nhập |
+| `rememberMe` | boolean | Không | Mặc định `false` |
+
+  Thiếu trường bắt buộc, sai kiểu, quá độ dài hoặc có trường khác trả `400 VALIDATION_ERROR` (`docs/02_api_contracts.md` mục 2.3), không ghi `audit_logs`.
+- **Xử lý Backend** (theo đúng thứ tự):
+  1. Tìm tài khoản theo `username_active = :username`; không thấy thì theo `email_active = :username` (chỉ tài khoản chưa `INACTIVE`; so sánh không phân biệt hoa thường theo collation). Không thấy: `401 INVALID_CREDENTIALS`, ghi `LOGIN_FAILED` với `reason = UNKNOWN_USER`, `actor_id = NULL`, `actor_name` = chuỗi đã nhập (như `docs/modules/03_auth_user.md` mục 3.1).
+  2. `status = 'LOCKED'`: `403 ACCOUNT_LOCKED`, ghi `LOGIN_FAILED` (`reason = ACCOUNT_LOCKED`). `locked_until > NOW()`: `423` với body `{ "success": false, "statusCode": 423, "errorCode": "ACCOUNT_TEMPORARILY_LOCKED", "message": "...", "errors": { "lockedUntil": "2026-10-26T09:45:00+07:00" }, "timestamp": "..." }` (khung lỗi `docs/02_api_contracts.md` mục 2.3), ghi `LOGIN_FAILED` (`reason = TEMPORARILY_LOCKED`). Hai nhánh này không kiểm tra mật khẩu, không tăng bộ đếm.
+  3. Xác thực `bcrypt.compare(password, admin.password_hash)`. Sai: tăng `failed_login_count` bằng một câu `UPDATE` nguyên tử; đạt `security_login_max_failed` thì đặt `locked_until` và đặt lại `failed_login_count = 0` trong cùng câu lệnh (`docs/01_database_schema.md` mục 6.1); trả `401 INVALID_CREDENTIALS` (cùng mã, cùng thông điệp với bước 1, kể cả lần sai làm tài khoản bị khóa tạm), ghi `LOGIN_FAILED` (`reason = BAD_PASSWORD`).
+  4. Đúng mật khẩu: một câu `UPDATE admins SET failed_login_count = 0, last_login_at = NOW()`. Đọc vai trò từ `admin_roles` (join `roles`) và `permissions` từ `permission_roles` của vai trò đó.
+  5. Xác định loại token:
+     - **Đầy đủ** (bình thường): Access Token (`security_access_token_minutes`, mặc định 15 phút) ký bằng `JWT_ADMIN_SECRET`, mang `sub`, `roleCode`; tạo một dòng `auth_sessions` (`actor_type = 'ADMIN'`, `actor_id`, `refresh_token_hash` = SHA-256 của Refresh Token, `ip_address`, `user_agent` của request, `expires_at = NOW() + security_refresh_token_days`, mặc định 7 ngày) và gửi Refresh Token qua cookie.
+     - **Giới hạn**, khi `must_change_password = 1` hoặc `password_changed_at` quá `security_password_max_age_days`: chỉ cấp Access Token có thêm claim `scope: "PASSWORD_CHANGE_ONLY"`; **không** tạo dòng `auth_sessions`, không gửi cookie; response có `mustChangePassword: true`. Chính sách đầy đủ tại `docs/01_database_schema.md` mục 6.1.
+  6. Ghi `audit_logs` `AUTH / LOGIN` (`actor_type = ADMIN`, `actor_id`, `ip_address`, `user_agent`) cho cả hai loại token. Bước 4–6 trong một transaction.
+- **Refresh Token** gửi qua cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth`, không nằm trong body response. `rememberMe = true` thì cookie có `Max-Age` = `security_refresh_token_days`; `false` thì không đặt `Max-Age` (mất khi đóng trình duyệt), hạn phiên phía server vẫn là `expires_at`. Token giới hạn không có cookie nên `rememberMe` không có tác dụng.
+- **Response** `200`:
 ```json
 {
   "success": true,
@@ -64,13 +74,34 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
       "username": "root.admin@evnict.vn",
       "fullName": "Quản trị viên Tối cao EVNICT",
       "email": "root.admin@evnict.vn",
+      "avatarUrl": null,
       "roleCode": "ROOT_ADMIN",
       "roleName": "Quản trị viên tối cao",
       "permissions": ["cdr:view", "cdr:listen_audio", "cdr:download_audio", "admin:manage", "system:manage", "role:view"]
     }
-  }
+  },
+  "timestamp": "2026-10-26T09:30:00+07:00"
 }
 ```
+
+| Trường | Nguồn | Ghi chú |
+|---|---|---|
+| `accessToken` | JWT | Chỉ giữ trong bộ nhớ frontend |
+| `expiresIn` | `security_access_token_minutes` × 60 | Giây |
+| `mustChangePassword` | `true` khi cấp token giới hạn (bước 5) | |
+| `admin.id`, `username`, `fullName`, `email`, `avatarUrl` | `admins` | `avatarUrl` = `null` khi chưa tải ảnh |
+| `admin.roleCode`, `roleName` | `roles.code`, `roles.name` qua `admin_roles` | |
+| `admin.permissions` | `permissions.code` qua `permission_roles` của vai trò, sắp xếp theo `code` | Ví dụ trên rút gọn: `ROOT_ADMIN` có đủ 25 mã, `SYSTEM_ADMIN` 24 mã (`docs/modules/10_permissions_and_roles.md` mục 2.2) |
+
+  Token giới hạn trả **cùng cấu trúc** (`admin` đầy đủ, kể cả `permissions`), `mustChangePassword = true`; frontend thấy cờ này thì chuyển thẳng tới trang đổi mật khẩu, không vào layout chính. `admin` cũng là cấu trúc của `GET /api/v1/admin/auth/me`.
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào | `LOGIN_FAILED.reason` |
+|---|---|---|---|
+| `400` | `VALIDATION_ERROR` | Body sai (bảng request) | *(không ghi)* |
+| `401` | `INVALID_CREDENTIALS` | Không thấy tài khoản (kể cả `INACTIVE`) hoặc sai mật khẩu | `UNKNOWN_USER` / `BAD_PASSWORD` |
+| `403` | `ACCOUNT_LOCKED` | `status = 'LOCKED'` | `ACCOUNT_LOCKED` |
+| `423` | `ACCOUNT_TEMPORARILY_LOCKED` | `locked_until > NOW()`, `errors.lockedUntil` | `TEMPORARILY_LOCKED` |
 
 ### 3.2. Danh sách Quản trị viên (`GET /api/v1/admin/admins`)
 - **Guard**: `AdminAuthGuard`, `Permission: admin:manage`
@@ -183,6 +214,9 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
   - Panel bên trái hiển thị Logo EVN (`logo_evn.svg`), tiêu đề "EVN CDR Analysis System - Quản trị hệ thống".
   - Panel bên phải: Form đăng nhập tài khoản Quản trị với nhãn cảnh báo đỏ nhỏ: "Khu vực dành riêng cho Quản trị viên hạ tầng viễn thông EVNICT".
   - Access Token Admin chỉ giữ trong bộ nhớ (Pinia store riêng của Admin Portal), không lưu `localStorage`; Refresh Token nằm trong cookie `HttpOnly` có `Path=/api/v1/admin/auth`, nên không xung đột với phiên của User Portal (chính sách tại `docs/01_database_schema.md` mục 6.1).
+- Form gửi đúng 3 trường của mục 3.1: ô "Tên đăng nhập / Email" (`username`, `maxlength="150"`), ô mật khẩu (`password`, nút hiện/ẩn), ô chọn "Ghi nhớ phiên quản trị" (`rememberMe`). Không điền sẵn tài khoản/mật khẩu mẫu. Không có liên kết "Quên mật khẩu": hệ thống không có API tự khôi phục; Admin quên mật khẩu nhờ Quản trị viên tối cao đặt lại (mục 3.6), trang hiển thị dòng hướng dẫn này.
+- Khi gửi: khóa nút, hiển thị trạng thái đang xác thực. Thành công thì lưu `accessToken` và `admin` vào `authAdmin` store; `mustChangePassword = true` thì chuyển tới `admin.change-password` (không vào layout chính), ngược lại chuyển tới `admin.dashboard` (hoặc trang đích trước khi bị guard chuyển về login).
+- Hộp lỗi `#adminLoginError` theo `errorCode`: `INVALID_CREDENTIALS` → "Tên đăng nhập hoặc mật khẩu không đúng"; `ACCOUNT_LOCKED` → "Tài khoản quản trị đã bị khóa. Liên hệ Quản trị viên tối cao"; `ACCOUNT_TEMPORARILY_LOCKED` → "Đăng nhập sai quá nhiều lần. Thử lại sau HH:mm" (giờ lấy từ `errors.lockedUntil`, frontend tự định dạng); `VALIDATION_ERROR` → thông điệp theo trường trong `errors`; lỗi mạng/`5xx` → "Không kết nối được máy chủ".
 
 ### 5.2. Quản lý Quản trị viên trong Cài đặt hệ thống
 - Là mục `admins` (component `AdminAccountsSection.vue`) trong `SystemSettingsView.vue`, mở trực tiếp tại `/admin/settings?section=admins` (`docs/00_overview_and_architecture.md` mục 5.3.3, bảng "Chức năng đặt bên trong màn hình"). Không có route hay view riêng.
@@ -197,4 +231,6 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 2. **TC-ADM-02**: Đăng nhập bằng `SYSTEM_ADMIN`, thử gọi API `POST /api/v1/admin/admins`, xác nhận hệ thống trả về lỗi `403 FORBIDDEN_PERMISSION`.
 3. **TC-ADM-03**: Dùng Token của User để gọi API `GET /api/v1/admin/auth/me`, xác nhận hệ thống từ chối với lỗi `401 UNAUTHORIZED`.
 4. **TC-ADM-04**: Thử xóa tài khoản Root Admin, xác nhận hệ thống từ chối với `403 ROOT_ADMIN_PROTECTED` và ghi nhận cảnh báo an ninh vào `audit_logs` (`action = ACCESS_DENIED`, `resource_name = ADMIN`).
+5. **TC-ADM-05**: Đăng nhập Admin với username không tồn tại, với username của tài khoản `INACTIVE` và với mật khẩu sai: cả ba trả `401 INVALID_CREDENTIALS` cùng thông điệp; `audit_logs` có `LOGIN_FAILED` với `reason` lần lượt `UNKNOWN_USER`, `UNKNOWN_USER`, `BAD_PASSWORD`. Sai lần thứ 5 vẫn trả `401`, lần thứ 6 trả `423` với `errors.lockedUntil`.
+6. **TC-ADM-06**: Đăng nhập Admin vừa tạo (`must_change_password = 1`): `200`, `mustChangePassword = true`, có `admin` đầy đủ, không có `Set-Cookie`, không có dòng `auth_sessions` mới; gọi `GET /api/v1/admin/cdr` bằng token này trả `403 PASSWORD_CHANGE_REQUIRED`.
 

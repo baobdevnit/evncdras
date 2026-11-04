@@ -436,8 +436,8 @@ Hệ thống mẫu giao diện trong thư mục `templates/` được phân nhó
 ```
 templates/
  ├── Nhóm 1: Xác thực & Quản trị Hệ thống
- │    ├── login.html & login.css             # Đăng nhập Cổng Đơn vị Thành viên
- │    ├── login_admin.html & login_admin.css # Đăng nhập Cổng Quản trị Tối cao EVNICT
+ │    ├── member/login.html & .css           # Đăng nhập Cổng Người dùng đơn vị
+ │    ├── admin/login.html & .css            # Đăng nhập Cổng Quản trị hệ thống
  │    ├── system-settings.html & .css        # Cài đặt hệ thống theo các key seed system_settings (phân tích PABX, lưu trữ, bảo trì, SMTP, bảo mật)
  │    └── notifications.html & .css          # Trung tâm thông báo hệ thống toàn cục
  ├── Nhóm 2: Bảng Điều khiển & Báo cáo
@@ -466,8 +466,8 @@ templates/
 
 | STT | Tệp Giao diện HTML | Tệp Phong cách CSS | Phân hệ Chức năng | Các Thành phần UI Tiêu biểu |
 | :---: | :--- | :--- | :--- | :--- |
-| **01** | `login.html` | `login.css` | Xác thực Đơn vị | Layout 2 cột chia đôi, Showcase logo EVN, Giao diện tối, Hộp tài khoản mẫu |
-| **02** | `login_admin.html` | `login_admin.css` | Xác thực Quản trị | Banner Vàng Admin, Nút chuyển Cổng Người dùng, Cảnh báo an ninh cấp cao |
+| **01** | `member/login.html` | `member/login.css` | Xác thực Đơn vị | Layout 2 cột chia đôi, Showcase logo EVN, Giao diện tối, Hộp tài khoản mẫu *(rà ở U01)* |
+| **02** | `admin/login.html` | `admin/login.css` | Xác thực Quản trị | Huy hiệu vàng "Cổng Quản trị Hệ thống", nhãn cảnh báo đỏ, nút chuyển Cổng Người dùng, hộp lỗi theo `errorCode`; không điền sẵn tài khoản, không có liên kết "Quên mật khẩu" (`docs/modules/04_auth_admin.md` mục 5.1) |
 | **03** | `dashboard.html` | `dashboard.css`, `style.css` | Bảng Điều khiển | 4 Thẻ Stat Card chỉ số, Biểu đồ Chart.js lượng gọi theo giờ, Trạng thái tổng đài |
 | **04** | `cdr-history.html` | `cdr-history.css` | Giám sát Cuộc gọi | Lưới lọc thời gian đa tham số, Bảng CDR, Nghe/Tải ghi âm, Phân trang |
 | **05** | `qos-debug.html` | `qos-debug.css` | Đánh giá QoS | Thẻ điểm MOS, Biểu đồ Jitter/Packet Loss, Bộ giải mã Codec, Phân tích lỗi SIP |

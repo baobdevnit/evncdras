@@ -23,7 +23,7 @@
 
                 <div class="welcome-text">
                     <h1>EVN CDR <br>Analysis System</h1>
-                    <p class="subtitle">Phân tích nhật ký cuộc gọi</p>
+                    <p class="subtitle">Quản trị hệ thống</p>
                 </div>
 
             </div>
@@ -68,10 +68,11 @@
                     </div>
                     <h2>Đăng nhập Quản trị</h2>
                     <p>Nhập thông tin tài khoản Quản trị viên để truy cập</p>
+                    <p class="admin-security-note">Khu vực dành riêng cho Quản trị viên hạ tầng viễn thông EVNICT</p>
                 </div>
 
                 <!-- Error alerts -->
-                <div id="adminLoginError" class="admin-error-message" style="display: none;">
+                <div id="adminLoginError" class="admin-error-message" role="alert" style="display: none;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                         stroke-linejoin="round" class="error-icon">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -90,8 +91,8 @@
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                                 <circle cx="12" cy="7" r="4"></circle>
                             </svg>
-                            <input type="text" id="adminEmail" placeholder="Ví dụ: root.admin@evnict.vn" required
-                                autocomplete="username" value="root.admin@evnict.vn">
+                            <input type="text" id="adminEmail" name="username" placeholder="Ví dụ: root.admin@evnict.vn" required
+                                maxlength="150" autocomplete="username">
                         </div>
                     </div>
 
@@ -103,8 +104,8 @@
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                             </svg>
-                            <input type="password" id="adminPassword" placeholder="Nhập mật khẩu quản trị" required
-                                autocomplete="current-password" value="RootSecurePassword2026!@">
+                            <input type="password" id="adminPassword" name="password" placeholder="Nhập mật khẩu quản trị" required
+                                maxlength="255" autocomplete="current-password">
                             <button type="button" id="toggleAdminPassword" class="toggle-password"
                                 aria-label="Hiện/Ẩn mật khẩu">
                                 <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -118,11 +119,12 @@
 
                     <div class="form-options">
                         <label class="remember-me">
-                            <input type="checkbox" id="adminRemember">
+                            <input type="checkbox" id="adminRemember" name="rememberMe">
                             <span class="checkmark"></span>
                             <span>Ghi nhớ phiên quản trị</span>
                         </label>
-                        <a href="system-settings.html" class="forgot-link">Quên mật khẩu?</a>
+                        <!-- Không có API tự khôi phục mật khẩu (docs/modules/04_auth_admin.md mục 5.1) -->
+                        <span class="forgot-hint">Quên mật khẩu? Liên hệ Quản trị viên tối cao</span>
                     </div>
 
                     <button type="submit" class="admin-submit-btn">

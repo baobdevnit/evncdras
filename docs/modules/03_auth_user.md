@@ -63,8 +63,8 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 ```
 
 - **Validation**:
-  - Trường `username` nhận **username hoặc email**: tìm theo `username_active`, nếu không thấy thì theo `email_active` (chỉ tài khoản chưa `INACTIVE`). Không thấy thì trả `401` và ghi `LOGIN_FAILED` (`reason = UNKNOWN_USER`).
-  - Kiểm tra `status == 'ACTIVE'`. Nếu `LOCKED`, trả về `403` với `errorCode = "ACCOUNT_LOCKED"` ("Tài khoản đã bị khóa") (tài khoản `INACTIVE` không tìm thấy qua `username_active` nên trả `401`). Nhóm của user có `status = 'INACTIVE'` trả `403` với `errorCode = "GROUP_INACTIVE"` (`docs/02_api_contracts.md` mục 2.3).
+  - Trường `username` nhận **username hoặc email**: tìm theo `username_active`, nếu không thấy thì theo `email_active` (chỉ tài khoản chưa `INACTIVE`). Không thấy thì trả `401 INVALID_CREDENTIALS` và ghi `LOGIN_FAILED` (`reason = UNKNOWN_USER`); sai mật khẩu cũng trả đúng mã và thông điệp này (`docs/02_api_contracts.md` mục 2.3).
+  - Kiểm tra `status == 'ACTIVE'`. Nếu `LOCKED`, trả về `403` với `errorCode = "ACCOUNT_LOCKED"` ("Tài khoản đã bị khóa") (tài khoản `INACTIVE` không tìm thấy qua `username_active` nên trả `401 INVALID_CREDENTIALS`). Nhóm của user có `status = 'INACTIVE'` trả `403` với `errorCode = "GROUP_INACTIVE"` (`docs/02_api_contracts.md` mục 2.3).
   - Nếu `locked_until > NOW()` (khóa tạm do sai mật khẩu), trả về `423` với body `{ "success": false, "statusCode": 423, "errorCode": "ACCOUNT_TEMPORARILY_LOCKED", "message": "...", "errors": { "lockedUntil": "2026-10-26T09:45:00+07:00" }, "timestamp": "..." }` (khung lỗi `docs/02_api_contracts.md` mục 2.3).
   - Sai mật khẩu: tăng `failed_login_count` bằng một câu `UPDATE` nguyên tử; đạt `security_login_max_failed` (mặc định 5) thì `locked_until = NOW() + security_lockout_minutes` (mặc định 15 phút) và đặt lại `failed_login_count = 0` trong cùng câu lệnh (câu SQL tại `docs/01_database_schema.md` mục 6.1). Đúng: đặt `failed_login_count = 0`.
 - **`rememberMe`**: `false` thì cookie Refresh Token không đặt `Max-Age` (mất khi đóng trình duyệt); hạn phiên phía server vẫn là 7 ngày.
