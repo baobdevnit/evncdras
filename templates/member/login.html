@@ -47,17 +47,8 @@
                     <p>Nhập thông tin tài khoản để truy cập hệ thống</p>
                 </div>
 
-                <!-- Demo Account Info Box -->
-                <div class="demo-account-box">
-                    <div class="demo-text">
-                        <span class="demo-label">Tài khoản mặc định:</span>
-                        <code class="demo-credentials">cdr.evnit@evn.com.vn / 1234567890</code>
-                    </div>
-                    <button type="button" id="fillDemoBtn" class="demo-fill-btn">Tự điền</button>
-                </div>
-
                 <!-- Error alerts -->
-                <div id="loginError" class="login-error-message" style="display: none;">
+                <div id="loginError" class="login-error-message" role="alert" style="display: none;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="error-icon">
                         <circle cx="12" cy="12" r="10"></circle>
                         <line x1="12" y1="8" x2="12" y2="12"></line>
@@ -68,15 +59,15 @@
 
                 <form id="loginForm" class="login-form">
                     <div class="input-group">
-                        <label for="email">Tên đăng nhập</label>
+                        <label for="username">Tên đăng nhập / Email</label>
                         <div class="input-container">
                             <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                                 <circle cx="12" cy="7" r="4"></circle>
                             </svg>
-                            <input type="email" id="email" placeholder="Ví dụ: cdr.evnit@evn.com.vn" required
-                                autocomplete="email" value="cdr.evnit@evn.com.vn">
+                            <input type="text" id="username" name="username" placeholder="Ví dụ: cdr.evnit hoặc cdr.evnit@evn.com.vn" required
+                                maxlength="150" autocomplete="username">
                         </div>
                     </div>
 
@@ -88,8 +79,8 @@
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                             </svg>
-                            <input type="password" id="password" placeholder="Nhập mật khẩu" required
-                                autocomplete="current-password" value="1234567890">
+                            <input type="password" id="password" name="password" placeholder="Nhập mật khẩu" required
+                                maxlength="255" autocomplete="current-password">
                             <button type="button" id="togglePassword" class="toggle-password" aria-label="Hiện/Ẩn mật khẩu">
                                 <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -102,11 +93,12 @@
 
                     <div class="form-options">
                         <label class="remember-me">
-                            <input type="checkbox" id="remember">
+                            <input type="checkbox" id="remember" name="rememberMe">
                             <span class="checkmark"></span>
                             <span>Ghi nhớ đăng nhập</span>
                         </label>
-                        <a href="dashboard.html" class="forgot-link">Quên mật khẩu?</a>
+                        <!-- Không có API tự khôi phục mật khẩu (docs/modules/03_auth_user.md mục 5.0) -->
+                        <span class="forgot-hint">Quên mật khẩu? Liên hệ Quản trị viên nhóm</span>
                     </div>
 
                     <button type="submit" class="submit-btn">
@@ -120,7 +112,7 @@
                 </form>
 
                 <div class="form-footer">
-                    <p>Chưa có tài khoản? <a href="dashboard.html">Liên hệ quản trị viên</a></p>
+                    <p>Chưa có tài khoản? Liên hệ Quản trị viên nhóm của đơn vị</p>
                     <p style="margin-top: 0.5rem;"><a href="../admin/login.html">Dành cho Quản trị viên hệ thống &rarr;</a></p>
                 </div>
             </div>

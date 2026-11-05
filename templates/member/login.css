@@ -236,73 +236,6 @@ body.login-page #app {
     letter-spacing: -0.01em;
 }
 
-.demo-account-box {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--input-bg);
-    border: 1px dashed var(--border);
-    border-radius: 8px;
-    padding: 0.45rem 0.75rem;
-    margin-bottom: 0.85rem;
-    font-size: 0.775rem;
-}
-
-.demo-text {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.35rem;
-    color: var(--text-muted);
-}
-
-.demo-label {
-    font-weight: 600;
-    color: var(--text-main);
-}
-
-.demo-credentials {
-    font-family: monospace;
-    background: rgba(0, 51, 160, 0.08);
-    color: var(--primary);
-    padding: 0.15rem 0.4rem;
-    border-radius: 4px;
-    font-size: 0.75rem;
-}
-
-.demo-fill-btn {
-    background: transparent;
-    border: 1px solid var(--primary);
-    color: var(--primary);
-    padding: 0.2rem 0.55rem;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-}
-
-.demo-fill-btn:hover {
-    background: var(--primary);
-    color: white;
-}
-
-[data-theme="dark"] .demo-credentials {
-    background: rgba(88, 166, 255, 0.12);
-    color: var(--primary);
-}
-
-[data-theme="dark"] .demo-fill-btn {
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-[data-theme="dark"] .demo-fill-btn:hover {
-    background: var(--primary);
-    color: #0d1117;
-}
-
 .login-error-message {
     display: inline-flex;
     align-items: center;
@@ -316,6 +249,17 @@ body.login-page #app {
     font-size: 0.8rem;
     font-weight: 500;
     width: 100%;
+}
+
+.login-error-message.is-warning {
+    /* 503 MAINTENANCE: cảnh báo vàng (token warning, docs/03_ui_design.md mục 1), không phải lỗi đỏ */
+    background-color: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #b45309;
+}
+
+[data-theme="dark"] .login-error-message.is-warning {
+    color: #fbbf24;
 }
 
 .error-icon {
@@ -454,21 +398,11 @@ body.login-page #app {
     transform: rotate(45deg);
 }
 
-.forgot-link {
-    font-size: 0.825rem;
-    color: var(--primary);
-    text-decoration: none;
-    font-weight: 600;
-    transition: color 0.2s;
-}
-
-.forgot-link:hover {
-    color: var(--primary-light);
-    text-decoration: underline;
-}
-
-[data-theme="dark"] .forgot-link:hover {
-    color: #a5d6ff;
+.forgot-hint {
+    /* Không có API tự khôi phục mật khẩu (docs/modules/03_auth_user.md mục 5.0) */
+    font-size: 0.775rem;
+    color: var(--text-muted);
+    text-align: right;
 }
 
 .submit-btn {

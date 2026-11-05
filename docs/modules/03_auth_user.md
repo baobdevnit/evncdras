@@ -52,24 +52,41 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 
 ### 3.1. Đăng nhập User (`POST /api/v1/auth/login`)
 
+Cùng khung với bản Admin (`docs/modules/04_auth_admin.md` mục 3.1); mục này ghi đủ cho bản User. Điểm khác bản Admin: kiểm tra chế độ bảo trì (bước 0), nhánh nhóm `INACTIVE` (bước 2), quyền hiệu lực theo cờ nhóm (bước 4), claim `userGroupId`, cookie `Path=/api/v1/auth`, response có `user.userGroup`.
+
+- **Guard**: Public (không cần Access Token). **Bị** chế độ bảo trì chặn (`docs/02_api_contracts.md` mục 1.2, bước 0 dưới đây).
 - **Request Body**:
 
 ```json
 {
-  "username": "cdr.evnit@evn.com.vn",
+  "username": "cdr.evnit",
   "password": "Password123@",
   "rememberMe": true
 }
 ```
 
-- **Validation**:
-  - Trường `username` nhận **username hoặc email**: tìm theo `username_active`, nếu không thấy thì theo `email_active` (chỉ tài khoản chưa `INACTIVE`). Không thấy thì trả `401 INVALID_CREDENTIALS` và ghi `LOGIN_FAILED` (`reason = UNKNOWN_USER`); sai mật khẩu cũng trả đúng mã và thông điệp này (`docs/02_api_contracts.md` mục 2.3).
-  - Kiểm tra `status == 'ACTIVE'`. Nếu `LOCKED`, trả về `403` với `errorCode = "ACCOUNT_LOCKED"` ("Tài khoản đã bị khóa") (tài khoản `INACTIVE` không tìm thấy qua `username_active` nên trả `401 INVALID_CREDENTIALS`). Nhóm của user có `status = 'INACTIVE'` trả `403` với `errorCode = "GROUP_INACTIVE"` (`docs/02_api_contracts.md` mục 2.3).
-  - Nếu `locked_until > NOW()` (khóa tạm do sai mật khẩu), trả về `423` với body `{ "success": false, "statusCode": 423, "errorCode": "ACCOUNT_TEMPORARILY_LOCKED", "message": "...", "errors": { "lockedUntil": "2026-10-26T09:45:00+07:00" }, "timestamp": "..." }` (khung lỗi `docs/02_api_contracts.md` mục 2.3).
-  - Sai mật khẩu: tăng `failed_login_count` bằng một câu `UPDATE` nguyên tử; đạt `security_login_max_failed` (mặc định 5) thì `locked_until = NOW() + security_lockout_minutes` (mặc định 15 phút) và đặt lại `failed_login_count = 0` trong cùng câu lệnh (câu SQL tại `docs/01_database_schema.md` mục 6.1). Đúng: đặt `failed_login_count = 0`.
-- **`rememberMe`**: `false` thì cookie Refresh Token không đặt `Max-Age` (mất khi đóng trình duyệt); hạn phiên phía server vẫn là 7 ngày.
-- **Token**: Access Token 15 phút (ký `JWT_USER_SECRET`, mang `sub`, `userGroupId`, `roleCode` đọc từ `user_roles` lúc cấp, `sid` = id dòng `auth_sessions` vừa tạo), Refresh Token 7 ngày lưu dạng băm trong `auth_sessions` (`remember_me` = `rememberMe`, `logged_in_at = NOW()`) và gửi qua cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`, không nằm trong body. Nếu `must_change_password = 1` hoặc mật khẩu quá 90 ngày: chỉ cấp Access Token `scope: "PASSWORD_CHANGE_ONLY"` (không có Refresh Token), `mustChangePassword: true`. Chính sách đầy đủ tại `docs/01_database_schema.md` mục 6.1.
-- **Response**:
+| Trường | Kiểu | Bắt buộc | Ràng buộc |
+|---|---|---|---|
+| `username` | string | Có | Username **hoặc** email; cắt khoảng trắng hai đầu; 1–150 ký tự (`users.username` ≤ 100, `users.email` ≤ 150) |
+| `password` | string | Có | 1–255 ký tự; không cắt khoảng trắng, không kiểm tra chính sách mật khẩu ở bước đăng nhập |
+| `rememberMe` | boolean | Không | Mặc định `false` |
+
+  Thiếu trường bắt buộc, sai kiểu, quá độ dài hoặc có trường khác trả `400 VALIDATION_ERROR` (`docs/02_api_contracts.md` mục 2.3), không ghi `audit_logs`.
+- **Xử lý Backend** (theo đúng thứ tự):
+  0. `system_maintenance_mode = true`: `503 MAINTENANCE` **trước mọi bước** (trước cả kiểm tra body): không tìm tài khoản, không đổi bộ đếm sai, không ghi `audit_logs` (chủ dự án chốt ở U01). Setting đọc từ bộ nhớ đệm `system_settings` (`docs/modules/07_system_settings.md` mục 2).
+  1. Kiểm tra body (bảng trên), sai thì `400`. Tìm tài khoản theo `users.username_active = :username`; không thấy thì theo `email_active = :username` (chỉ tài khoản chưa `INACTIVE`; so sánh không phân biệt hoa thường theo collation), join `user_groups` theo khóa chính. Không thấy: `401 INVALID_CREDENTIALS`, ghi `LOGIN_FAILED` với `actor_type = USER`, `actor_id = NULL`, `actor_name` = chuỗi đã nhập, `reason = UNKNOWN_USER`.
+  2. Theo thứ tự dưới đây; các nhánh này không kiểm tra mật khẩu, không tăng bộ đếm, ghi `LOGIN_FAILED` với `actor_id` = id tài khoản:
+     - `users.status = 'LOCKED'`: `403 ACCOUNT_LOCKED` (`reason = ACCOUNT_LOCKED`).
+     - `user_groups.status = 'INACTIVE'`: `403 GROUP_INACTIVE` (`reason = GROUP_INACTIVE`). **Chốt phòng vệ** (chủ dự án chốt giữ ở U01): bình thường không xảy ra, vì ngừng hoạt động nhóm chuyển mọi tài khoản của nhóm sang `INACTIVE` trong cùng transaction (`docs/01_database_schema.md` mục 14) nên bước 1 đã trả `401`; nhánh này chỉ chạy khi dữ liệu lệch bất biến.
+     - `locked_until > NOW()`: `423 ACCOUNT_TEMPORARILY_LOCKED`, `errors = { "lockedUntil": "<ISO 8601>" }` (`reason = TEMPORARILY_LOCKED`).
+  3. `bcrypt.compare(password, users.password_hash)`. Sai: tăng `failed_login_count` bằng một câu `UPDATE` nguyên tử; đạt `security_login_max_failed` (mặc định 5) thì `locked_until = NOW() + security_lockout_minutes` (mặc định 15 phút) và đặt lại `failed_login_count = 0` trong cùng câu lệnh (câu SQL tại `docs/01_database_schema.md` mục 6.1); trả `401 INVALID_CREDENTIALS` (cùng mã, cùng thông điệp với bước 1, kể cả lần sai làm tài khoản bị khóa tạm), ghi `LOGIN_FAILED` (`reason = BAD_PASSWORD`).
+  4. Đúng mật khẩu: một câu `UPDATE users SET failed_login_count = 0, last_login_at = NOW()`. Đọc vai trò từ `user_roles` (khóa chính `user_id`, join `roles`); `permissions` = `ROLE_PERMISSIONS[roleCode]`, **bỏ** `cdr:listen_audio`, `cdr:download_audio` khi `user_groups.allow_recording_access = 0` (quyền hiệu lực, `docs/modules/10_permissions_and_roles.md` mục 2.3), sắp xếp theo `code`.
+  5. Xác định loại token:
+     - **Đầy đủ** (bình thường): Access Token (`security_access_token_minutes`, mặc định 15 phút) ký bằng `JWT_USER_SECRET`, mang `sub`, `userGroupId`, `roleCode` (đọc ở bước 4), `sid` (id dòng `auth_sessions` vừa tạo); tạo một dòng `auth_sessions` (`actor_type = 'USER'`, `actor_id`, `refresh_token_hash` = SHA-256 của Refresh Token, `ip_address`, `user_agent` của request, `remember_me` = `rememberMe`, `logged_in_at = NOW()`, `expires_at = NOW() + security_refresh_token_days`, mặc định 7 ngày) và gửi Refresh Token qua cookie.
+     - **Giới hạn**, khi `must_change_password = 1` hoặc `password_changed_at` quá `security_password_max_age_days` (90): chỉ cấp Access Token có thêm claim `scope: "PASSWORD_CHANGE_ONLY"` (vẫn có `sub`, `userGroupId`, `roleCode`; không có `sid`); **không** tạo dòng `auth_sessions`, không gửi cookie; response có `mustChangePassword: true`. Chính sách đầy đủ tại `docs/01_database_schema.md` mục 6.1.
+  6. Ghi `audit_logs` `AUTH / LOGIN` (`actor_type = USER`, `actor_id`, `actor_name` = `full_name`, `ip_address`, `user_agent`) cho cả hai loại token. Bước 4–6 trong một transaction.
+- **Refresh Token** gửi qua cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`, không nằm trong body response. `rememberMe = true` thì cookie có `Max-Age` = số giây còn lại tới `expires_at`; `false` thì không đặt `Max-Age` (mất khi đóng trình duyệt), hạn phiên phía server vẫn là `expires_at`. Token giới hạn không có cookie nên `rememberMe` không có tác dụng.
+- **Response** `200`:
 
 ```json
 {
@@ -82,24 +99,50 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
     "mustChangePassword": false,
     "user": {
       "id": 10,
-      "username": "cdr.evnit@evn.com.vn",
+      "username": "cdr.evnit",
       "fullName": "Trần Thị B",
-      "email": "tran.b@71portal.vn",
+      "email": "cdr.evnit@evn.com.vn",
       "avatarUrl": "/media/avatars/8a1d2c3e-5b6f-4a7d-9e0f-1b2c3d4e5f60.jpg",
       "userGroup": {
         "id": 1,
-        "name": "Khối Công nghệ Thông tin",
+        "name": "Nhóm QLND Khối CNTT",
         "organizationId": 2,
         "organizationName": "Khối CNTT",
         "allowRecordingAccess": true
       },
       "roleCode": "GROUP_ADMIN",
       "roleName": "Quản trị viên nhóm",
-      "permissions": ["cdr:view", "cdr:listen_audio", "cdr:download_audio", "user:view", "user:create", "user:edit", "group:manage_admin", "group:toggle_recording"]
+      "permissions": ["cdr:download_audio", "cdr:export", "cdr:filter_advanced", "cdr:listen_audio", "cdr:view", "group:manage_admin", "group:toggle_recording", "org:view", "prefix:view", "qos:view", "report:export", "report:view", "user:create", "user:delete", "user:edit", "user:view", "user_group:view"]
     }
-  }
+  },
+  "timestamp": "2026-10-26T09:30:00+07:00"
 }
 ```
+
+| Trường | Nguồn | Ghi chú |
+|---|---|---|
+| `accessToken` | JWT | Chỉ giữ trong bộ nhớ frontend |
+| `expiresIn` | `security_access_token_minutes` × 60 | Giây |
+| `mustChangePassword` | `true` khi cấp token giới hạn (bước 5) | |
+| `user.id`, `username`, `fullName`, `email`, `avatarUrl` | `users` | `avatarUrl` = `null` khi chưa tải ảnh |
+| `user.userGroup.id`, `name`, `allowRecordingAccess` | `user_groups` (`allow_recording_access` → boolean) | |
+| `user.userGroup.organizationId`, `organizationName` | `user_groups.organization_id`, `organizations.name` | Cả hai `null` khi nhóm độc lập (`organization_id` NULL) |
+| `user.roleCode`, `roleName` | `roles.code`, `roles.name` qua `user_roles` | |
+| `user.permissions` | Quyền hiệu lực (bước 4), sắp xếp theo `code` | Ví dụ trên đủ 17 mã của `GROUP_ADMIN` thuộc nhóm đã được cấp ghi âm; nhóm chưa cấp còn 15 mã (`docs/modules/10_permissions_and_roles.md` mục 2.2) |
+
+  Token giới hạn trả **cùng cấu trúc** (`user` đầy đủ, kể cả `permissions`), `mustChangePassword = true`; frontend thấy cờ này thì chuyển thẳng tới trang đổi mật khẩu, không vào layout chính. `user` cũng là `data` của `GET /api/v1/auth/me` (mục 3.2).
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào | `LOGIN_FAILED.reason` |
+|---|---|---|---|
+| `400` | `VALIDATION_ERROR` | Body sai (bảng request) | *(không ghi)* |
+| `401` | `INVALID_CREDENTIALS` | Không thấy tài khoản (kể cả `INACTIVE`) hoặc sai mật khẩu | `UNKNOWN_USER` / `BAD_PASSWORD` |
+| `403` | `ACCOUNT_LOCKED` | `users.status = 'LOCKED'` | `ACCOUNT_LOCKED` |
+| `403` | `GROUP_INACTIVE` | Nhóm `INACTIVE` (chốt phòng vệ, bước 2) | `GROUP_INACTIVE` |
+| `423` | `ACCOUNT_TEMPORARILY_LOCKED` | `locked_until > NOW()`, `errors.lockedUntil` | `TEMPORARILY_LOCKED` |
+| `503` | `MAINTENANCE` | Chế độ bảo trì đang bật (bước 0) | *(không ghi)* |
+
+- Index phục vụ: `uniq_users_username` (`username_active`), `uniq_users_email` (`email_active`), khóa chính `user_groups`, `organizations`, `user_roles`, `roles`.
 
 ### 3.2. Lấy thông tin cá nhân hiện tại (`GET /api/v1/auth/me`)
 
@@ -322,9 +365,11 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
 
 ### 5.0. Màn hình Đăng nhập (Khu vực Member – `LoginView.vue`)
 
-- Form nhận username hoặc email, mật khẩu, `rememberMe`; gọi `POST /api/v1/auth/login`, lưu Access Token vào `authUser` store (không lưu trình duyệt).
-- `mustChangePassword: true` → chuyển sang `member.change-password`; `423` → hiển thị thời điểm mở khóa (`errors.lockedUntil`); `503 MAINTENANCE` → thông báo bảo trì.
-- Liên kết "Dành cho Quản trị viên hệ thống" là `<RouterLink :to="{ name: 'admin.login' }">` (cùng router, chuyển cổng không mất phiên, `docs/00_overview_and_architecture.md` mục 5.3.2). Hộp "tài khoản mẫu" trong template không triển khai.
+- Form gửi đúng 3 trường của mục 3.1: ô "Tên đăng nhập / Email" (`username`, `type="text"`, `maxlength="150"`, `autocomplete="username"`), ô mật khẩu (`password`, `maxlength="255"`, nút hiện/ẩn), ô chọn "Ghi nhớ đăng nhập" (`rememberMe`). Không điền sẵn tài khoản/mật khẩu mẫu, không có hộp "tài khoản mẫu". Không có liên kết "Quên mật khẩu" hay "Chưa có tài khoản": hệ thống không có API tự khôi phục hay tự đăng ký; người dùng nhờ Quản trị viên nhóm đặt lại mật khẩu (mục 3.8) hoặc tạo tài khoản, trang hiển thị dòng hướng dẫn này.
+- Khi gửi: khóa nút, hiển thị trạng thái đang xử lý. Thành công thì lưu `accessToken` và `user` vào `authUser` store (chỉ trong bộ nhớ, không `localStorage`/`sessionStorage`, `docs/01_database_schema.md` mục 6.1); `mustChangePassword = true` thì chuyển tới `member.change-password` ở chế độ bị buộc đổi (không vào layout chính), ngược lại chuyển tới `member.dashboard` (hoặc trang đích trước khi bị guard chuyển về login). Lỗi thì mở khóa nút, xóa ô mật khẩu.
+- Hộp lỗi `#loginError` theo `errorCode`: `INVALID_CREDENTIALS` → "Tên đăng nhập hoặc mật khẩu không đúng"; `ACCOUNT_LOCKED` → "Tài khoản đã bị khóa. Liên hệ Quản trị viên nhóm"; `GROUP_INACTIVE` → "Nhóm người dùng của tài khoản đã ngừng hoạt động"; `ACCOUNT_TEMPORARILY_LOCKED` → "Đăng nhập sai quá nhiều lần. Thử lại sau HH:mm" (giờ lấy từ `errors.lockedUntil`, frontend tự định dạng); `MAINTENANCE` → "Hệ thống đang bảo trì, vui lòng quay lại sau" (kiểu cảnh báo vàng, không phải lỗi đỏ); `VALIDATION_ERROR` → thông điệp theo trường trong `errors`; lỗi mạng/`5xx` khác → "Không kết nối được máy chủ". Không áp quy tắc refresh-khi-`401` cho API này (`docs/00_overview_and_architecture.md` mục 5.3.2).
+- Liên kết "Dành cho Quản trị viên hệ thống" là `<RouterLink :to="{ name: 'admin.login' }">` (cùng router, chuyển cổng không mất phiên, `docs/00_overview_and_architecture.md` mục 5.3.2).
+- Mẫu: `templates/member/login.{html,js}` (mock `mockUserLogin` đủ nhánh của mục 3.1).
 
 ### 5.1. Khu vực Admin – `UserListView.vue`: Bố cục Split-View (Theo `templates/admin/users.html`)
 
@@ -352,7 +397,9 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
 
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
 
-1. **TC-USR-01**: Đăng nhập bằng tài khoản user hợp lệ, kiểm tra nhận về Access Token (chỉ giữ trong Pinia, không có trong `localStorage`) và cookie Refresh Token `HttpOnly`; có 1 dòng mới trong `auth_sessions`.
+1. **TC-USR-01**: Đăng nhập bằng tài khoản user hợp lệ (một lần bằng username, một lần bằng email), kiểm tra nhận về Access Token (chỉ giữ trong Pinia, không có trong `localStorage`) mang `sub`, `userGroupId`, `roleCode`, `sid`, và cookie Refresh Token `HttpOnly` `Path=/api/v1/auth`; có 1 dòng mới trong `auth_sessions` (`actor_type = USER`, `remember_me` đúng `rememberMe`, `logged_in_at`) và 1 dòng `AUTH / LOGIN`; `user.permissions` của nhóm `allow_recording_access = 0` không có `cdr:listen_audio`, `cdr:download_audio`.
+   - **TC-USR-01b**: Username không tồn tại, username của tài khoản `INACTIVE`, sai mật khẩu: cả ba `401 INVALID_CREDENTIALS` cùng thông điệp (`LOGIN_FAILED` `UNKNOWN_USER`, `UNKNOWN_USER`, `BAD_PASSWORD`); tài khoản `LOCKED` → `403 ACCOUNT_LOCKED` không tăng `failed_login_count`; body có trường lạ hoặc `username` 151 ký tự → `400 VALIDATION_ERROR` không ghi audit; tài khoản `must_change_password = 1` → `200` `mustChangePassword: true`, không có cookie, không có dòng `auth_sessions`.
+   - **TC-USR-01c**: Bật `system_maintenance_mode`: đăng nhập (kể cả body sai, mật khẩu sai) trả `503 MAINTENANCE`, `failed_login_count` không đổi, không có dòng `audit_logs` mới; đăng nhập Admin vẫn `200`.
 2. **TC-USR-02**: Đăng nhập sai mật khẩu 5 lần liên tiếp, kiểm tra lần thứ 6 (kể cả đúng mật khẩu) trả về `423 ACCOUNT_TEMPORARILY_LOCKED` kèm `errors.lockedUntil`; sau 15 phút đăng nhập đúng được và `failed_login_count` về 0.
    - **TC-USR-02b**: Dùng lại một Refresh Token đã được xoay vòng, kiểm tra mọi phiên của tài khoản bị thu hồi (`revoked_reason = 'REUSE_DETECTED'`).
    - **TC-USR-02c**: Gửi đồng thời 2 request `refresh` cùng một Refresh Token (giả lập 2 tab), kiểm tra cả hai nhận Access Token, chỉ request đầu có `Set-Cookie`, không phiên nào bị `REUSE_DETECTED`. Dùng lại token đó sau 30 giây thì mọi phiên bị thu hồi.

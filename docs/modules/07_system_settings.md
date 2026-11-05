@@ -36,7 +36,7 @@ Danh mục các Key cấu hình chuẩn (3 phân nhóm: `ANALYSIS`, `REPORTING`,
   - `retention_online_months`: '6' (Số tháng CDR tra cứu trực tuyến; ngoài cửa sổ này chỉ Admin xem được qua `includeArchive=true`, xem `docs/01_database_schema.md` mục 2.1)
   - `retention_archive_months`: '60' (Số tháng giữ CDR trong `cdr_enriched` trước khi DROP PARTITION; phải >= retention_online_months; stats và audit log không bị dọn)
 - **Nhóm Nâng cao & Bảo trì (`category = 'ADVANCED'`)**:
-  - `system_maintenance_mode`: 'false' (Chế độ bảo trì. Khi `true`: mọi API của User Portal trả `503` mã `MAINTENANCE`, trừ `GET /api/v1/auth/me`; User không đăng nhập mới được; Admin Portal, tiến trình làm giàu và job tổng hợp vẫn chạy bình thường; frontend User hiển thị `.maintenance-alert-banner`)
+  - `system_maintenance_mode`: 'false' (Chế độ bảo trì. Khi `true`: mọi API của User Portal trả `503` mã `MAINTENANCE`, trừ `GET /api/v1/auth/me`; User không đăng nhập mới được (`POST /api/v1/auth/login` trả `503` trước khi kiểm tra body/tài khoản, không ghi audit, `docs/modules/03_auth_user.md` mục 3.1); Admin Portal, tiến trình làm giàu và job tổng hợp vẫn chạy bình thường; frontend User hiển thị `.maintenance-alert-banner`)
   - `recording_path_map`: '[{"from": "D:\\StarTrinity\\recordings\\", "to": "/mnt/pabx_recordings/"}]' (JSON ánh xạ tiền tố đường dẫn file ghi âm của PABX sang thư mục gắn chỉ đọc trên server backend; thuật toán tại `docs/modules/12_core_business_cdr_and_audio.md` mục 2.3)
   - Nhóm cảnh báo & email (quy tắc tại `docs/01_database_schema.md` mục 10):
     - `qos_alert_min_calls`: '20' (Số cuộc gọi tối thiểu trong khung giờ để xét cảnh báo QoS)
