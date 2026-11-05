@@ -513,7 +513,56 @@ Không có `CODE_DUPLICATE` (không nhận `code`). Lỗi không ghi `audit_logs
 
 ### 3.4. `DELETE /api/v1/admin/organizations/:id`
 
-- Kiểm tra điều kiện xóa: Trả về lỗi `409 ORGANIZATION_IN_USE` nếu đơn vị có `children.length > 0` hoặc đang được tham chiếu bởi `user_groups` (kể cả nhóm `INACTIVE`). DB cũng chặn bằng `fk_org_parent` và `fk_ug_org` (`ON DELETE RESTRICT`), xem chính sách xóa tại `docs/01_database_schema.md` mục 14.
+- **Mục đích**: xóa cứng một đơn vị không còn đơn vị con và không còn nhóm người dùng tham chiếu (`docs/01_database_schema.md` mục 14), vd. đơn vị tạo nhầm. Đơn vị đã có nhóm gắn thì dùng ngừng hoạt động (`PUT` `status = INACTIVE`, mục 3.3). Gọi từ nút "Xóa" ở dòng cây (mục 5.1). Chỉ có bản Admin.
+- **Guard**: `AdminAuthGuard` → `PermissionsGuard` `org:manage` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` `403 PASSWORD_CHANGE_REQUIRED`; tài khoản không còn `ACTIVE` hoặc token đầy đủ mà `must_change_password = 1` `401 UNAUTHORIZED` (`docs/modules/04_auth_admin.md` mục 3.1.1). Không bị chế độ bảo trì chặn.
+- **Thứ tự kiểm tra**: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → quyền (`403 FORBIDDEN_PERMISSION`) → `:id`, query, body (`400`) → kiểm tra tài khoản (`401`) → khóa và tìm đơn vị (`404`) → còn tham chiếu (`409`).
+- **Request**: `:id` là `organizations.id` (`^[1-9][0-9]{0,9}$` và ≤ 4294967295, sai thì `400` với `errors.id`). Không có query, không có body (như `docs/modules/04_auth_admin.md` mục 3.9): gửi query param → `400` (`errors.<tên tham số>`), body có trường → `400` (`errors.body`).
+- **Trạng thái**: chủ dự án chốt ở O06: xóa được đơn vị ở **mọi** trạng thái (`ACTIVE` hoặc `INACTIVE`); điều kiện duy nhất là không còn tham chiếu.
+- **Xử lý** (một transaction; theo thứ tự, dừng ở lỗi đầu tiên, lỗi thì `ROLLBACK`):
+  1. Kiểm tra `:id`, query, body (`400`), rồi kiểm tra tài khoản theo khóa chính `admins` (`401`).
+  2. `BEGIN`; `SELECT id, parent_id, code, name FROM organizations WHERE id = :id FOR UPDATE` (khóa chính). Không có dòng → `404 NOT_FOUND` (kể cả gọi lại lần hai sau khi đã xóa).
+  3. Kiểm tra tham chiếu bằng **đọc khóa** (đọc bản đã commit mới nhất, không đọc snapshot), làm **cả hai** câu để thông điệp nêu đủ lý do:
+
+```sql
+SELECT 1 FROM organizations WHERE parent_id = :id LIMIT 1 LOCK IN SHARE MODE;       -- idx_org_parent, mọi trạng thái
+SELECT 1 FROM user_groups WHERE organization_id = :id LIMIT 1 LOCK IN SHARE MODE;  -- idx_ug_org, kể cả nhóm INACTIVE
+```
+
+     Có dòng ở một trong hai → `409 ORGANIZATION_IN_USE`, `errors = null` (chủ dự án chốt ở O06: không trả số đếm), thông điệp theo trường hợp: "Không xóa được: đơn vị còn đơn vị con" / "Không xóa được: đơn vị còn nhóm người dùng tham chiếu" / "Không xóa được: đơn vị còn đơn vị con và nhóm người dùng tham chiếu". Không ghi `audit_logs`.
+  4. `DELETE FROM organizations WHERE id = :id`. Chốt phòng vệ: `fk_org_parent`, `fk_ug_org` (`ON DELETE RESTRICT`) vẫn chặn nếu có tham chiếu lọt qua bước 3; lỗi `ER_ROW_IS_REFERENCED_2` (1451) → `409 ORGANIZATION_IN_USE` (thông điệp chung "Không xóa được: đơn vị đang được tham chiếu"). `code` được giải phóng ngay cho đơn vị mới (`uniq_org_code`, `docs/01_database_schema.md` mục 14).
+  5. Ghi `audit_logs` cùng transaction: `resource_name = 'ORGANIZATION'`, `action = 'DELETE'`, `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `admins.full_name` của người gọi, `resource_id` = `:id`, `ip_address`, `user_agent`, `action_details = { "code", "name", "parentId" }` lấy từ dòng đã khóa ở bước 2 (chủ dự án chốt ở O06, đối xứng `CREATE`; dòng đã mất nên đây là dấu vết duy nhất để nhận diện). `COMMIT`.
+- **Tranh chấp**: dòng đích bị khóa ghi ở bước 2 nên các thao tác gắn mới vào nó chạy tuần tự với `DELETE`: `POST` đơn vị con (mục 3.2, khóa chia sẻ dòng cha), `PUT` đổi cha (mục 3.3, khóa mọi dòng theo khóa chính), tạo/sửa nhóm người dùng gắn `organizationId` (`docs/modules/02_user_group.md`, đọc khóa chia sẻ dòng đơn vị; kiểm tra khóa ngoại của `INSERT`/`UPDATE` cũng lấy khóa chia sẻ dòng cha). Bên chờ chạy sau khi `DELETE` commit thì không còn thấy đơn vị → `400` (`errors.parentId` / `errors.organizationId`: "… không tồn tại"); bên commit trước thì `DELETE` thấy tham chiếu ở bước 3 → `409`.
+- **Response** `200` (chủ dự án chốt ở O06): `data = { id }`.
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Xóa đơn vị tổ chức thành công",
+  "data": { "id": 15 },
+  "timestamp": "2026-11-05T14:20:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | `:id` sai định dạng (`errors.id`); có query (`errors.<tên tham số>`); body có trường (`errors.body`) |
+| `401` | `UNAUTHORIZED` | Như mục 3.1 (bản Admin) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `org:manage` |
+| `404` | `NOT_FOUND` | Không có đơn vị `:id` (kể cả đã bị xóa) |
+| `409` | `ORGANIZATION_IN_USE` | Còn đơn vị con (mọi trạng thái) hoặc còn nhóm người dùng tham chiếu (kể cả nhóm `INACTIVE`); `errors = null` |
+
+Lỗi không ghi `audit_logs`.
+
+- **Frontend** (hộp xác nhận `#deleteOrgModal`, `ConfirmModal` `danger` theo `docs/03_ui_design.md` mục 6.6; mẫu `templates/admin/organization.js`: `mockDeleteOrg`, `openDeleteOrgModal`, `confirmDeleteOrg`):
+  - Nút "Xóa" chỉ ở dòng có `org:manage`, `children.length = 0` và `userGroupCount = 0` (mục 3.1 Frontend); backend vẫn kiểm tra vì cây có thể đã cũ.
+  - Hộp nêu đối tượng: tiêu đề "Xóa đơn vị tổ chức", nội dung "Xóa vĩnh viễn đơn vị <name> (<code>)? Thao tác không hoàn tác được." (tên, mã lấy từ nút cây), nút "Hủy bỏ" và "Xóa" (`danger`); không có ô gõ xác nhận.
+  - Khi gửi: khóa cả hai nút ("Đang xóa..."), bấm nền hoặc `Esc` không đóng hộp.
+  - Mọi kết quả đóng hộp rồi **tải lại cây** (quy ước A13): `200` toast "Đã xóa đơn vị <name>"; `409` toast cảnh báo với `message` của API; `404` toast cảnh báo "Đơn vị tổ chức không còn tồn tại". `400`/lỗi khác: toast lỗi, đóng hộp, không tải lại. `401`: `adminSession.request` đã xử lý.
+- **Index phục vụ**: khóa chính `admins` (kiểm tra tài khoản), khóa chính `organizations` (khóa, xóa), `idx_org_parent` (còn con), `idx_ug_org` (còn nhóm). Không thêm index.
 
 ---
 
@@ -606,11 +655,11 @@ Màn hình Danh mục tổ chức **chỉ có ở khu vực Admin** (route yêu 
     - **Xem chi tiết** (`.view-btn`): Mở `#orgDetailModal`, tải `GET /api/v1/admin/organizations/:id` mỗi lần mở và hiển thị đủ trường của mục 3.1.2 (thông tin chung, người đại diện, thời gian, đơn vị con, nhóm người dùng trực thuộc; trạng thái tải/lỗi, `404` theo mục 3.1.2 Frontend).
     - **Thêm tổ chức con** (`.add-btn`): Mở `#orgModal` với tiêu đề động và tự động chọn trước đơn vị cha tương ứng với dòng hiện tại; chỉ ở nút `ACTIVE` có `level < 3`.
     - **Chỉnh sửa** (`.edit-btn`): Mở `#orgModal` để cập nhật thông tin đơn vị.
-    - **Xóa** (`.delete-btn`): Mở `#deleteModal` xác nhận xóa; chỉ ở nút không có đơn vị con và `userGroupCount = 0`.
+    - **Xóa** (`.delete-btn`): Mở `#deleteOrgModal` xác nhận xóa (mục 3.4 Frontend); chỉ ở nút không có đơn vị con và `userGroupCount = 0`.
   - Hiển thị độ thụt dòng theo cấp bằng `<span class="indent"></span>` và icon đóng mở `<span class="toggle-icon">`.
   - Modal tạo/sửa tổ chức (`#orgModal`): bố cục 2 cột; chế độ tạo có đúng các ô của body mục 3.2 (tên, mã đơn vị, đơn vị cha, thứ tự sắp xếp, người đại diện, điện thoại, email, mô tả), không có ô trạng thái/cấp; chế độ sửa tải `GET .../:id` mỗi lần mở, mã đơn vị chỉ đọc, thêm ô trạng thái, chỉ gửi trường đã đổi (mục 3.3 Frontend); lỗi `400`/`409` hiện dưới ô.
   - Modal xem chi tiết (`#orgDetailModal`): Xem toàn bộ thông tin đơn vị (mục 3.1.2), kèm nút hành động "Thêm tổ chức con" (chỉ đơn vị `ACTIVE`, `level < 3`) và "Chỉnh sửa", chỉ hiện khi có `org:manage` và đã tải xong.
-  - Modal xác nhận xóa (`#deleteModal`).
+  - Hộp xác nhận xóa (`#deleteOrgModal`, `ConfirmModal` `danger`): nêu tên và mã đơn vị, khóa nút khi gửi, mọi kết quả `200`/`404`/`409` đóng hộp và tải lại cây (mục 3.4 Frontend).
 
 ### 5.2. Quản lý trạng thái (Pinia Store: `useOrganizationStore`)
 
@@ -631,5 +680,6 @@ Màn hình Danh mục tổ chức **chỉ có ở khu vực Admin** (route yêu 
 2. **TC-ORG-02**: Tạo mới đơn vị con trực thuộc "Tổng công ty 71", xác nhận node mới xuất hiện trong Tree Table.
    - **TC-ORG-02a** (`POST /api/v1/admin/organizations`, Root Admin, dữ liệu như TC-ORG-01a: đơn vị 1 `TC-71` cấp 0, đơn vị 12 `INACTIVE`, đơn vị 13 cấp 3): body `{ "parentId": 1, "code": " KD-02 ", "name": " Khối Dịch vụ Khách hàng ", "representativePhone": "", "sortOrder": 6 }` → `201`, `data` đúng 16 trường, `code = "KD-02"`, `name` đã cắt khoảng trắng, `level = 1`, `status = "ACTIVE"`, `parentName = "Tổng công ty 71"`, `representativePhone = null`, `children = []`, `userGroups = []`; thêm đúng một dòng `audit_logs` `ORGANIZATION / CREATE`, `resource_id` = id mới, `action_details = { "code": "KD-02", "name": "Khối Dịch vụ Khách hàng", "parentId": 1 }`; `GET .../tree` có nút mới dưới đơn vị 1 theo `sortOrder`. Không `parentId`, không `sortOrder` → `level = 0`, `sortOrder = 0`, `parentId = null`. Gọi lại cùng `code` (kể cả `kd-02` sau khi sửa thành chữ hoa) → `409 CODE_DUPLICATE` (`errors.code`); trùng mã của đơn vị `INACTIVE` cũng `409`. `parentId = 12` → `409 ORGANIZATION_INACTIVE` (`errors.parentId`); `parentId = 13` (cấp 3) → `400` (`errors.parentId`); `parentId = 999999` → `400` (`errors.parentId`). `400`: thiếu `code`/`name`, `code = "kd-02"`, `"KD_02"`, `"-KD"`, `"KD--02"`, `"K"`, 51 ký tự, `name = "AB"`, `parentId = "1"`, `parentId = 0`, `sortOrder = -1`, `sortOrder = 1.5`, `sortOrder = null`, `representativeEmail = "abc"`, `representativePhone = "abc"`, có `level`, có `status`, có query `?x=1`. Lỗi không ghi `audit_logs`. Token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; vai trò thiếu `org:manage` → `403 FORBIDDEN_PERMISSION`.
 3. **TC-ORG-03**: Thử xóa một đơn vị đang có đơn vị con, kiểm tra hệ thống chặn và trả thông báo lỗi hợp lý.
+   - **TC-ORG-03a** (`DELETE /api/v1/admin/organizations/:id`, Root Admin, dữ liệu như TC-ORG-04a, thêm nhóm 7 `ACTIVE` và nhóm 9 `INACTIVE` gắn đơn vị 2, nhóm 11 gắn 5, nhóm 15 gắn 14): `DELETE .../13` (lá `ACTIVE`, không nhóm) → `200`, `data = { "id": 13 }`; một dòng `audit_logs` `ORGANIZATION / DELETE`, `resource_id = "13"`, `action_details = {"code":"DEV-01-CDR","name":"Tổ Ứng dụng CDR","parentId":3}`; cây không còn 13; gọi lại → `404 NOT_FOUND`; `POST` với `code = "DEV-01-CDR"` → `201` (mã đã giải phóng). `DELETE .../15` (lá `ACTIVE` dưới cha `INACTIVE`) → `200`; sau đó `DELETE .../12` (`INACTIVE`, hết con) → `200`. Trước khi xóa 13: `DELETE .../3` (còn con 13, không nhóm) → `409 ORGANIZATION_IN_USE` "… còn đơn vị con", `errors = null`; `DELETE .../5` (không con, có nhóm 11) → `409` "… còn nhóm người dùng tham chiếu"; `DELETE .../2` (có con 3, 4 và nhóm 7, 9) → `409` "… còn đơn vị con và nhóm người dùng tham chiếu"; nhóm `INACTIVE` duy nhất cũng chặn. `DELETE .../999999` → `404`. `400`: `:id` `abc`, `0`, `01`, `4294967296` (`errors.id`); `?x=1` (`errors.x`); body `{"force":true}` (`errors.body`). Lỗi không ghi audit, không xóa dòng. Token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; vai trò thiếu `org:manage` → `403 FORBIDDEN_PERMISSION`. Đồng thời `DELETE .../6` và `POST { "parentId": 6, ... }`: hoặc `DELETE 200` rồi `POST 400` (`errors.parentId`), hoặc `POST 201` rồi `DELETE 409`; không có đơn vị con mồ côi.
 4. **TC-ORG-04**: Đổi trạng thái từ `ACTIVE` sang `INACTIVE`, kiểm tra badge trạng thái cập nhật màu sắc tương ứng.
    - **TC-ORG-04a** (`PUT /api/v1/admin/organizations/:id`, Root Admin, dữ liệu như mock `templates/admin/organization.js`: 1 `TC-71` gốc; 2 `IT-01` cấp 1 có nhánh 3 (cấp 2) → 13 (cấp 3); 5 `KD-01` cấp 1; 6 `KT-01` cấp 1 lá; 12 `DA-01` `INACTIVE` cấp 1 có con 15; 14 `EVNNPC` gốc): `PUT .../6` `{ "parentId": 5, "sortOrder": 1, "status": "INACTIVE", "representativePhone": "" }` (6 đang `sortOrder = 3`) → `200`, `data` 16 trường, `level = 2`, `parentName = "Khối Kinh doanh"`, `status = "INACTIVE"`; một dòng `audit_logs` `ORGANIZATION / UPDATE`, `resource_id = "6"`, `action_details = {"changedFields":["parentId","sortOrder","status"]}` (`representativePhone` vốn `NULL` nên không tính); cây có 6 dưới 5 với badge "Ngừng hoạt động". Gửi lại cùng body: `200` "Không có thay đổi nào", không thêm audit, `updatedAt` không đổi. `PUT .../6` `{ "status": "ACTIVE" }` → `200` (kích hoạt lại). `PUT .../15` `{ "status": "INACTIVE" }` rồi `{ "status": "ACTIVE" }` → `200` dù cha 12 `INACTIVE`; `PUT .../15` `{ "parentId": 12, "name": "Tổ Hạ tầng" }` → `200` (giữ cha `INACTIVE` không bị chặn). `PUT .../2` `{ "parentId": 13 }` hoặc `{ "parentId": 3 }` → `400` (`errors.parentId`, vào nhánh của chính nó, kiểm trước cấp); `PUT .../2` `{ "parentId": 14 }` → `200`, 2 cấp 1, 3 cấp 2, 13 cấp 3 (không đổi); `PUT .../2` `{ "parentId": 5 }` → `400` (`errors.parentId`, nhánh 2 → 3 → 13 sẽ lên cấp 4), không đổi dòng nào; `PUT .../2` `{ "parentId": null }` → `200`, 2 cấp 0, 3 cấp 1, 13 cấp 2 (`updatedAt` của 3, 13 đổi), `changedFields = ["parentId"]`. `PUT .../2` `{ "parentId": 2 }` → `400`; `{ "parentId": 12 }` cho đơn vị 6 → `409 ORGANIZATION_INACTIVE` (`errors.parentId`); `{ "parentId": 999999 }` → `400` (`errors.parentId`). `PUT .../999999` → `404 NOT_FOUND`. `400`: `:id` `abc`, `0`, `4294967296` (`errors.id`); body `{}`; `{ "code": "KT-02" }`, `{ "level": 2 }`, `{ "name": "  " }`, `{ "name": null }`, `{ "sortOrder": null }`, `{ "sortOrder": "1" }`, `{ "status": "inactive" }`, `{ "parentId": "5" }`, `{ "representativeEmail": "abc" }`; `?x=1`. Lỗi không ghi audit. Token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; vai trò thiếu `org:manage` → `403 FORBIDDEN_PERMISSION`. Hai request đồng thời `PUT .../5 { "parentId": 6 }` và `PUT .../6 { "parentId": 5 }` (6 lá, 5 cấp 1): một `200`, một `400` (`errors.parentId`), không deadlock, không chu trình.

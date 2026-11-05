@@ -21,12 +21,18 @@
  *    không đổi gì thì không gọi API. code/level → 400. Đổi cha: chính nó/nhánh con/vượt cấp 3/không tồn tại → 400 errors.parentId,
  *    cha mới INACTIVE → 409 ORGANIZATION_INACTIVE; level cả nhánh tính lại. Kích hoạt lại được kể cả khi cha INACTIVE.
  *  - 200 data 16 trường như GET .../:id. Thành công: đóng hộp, mở sẵn nút cha mới, tải lại cây.
- * Xóa (O06) còn là demo, nối API ở endpoint đó.
+ * Xóa: DELETE /api/v1/admin/organizations/:id (O06, M01 mục 3.4) từ #deleteOrgModal (ConfirmModal danger).
+ *  - Không query/body; xóa cứng mọi trạng thái. Còn đơn vị con hoặc nhóm (kể cả INACTIVE) → 409 ORGANIZATION_IN_USE
+ *    (errors = null, message nêu lý do); không có dòng → 404 NOT_FOUND. 200 data = { id }.
+ *  - Nút "Xóa" chỉ ở nút không con + userGroupCount = 0; khi gửi khóa nút, nền/Esc không đóng;
+ *    200/404/409 đóng hộp + toast + tải lại cây; lỗi khác toast lỗi, đóng hộp, không tải lại.
  *
  * Kiểm tay mock: ?treeError=1 (lỗi tải, "Thử lại" thành công), ?treeEmpty=1 (cây rỗng), ?noManage=1 (thiếu org:manage),
  * ?detailError=1 (lần mở chi tiết đầu lỗi mạng, "Thử lại" thành công), ?detailMissing=<id> (đơn vị đã bị xóa → 404),
  * ?createError=1 (lần tạo đầu lỗi mạng), ?parentInactive=<id> (đơn vị <id> bị ngừng hoạt động ngay trước khi tạo/chuyển cha → 409),
- * ?updateError=1 (lần lưu sửa đầu lỗi mạng), ?updateMissing=<id> (đơn vị <id> bị xóa trước khi lưu → 404).
+ * ?updateError=1 (lần lưu sửa đầu lỗi mạng), ?updateMissing=<id> (đơn vị <id> bị xóa trước khi lưu → 404),
+ * ?deleteError=1 (lần xóa đầu lỗi mạng), ?deleteMissing=<id> (đơn vị <id> đã bị xóa ở nơi khác → 404),
+ * ?deleteInUse=<id> (vừa có nhóm gắn vào đơn vị <id> sau khi tải cây → 409).
  */
 
 const ORG_QS = new URLSearchParams(window.location.search);
@@ -74,7 +80,8 @@ const MOCK_USER_GROUPS = [
     { id: 15, organizationId: 14, code: 'UMO-NPC-01', name: 'Nhóm QLND EVNNPC', status: 'ACTIVE' }
 ];
 // Kết quả COUNT(*) user_groups GROUP BY organization_id (O01 bước 3, kể cả nhóm INACTIVE)
-const MOCK_UG_COUNTS = MOCK_USER_GROUPS.reduce((acc, g) => { acc[g.organizationId] = (acc[g.organizationId] || 0) + 1; return acc; }, {});
+// (tính lại mỗi lần dựng cây vì mock ?deleteInUse=<id> có thể thêm nhóm)
+const mockUgCounts = () => MOCK_USER_GROUPS.reduce((acc, g) => { acc[g.organizationId] = (acc[g.organizationId] || 0) + 1; return acc; }, {});
 let mockTreeFailOnce = ORG_QS.get('treeError') === '1';
 let mockDetailFailOnce = ORG_QS.get('detailError') === '1';
 
@@ -85,9 +92,10 @@ function buildOrgTree(rows, withUserGroupCount) {
     const sorted = rows.slice().sort((a, b) =>
         a.level - b.level || a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'vi') || a.id - b.id);
     const map = new Map();
+    const counts = mockUgCounts();
     sorted.forEach(o => {
         const node = { id: o.id, parentId: o.parentId, code: o.code, name: o.name, level: o.level, sortOrder: o.sortOrder, status: o.status };
-        if (withUserGroupCount) node.userGroupCount = MOCK_UG_COUNTS[o.id] || 0;
+        if (withUserGroupCount) node.userGroupCount = counts[o.id] || 0;
         node.children = [];
         map.set(o.id, node);
     });
@@ -185,7 +193,7 @@ const ORG_PHONE_RE = /^(?=.*[0-9])[0-9+\-.() ]{1,30}$/;     // quy tắc số đ
 const ORG_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ORG_CREATE_FIELDS = ['code', 'name', 'parentId', 'sortOrder', 'description',
     'representativeName', 'representativePhone', 'representativeEmail'];
-const MOCK_AUDIT_LOGS = [];   // đóng vai audit_logs (chỉ dòng ORGANIZATION / CREATE do mock này ghi)
+const MOCK_AUDIT_LOGS = [];   // đóng vai audit_logs (chỉ dòng ORGANIZATION / CREATE, UPDATE, DELETE do mock này ghi)
 let mockOrgNextId = 16;
 let mockCreateFailOnce = ORG_QS.get('createError') === '1';
 
@@ -416,6 +424,52 @@ function mockCreateOrg(token, query, body) {
                 createdAt: now, updatedAt: now, children: [], userGroups: []
             },
             timestamp: now };
+    });
+}
+
+// ---------- Mock DELETE /api/v1/admin/organizations/:id (M01 mục 3.4) ----------
+let mockDeleteFailOnce = ORG_QS.get('deleteError') === '1';
+
+// Giả lập DELETE: 401 → 400 (:id/query/body) → khóa dòng (404) → đọc khóa tham chiếu (409) → DELETE + audit → 200 { id }.
+function mockDeleteOrg(token, idParam, query, body) {
+    return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+        const fail = (statusCode, errorCode, message, errors) =>
+            Promise.reject({ success: false, statusCode, errorCode, message, errors: errors || null, timestamp: orgNow() });
+        if (!token) return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+        const errors = {};
+        const idStr = String(idParam);
+        if (!/^[1-9][0-9]{0,9}$/.test(idStr) || Number(idStr) > 4294967295) errors.id = ['Mã đơn vị không hợp lệ'];
+        Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được hỗ trợ']; });
+        if (body != null && (typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length)) {
+            errors.body = ['API không nhận body'];
+        }
+        if (Object.keys(errors).length) return fail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', errors);
+        if (mockDeleteFailOnce) {
+            mockDeleteFailOnce = false;
+            return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
+        }
+        // Bước 2: SELECT ... FOR UPDATE theo khóa chính
+        const id = Number(idStr);
+        const idx = MOCK_ORG_ROWS.findIndex(o => o.id === id);
+        if (idx < 0 || ORG_QS.get('deleteMissing') === idStr) return fail(404, 'NOT_FOUND', 'Không tìm thấy đơn vị tổ chức');
+        // Bước 3: đọc khóa cả hai tham chiếu (đơn vị con mọi trạng thái; nhóm kể cả INACTIVE)
+        if (ORG_QS.get('deleteInUse') === idStr && !MOCK_USER_GROUPS.some(g => g.organizationId === id)) {
+            MOCK_USER_GROUPS.push({ id: 99, organizationId: id, code: 'UMO-NEW', name: 'Nhóm vừa tạo', status: 'ACTIVE' });
+        }
+        const hasChild = MOCK_ORG_ROWS.some(o => o.parentId === id);
+        const hasGroup = MOCK_USER_GROUPS.some(g => g.organizationId === id);
+        if (hasChild || hasGroup) {
+            const why = hasChild && hasGroup ? 'đơn vị con và nhóm người dùng tham chiếu'
+                : hasChild ? 'đơn vị con' : 'nhóm người dùng tham chiếu';
+            return fail(409, 'ORGANIZATION_IN_USE', 'Không xóa được: đơn vị còn ' + why);
+        }
+        // Bước 4–5: DELETE (code giải phóng) + audit cùng transaction, action_details từ dòng đã khóa
+        const row = MOCK_ORG_ROWS[idx];
+        MOCK_ORG_ROWS.splice(idx, 1);
+        delete MOCK_ORG_EXTRA[id];
+        MOCK_AUDIT_LOGS.push({ resourceName: 'ORGANIZATION', action: 'DELETE', resourceId: String(id),
+            actionDetails: { code: row.code, name: row.name, parentId: row.parentId } });
+        return { success: true, statusCode: 200, message: 'Xóa đơn vị tổ chức thành công', data: { id }, timestamp: orgNow() };
     });
 }
 
@@ -1109,23 +1163,68 @@ function populateOrgForm(data) {
     val('orgRepEmail', data.representativeEmail);
 }
 
-function openDeleteOrgModal(id) {
-    currentDeleteOrgId = id;
-    openModal('deleteModal');
+// ---------- Xóa đơn vị (O06, M01 mục 3.4 Frontend; Vue: ConfirmModal + store deleteOrg) ----------
+let deleteOrgBusy = false;
+
+function setDeleteOrgBusy(busy) {
+    deleteOrgBusy = busy;
+    const ok = document.getElementById('deleteOrgConfirmBtn');
+    const cancel = document.getElementById('deleteOrgCancelBtn');
+    if (ok) { ok.disabled = busy; ok.textContent = busy ? 'Đang xóa...' : 'Xóa'; }
+    if (cancel) cancel.disabled = busy;
 }
 
-// Demo O06: sau khi API trả 200 (hoặc 409 ORGANIZATION_IN_USE) thì tải lại cây.
-function confirmDelete() {
-    const btn = document.querySelector('#deleteModal .btn-danger');
-    const originalText = btn.innerText;
-    btn.innerText = 'Đang xóa...';
-    btn.disabled = true;
-    setTimeout(() => {
-        btn.innerText = originalText;
-        btn.disabled = false;
-        closeModal('deleteModal');
-        currentDeleteOrgId = null;
-        if (window.showToast) window.showToast('Đã xóa tổ chức (demo)', 'success');
-        loadTree();
-    }, 800);
+// Hộp nêu đối tượng (tên, mã từ nút cây); không có ô gõ xác nhận
+function openDeleteOrgModal(id) {
+    const entry = orgIndex.get(id);
+    if (!entry) return;
+    currentDeleteOrgId = id;
+    const msg = document.getElementById('deleteOrgMessage');
+    if (msg) msg.textContent = 'Xóa vĩnh viễn đơn vị ' + entry.node.name + ' (' + entry.node.code + ')? Thao tác không hoàn tác được.';
+    setDeleteOrgBusy(false);
+    const modal = document.getElementById('deleteOrgModal');
+    if (modal) modal.style.display = 'flex';
 }
+
+function closeDeleteOrgModal() {
+    if (deleteOrgBusy) return;   // đang gửi: không đóng (Hủy, nền, Esc)
+    const modal = document.getElementById('deleteOrgModal');
+    if (modal) modal.style.display = 'none';
+    currentDeleteOrgId = null;
+}
+
+// 200/404/409 → đóng hộp + toast + tải lại cây (quy ước A13); lỗi khác → toast lỗi, đóng hộp, không tải lại.
+function confirmDeleteOrg() {
+    if (deleteOrgBusy || currentDeleteOrgId == null) return;
+    const id = currentDeleteOrgId;
+    const entry = orgIndex.get(id);
+    const name = entry ? entry.node.name : ('#' + id);
+    setDeleteOrgBusy(true);
+    return orgCallApi(token => mockDeleteOrg(token, String(id), {}, null))
+        .then(() => {
+            setDeleteOrgBusy(false);
+            closeDeleteOrgModal();
+            if (window.showToast) window.showToast('Đã xóa đơn vị ' + name, 'success');
+            loadTree();
+        })
+        .catch(err => {
+            setDeleteOrgBusy(false);
+            closeDeleteOrgModal();
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            if (err && (err.statusCode === 404 || err.statusCode === 409)) {
+                const text = err.statusCode === 404 ? 'Đơn vị tổ chức không còn tồn tại' : err.message;
+                if (window.showToast) window.showToast(text, 'warning');
+                loadTree();
+                return;
+            }
+            if (window.showToast) window.showToast((err && err.message) || 'Không xóa được đơn vị. Vui lòng thử lại.', 'error');
+        });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('deleteOrgModal');
+    if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeDeleteOrgModal(); });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && modal && modal.style.display === 'flex') closeDeleteOrgModal();
+    });
+});

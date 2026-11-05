@@ -435,21 +435,24 @@
     </div>
 
     <!-- Modal Confirm Delete -->
-    <div id="deleteModal" class="modal">
-        <div class="modal-content modal-sm">
-            <div class="modal-header">
-                <h2>Xác nhận xóa</h2>
-                <button class="close-btn" onclick="closeModal('deleteModal')">&times;</button>
+    <!-- Hộp xác nhận xóa (O06, M01 mục 3.4 Frontend; ConfirmModal danger, 03 mục 6.6): organization.js điền tên/mã đơn vị;
+         khi gửi khóa cả hai nút, bấm nền/Esc không đóng; mọi kết quả 200/404/409 đóng hộp và tải lại cây -->
+    <div id="deleteOrgModal" class="confirm-modal-backdrop" style="display: none;">
+        <div class="confirm-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteOrgTitle">
+            <div class="confirm-modal-icon-wrapper confirm-modal-icon--danger">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
             </div>
-            <div class="modal-body text-center">
-                <div class="icon-warning">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#E31837" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                </div>
-                <p>Bạn có chắc chắn muốn xóa tổ chức này không? Đơn vị bị xóa vĩnh viễn và không khôi phục được.</p>
+            <div class="confirm-modal-content">
+                <h3 id="deleteOrgTitle" class="confirm-modal-title">Xóa đơn vị tổ chức</h3>
+                <p id="deleteOrgMessage" class="confirm-modal-message"></p>
             </div>
-            <div class="modal-footer justify-center">
-                <button class="btn btn-outline" onclick="closeModal('deleteModal')">Hủy</button>
-                <button class="btn btn-danger" onclick="confirmDelete()">Xóa bỏ</button>
+            <div class="confirm-modal-actions">
+                <button type="button" id="deleteOrgCancelBtn" class="confirm-modal-btn confirm-modal-btn--cancel" onclick="closeDeleteOrgModal()">Hủy bỏ</button>
+                <button type="button" id="deleteOrgConfirmBtn" class="confirm-modal-btn confirm-modal-btn--danger" onclick="confirmDeleteOrg()">Xóa</button>
             </div>
         </div>
     </div>
