@@ -285,6 +285,8 @@
                 <button type="button" class="close-btn" data-close-org onclick="closeOrgForm()">&times;</button>
             </div>
             <div class="modal-body">
+                <!-- Chế độ sửa (M01 mục 3.3 Frontend): form tải GET /api/v1/admin/organizations/:id mỗi lần mở; tải/lỗi + "Thử lại" hiện ở đây -->
+                <div id="orgFormState" class="detail-state" hidden></div>
                 <form id="orgForm" novalidate>
                     <div class="form-grid-2col">
                         <div class="form-group">
@@ -295,7 +297,7 @@
                         <div class="form-group">
                             <label for="orgCode">Mã đơn vị <span class="text-danger">*</span></label>
                             <input type="text" id="orgCode" name="code" class="form-control" maxlength="50" autocomplete="off" placeholder="Ví dụ: KD-02">
-                            <small class="form-hint">Chữ hoa không dấu, chữ số, nối bằng dấu "-". Không đổi được sau khi tạo.</small>
+                            <small class="form-hint" id="orgCodeHint">Chữ hoa không dấu, chữ số, nối bằng dấu "-". Không đổi được sau khi tạo.</small>
                             <small class="field-error" data-error-for="code" hidden></small>
                         </div>
                         <div class="form-group">
@@ -320,6 +322,16 @@
                             <label for="orgRepPhone">Điện thoại</label>
                             <input type="tel" id="orgRepPhone" name="representativePhone" class="form-control" maxlength="30" placeholder="Ví dụ: 024 3974 1234">
                             <small class="field-error" data-error-for="representativePhone" hidden></small>
+                        </div>
+                        <!-- Chỉ ở chế độ sửa: POST không nhận status (M01 mục 3.2), PUT nhận ACTIVE/INACTIVE (mục 3.3) -->
+                        <div class="form-group" id="orgStatusGroup" hidden>
+                            <label for="orgStatus">Trạng thái</label>
+                            <select id="orgStatus" name="status" class="form-control">
+                                <option value="ACTIVE">Hoạt động</option>
+                                <option value="INACTIVE">Ngừng hoạt động</option>
+                            </select>
+                            <small class="form-hint">Ngừng hoạt động không ảnh hưởng đơn vị con và nhóm đã gắn, chỉ chặn gắn mới.</small>
+                            <small class="field-error" data-error-for="status" hidden></small>
                         </div>
                         <div class="form-group col-span-2">
                             <label for="orgRepEmail">Email</label>

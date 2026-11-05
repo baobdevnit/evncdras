@@ -15,11 +15,18 @@
  *    (ô nhập tự viết hoa, backend không tự đổi).
  *  - 201 data 16 trường như GET .../:id (children = [], userGroups = []). 400/409 CODE_DUPLICATE → lỗi dưới ô;
  *    409 ORGANIZATION_INACTIVE → lỗi dưới "Trực thuộc" + tải lại cây. Thành công: đóng hộp, mở sẵn nút cha, tải lại cây.
- * Sửa/xóa (O05–O06) còn là demo, nối API ở các endpoint đó.
+ * Sửa: PUT /api/v1/admin/organizations/:id (O05, M01 mục 3.3) từ #orgModal chế độ sửa.
+ *  - Mỗi lần mở tải GET .../:id (tải/lỗi + "Thử lại" trong hộp, 404 → đóng hộp + tải lại cây); mã đơn vị chỉ đọc, có ô trạng thái.
+ *  - Body cập nhật một phần { name?, parentId?, sortOrder?, status?, description?, representative*? }, chỉ gửi trường đã đổi;
+ *    không đổi gì thì không gọi API. code/level → 400. Đổi cha: chính nó/nhánh con/vượt cấp 3/không tồn tại → 400 errors.parentId,
+ *    cha mới INACTIVE → 409 ORGANIZATION_INACTIVE; level cả nhánh tính lại. Kích hoạt lại được kể cả khi cha INACTIVE.
+ *  - 200 data 16 trường như GET .../:id. Thành công: đóng hộp, mở sẵn nút cha mới, tải lại cây.
+ * Xóa (O06) còn là demo, nối API ở endpoint đó.
  *
  * Kiểm tay mock: ?treeError=1 (lỗi tải, "Thử lại" thành công), ?treeEmpty=1 (cây rỗng), ?noManage=1 (thiếu org:manage),
  * ?detailError=1 (lần mở chi tiết đầu lỗi mạng, "Thử lại" thành công), ?detailMissing=<id> (đơn vị đã bị xóa → 404),
- * ?createError=1 (lần tạo đầu lỗi mạng), ?parentInactive=<id> (đơn vị <id> bị ngừng hoạt động ngay trước khi tạo → 409).
+ * ?createError=1 (lần tạo đầu lỗi mạng), ?parentInactive=<id> (đơn vị <id> bị ngừng hoạt động ngay trước khi tạo/chuyển cha → 409),
+ * ?updateError=1 (lần lưu sửa đầu lỗi mạng), ?updateMissing=<id> (đơn vị <id> bị xóa trước khi lưu → 404).
  */
 
 const ORG_QS = new URLSearchParams(window.location.search);
@@ -55,6 +62,8 @@ const MOCK_ORG_EXTRA = {
     3: { description: 'Nghiên cứu, thiết kế và phát triển các giải pháp phần mềm nghiệp vụ, ứng dụng phân tích CDR.',
         representativeName: 'Lê Thị B', representativePhone: null, representativeEmail: 'dev@evn.com.vn',
         createdAt: '2026-10-01T08:05:00+07:00', updatedAt: '2026-10-01T08:05:00+07:00' },
+    6: { description: null, representativeName: 'Phạm Thị D', representativePhone: null, representativeEmail: 'ketoan@evn.com.vn',
+        createdAt: '2026-09-15T08:10:00+07:00', updatedAt: '2026-10-05T09:00:00+07:00' },
     12: { description: 'Đơn vị đã giải thể, giữ lại để tra cứu.', representativeName: null, representativePhone: null, representativeEmail: null,
         createdAt: '2026-09-15T08:30:00+07:00', updatedAt: '2026-10-30T16:45:00+07:00' }
 };
@@ -138,32 +147,36 @@ function mockGetOrgDetail(token, idParam, query) {
             return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
         }
         const id = Number(idStr);
-        const row = MOCK_ORG_ROWS.find(o => o.id === id);
-        if (!row || ORG_QS.get('detailMissing') === idStr) {
+        if (!MOCK_ORG_ROWS.some(o => o.id === id) || ORG_QS.get('detailMissing') === idStr) {
             return Promise.reject({ success: false, statusCode: 404, errorCode: 'NOT_FOUND',
                 message: 'Không tìm thấy đơn vị tổ chức', errors: null, timestamp: orgNow() });
         }
-        const parent = row.parentId == null ? null : MOCK_ORG_ROWS.find(o => o.id === row.parentId);
-        const extra = MOCK_ORG_EXTRA[id] || {};
-        const children = MOCK_ORG_ROWS.filter(o => o.parentId === id)
-            .sort((a, b) => a.sortOrder - b.sortOrder || orgByName(a, b))
-            .map(o => ({ id: o.id, code: o.code, name: o.name, level: o.level, status: o.status }));
-        const userGroups = MOCK_USER_GROUPS.filter(g => g.organizationId === id).sort(orgByName)
-            .map(g => ({ id: g.id, code: g.code, name: g.name, status: g.status }));
         return { success: true, statusCode: 200, message: 'Lấy thông tin đơn vị tổ chức thành công',
-            data: {
-                id: row.id, parentId: row.parentId, parentName: parent ? parent.name : null,
-                code: row.code, name: row.name, level: row.level, sortOrder: row.sortOrder, status: row.status,
-                description: extra.description ?? null,
-                representativeName: extra.representativeName ?? null,
-                representativePhone: extra.representativePhone ?? null,
-                representativeEmail: extra.representativeEmail ?? null,
-                createdAt: extra.createdAt || '2026-09-15T08:00:00+07:00',
-                updatedAt: extra.updatedAt || '2026-09-15T08:00:00+07:00',
-                children, userGroups
-            },
-            timestamp: orgNow() };
+            data: buildOrgDetailData(id), timestamp: orgNow() };
     });
+}
+
+// Dựng data 16 trường của GET /admin/organizations/:id (M01 mục 3.1.2 bước 2–4); PUT (mục 3.3 bước 6) đọc lại bằng hàm này.
+function buildOrgDetailData(id) {
+    const row = MOCK_ORG_ROWS.find(o => o.id === id);
+    const parent = row.parentId == null ? null : MOCK_ORG_ROWS.find(o => o.id === row.parentId);
+    const extra = MOCK_ORG_EXTRA[id] || {};
+    const children = MOCK_ORG_ROWS.filter(o => o.parentId === id)
+        .sort((a, b) => a.sortOrder - b.sortOrder || orgByName(a, b))
+        .map(o => ({ id: o.id, code: o.code, name: o.name, level: o.level, status: o.status }));
+    const userGroups = MOCK_USER_GROUPS.filter(g => g.organizationId === id).sort(orgByName)
+        .map(g => ({ id: g.id, code: g.code, name: g.name, status: g.status }));
+    return {
+        id: row.id, parentId: row.parentId, parentName: parent ? parent.name : null,
+        code: row.code, name: row.name, level: row.level, sortOrder: row.sortOrder, status: row.status,
+        description: extra.description ?? null,
+        representativeName: extra.representativeName ?? null,
+        representativePhone: extra.representativePhone ?? null,
+        representativeEmail: extra.representativeEmail ?? null,
+        createdAt: extra.createdAt || '2026-09-15T08:00:00+07:00',
+        updatedAt: extra.updatedAt || '2026-09-15T08:00:00+07:00',
+        children, userGroups
+    };
 }
 
 // ---------- Mock POST /api/v1/admin/organizations (M01 mục 3.2) ----------
@@ -214,17 +227,143 @@ function validateOrgCreateBody(body) {
     else if (!isOrgUint(body.sortOrder, 0, 2147483647)) add('sortOrder', 'Thứ tự là số nguyên từ 0');
     else value.sortOrder = body.sortOrder;
 
-    const text = (k, check) => {
-        const r = optionalOrgText(body[k]);
-        if (r.error) { add(k, r.error); return; }
-        value[k] = r.value;
-        if (r.value !== null) { const m = check(r.value); if (m) add(k, m); }
-    };
-    text('description', v => (orgBytes(v) > 65535 ? 'Mô tả quá dài' : null));
-    text('representativeName', v => (orgLen(v) > 150 ? 'Tối đa 150 ký tự' : null));
-    text('representativePhone', v => (ORG_PHONE_RE.test(v) ? null : 'Số điện thoại không hợp lệ'));
-    text('representativeEmail', v => (orgLen(v) > 150 ? 'Tối đa 150 ký tự' : (ORG_EMAIL_RE.test(v) ? null : 'Email không hợp lệ')));
+    Object.keys(ORG_TEXT_RULES).forEach(k => applyOrgText(body, k, add, value));
     return { errors, value };
+}
+
+// Bốn trường chuỗi tùy chọn, dùng chung cho POST (mục 3.2) và PUT (mục 3.3)
+const ORG_TEXT_RULES = {
+    description: v => (orgBytes(v) > 65535 ? 'Mô tả quá dài' : null),
+    representativeName: v => (orgLen(v) > 150 ? 'Tối đa 150 ký tự' : null),
+    representativePhone: v => (ORG_PHONE_RE.test(v) ? null : 'Số điện thoại không hợp lệ'),
+    representativeEmail: v => (orgLen(v) > 150 ? 'Tối đa 150 ký tự' : (ORG_EMAIL_RE.test(v) ? null : 'Email không hợp lệ'))
+};
+function applyOrgText(body, k, add, value) {
+    const r = optionalOrgText(body[k]);
+    if (r.error) { add(k, r.error); return; }
+    value[k] = r.value;
+    if (r.value !== null) { const m = ORG_TEXT_RULES[k](r.value); if (m) add(k, m); }
+}
+
+// ---------- Mock PUT /api/v1/admin/organizations/:id (M01 mục 3.3) ----------
+const ORG_UPDATE_FIELDS = ['name', 'parentId', 'sortOrder', 'status', 'description',
+    'representativeName', 'representativePhone', 'representativeEmail'];   // cũng là thứ tự changedFields
+const ORG_ROW_FIELDS = ['name', 'parentId', 'sortOrder', 'status'];       // cột MOCK_ORG_ROWS; còn lại ở MOCK_ORG_EXTRA
+let mockUpdateFailOnce = ORG_QS.get('updateError') === '1';
+
+// Kiểm tra body cập nhật một phần: chỉ trường có mặt; code/level/trường lạ → 400. Trả { errors, value } (value chỉ khóa đã gửi).
+function validateOrgUpdateBody(body) {
+    const errors = {};
+    const add = (k, m) => { (errors[k] = errors[k] || []).push(m); };
+    const value = {};
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return { errors: { body: ['Body phải là đối tượng JSON'] }, value };
+    const keys = Object.keys(body);
+    if (!keys.length) add('body', 'Cần gửi ít nhất một trường');
+    keys.forEach(k => {
+        if (k === 'code') add(k, 'Mã đơn vị không đổi được sau khi tạo');
+        else if (!ORG_UPDATE_FIELDS.includes(k)) add(k, 'Trường không được hỗ trợ');
+    });
+    const has = k => Object.prototype.hasOwnProperty.call(body, k);
+    if (has('name')) {
+        if (typeof body.name !== 'string' || body.name.trim() === '') add('name', 'Tên đơn vị là bắt buộc');
+        else if (orgLen(body.name.trim()) < 3 || orgLen(body.name.trim()) > 255) add('name', 'Tên đơn vị dài 3–255 ký tự');
+        else value.name = body.name.trim();
+    }
+    if (has('parentId')) {
+        if (body.parentId === null) value.parentId = null;
+        else if (!isOrgUint(body.parentId, 1, 4294967295)) add('parentId', 'Đơn vị cha không hợp lệ');
+        else value.parentId = body.parentId;
+    }
+    if (has('sortOrder')) {
+        if (!isOrgUint(body.sortOrder, 0, 2147483647)) add('sortOrder', 'Thứ tự là số nguyên từ 0');
+        else value.sortOrder = body.sortOrder;
+    }
+    if (has('status')) {
+        if (body.status !== 'ACTIVE' && body.status !== 'INACTIVE') add('status', 'Trạng thái là ACTIVE hoặc INACTIVE');
+        else value.status = body.status;
+    }
+    Object.keys(ORG_TEXT_RULES).forEach(k => { if (has(k)) applyOrgText(body, k, add, value); });
+    return { errors, value };
+}
+
+// Các đơn vị con cháu của id (kiểm chu trình, chiều cao nhánh, tính lại level)
+function orgDescendants(id) {
+    const out = [];
+    (function walk(pid) { MOCK_ORG_ROWS.filter(o => o.parentId === pid).forEach(o => { out.push(o); walk(o.id); }); })(id);
+    return out;
+}
+
+// Giả lập PUT: 401 → 400 (:id/query/body) → 404 → so trường → cha mới (400/409) → UPDATE + level nhánh + audit → 200.
+function mockUpdateOrg(token, idParam, query, body) {
+    return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+        const fail = (statusCode, errorCode, message, errors) =>
+            Promise.reject({ success: false, statusCode, errorCode, message, errors: errors || null, timestamp: orgNow() });
+        if (!token) return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+        const idStr = String(idParam);
+        const { errors, value } = validateOrgUpdateBody(body);
+        const idOk = /^[1-9][0-9]{0,9}$/.test(idStr) && Number(idStr) <= 4294967295;
+        if (!idOk) errors.id = ['Mã đơn vị không hợp lệ'];
+        Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được hỗ trợ']; });
+        if (idOk && value.parentId === Number(idStr)) (errors.parentId = errors.parentId || []).push('Không chọn chính đơn vị làm đơn vị cha');
+        if (Object.keys(errors).length) return fail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', errors);
+        if (mockUpdateFailOnce) {
+            mockUpdateFailOnce = false;
+            return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
+        }
+        // Bước 2: khóa (giả lập) – không có dòng → 404
+        const id = Number(idStr);
+        const row = MOCK_ORG_ROWS.find(o => o.id === id);
+        if (!row || ORG_QS.get('updateMissing') === idStr) return fail(404, 'NOT_FOUND', 'Không tìm thấy đơn vị tổ chức');
+        const extra = MOCK_ORG_EXTRA[id] || (MOCK_ORG_EXTRA[id] = { description: null, representativeName: null,
+            representativePhone: null, representativeEmail: null, createdAt: '2026-09-15T08:00:00+07:00', updatedAt: '2026-09-15T08:00:00+07:00' });
+        // Bước 3: so chính xác từng trường đã gửi
+        const current = { name: row.name, parentId: row.parentId, sortOrder: row.sortOrder, status: row.status,
+            description: extra.description ?? null, representativeName: extra.representativeName ?? null,
+            representativePhone: extra.representativePhone ?? null, representativeEmail: extra.representativeEmail ?? null };
+        const changedFields = ORG_UPDATE_FIELDS.filter(k => k in value && value[k] !== current[k]);
+        if (!changedFields.length) {
+            return { success: true, statusCode: 200, message: 'Không có thay đổi nào', data: buildOrgDetailData(id), timestamp: orgNow() };
+        }
+        // Bước 4: cha mới (chỉ khi parentId đổi)
+        let newLevel = row.level;
+        const descendants = orgDescendants(id);
+        if (changedFields.includes('parentId')) {
+            if (value.parentId === null) newLevel = 0;
+            else {
+                const parent = MOCK_ORG_ROWS.find(o => o.id === value.parentId);
+                if (parent && ORG_QS.get('parentInactive') === String(parent.id)) parent.status = 'INACTIVE';
+                if (!parent) return fail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', { parentId: ['Đơn vị cha không tồn tại'] });
+                if (descendants.some(o => o.id === parent.id)) {
+                    return fail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', { parentId: ['Không chuyển được vào đơn vị con của chính nó'] });
+                }
+                if (parent.status !== 'ACTIVE') {
+                    return fail(409, 'ORGANIZATION_INACTIVE', 'Đơn vị cha đã ngừng hoạt động',
+                        { parentId: ['Đơn vị cha đã ngừng hoạt động, không chuyển vào được'] });
+                }
+                newLevel = parent.level + 1;
+            }
+            const height = descendants.reduce((m, o) => Math.max(m, o.level - row.level), 0);
+            if (newLevel + height > 3) {
+                return fail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', { parentId: ['Vượt cấp tối đa 3 (tính cả các đơn vị con)'] });
+            }
+        }
+        // Bước 5: UPDATE đơn vị + level nhánh (updated_at đổi theo) + audit cùng transaction; status không lan sang con/nhóm
+        const now = orgNow();
+        const d = newLevel - row.level;
+        changedFields.forEach(k => { if (ORG_ROW_FIELDS.includes(k)) row[k] = value[k]; else extra[k] = value[k]; });
+        row.level = newLevel;
+        extra.updatedAt = now;
+        if (d !== 0) {
+            descendants.forEach(o => {
+                o.level += d;
+                const ex = MOCK_ORG_EXTRA[o.id] || (MOCK_ORG_EXTRA[o.id] = { createdAt: '2026-09-15T08:00:00+07:00' });
+                ex.updatedAt = now;
+            });
+        }
+        MOCK_AUDIT_LOGS.push({ resourceName: 'ORGANIZATION', action: 'UPDATE', resourceId: String(id), actionDetails: { changedFields } });
+        // Bước 6: đọc lại như GET .../:id
+        return { success: true, statusCode: 200, message: 'Cập nhật đơn vị tổ chức thành công', data: buildOrgDetailData(id), timestamp: now };
+    });
 }
 
 // Giả lập POST /api/v1/admin/organizations: 401 → 400 (query/body) → cha (400/409) → trùng code (409) → 201.
@@ -432,23 +571,42 @@ function loadTree() {
         });
 }
 
-// Ô chọn đơn vị cha: duyệt theo thứ tự cây, chỉ nút ACTIVE có level < 3; khi sửa bỏ chính nó và nhánh con.
-function fillParentOptions(excludeId) {
+// Chiều cao nhánh của một nút trên cây đã tải (0 = lá)
+function orgSubtreeHeight(node) {
+    return node && node.children.length ? 1 + Math.max(...node.children.map(orgSubtreeHeight)) : 0;
+}
+
+// Ô chọn đơn vị cha: duyệt theo thứ tự cây, chỉ nút ACTIVE có level + 1 + height ≤ 3.
+// Khi sửa (M01 mục 3.3 Frontend): bỏ chính nó và nhánh con, height = chiều cao nhánh đang sửa,
+// luôn giữ cha hiện tại (kể cả INACTIVE, hoặc không còn trên cây đã tải) để ô chọn đúng giá trị.
+function fillParentOptions(excludeId, edit) {
     const select = document.getElementById('parentOrg');
     if (!select) return;
     while (select.options.length > 1) select.remove(1);
+    const height = edit ? edit.height : 0;
+    const keepId = edit ? edit.currentParentId : null;
+    let keptShown = false;
     (function walk(nodes) {
         nodes.forEach(n => {
             if (n.id === excludeId) return; // bỏ cả nhánh
-            if (n.status === 'ACTIVE' && n.level < 3) {
+            const isCurrent = keepId != null && n.id === keepId;
+            if (isCurrent || (n.status === 'ACTIVE' && n.level + 1 + height <= 3)) {
                 const opt = document.createElement('option');
                 opt.value = String(n.id);
-                opt.textContent = '  '.repeat(n.level) + (n.level ? '↳ ' : '') + n.name;
+                opt.textContent = '  '.repeat(n.level) + (n.level ? '↳ ' : '') + n.name
+                    + (n.status === 'ACTIVE' ? '' : ' (ngừng hoạt động)');
                 select.appendChild(opt);
+                if (isCurrent) keptShown = true;
             }
             walk(n.children);
         });
     })(orgTree);
+    if (keepId != null && !keptShown) {
+        const opt = document.createElement('option');
+        opt.value = String(keepId);
+        opt.textContent = edit.currentParentName || ('Đơn vị #' + keepId);
+        select.appendChild(opt);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -478,9 +636,12 @@ function closeModal(modalId) {
     if (modal) modal.classList.remove('show');
 }
 
-// ---------- Form tạo/sửa (#orgModal). Tạo: O04 (M01 mục 3.2 Frontend); sửa (O05) còn là demo ----------
+// ---------- Form tạo/sửa (#orgModal). Tạo: O04 (M01 mục 3.2 Frontend); sửa: O05 (mục 3.3 Frontend) ----------
 let orgFormMode = 'create';
 let orgFormBusy = false;
+let orgEditId = null;       // đơn vị đang sửa
+let orgEditSource = null;   // data GET .../:id của lần mở sau cùng (null khi đang tải/lỗi)
+let orgEditSeq = 0;
 
 function orgFormEl() { return document.getElementById('orgForm'); }
 
@@ -514,13 +675,51 @@ function setOrgFormBusy(busy) {
     form.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = busy; });
     document.querySelectorAll('#orgModal [data-close-org]').forEach(el => { el.disabled = busy; });
     const btn = document.getElementById('btnSaveOrg');
-    btn.disabled = busy;
+    // chế độ sửa: chỉ lưu được khi đã tải xong dữ liệu
+    btn.disabled = busy || (orgFormMode === 'edit' && !orgEditSource);
     btn.textContent = busy ? 'Đang lưu...' : (orgFormMode === 'create' ? 'Thêm đơn vị' : 'Lưu thay đổi');
 }
 
 function closeOrgForm() {
     if (orgFormBusy) return; // đang gửi: không đóng
     closeModal('orgModal');
+    orgEditId = null;
+    orgEditSeq++; // bỏ response tải form đang chờ
+}
+
+// Chế độ form: tạo (ô mã nhập được, không có ô trạng thái) / sửa (mã chỉ đọc, có ô trạng thái)
+function setOrgFormMode(mode) {
+    orgFormMode = mode;
+    const edit = mode === 'edit';
+    const code = document.getElementById('orgCode');
+    if (code) code.readOnly = edit;
+    const hint = document.getElementById('orgCodeHint');
+    if (hint) hint.textContent = edit ? 'Mã đơn vị không đổi được sau khi tạo.'
+        : 'Chữ hoa không dấu, chữ số, nối bằng dấu "-". Không đổi được sau khi tạo.';
+    const statusGroup = document.getElementById('orgStatusGroup');
+    if (statusGroup) statusGroup.hidden = !edit;
+}
+
+// Trạng thái tải/lỗi của form sửa: ẩn form, hiện thông điệp (+ "Thử lại")
+function setOrgFormState(message, withRetry) {
+    const state = document.getElementById('orgFormState');
+    const form = orgFormEl();
+    if (!state || !form) return;
+    if (message == null) { state.hidden = true; state.innerHTML = ''; form.hidden = false; return; }
+    form.hidden = true;
+    state.innerHTML = '';
+    state.hidden = false;
+    const text = document.createElement('span');
+    text.textContent = message;
+    state.appendChild(text);
+    if (withRetry) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline';
+        btn.textContent = 'Thử lại';
+        btn.addEventListener('click', () => loadOrgEdit(orgEditId));
+        state.appendChild(btn);
+    }
 }
 
 // Đọc form thành body POST: số cho parentId/sortOrder, ô trống của trường tùy chọn → null (sortOrder trống → bỏ).
@@ -585,21 +784,87 @@ function submitCreateOrg() {
 
 function saveOrg() {
     if (orgFormBusy) return;
-    if (orgFormMode === 'create') { submitCreateOrg(); return; }
-    // Demo O05: sau khi API trả 200 thì tải lại cả cây (không sửa dòng tại chỗ).
+    if (orgFormMode === 'create') submitCreateOrg();
+    else submitUpdateOrg();
+}
+
+// Body PUT: chỉ trường khác dữ liệu đã tải (sau chuẩn hóa: cắt khoảng trắng, ô trống của trường tùy chọn → null).
+// sortOrder trống/sai → NaN (lỗi dưới ô). code không đọc (chỉ đọc, không gửi).
+function buildOrgUpdateBody(source) {
+    const f = orgFormEl().elements;
+    const opt = el => (el.value.trim() === '' ? null : el.value.trim());
+    const sort = f.sortOrder.value.trim();
+    const next = {
+        name: f.name.value.trim(),
+        parentId: f.parentId.value === '' ? null : Number(f.parentId.value),
+        sortOrder: /^[0-9]+$/.test(sort) ? Number(sort) : NaN,
+        status: f.status.value,
+        description: opt(f.description),
+        representativeName: opt(f.representativeName),
+        representativePhone: opt(f.representativePhone),
+        representativeEmail: opt(f.representativeEmail)
+    };
+    const body = {};
+    ORG_UPDATE_FIELDS.forEach(k => { if (!Object.is(next[k], source[k])) body[k] = next[k]; });
+    return body;
+}
+
+function submitUpdateOrg() {
+    const source = orgEditSource;
+    const id = orgEditId;
+    if (!source || id == null) return;
+    clearOrgFormErrors();
+    const body = buildOrgUpdateBody(source);
+    if (!Object.keys(body).length) { // quy ước A18: không đổi gì thì không gọi API
+        closeOrgForm();
+        if (window.showToast) window.showToast('Không có thay đổi nào', 'info');
+        return;
+    }
+    const clientErrors = validateOrgUpdateBody(body).errors;
+    if (Number.isNaN(body.sortOrder)) clientErrors.sortOrder = ['Thứ tự là số nguyên từ 0'];
+    if (body.parentId === id) clientErrors.parentId = ['Không chọn chính đơn vị làm đơn vị cha'];
+    if (Object.keys(clientErrors).length) { showOrgFormErrors(clientErrors); return; }
     setOrgFormBusy(true);
-    setTimeout(() => {
-        setOrgFormBusy(false);
-        closeModal('orgModal');
-        if (window.showToast) window.showToast('Đã lưu thông tin tổ chức (demo)', 'success');
-        loadTree();
-    }, 800);
+    orgCallApi(token => mockUpdateOrg(token, String(id), {}, body))
+        .then(res => {
+            setOrgFormBusy(false);
+            closeOrgForm();
+            if (res.data.parentId != null) expandedOrgIds.add(res.data.parentId); // để đơn vị hiện ngay dưới cha mới
+            if (window.showToast) window.showToast('Đã lưu đơn vị ' + res.data.name, 'success');
+            loadTree();
+        })
+        .catch(err => {
+            setOrgFormBusy(false);
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            if (err && err.statusCode === 404) {
+                closeOrgForm();
+                if (window.showToast) window.showToast('Đơn vị tổ chức không còn tồn tại', 'warning');
+                loadTree();
+                return;
+            }
+            if (err && (err.statusCode === 400 || err.statusCode === 409) && err.errors) {
+                const rest = showOrgFormErrors(err.errors);
+                if (err.errorCode === 'ORGANIZATION_INACTIVE') {
+                    // cha mới vừa bị ngừng hoạt động: tải lại cây rồi dựng lại ô chọn (giữ lỗi dưới ô)
+                    const keepParent = orgFormEl().elements.parentId.value;
+                    loadTree().then(() => {
+                        if (orgEditId !== id || !orgEditSource) return;
+                        fillParentOptions(id, orgEditContext(orgEditSource));
+                        const sel = orgFormEl().elements.parentId;
+                        sel.value = [...sel.options].some(o => o.value === keepParent) ? keepParent
+                            : (orgEditSource.parentId == null ? '' : String(orgEditSource.parentId));
+                    });
+                }
+                if (rest.length && window.showToast) window.showToast(rest.join(' '), 'error');
+                return;
+            }
+            if (window.showToast) window.showToast((err && err.message) || 'Không lưu được đơn vị. Vui lòng thử lại.', 'error');
+        });
 }
 
 // ---------- Chi tiết đơn vị (O03, M01 mục 3.1.2 Frontend; Vue: store selectedOrg / fetchDetail) ----------
 let currentDetailOrgId = null;
 let currentDeleteOrgId = null;
-let orgDetail = null;       // data của lần tải chi tiết thành công gần nhất (form sửa O05 dùng lại khi cùng id)
 let orgDetailSeq = 0;
 
 const ORG_LEVEL_LABELS = ['Cấp 0 – Tập đoàn', 'Cấp 1 – Tổng công ty', 'Cấp 2 – Khối/Công ty', 'Cấp 3 – Phòng ban/Điện lực'];
@@ -712,7 +977,6 @@ function loadOrgDetail(id) {
     return orgCallApi(token => mockGetOrgDetail(token, String(id), {}))
         .then(res => {
             if (seq !== orgDetailSeq || currentDetailOrgId !== id) return;
-            orgDetail = res.data;
             renderOrgDetail(res.data);
         })
         .catch(err => {
@@ -731,7 +995,6 @@ function loadOrgDetail(id) {
 function showOrgDetail(id) {
     const entry = orgIndex.get(id);
     currentDetailOrgId = id;
-    orgDetail = null;
     const title = document.getElementById('detailOrgTitle');
     if (title) title.textContent = entry ? entry.node.name : '';
     openModal('orgDetailModal');
@@ -756,21 +1019,63 @@ function addOrgFromDetail() {
     openCreateOrgModal(parentId);
 }
 
+// Ngữ cảnh ô chọn cha khi sửa: chiều cao nhánh (từ cây đã tải) + cha hiện tại (từ GET .../:id)
+function orgEditContext(data) {
+    const entry = orgIndex.get(data.id);
+    return { height: orgSubtreeHeight(entry ? entry.node : null), currentParentId: data.parentId, currentParentName: data.parentName };
+}
+
+// Mở form sửa: tiêu đề từ nút cây, tải GET .../:id mỗi lần mở (không dùng dữ liệu cây/chi tiết cũ).
 function openEditOrgModal(id) {
-    orgFormMode = 'edit';
+    setOrgFormMode('edit');
     const form = orgFormEl();
     if (form) form.reset();
     clearOrgFormErrors();
+    orgEditId = id;
+    orgEditSource = null;
     setOrgFormBusy(false);
+    const entry = orgIndex.get(id);
     const modalTitle = document.querySelector('#orgModal .modal-header h2');
-    if (modalTitle) modalTitle.innerText = 'Chỉnh sửa thông tin tổ chức';
-    fillParentOptions(id);
-    populateOrgForm(id);
+    if (modalTitle) modalTitle.innerText = 'Chỉnh sửa – ' + (entry ? entry.node.name : 'đơn vị tổ chức');
     openModal('orgModal');
+    loadOrgEdit(id);
+}
+
+// Chỉ nhận response của lần mở sau cùng; 404 → đóng hộp + toast cảnh báo + tải lại cây; lỗi khác → "Thử lại".
+function loadOrgEdit(id) {
+    const seq = ++orgEditSeq;
+    orgEditSource = null;
+    setOrgFormBusy(false);
+    setOrgFormState('Đang tải thông tin đơn vị...', false);
+    return orgCallApi(token => mockGetOrgDetail(token, String(id), {}))
+        .then(res => {
+            if (seq !== orgEditSeq || orgEditId !== id) return;
+            orgEditSource = res.data;
+            populateOrgForm(res.data);
+            setOrgFormState(null);
+            setOrgFormBusy(false);
+            const nameInput = document.getElementById('orgName');
+            if (nameInput) nameInput.focus();
+        })
+        .catch(err => {
+            if (seq !== orgEditSeq || orgEditId !== id) return;
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            if (err && err.statusCode === 404) {
+                closeOrgForm();
+                if (window.showToast) window.showToast('Đơn vị tổ chức không còn tồn tại', 'warning');
+                loadTree();
+                return;
+            }
+            setOrgFormState((err && err.message) || 'Không tải được thông tin đơn vị. Vui lòng thử lại.', true);
+        });
 }
 
 function openCreateOrgModal(parentId = '') {
-    orgFormMode = 'create';
+    setOrgFormMode('create');
+    orgEditId = null;
+    orgEditSource = null;
+    orgEditSeq++;
+    setOrgFormState(null);
     const form = orgFormEl();
     if (form) form.reset();
     clearOrgFormErrors();
@@ -789,21 +1094,19 @@ function openCreateOrgModal(parentId = '') {
     if (nameInput) nameInput.focus();
 }
 
-function populateOrgForm(id) {
-    const entry = orgIndex.get(id);
-    if (!entry) return;
-    const org = entry.node;
-    const val = (elId, v) => { const el = document.getElementById(elId); if (el) el.value = v; };
-    val('orgName', org.name);
-    val('orgCode', org.code);
-    val('parentOrg', org.parentId == null ? '' : String(org.parentId));
-    val('sortOrder', String(org.sortOrder));
-    // O05: form sửa tải GET .../:id trước khi mở; tạm dùng chi tiết vừa xem nếu cùng id
-    const d = orgDetail && orgDetail.id === id ? orgDetail : {};
-    val('orgDesc', d.description || '');
-    val('orgRepName', d.representativeName || '');
-    val('orgRepPhone', d.representativePhone || '');
-    val('orgRepEmail', d.representativeEmail || '');
+// Điền form sửa từ data GET .../:id (16 trường); null → ô trống
+function populateOrgForm(data) {
+    fillParentOptions(data.id, orgEditContext(data));
+    const val = (elId, v) => { const el = document.getElementById(elId); if (el) el.value = v == null ? '' : String(v); };
+    val('orgName', data.name);
+    val('orgCode', data.code);
+    val('parentOrg', data.parentId);
+    val('sortOrder', data.sortOrder);
+    val('orgStatus', data.status);
+    val('orgDesc', data.description);
+    val('orgRepName', data.representativeName);
+    val('orgRepPhone', data.representativePhone);
+    val('orgRepEmail', data.representativeEmail);
 }
 
 function openDeleteOrgModal(id) {

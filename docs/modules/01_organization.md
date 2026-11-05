@@ -126,7 +126,7 @@ Không có `404` (không có tham số đường dẫn), `409`.
   - Gọi qua API client của cổng (`adminSession.request`, `401` → refresh một lần rồi gửi lại) khi vào màn hình và sau mỗi thao tác tạo/sửa/xóa thành công (tải lại cả cây, không sửa dòng tại chỗ). Trạng thái tải, lỗi (thông điệp + nút "Thử lại") và rỗng ("Chưa có đơn vị tổ chức nào") hiện trong thân bảng.
   - Bảng cây hiện **mọi** nút, không phân trang (không có thanh phân trang, không có ô chọn số dòng). Mặc định mở cấp 0 và cấp 1, cấp sâu hơn thu gọn; nút có `children` mới có biểu tượng mở/đóng; thụt dòng theo `level`. Trạng thái mở/đóng giữ theo `id` khi tải lại cây.
   - Cột: "Tên tổ chức", "Mã đơn vị", "Trạng thái" (`ACTIVE` → badge "Hoạt động", `INACTIVE` → badge "Ngừng hoạt động"), "Hành động". Nút "Xem chi tiết" luôn hiện; nút "Thêm mới" ở đầu trang, "Thêm tổ chức con", "Chỉnh sửa", "Xóa" chỉ hiện khi store có `org:manage` (`data-permission="org:manage"`). "Thêm tổ chức con" chỉ ở nút `ACTIVE` có `level < 3` (mục 3.2); "Xóa" chỉ ở nút có `children.length = 0` và `userGroupCount = 0` (mục 3.4; quy ước A14, backend vẫn kiểm tra và trả `409` nếu dữ liệu đã đổi).
-  - Ô chọn "Trực thuộc (Đơn vị cha)" của `#orgModal` dựng từ cây đã tải (duyệt theo thứ tự cây, thụt theo `level`), chỉ liệt kê nút `ACTIVE` có `level < 3`; khi sửa thì bỏ chính đơn vị và nhánh con của nó (mục 3.3).
+  - Ô chọn "Trực thuộc (Đơn vị cha)" của `#orgModal` dựng từ cây đã tải (duyệt theo thứ tự cây, thụt theo `level`), chỉ liệt kê nút `ACTIVE` có `level < 3`; khi sửa thì bỏ chính đơn vị và nhánh con của nó, chỉ giữ nút mà nhánh chuyển sang không vượt cấp 3 và luôn giữ cha hiện tại kể cả `INACTIVE` (mục 3.3 Frontend).
 - Index phục vụ: khóa chính `admins`/`users`/`user_groups` (kiểm tra tài khoản); `organizations` đọc toàn bảng (vài chục tới vài trăm dòng, sắp trong bộ nhớ, không cần index riêng); `idx_ug_org` (`organization_id`) cho phép đếm ở bước 3 chỉ đọc index.
 
 ### 3.1.1. `GET /api/v1/organizations`
@@ -419,10 +419,97 @@ Không có `404` (không có tham số đường dẫn; cha không tồn tại l
 
 ### 3.3. `PUT /api/v1/admin/organizations/:id`
 
-- Cập nhật thông tin đơn vị theo `id`. Không cho phép chỉnh sửa `parentId` thành chính nó hoặc con cháu của nó (tránh circular loop).
-- **Không nhận `code`**: mã đơn vị bất biến sau khi tạo; body có trường này thì trả `400` (`docs/01_database_schema.md` mục 4).
-- Đổi `parentId`: cha mới phải `ACTIVE` (`409 ORGANIZATION_INACTIVE`); trong một transaction tính lại `level` của đơn vị và toàn bộ nhánh con theo quy tắc mục 3.2. Nếu có đơn vị trong nhánh vượt `level` 3 thì trả `400`, không đổi gì.
-- Chuyển `status` sang `INACTIVE` không ảnh hưởng nhóm người dùng đã gắn hay đơn vị con hiện có; chỉ chặn gắn mới vào đơn vị này (đơn vị con mới, nhóm người dùng mới hoặc đổi sang đơn vị này), xem `docs/01_database_schema.md` mục 4.
+- **Mục đích**: sửa thông tin một đơn vị (tên, thứ tự, người đại diện, mô tả), chuyển đơn vị sang cha khác (kéo theo cả nhánh con) và đổi trạng thái (ngừng hoạt động / kích hoạt lại). Gọi từ `#orgModal` ở chế độ sửa (nút "Sửa" ở dòng cây hoặc "Chỉnh sửa" trong `#orgDetailModal`, mục 5.1). Chỉ có bản Admin.
+- **Guard**: `AdminAuthGuard` → `PermissionsGuard` `org:manage` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` `403 PASSWORD_CHANGE_REQUIRED`; tài khoản không còn `ACTIVE` hoặc token đầy đủ mà `must_change_password = 1` `401 UNAUTHORIZED` (`docs/modules/04_auth_admin.md` mục 3.1.1). Không bị chế độ bảo trì chặn.
+- **Thứ tự kiểm tra**: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → quyền (`403 FORBIDDEN_PERMISSION`) → `:id`, query, body (`400`) → kiểm tra tài khoản (`401`) → khóa và tìm đơn vị (`404`) → cha mới (`400`/`409`, chỉ khi `parentId` đổi).
+- **Request**: `:id` là `organizations.id` (`^[1-9][0-9]{0,9}$` và ≤ 4294967295, sai thì `400` với `errors.id`). Không có query (gửi thì `400` với `errors.<tên tham số>`). Body JSON, **cập nhật một phần** (quy ước A18), ít nhất một trường; body `{}` trả `400` (`errors.body`: "Cần gửi ít nhất một trường"). Trường khác trả `400 VALIDATION_ERROR` với `errors.<tên trường>`: **`code`** (mã bất biến sau khi tạo, `docs/01_database_schema.md` mục 4, R15-05), `level` (backend tự tính), `id`, `createdAt`, `children`… Không ép kiểu.
+
+| Trường | Kiểu | Quy tắc | Cột |
+|---|---|---|---|
+| `name` | chuỗi | Cắt khoảng trắng hai đầu; 3–255 ký tự; `null`/rỗng → `400` (trường bắt buộc khi tạo) | `name` |
+| `parentId` | số \| `null` | `null` = chuyển thành đơn vị gốc; số nguyên 1…4294967295; bằng `:id` → `400` (`errors.parentId`). Chỉ khi **khác** cha hiện tại mới kiểm tra cha mới (bước 4); gửi đúng cha hiện tại (kể cả cha đang `INACTIVE`) không bị chặn | `parent_id` |
+| `sortOrder` | số | Số nguyên 0…2147483647; `null` → `400` | `sort_order` |
+| `status` | chuỗi | `ACTIVE` hoặc `INACTIVE` (chữ hoa); giá trị khác → `400`. Chủ dự án chốt ở O05: kích hoạt lại (`INACTIVE` → `ACTIVE`) được, kể cả khi cha đang `INACTIVE` (không phải gắn mới) | `status` |
+| `description` | chuỗi \| `null` | Như mục 3.2: cắt khoảng trắng, rỗng/`null` → `NULL`, ≤ 65 535 byte UTF-8 | `description` |
+| `representativeName` | chuỗi \| `null` | Như mục 3.2: rỗng/`null` → `NULL`, ≤ 150 ký tự | `representative_name` |
+| `representativePhone` | chuỗi \| `null` | Như mục 3.2 (quy tắc số điện thoại chung `docs/02_api_contracts.md` mục 2) | `representative_phone` |
+| `representativeEmail` | chuỗi \| `null` | Như mục 3.2: rỗng/`null` → `NULL`, ≤ 150 ký tự, `^[^\s@]+@[^\s@]+\.[^\s@]+$` | `representative_email` |
+
+```json
+{ "parentId": 5, "sortOrder": 1, "status": "INACTIVE", "representativePhone": "" }
+```
+
+- **Xử lý** (một transaction; theo thứ tự, dừng ở lỗi đầu tiên, lỗi thì `ROLLBACK`):
+  1. Kiểm tra `:id`, query, body như bảng trên (`400`, gom mọi lỗi trường), rồi kiểm tra tài khoản theo khóa chính `admins` (`401`).
+  2. `BEGIN`, khóa (chủ dự án chốt ở O05):
+     - Body **có** khóa `parentId` (kể cả bằng cha hiện tại): khóa mọi dòng theo khóa chính, dữ liệu dùng luôn cho bước 4 (bảng nhỏ, vài trăm dòng):
+
+```sql
+SELECT id, parent_id, level, status FROM organizations ORDER BY id FOR UPDATE;
+```
+
+     - Body **không có** `parentId`: `SELECT id, parent_id, level, status FROM organizations WHERE id = :id FOR UPDATE`.
+
+     Không có dòng `:id` → `404 NOT_FOUND`. Đơn vị `INACTIVE` vẫn sửa được. Hai cách khóa cùng đi theo thứ tự khóa chính và chỉ cần khóa dòng đích là một dòng, nên hai `PUT` đổi cha chéo nhau chạy tuần tự (không deadlock, không tạo chu trình qua tổ tiên); `POST` (mục 3.2, khóa chia sẻ dòng cha) và `DELETE` (mục 3.4) cùng dòng phải chờ. Đọc thêm các cột còn lại của dòng đích (`name`, `sort_order`, `description`, `representative_*`) theo khóa chính sau khi đã khóa.
+  3. So từng trường đã gửi (sau chuẩn hóa) với giá trị hiện tại bằng so sánh **chính xác** (phân biệt hoa thường; `parentId` so cả `null`); `changedFields` = các trường khác giá trị, theo thứ tự `name`, `parentId`, `sortOrder`, `status`, `description`, `representativeName`, `representativePhone`, `representativeEmail`. Rỗng: không `UPDATE`, không ghi `audit_logs`, sang bước 6 (thông điệp "Không có thay đổi nào").
+  4. `parentId` thuộc `changedFields` (dùng dữ liệu đã khóa ở bước 2):
+     - `null`: `level` mới = 0.
+     - Không có dòng cha mới → `400` (`errors.parentId`: "Đơn vị cha không tồn tại").
+     - Cha mới nằm trong nhánh của `:id` (đi theo `parent_id` từ cha mới lên gốc gặp `:id`) → `400` (`errors.parentId`: "Không chuyển được vào đơn vị con của chính nó").
+     - Cha mới `INACTIVE` → `409 ORGANIZATION_INACTIVE` (`errors.parentId`).
+     - `level` mới = `cha.level + 1`; chiều cao nhánh `h` = `level` lớn nhất trong nhánh (gồm `:id`) − `level` cũ; `level` mới + `h` > 3 → `400` (`errors.parentId`: "Vượt cấp tối đa 3"), không đổi gì.
+  5. `UPDATE organizations SET <cột trong changedFields>[, level = :newLevel] WHERE id = :id`; nếu `level` đổi một lượng `d ≠ 0` thì `UPDATE organizations SET level = level + :d WHERE id IN (<các đơn vị con cháu đã tính ở bước 4>)` (`updated_at` của các dòng này cũng đổi). Đổi `status` **không** lan sang đơn vị con hay nhóm người dùng đã gắn; `INACTIVE` chỉ chặn gắn mới (`docs/01_database_schema.md` mục 4). Ghi `audit_logs` cùng transaction: `resource_name = 'ORGANIZATION'`, `action = 'UPDATE'`, `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `admins.full_name` của người gọi, `resource_id` = `:id`, `ip_address`, `user_agent`, `action_details = { "changedFields": [...] }` (chủ dự án chốt ở O05, như A18: không ghi giá trị cũ/mới; `level` không nằm trong `changedFields`).
+  6. Đọc lại như mục 3.1.2 bước 2–4 (bản Admin, có `children`, `userGroups`) rồi `COMMIT`.
+- **Response** `200`: `data` đúng 16 trường như `GET /api/v1/admin/organizations/:id` (mục 3.1.2), kể cả khi không có thay đổi.
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Cập nhật đơn vị tổ chức thành công",
+  "data": {
+    "id": 6,
+    "parentId": 5,
+    "parentName": "Khối Kinh doanh",
+    "code": "KT-01",
+    "name": "Phòng Kế toán - Tài chính",
+    "level": 2,
+    "sortOrder": 1,
+    "status": "INACTIVE",
+    "description": null,
+    "representativeName": "Phạm Thị D",
+    "representativePhone": null,
+    "representativeEmail": "ketoan@evn.com.vn",
+    "createdAt": "2026-09-15T08:10:00+07:00",
+    "updatedAt": "2026-11-05T11:00:00+07:00",
+    "children": [],
+    "userGroups": []
+  },
+  "timestamp": "2026-11-05T11:00:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | `:id` sai định dạng (`errors.id`); có query; body `{}`, sai kiểu/định dạng/độ dài, `name`/`sortOrder` `null`, trường không nhận (`code`, `level`…); `parentId` bằng `:id`, không tồn tại, nằm trong nhánh của chính nó hoặc làm nhánh vượt cấp 3 (`errors.parentId`) |
+| `401` | `UNAUTHORIZED` | Như mục 3.1 (bản Admin) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `org:manage` |
+| `404` | `NOT_FOUND` | Không có đơn vị `:id` |
+| `409` | `ORGANIZATION_INACTIVE` | Chuyển sang cha mới đang `INACTIVE`; `errors = { "parentId": ["..."] }` |
+
+Không có `CODE_DUPLICATE` (không nhận `code`). Lỗi không ghi `audit_logs`.
+
+- **Frontend** (`#orgModal` ở chế độ sửa, mẫu `templates/admin/organization.js`: `mockUpdateOrg`, `openEditOrgModal`, `loadOrgEdit`, `buildOrgUpdateBody`, `submitUpdateOrg`, `fillParentOptions`):
+  - Mở hộp với tiêu đề "Chỉnh sửa – <tên từ nút cây>", form khóa và hiện "Đang tải...", gọi `GET /api/v1/admin/organizations/:id` **mỗi lần mở** (không dùng dữ liệu cây hay chi tiết cũ; chỉ nhận response của lần mở sau cùng). Lỗi tải: thông điệp + "Thử lại" trong hộp, nút Lưu khóa. `404`: đóng hộp, toast cảnh báo "Đơn vị tổ chức không còn tồn tại", tải lại cây.
+  - Ô: Tên, Mã đơn vị (**chỉ đọc**, không gửi), Trực thuộc, Thứ tự, **Trạng thái** (chỉ ở chế độ sửa: "Hoạt động"/"Ngừng hoạt động", gợi ý "Ngừng hoạt động không ảnh hưởng đơn vị con và nhóm đã gắn, chỉ chặn gắn mới"; chủ dự án chốt ở O05), Người đại diện, Điện thoại, Email, Mô tả.
+  - Ô chọn Trực thuộc: dựng từ cây đã tải, bỏ chính đơn vị và nhánh con, chỉ nút `ACTIVE` có `level + 1 + h ≤ 3` (`h` = chiều cao nhánh của đơn vị đang sửa, tính từ `children` của nút cây); **luôn** có cha hiện tại (kể cả `INACTIVE`, nhãn thêm "(ngừng hoạt động)") để giữ đúng giá trị.
+  - Kiểm tra trước khi gửi bằng cùng quy tắc với backend; chỉ gửi trường **khác** dữ liệu đã tải (chuẩn hóa: cắt khoảng trắng, ô trống của trường tùy chọn → `null`); không đổi gì thì không gọi API, đóng hộp + toast "Không có thay đổi nào" (quy ước A18).
+  - Khi gửi: khóa form và nút đóng ("Đang lưu..."). `400`: lỗi dưới ô. `409 ORGANIZATION_INACTIVE`: lỗi dưới "Trực thuộc", tải lại cây và dựng lại ô chọn. `404`: như khi tải. Lỗi khác: toast lỗi, giữ giá trị.
+  - `200`: đóng hộp, toast "Đã lưu đơn vị <name>", mở sẵn nút cha mới, tải lại cả cây (không sửa dòng tại chỗ).
+- **Index phục vụ**: khóa chính `admins` (kiểm tra tài khoản), khóa chính `organizations` (khóa dòng đích, khóa cả bảng theo khóa chính khi có `parentId`, `UPDATE` nhánh theo `id`), `idx_org_parent`, `idx_ug_org` (đọc lại bước 6). Không thêm index.
 
 ### 3.4. `DELETE /api/v1/admin/organizations/:id`
 
@@ -521,7 +608,7 @@ Màn hình Danh mục tổ chức **chỉ có ở khu vực Admin** (route yêu 
     - **Chỉnh sửa** (`.edit-btn`): Mở `#orgModal` để cập nhật thông tin đơn vị.
     - **Xóa** (`.delete-btn`): Mở `#deleteModal` xác nhận xóa; chỉ ở nút không có đơn vị con và `userGroupCount = 0`.
   - Hiển thị độ thụt dòng theo cấp bằng `<span class="indent"></span>` và icon đóng mở `<span class="toggle-icon">`.
-  - Modal tạo/sửa tổ chức (`#orgModal`): bố cục 2 cột; chế độ tạo có đúng các ô của body mục 3.2 (tên, mã đơn vị, đơn vị cha, thứ tự sắp xếp, người đại diện, điện thoại, email, mô tả), không có ô trạng thái/cấp; lỗi `400`/`409` hiện dưới ô (mục 3.2 Frontend).
+  - Modal tạo/sửa tổ chức (`#orgModal`): bố cục 2 cột; chế độ tạo có đúng các ô của body mục 3.2 (tên, mã đơn vị, đơn vị cha, thứ tự sắp xếp, người đại diện, điện thoại, email, mô tả), không có ô trạng thái/cấp; chế độ sửa tải `GET .../:id` mỗi lần mở, mã đơn vị chỉ đọc, thêm ô trạng thái, chỉ gửi trường đã đổi (mục 3.3 Frontend); lỗi `400`/`409` hiện dưới ô.
   - Modal xem chi tiết (`#orgDetailModal`): Xem toàn bộ thông tin đơn vị (mục 3.1.2), kèm nút hành động "Thêm tổ chức con" (chỉ đơn vị `ACTIVE`, `level < 3`) và "Chỉnh sửa", chỉ hiện khi có `org:manage` và đã tải xong.
   - Modal xác nhận xóa (`#deleteModal`).
 
@@ -545,3 +632,4 @@ Màn hình Danh mục tổ chức **chỉ có ở khu vực Admin** (route yêu 
    - **TC-ORG-02a** (`POST /api/v1/admin/organizations`, Root Admin, dữ liệu như TC-ORG-01a: đơn vị 1 `TC-71` cấp 0, đơn vị 12 `INACTIVE`, đơn vị 13 cấp 3): body `{ "parentId": 1, "code": " KD-02 ", "name": " Khối Dịch vụ Khách hàng ", "representativePhone": "", "sortOrder": 6 }` → `201`, `data` đúng 16 trường, `code = "KD-02"`, `name` đã cắt khoảng trắng, `level = 1`, `status = "ACTIVE"`, `parentName = "Tổng công ty 71"`, `representativePhone = null`, `children = []`, `userGroups = []`; thêm đúng một dòng `audit_logs` `ORGANIZATION / CREATE`, `resource_id` = id mới, `action_details = { "code": "KD-02", "name": "Khối Dịch vụ Khách hàng", "parentId": 1 }`; `GET .../tree` có nút mới dưới đơn vị 1 theo `sortOrder`. Không `parentId`, không `sortOrder` → `level = 0`, `sortOrder = 0`, `parentId = null`. Gọi lại cùng `code` (kể cả `kd-02` sau khi sửa thành chữ hoa) → `409 CODE_DUPLICATE` (`errors.code`); trùng mã của đơn vị `INACTIVE` cũng `409`. `parentId = 12` → `409 ORGANIZATION_INACTIVE` (`errors.parentId`); `parentId = 13` (cấp 3) → `400` (`errors.parentId`); `parentId = 999999` → `400` (`errors.parentId`). `400`: thiếu `code`/`name`, `code = "kd-02"`, `"KD_02"`, `"-KD"`, `"KD--02"`, `"K"`, 51 ký tự, `name = "AB"`, `parentId = "1"`, `parentId = 0`, `sortOrder = -1`, `sortOrder = 1.5`, `sortOrder = null`, `representativeEmail = "abc"`, `representativePhone = "abc"`, có `level`, có `status`, có query `?x=1`. Lỗi không ghi `audit_logs`. Token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; vai trò thiếu `org:manage` → `403 FORBIDDEN_PERMISSION`.
 3. **TC-ORG-03**: Thử xóa một đơn vị đang có đơn vị con, kiểm tra hệ thống chặn và trả thông báo lỗi hợp lý.
 4. **TC-ORG-04**: Đổi trạng thái từ `ACTIVE` sang `INACTIVE`, kiểm tra badge trạng thái cập nhật màu sắc tương ứng.
+   - **TC-ORG-04a** (`PUT /api/v1/admin/organizations/:id`, Root Admin, dữ liệu như mock `templates/admin/organization.js`: 1 `TC-71` gốc; 2 `IT-01` cấp 1 có nhánh 3 (cấp 2) → 13 (cấp 3); 5 `KD-01` cấp 1; 6 `KT-01` cấp 1 lá; 12 `DA-01` `INACTIVE` cấp 1 có con 15; 14 `EVNNPC` gốc): `PUT .../6` `{ "parentId": 5, "sortOrder": 1, "status": "INACTIVE", "representativePhone": "" }` (6 đang `sortOrder = 3`) → `200`, `data` 16 trường, `level = 2`, `parentName = "Khối Kinh doanh"`, `status = "INACTIVE"`; một dòng `audit_logs` `ORGANIZATION / UPDATE`, `resource_id = "6"`, `action_details = {"changedFields":["parentId","sortOrder","status"]}` (`representativePhone` vốn `NULL` nên không tính); cây có 6 dưới 5 với badge "Ngừng hoạt động". Gửi lại cùng body: `200` "Không có thay đổi nào", không thêm audit, `updatedAt` không đổi. `PUT .../6` `{ "status": "ACTIVE" }` → `200` (kích hoạt lại). `PUT .../15` `{ "status": "INACTIVE" }` rồi `{ "status": "ACTIVE" }` → `200` dù cha 12 `INACTIVE`; `PUT .../15` `{ "parentId": 12, "name": "Tổ Hạ tầng" }` → `200` (giữ cha `INACTIVE` không bị chặn). `PUT .../2` `{ "parentId": 13 }` hoặc `{ "parentId": 3 }` → `400` (`errors.parentId`, vào nhánh của chính nó, kiểm trước cấp); `PUT .../2` `{ "parentId": 14 }` → `200`, 2 cấp 1, 3 cấp 2, 13 cấp 3 (không đổi); `PUT .../2` `{ "parentId": 5 }` → `400` (`errors.parentId`, nhánh 2 → 3 → 13 sẽ lên cấp 4), không đổi dòng nào; `PUT .../2` `{ "parentId": null }` → `200`, 2 cấp 0, 3 cấp 1, 13 cấp 2 (`updatedAt` của 3, 13 đổi), `changedFields = ["parentId"]`. `PUT .../2` `{ "parentId": 2 }` → `400`; `{ "parentId": 12 }` cho đơn vị 6 → `409 ORGANIZATION_INACTIVE` (`errors.parentId`); `{ "parentId": 999999 }` → `400` (`errors.parentId`). `PUT .../999999` → `404 NOT_FOUND`. `400`: `:id` `abc`, `0`, `4294967296` (`errors.id`); body `{}`; `{ "code": "KT-02" }`, `{ "level": 2 }`, `{ "name": "  " }`, `{ "name": null }`, `{ "sortOrder": null }`, `{ "sortOrder": "1" }`, `{ "status": "inactive" }`, `{ "parentId": "5" }`, `{ "representativeEmail": "abc" }`; `?x=1`. Lỗi không ghi audit. Token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; vai trò thiếu `org:manage` → `403 FORBIDDEN_PERMISSION`. Hai request đồng thời `PUT .../5 { "parentId": 6 }` và `PUT .../6 { "parentId": 5 }` (6 lá, 5 cấp 1): một `200`, một `400` (`errors.parentId`), không deadlock, không chu trình.

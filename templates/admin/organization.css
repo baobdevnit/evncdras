@@ -257,6 +257,13 @@ tr.expanded .toggle-icon {
     display: none;
 }
 
+/* Mã đơn vị chỉ đọc ở chế độ sửa (M01 mục 3.3: code bất biến, không gửi) */
+#orgModal .form-control[readonly] {
+    background-color: var(--bg-color, #f1f5f9);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
 #orgModal .form-control.is-invalid {
     border-color: var(--secondary);
 }
