@@ -1,7 +1,6 @@
 /* ============================================================
    PAGE: User Settings (Cài đặt tài khoản)
-   File: templates/user-settings.css
-   Matches: resources/js/Pages/Settings/Index.vue & _settings.css
+   File: templates/member/user-settings.css (AccountSettingsView cổng Member, M08 mục 5.2)
    ============================================================ */
 
 /* Settings Layout */
@@ -292,77 +291,75 @@ input:checked + .toggle-slider:before {
     transform: translateX(20px);
 }
 
-/* --- Danger Zone --- */
-.danger-zone .settings-group-header h4 {
-    color: #dc3545;
-}
-
-.danger-zone .settings-group-header {
-    border-bottom-color: rgba(220, 53, 69, 0.3);
-}
-
-/* --- Device List --- */
-.device-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.device-item {
+/* --- Trạng thái tải/lỗi (GET .../preferences) --- */
+.settings-load-state {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 16px;
-    background: var(--bg-hover);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    transition: all 0.2s ease;
-}
-
-.device-icon {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--primary-light, rgba(0, 51, 160, 0.1));
-    color: var(--primary);
-    border-radius: 8px;
-    flex-shrink: 0;
-}
-
-.device-details {
-    flex: 1;
-}
-
-.device-details h5 {
-    margin: 0 0 4px 0;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-main);
-}
-
-.device-details p {
-    margin: 0;
-    font-size: 0.85rem;
+    gap: 12px;
+    padding: 24px;
     color: var(--text-muted);
 }
 
-.device-badge {
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 12px;
-    background: var(--bg-hover);
-    color: var(--primary);
+.settings-load-state.is-error {
+    color: var(--secondary);
+}
+
+.settings-load-state[hidden],
+.settings-layout[hidden] {
+    display: none;
+}
+
+a.profile-nav-btn {
+    text-decoration: none;
+}
+
+/* --- Nhóm chọn theme 3 giá trị (LIGHT / DARK / SYSTEM) --- */
+.segmented {
+    display: inline-flex;
+    flex-shrink: 0;
     border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.segmented label {
+    position: relative;
+    cursor: pointer;
+}
+
+.segmented input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.segmented span {
+    display: block;
+    padding: 8px 14px;
+    font-size: 0.85rem;
     font-weight: 500;
+    color: var(--text-muted);
     white-space: nowrap;
 }
 
-.device-badge.active {
-    background: #e8f5e9;
-    color: #2e7d32;
-    border-color: #c8e6c9;
+.segmented label + label span {
+    border-left: 1px solid var(--border);
+}
+
+.segmented input:checked + span {
+    background: var(--primary);
+    color: #fff;
+}
+
+.segmented input:focus-visible + span {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+/* Tên nhóm QLND ở thẻ tài khoản (userGroup.name) */
+.settings-group-name {
+    font-size: 0.8rem;
+    margin: 4px 0 0 0;
 }
 
 /* --- Buttons --- */
@@ -546,28 +543,6 @@ input:checked + .toggle-slider:before {
 
 [data-theme="dark"] input:checked + .toggle-slider {
     background-color: #1f6beb;
-}
-
-[data-theme="dark"] .device-item {
-    background: #0d1117;
-    border-color: #30363d;
-}
-
-[data-theme="dark"] .device-icon {
-    background: rgba(88, 166, 255, 0.15);
-    color: #58a6ff;
-}
-
-[data-theme="dark"] .device-badge {
-    background: #21262d;
-    color: #8b949e;
-    border-color: #30363d;
-}
-
-[data-theme="dark"] .device-badge.active {
-    background: #238636;
-    color: #ffffff;
-    border-color: #238636;
 }
 
 [data-theme="dark"] .btn-outline {

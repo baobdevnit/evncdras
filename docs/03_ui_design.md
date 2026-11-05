@@ -169,7 +169,7 @@ components:
    - **Cổng Thành viên Đơn vị (Tenant Portal):** Thân thiện, trang nhã, sử dụng màu Xanh EVN truyền thống (`#0033A0`) làm nền tảng.  
    - **Cổng Quản trị Hệ thống (Admin Portal):** Quyền uy, công nghệ, kết hợp Xanh Navy đậm (`#002B7F`) và dải Huy hiệu Vàng Hoàng Kim (`#D97706` / `#F59E0B`).
 4. **Song hành Giao diện Sáng/Tối (Native Dark Mode Ready):**  
-   Hỗ trợ chuyển đổi chủ đề (Theme Toggle) tức thì thông qua thuộc tính `[data-theme="dark"]`, chống hiện tượng nhấp nháy sáng (Flash of Unstyled Content - FOUC) nhờ script đầu trang đọc `theme` đã cache ở `localStorage` (khóa `adminTheme` / `memberTheme`, ghi sau khi nạp `GET .../profile/preferences`; chỉ lưu giá trị `theme`) & `prefers-color-scheme`. Nguồn chuẩn của `theme` là `user_settings` qua API, không phải storage (`docs/modules/09_admin_profile.md` mục 3.6).
+   Hỗ trợ chuyển đổi chủ đề (Theme Toggle) tức thì thông qua thuộc tính `[data-theme="dark"]`, chống hiện tượng nhấp nháy sáng (Flash of Unstyled Content - FOUC) nhờ script đầu trang đọc `theme` đã cache ở `localStorage` (khóa `adminTheme` / `memberTheme`, ghi sau khi nạp `GET .../profile/preferences`; chỉ lưu giá trị `theme`) & `prefers-color-scheme`. Nguồn chuẩn của `theme` là `user_settings` qua API, không phải storage (`docs/modules/09_admin_profile.md` mục 3.6, `docs/modules/08_user_profile.md` mục 3.5.1).
 
 ---
 

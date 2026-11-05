@@ -1,9 +1,13 @@
 // Run this script as early as possible in the <head> to prevent FOUC (Flash of Unstyled Content)
+// Chỉ đọc giá trị `theme` (LIGHT | DARK | SYSTEM) đã cache ở localStorage khóa `memberTheme` sau lần nạp
+// GET /api/v1/profile/preferences trước (docs/modules/08_user_profile.md mục 3.5.1). Nguồn chuẩn là CSDL;
+// SYSTEM hoặc chưa có cache thì theo prefers-color-scheme. Không dùng sessionStorage. Vue: script inline trong index.html.
 (function() {
-    const savedTheme = sessionStorage.getItem('theme');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+    let cached = null;
+    try { cached = localStorage.getItem('memberTheme'); } catch (e) { /* storage bị chặn */ }
+    if (cached === 'LIGHT') document.documentElement.setAttribute('data-theme', 'light');
+    else if (cached === 'DARK') document.documentElement.setAttribute('data-theme', 'dark');
+    else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         document.documentElement.setAttribute('data-theme', 'dark');
     }
 })();
@@ -47,21 +51,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (themeToggleBtn) {
         updateIcon();
 
+        // Nút ở header đổi nhanh Sáng ↔ Tối qua store thiết lập (memberSession.setPreferences áp data-theme,
+        // cache `memberTheme`, phát theme-changed). U12 sẽ lưu qua PUT /api/v1/profile/preferences { theme }.
         themeToggleBtn.addEventListener('click', () => {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-
-            if (newTheme === 'dark') {
-                document.documentElement.setAttribute('data-theme', 'dark');
-                sessionStorage.setItem('theme', 'dark');
-            } else {
-                document.documentElement.removeAttribute('data-theme');
-                sessionStorage.setItem('theme', 'light');
-            }
-
-            updateIcon();
-            window.dispatchEvent(new CustomEvent('theme-changed', { detail: { isDark: newTheme === 'dark' } }));
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            window.memberSession.setPreferences({ theme: isDark ? 'LIGHT' : 'DARK' });
         });
+        window.addEventListener('theme-changed', updateIcon);
     }
 
     function updateIcon() {
@@ -160,17 +156,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarToggleBtn = document.getElementById('sidebarToggle');
 
     if (sidebarToggleBtn && sidebar) {
-        // Check saved state
-        const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true' || sessionStorage.getItem('sidebar_collapsed') === 'true';
-        if (isCollapsed) {
-            sidebar.classList.add('collapsed');
-        }
-
+        // Trạng thái ban đầu theo isSidebarCollapsed của store thiết lập (memberSession.applyPreferences);
+        // bấm nút chỉ thu gọn/mở tạm trong lần dùng này, không ghi storage, không đổi thiết lập đã lưu.
         sidebarToggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
-            const isNowCollapsed = sidebar.classList.contains('collapsed');
-            localStorage.setItem('sidebarCollapsed', isNowCollapsed);
-            sessionStorage.setItem('sidebar_collapsed', isNowCollapsed);
             window.dispatchEvent(new Event('resize'));
         });
     }
@@ -441,6 +430,101 @@ window.memberSession = (function () {
     }
     window.addEventListener('member-maintenance', e => setMaintenanceBanner(e.detail.active, e.detail.message));
 
+    // ---------- Thiết lập giao diện: GET /api/v1/profile/preferences (U11, M08 mục 3.5.1) ----------
+    // Vue: store Pinia `preferencesUser` (src/apps/member/stores/preferencesUser.store.ts). Cùng khung với
+    // adminSession (templates/admin/main.js) nhưng đúng 5 trường, không có dashboardWidgets, cache `memberTheme`.
+    const THEMES = ['LIGHT', 'DARK', 'SYSTEM'];
+    const DEFAULT_PREFERENCES = {   // giá trị mặc định DDL user_settings; dùng khi chưa nạp hoặc nạp lỗi (kể cả 503)
+        theme: 'SYSTEM', isSidebarCollapsed: false, itemsPerPage: 10,
+        emailNotificationEnabled: true, soundAlertEnabled: true
+    };
+    let currentPreferences = null;  // Vue: preferencesUser.data (null = chưa nạp được)
+
+    function readThemeCache() {
+        try { const t = localStorage.getItem('memberTheme'); return THEMES.includes(t) ? t : null; } catch (e) { return null; }
+    }
+    function writeThemeCache(theme) {
+        try { localStorage.setItem('memberTheme', theme); } catch (e) { /* storage bị chặn: chỉ mất chống nháy */ }
+    }
+    const clonePreferences = p => Object.assign({}, p);
+
+    // Dữ liệu mẫu đúng cấu trúc data của response (đúng 5 trường).
+    // Template tĩnh: lấy theme từ cache để giả lập "CSDL đã lưu" giữa các trang.
+    const MOCK_PREFERENCES = Object.assign(clonePreferences(DEFAULT_PREFERENCES), {
+        theme: readThemeCache() || 'SYSTEM',
+        itemsPerPage: 20,
+        soundAlertEnabled: false
+    });
+    let mockPrefsNetworkError = params.get('prefsError') === '1'; // lỗi mạng ở lần gọi đầu (thử "Thử lại")
+
+    // Giả lập backend GET /api/v1/profile/preferences: thứ tự guard (401/403) → bảo trì (503) → query (400)
+    // → đọc users + user_groups (kiểm tra tài khoản) → user_settings; chỉ đọc (không chèn dòng, không audit).
+    // 200 data = 5 trường; 401 UNAUTHORIZED (token thiếu/hết hạn, không còn ACTIVE, nhóm INACTIVE,
+    // must_change_password = 1); 403 PASSWORD_CHANGE_REQUIRED (token giới hạn, guard router đã chặn trước);
+    // 503 MAINTENANCE (không thuộc danh sách miễn). Mock: ?maintenance=1, ?account=locked, ?prefsError=1.
+    function mockGetUserPreferences(token, query) {
+        return new Promise(resolve => setTimeout(resolve, 250)).then(() => {
+            if (mockPrefsNetworkError) { mockPrefsNetworkError = false; return Promise.reject(new Error('Network Error')); }
+            if (!token || MOCK_ACCOUNT_LOCKED) return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+            if (MOCK_MAINTENANCE) return fail(503, 'MAINTENANCE', 'Hệ thống đang bảo trì, vui lòng quay lại sau');
+            if (query && Object.keys(query).length) {
+                return Promise.reject({
+                    success: false, statusCode: 400, errorCode: 'VALIDATION_ERROR', message: 'Dữ liệu không hợp lệ',
+                    errors: { query: ['API không nhận tham số truy vấn'] }, timestamp: now()
+                });
+            }
+            return {
+                success: true, statusCode: 200, message: 'Lấy thiết lập thành công',
+                data: clonePreferences(MOCK_PREFERENCES), timestamp: now()
+            };
+        });
+    }
+
+    // Áp thiết lập lên giao diện toàn cổng: data-theme, sidebar ban đầu; itemsPerPage/soundAlertEnabled do từng
+    // màn hình đọc qua getPreferences(). Ghi cache `memberTheme` (chỉ theme) để chống nháy ở lần tải sau.
+    function applyPreferences(prefs, options) {
+        const root = document.documentElement;
+        if (prefs.theme === 'LIGHT') root.setAttribute('data-theme', 'light');
+        else if (prefs.theme === 'DARK') root.setAttribute('data-theme', 'dark');
+        else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) root.setAttribute('data-theme', 'dark');
+        else root.removeAttribute('data-theme');
+        if (!(options && options.skipCache)) writeThemeCache(prefs.theme);
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) sidebar.classList.toggle('collapsed', !!prefs.isSidebarCollapsed);
+        window.dispatchEvent(new CustomEvent('theme-changed', { detail: { isDark: root.getAttribute('data-theme') === 'dark' } }));
+        window.dispatchEvent(new CustomEvent('preferences-changed', { detail: clonePreferences(prefs) }));
+    }
+
+    // Nạp một lần khi vào cổng (store trống); store đã có thì không gọi lại. Lỗi khác 401 (kể cả 503) không chặn
+    // vào cổng: store giữ trống, giao diện dùng mặc định + theme đã cache. `force` cho nút "Thử lại" ở màn hình cài đặt.
+    function loadPreferences(force) {
+        if (currentPreferences && !force) return Promise.resolve(clonePreferences(currentPreferences));
+        return request(token => mockGetUserPreferences(token)).then(res => {
+            currentPreferences = res.data;
+            applyPreferences(currentPreferences);
+            return clonePreferences(currentPreferences);
+        });
+    }
+
+    // Bản sao thiết lập hiện tại (chưa nạp → mặc định DDL, theme theo cache).
+    function getPreferences() {
+        return clonePreferences(currentPreferences ||
+            Object.assign({}, DEFAULT_PREFERENCES, { theme: readThemeCache() || DEFAULT_PREFERENCES.theme }));
+    }
+
+    // Store đã nạp được từ API chưa (màn hình cài đặt: chưa thì tự gọi loadPreferences).
+    function hasPreferences() {
+        return !!currentPreferences;
+    }
+
+    // Đổi store rồi áp ngay (chưa gọi API). U12 thay bằng savePreferences(patch): PUT chỉ trường vừa đổi,
+    // áp ngay, lỗi thì hoàn tác (khung A10, templates/admin/main.js).
+    function setPreferences(patch) {
+        currentPreferences = Object.assign(getPreferences(), patch);
+        applyPreferences(currentPreferences);
+        return getPreferences();
+    }
+
     // Giả lập một API nghiệp vụ bất kỳ của cổng Member (vd. GET /api/v1/profile) để minh họa request():
     // không token/hết hạn → 401; đang bảo trì → 503 MAINTENANCE (errors = null).
     function mockUserApi(token) {
@@ -452,12 +536,14 @@ window.memberSession = (function () {
     }
 
     // Guard lần đầu vào cổng (kể cả tải lại trang): chưa có token → refresh (chạy cả khi đang bảo trì).
-    // Thành công thì gọi GET /api/v1/auth/me (U04) nạp `user` vào store; 401 → về login.
+    // Thành công thì gọi GET /api/v1/auth/me (U04) nạp `user` vào store, rồi GET /api/v1/profile/preferences (U11)
+    // nạp store thiết lập (lỗi khác 401, kể cả 503, không chặn: dùng mặc định); 401 → về login.
     // Vue: router.beforeEach → ensureSession(), rồi kiểm tra meta.permissions với authUser.user.permissions.
     function ensureSession() {
         const ready = accessToken ? Promise.resolve(accessToken) : refreshOnce();
         return ready
             .then(() => loadMe())
+            .then(user => loadPreferences().catch(() => null).then(() => user))
             .catch(err => { if (!err || err.statusCode === 401) goLogin(); return null; });
     }
 
@@ -479,7 +565,7 @@ window.memberSession = (function () {
     function logout() {
         return request(token => mockUserLogout(token), { maintenanceExempt: true })
             .catch(() => null)
-            .then(() => { accessToken = null; currentUser = null; goLogin(); });
+            .then(() => { accessToken = null; currentUser = null; currentPreferences = null; goLogin(); });
     }
 
     // Sau đăng nhập (token đầy đủ, mustChangePassword = false; token PASSWORD_CHANGE_ONLY không có cookie)
@@ -492,12 +578,21 @@ window.memberSession = (function () {
 
     // Trang tĩnh: không chạy guard (để mở từng trang HTML được), chỉ đổ dữ liệu mẫu vào header/sidebar
     // như sau khi guard nạp /auth/me. Vue: guard gọi ensureSession().
+    // Thiết lập: như sau khi guard nạp preferences — thành công thì store có dữ liệu mẫu; ?maintenance=1 (503),
+    // ?prefsError=1 (lỗi mạng) thì store trống, áp mặc định + theme đã cache (không ghi đè cache).
     document.addEventListener('DOMContentLoaded', () => {
         renderAccount(getAccount());
         if (MOCK_MAINTENANCE) setMaintenanceBanner(true);
+        if (MOCK_MAINTENANCE || mockPrefsNetworkError) {
+            applyPreferences(getPreferences(), { skipCache: true });
+        } else {
+            currentPreferences = clonePreferences(MOCK_PREFERENCES);
+            applyPreferences(currentPreferences);
+        }
     });
 
-    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, getAccount, updateAccount, setAccessToken, mockUserApi };
+    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, getAccount, updateAccount, setAccessToken, mockUserApi,
+        loadPreferences, getPreferences, hasPreferences, setPreferences, applyPreferences };
 })();
 
 // ----------------------------------------
