@@ -391,7 +391,8 @@
                              data = mảng phiên còn hiệu lực { id, ipAddress, userAgent, loggedInAt, lastActiveAt, expiresAt, isCurrent },
                              phiên hiện tại (theo claim sid) đứng đầu; không phân trang. Tải độc lập với hồ sơ (lỗi khối này
                              không ẩn hồ sơ); 503 bảo trì hiện lỗi + "Thử lại" ở khối này. Tên trình duyệt/hệ điều hành do frontend
-                             rút từ userAgent; profile.js dựng từng <li>. Nút "Thu hồi" từng phiên: U10 (M08 mục 3.6.2). -->
+                             rút từ userAgent; profile.js dựng từng <li>. Dòng không phải "Phiên này" có nút "Thu hồi" → #revokeSessionModal
+                             → DELETE /api/v1/auth/sessions/:id (M08 mục 3.6.2) → tải lại danh sách. -->
                         <div class="card" id="my-sessions">
                             <div class="card-header">
                                 <h3>Phiên đăng nhập của tôi</h3>
@@ -431,6 +432,30 @@
             <div class="confirm-modal-actions">
                 <button type="button" class="confirm-modal-btn confirm-modal-btn--cancel" onclick="closeLogoutModal()">Hủy bỏ</button>
                 <button type="button" class="confirm-modal-btn confirm-modal-btn--danger" onclick="confirmLogout()">Đăng xuất</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Xác nhận thu hồi phiên (ConfirmModal, 03 mục 6.6): DELETE /api/v1/auth/sessions/:id (M08 mục 3.6.2).
+         profile.js điền thiết bị/IP vào #revokeSessionMessage bằng textContent. -->
+    <div id="revokeSessionModal" class="confirm-modal-backdrop" style="display: none;">
+        <div class="confirm-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="revokeSessionTitle" aria-describedby="revokeSessionMessage">
+            <div class="confirm-modal-icon-wrapper confirm-modal-icon--danger">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                    <line x1="9" y1="7" x2="15" y2="13"></line>
+                    <line x1="15" y1="7" x2="9" y2="13"></line>
+                </svg>
+            </div>
+            <div class="confirm-modal-content">
+                <h3 class="confirm-modal-title" id="revokeSessionTitle">Thu hồi phiên đăng nhập?</h3>
+                <p class="confirm-modal-message" id="revokeSessionMessage"></p>
+            </div>
+            <div class="confirm-modal-actions">
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--cancel" id="btnCancelRevokeSession">Hủy bỏ</button>
+                <button type="button" class="confirm-modal-btn confirm-modal-btn--danger" id="btnConfirmRevokeSession">Thu hồi</button>
             </div>
         </div>
     </div>

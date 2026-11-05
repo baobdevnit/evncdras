@@ -475,7 +475,7 @@ textarea.form-control {
     font-size: 0.8rem;
 }
 
-/* Cột phải: hạn phiên (U10 thêm nút thu hồi, DELETE /api/v1/auth/sessions/:id) */
+/* Cột phải: hạn phiên + nút thu hồi (DELETE /api/v1/auth/sessions/:id, M08 mục 3.6.2) */
 .session-side {
     flex-shrink: 0;
     display: flex;
@@ -488,6 +488,11 @@ textarea.form-control {
     color: var(--text-muted);
     font-size: 0.8rem;
     white-space: nowrap;
+}
+
+.session-revoke {
+    padding: 4px 12px;
+    font-size: 0.8rem;
 }
 
 @media (max-width: 576px) {
