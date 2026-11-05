@@ -237,3 +237,37 @@ tr.expanded .toggle-icon {
     overflow-y: auto;
     min-height: 0;
 }
+
+/* Form tạo/sửa đơn vị (#orgModal, M01 mục 3.2 Frontend): lỗi 400/409 theo trường, cùng quy ước system-settings.css */
+#orgModal .form-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+#orgModal .field-error {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--secondary);
+}
+
+#orgModal .field-error[hidden] {
+    display: none;
+}
+
+#orgModal .form-control.is-invalid {
+    border-color: var(--secondary);
+}
+
+#orgModal .modal-content {
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+}
+
+#orgModal .modal-body {
+    overflow-y: auto;
+    min-height: 0;
+}

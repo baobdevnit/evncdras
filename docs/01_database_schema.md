@@ -558,7 +558,7 @@ CREATE TABLE IF NOT EXISTS `organizations` (
 
 > [!NOTE]
 > **Quy tắc `level` và `status` của đơn vị** (chi tiết API tại `docs/modules/01_organization.md` mục 3):
-> - `code` bất biến sau khi tạo: `PUT` có trường `code` thì `400`.
+> - `code` bất biến sau khi tạo: `PUT` có trường `code` thì `400`. Tạo đơn vị: `code` chữ hoa `^[A-Z0-9]+(-[A-Z0-9]+)*$`, 2–50 ký tự (backend không tự viết hoa); trùng `uniq_org_code` (kể cả đơn vị `INACTIVE`) → `409 CODE_DUPLICATE` (`docs/modules/01_organization.md` mục 3.2).
 > - `level` không nhận từ request. Tạo đơn vị: gốc = 0, con = `parent.level + 1`; vượt 3 thì `400`. `PUT` đổi `parentId` thì tính lại `level` của đơn vị và **toàn bộ nhánh con** trong cùng transaction; nhánh nào sau khi chuyển có `level` > 3 thì `400`, không đổi gì.
 > - `status = 'INACTIVE'` không ảnh hưởng nhóm người dùng đã gắn và số liệu. Chỉ chặn (`409 ORGANIZATION_INACTIVE`): tạo đơn vị con dưới đơn vị `INACTIVE`, chuyển đơn vị sang cha `INACTIVE`, tạo nhóm người dùng hoặc đổi `organization_id` của nhóm sang đơn vị `INACTIVE` (sửa nhóm mà giữ nguyên `organization_id` thì không bị chặn).
 

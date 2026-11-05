@@ -276,44 +276,67 @@
     </div>
 
     <!-- Modal Form (Add/Edit) -->
+    <!-- Modal tạo/sửa đơn vị. Chế độ tạo: POST /api/v1/admin/organizations (M01 mục 3.2) – đúng các trường của body,
+         không có ô trạng thái/cấp; lỗi 400/409 hiện dưới ô theo errors[field] (data-error-for). Sửa (O05) còn là demo. -->
     <div id="orgModal" class="modal">
         <div class="modal-content modal-lg">
             <div class="modal-header">
                 <h2>Thông tin Tổ chức</h2>
-                <button class="close-btn" onclick="closeModal('orgModal')">&times;</button>
+                <button type="button" class="close-btn" data-close-org onclick="closeOrgForm()">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="orgForm">
+                <form id="orgForm" novalidate>
                     <div class="form-grid-2col">
                         <div class="form-group">
                             <label for="orgName">Tên tổ chức/đơn vị <span class="text-danger">*</span></label>
-                            <input type="text" id="orgName" class="form-control" required placeholder="Nhập tên tổ chức">
+                            <input type="text" id="orgName" name="name" class="form-control" maxlength="255" placeholder="Nhập tên tổ chức">
+                            <small class="field-error" data-error-for="name" hidden></small>
                         </div>
                         <div class="form-group">
-                            <label for="orgCode">Mã đơn vị</label>
-                            <input type="text" id="orgCode" class="form-control" placeholder="Ví dụ: TC-71">
+                            <label for="orgCode">Mã đơn vị <span class="text-danger">*</span></label>
+                            <input type="text" id="orgCode" name="code" class="form-control" maxlength="50" autocomplete="off" placeholder="Ví dụ: KD-02">
+                            <small class="form-hint">Chữ hoa không dấu, chữ số, nối bằng dấu "-". Không đổi được sau khi tạo.</small>
+                            <small class="field-error" data-error-for="code" hidden></small>
                         </div>
                         <div class="form-group">
                             <label for="parentOrg">Trực thuộc (Đơn vị cha)</label>
-                            <select id="parentOrg" class="form-control">
+                            <select id="parentOrg" name="parentId" class="form-control">
                                 <option value="">-- Không có (Cấp cao nhất / Root) --</option>
                                 <!-- Dựng từ cây đã tải: chỉ nút ACTIVE có level < 3 (M01 mục 3.1 Frontend) -->
                             </select>
+                            <small class="field-error" data-error-for="parentId" hidden></small>
                         </div>
                         <div class="form-group">
                             <label for="sortOrder">Thứ tự sắp xếp</label>
-                            <input type="number" id="sortOrder" class="form-control" placeholder="0" min="0">
+                            <input type="number" id="sortOrder" name="sortOrder" class="form-control" placeholder="0" min="0" step="1">
+                            <small class="field-error" data-error-for="sortOrder" hidden></small>
+                        </div>
+                        <div class="form-group">
+                            <label for="orgRepName">Người đại diện</label>
+                            <input type="text" id="orgRepName" name="representativeName" class="form-control" maxlength="150" placeholder="Họ tên người đại diện">
+                            <small class="field-error" data-error-for="representativeName" hidden></small>
+                        </div>
+                        <div class="form-group">
+                            <label for="orgRepPhone">Điện thoại</label>
+                            <input type="tel" id="orgRepPhone" name="representativePhone" class="form-control" maxlength="30" placeholder="Ví dụ: 024 3974 1234">
+                            <small class="field-error" data-error-for="representativePhone" hidden></small>
+                        </div>
+                        <div class="form-group col-span-2">
+                            <label for="orgRepEmail">Email</label>
+                            <input type="email" id="orgRepEmail" name="representativeEmail" class="form-control" maxlength="150" placeholder="Ví dụ: vanphong@evn.com.vn">
+                            <small class="field-error" data-error-for="representativeEmail" hidden></small>
                         </div>
                         <div class="form-group col-span-2">
                             <label for="orgDesc">Mô tả tổ chức</label>
-                            <textarea id="orgDesc" class="form-control" rows="3" placeholder="Nhập mô tả về chức năng, nhiệm vụ hoặc ghi chú cho tổ chức..."></textarea>
+                            <textarea id="orgDesc" name="description" class="form-control" rows="3" placeholder="Nhập mô tả về chức năng, nhiệm vụ hoặc ghi chú cho tổ chức..."></textarea>
+                            <small class="field-error" data-error-for="description" hidden></small>
                         </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-outline" onclick="closeModal('orgModal')">Hủy</button>
-                <button class="btn btn-primary" onclick="saveOrg()">Lưu thay đổi</button>
+                <button type="button" class="btn btn-outline" data-close-org onclick="closeOrgForm()">Hủy</button>
+                <button type="button" class="btn btn-primary" id="btnSaveOrg" onclick="saveOrg()">Lưu</button>
             </div>
         </div>
     </div>

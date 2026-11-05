@@ -331,27 +331,91 @@ Không có `409`.
 
 ### 3.2. `POST /api/v1/admin/organizations`
 
-- **Body**:
+- **Mục đích**: thêm một đơn vị gốc (`parentId` bỏ trống/`null`) hoặc một đơn vị con trực thuộc đơn vị đang `ACTIVE`. Gọi từ `#orgModal` của màn hình Danh mục tổ chức (nút "Thêm mới" ở đầu trang, "Thêm tổ chức con" ở dòng cây hoặc trong `#orgDetailModal`, mục 5.1). Chỉ có bản Admin (cổng Member không có thao tác ghi trên cây tổ chức).
+- **Guard**: `AdminAuthGuard` → `PermissionsGuard` `org:manage` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` `403 PASSWORD_CHANGE_REQUIRED`; tài khoản không còn `ACTIVE` hoặc token đầy đủ mà `must_change_password = 1` `401 UNAUTHORIZED` (`docs/modules/04_auth_admin.md` mục 3.1.1). Không bị chế độ bảo trì chặn (cổng Admin).
+- **Thứ tự kiểm tra**: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → quyền (`403 FORBIDDEN_PERMISSION`) → query và body (`400`) → kiểm tra tài khoản (`401`) → đơn vị cha (`400`/`409`) → trùng `code` (`409`).
+- **Request**: không có query (gửi thì `400` với `errors.<tên tham số>`). Body JSON chỉ nhận đúng các trường dưới đây; trường khác (kể cả `id`, `level`, `status`, `createdAt`) trả `400 VALIDATION_ERROR` với `errors.<tên trường>`. Không ép kiểu (chuỗi `"2"` cho trường số là sai kiểu). Chủ dự án chốt ở O04: không nhận `status`, đơn vị mới luôn `ACTIVE` (ngừng hoạt động qua mục 3.3); `code` kiểm tra chặt, backend không tự viết hoa.
+
+| Trường | Kiểu | Bắt buộc | Quy tắc | Cột |
+|---|---|---|---|---|
+| `code` | chuỗi | ✓ | Cắt khoảng trắng hai đầu; 2–50 ký tự, khớp `^[A-Z0-9]+(-[A-Z0-9]+)*$` (chữ Latin **hoa** không dấu, chữ số, các nhóm nối bằng một dấu `-`, không có `-` ở đầu/cuối); chữ thường hoặc ký tự khác → `400` (backend không tự đổi). Trùng mã của đơn vị khác → `409 CODE_DUPLICATE` | `code` |
+| `name` | chuỗi | ✓ | Cắt khoảng trắng hai đầu; 3–255 ký tự. Không kiểm tra trùng tên (hai đơn vị khác nhánh có thể cùng tên) | `name` |
+| `parentId` | số \| `null` | | Bỏ trống hoặc `null` = đơn vị gốc. Có giá trị: số nguyên 1…4294967295; không có đơn vị → `400` (`errors.parentId`); cha `INACTIVE` → `409 ORGANIZATION_INACTIVE`; cha ở cấp 3 → `400` (`errors.parentId`, vượt cấp tối đa) | `parent_id` |
+| `sortOrder` | số | | Số nguyên 0…2147483647; bỏ trống = `0`; `null` → `400` | `sort_order` |
+| `description` | chuỗi \| `null` | | Cắt khoảng trắng hai đầu; rỗng hoặc `null` → `NULL`; ≤ 65 535 byte UTF-8 (độ dài cột `text`); giữ nguyên xuống dòng | `description` |
+| `representativeName` | chuỗi \| `null` | | Cắt khoảng trắng hai đầu; rỗng hoặc `null` → `NULL`; ≤ 150 ký tự | `representative_name` |
+| `representativePhone` | chuỗi \| `null` | | Quy tắc số điện thoại liên hệ chung `docs/02_api_contracts.md` mục 2 (cắt khoảng trắng, rỗng/`null` → `NULL`, `^(?=.*[0-9])[0-9+\-.() ]{1,30}$`) | `representative_phone` |
+| `representativeEmail` | chuỗi \| `null` | | Cắt khoảng trắng hai đầu; rỗng hoặc `null` → `NULL`; ≤ 150 ký tự, khớp `^[^\s@]+@[^\s@]+\.[^\s@]+$`; không kiểm tra trùng (không phải tài khoản đăng nhập) | `representative_email` |
+
+`level` không nhận từ body: backend tính, không có cha = `0`, có cha = `parent.level + 1`, tối đa `3` (`docs/01_database_schema.md` mục 4).
 
 ```json
 {
   "parentId": 1,
-  "code": "KD-01",
-  "name": "Khối Kinh doanh",
-  "description": "Quản lý kinh doanh và dịch vụ khách hàng",
+  "code": "KD-02",
+  "name": "Khối Dịch vụ Khách hàng",
+  "description": "Quản lý dịch vụ và chăm sóc khách hàng",
   "representativeName": "Lê Văn C",
-  "representativePhone": "0912345678",
+  "representativePhone": "0912 345 678",
   "representativeEmail": "c.le@evn.com.vn",
-  "sortOrder": 2,
-  "status": "ACTIVE"
+  "sortOrder": 6
 }
 ```
 
-- **Validation Rules**:
-  - `code`: Bắt buộc, chuỗi không dấu/gạch nối, viết hoa, không trùng lặp.
-  - `name`: Bắt buộc, từ 3-255 ký tự.
-  - `parentId`: Tùy chọn. Nếu có, phải tồn tại trong CSDL và đang `ACTIVE` (cha `INACTIVE` trả `409 ORGANIZATION_INACTIVE`).
-  - `level`: không nhận từ body. Backend tính: không có cha = `0`, có cha = `parent.level + 1`; kết quả lớn hơn `3` trả `400` (`docs/01_database_schema.md` mục 4).
+- **Xử lý** (một transaction):
+  1. Kiểm tra query/body như bảng trên (`400`, gom mọi lỗi trường vào `errors`), rồi kiểm tra tài khoản theo khóa chính `admins` (`401`).
+  2. `BEGIN`. Có `parentId`: đọc khóa chia sẻ dòng cha `SELECT id, level, status FROM organizations WHERE id = :parentId LOCK IN SHARE MODE` (chặn `PUT`/`DELETE` đồng thời đổi trạng thái, cấp hoặc xóa đơn vị cha tới khi commit; mục 3.3 khóa dòng đơn vị bằng `FOR UPDATE` nên hai bên chờ nhau). Không có dòng → `ROLLBACK`, `400` (`errors.parentId`); `status = INACTIVE` → `ROLLBACK`, `409 ORGANIZATION_INACTIVE`; `level = 3` → `ROLLBACK`, `400` (`errors.parentId`). `level` mới = `parent.level + 1`; không có `parentId` thì `level = 0`.
+  3. `INSERT INTO organizations (parent_id, code, name, description, representative_name, representative_phone, representative_email, level, sort_order, status) VALUES (..., 'ACTIVE')`. `ER_DUP_ENTRY` trên `uniq_org_code` → `ROLLBACK`, `409 CODE_DUPLICATE` (không cần câu kiểm tra trước: `UNIQUE` là chốt duy nhất, kể cả khi hai request tạo cùng mã đồng thời).
+  4. Ghi `audit_logs` trong cùng transaction: `resource_name = 'ORGANIZATION'`, `action = 'CREATE'`, `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `admins.full_name` của người gọi, `resource_id` = id đơn vị mới, `ip_address`, `user_agent` của request, `action_details = { "code": "<code>", "name": "<name>", "parentId": <số> | null }`.
+  5. `COMMIT`, rồi đọc lại đơn vị như mục 3.1.2 bước 2 (`created_at`, `updated_at`, `parentName` từ CSDL) để dựng response; `children = []`, `userGroups = []` (đơn vị vừa tạo chưa có con, chưa có nhóm).
+- **Response** `201` (chủ dự án chốt ở O04): `data` đúng 16 trường như `GET /api/v1/admin/organizations/:id` (mục 3.1.2), `status = "ACTIVE"`, `children = []`, `userGroups = []`.
+
+```json
+{
+  "success": true,
+  "statusCode": 201,
+  "message": "Tạo đơn vị tổ chức thành công",
+  "data": {
+    "id": 16,
+    "parentId": 1,
+    "parentName": "Tổng công ty 71",
+    "code": "KD-02",
+    "name": "Khối Dịch vụ Khách hàng",
+    "level": 1,
+    "sortOrder": 6,
+    "status": "ACTIVE",
+    "description": "Quản lý dịch vụ và chăm sóc khách hàng",
+    "representativeName": "Lê Văn C",
+    "representativePhone": "0912 345 678",
+    "representativeEmail": "c.le@evn.com.vn",
+    "createdAt": "2026-11-05T10:20:00+07:00",
+    "updatedAt": "2026-11-05T10:20:00+07:00",
+    "children": [],
+    "userGroups": []
+  },
+  "timestamp": "2026-11-05T10:20:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Có query param; body sai (thiếu `code`/`name`, sai kiểu, sai định dạng, vượt độ dài, trường không được nhận như `level`, `status`); `parentId` không tồn tại hoặc cha ở cấp 3 (`errors.parentId`) |
+| `401` | `UNAUTHORIZED` | Như mục 3.1 (bản Admin) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `org:manage` |
+| `409` | `ORGANIZATION_INACTIVE` | Đơn vị cha `INACTIVE`; `errors = { "parentId": ["..."] }` |
+| `409` | `CODE_DUPLICATE` | `code` đã có ở đơn vị khác (kể cả `INACTIVE`; mã chỉ được giải phóng khi xóa cứng, `docs/01_database_schema.md` mục 14); `errors = { "code": ["..."] }` |
+
+Không có `404` (không có tham số đường dẫn; cha không tồn tại là lỗi trường của body, quy ước A13). Lỗi không ghi `audit_logs`.
+
+- **Frontend** (`#orgModal` ở chế độ tạo, mẫu `templates/admin/organization.js`: `mockCreateOrg`, `openCreateOrgModal`, `submitCreateOrg`, `validateOrgForm`, `showOrgFormErrors`):
+  - Form tạo có đúng các ô của body: Tên (bắt buộc), Mã đơn vị (bắt buộc, tự viết hoa khi gõ, `maxlength` 50), Trực thuộc (ô chọn dựng từ cây đã tải, mục 3.1 Frontend; "Thêm tổ chức con" chọn sẵn cha), Thứ tự sắp xếp, Người đại diện, Điện thoại, Email, Mô tả. Không có ô trạng thái, cấp.
+  - Kiểm tra trước khi gửi (bắt buộc, định dạng `code`, độ dài, `sortOrder` nguyên ≥ 0, định dạng điện thoại/email), lỗi hiện dưới ô và không gọi API. Gửi số cho `parentId`/`sortOrder`; ô trống của trường tùy chọn gửi `null` (`sortOrder` trống thì bỏ khỏi body).
+  - Khi gửi: khóa form và nút ("Đang lưu..."), nút đóng/Hủy và bấm nền không đóng hộp. `400`/`409 CODE_DUPLICATE`: hiện `errors[field]` dưới ô (khóa không có ô hiện ở toast). `409 ORGANIZATION_INACTIVE`: lỗi dưới ô "Trực thuộc", tải lại cây và dựng lại ô chọn (cha vừa bị ngừng hoạt động không còn trong danh sách). Lỗi khác: toast lỗi, giữ giá trị đang nhập.
+  - `201`: đóng hộp, toast "Đã thêm đơn vị <name>", mở sẵn nút cha trên cây rồi tải lại cả cây (không chèn dòng tại chỗ) để đơn vị mới hiện ngay.
+- **Index phục vụ**: khóa chính `admins` (kiểm tra tài khoản), khóa chính `organizations` (đọc khóa dòng cha), `uniq_org_code` (chốt trùng mã), `fk_org_parent`. Không thêm index.
 
 ### 3.3. `PUT /api/v1/admin/organizations/:id`
 
@@ -457,7 +521,7 @@ Màn hình Danh mục tổ chức **chỉ có ở khu vực Admin** (route yêu 
     - **Chỉnh sửa** (`.edit-btn`): Mở `#orgModal` để cập nhật thông tin đơn vị.
     - **Xóa** (`.delete-btn`): Mở `#deleteModal` xác nhận xóa; chỉ ở nút không có đơn vị con và `userGroupCount = 0`.
   - Hiển thị độ thụt dòng theo cấp bằng `<span class="indent"></span>` và icon đóng mở `<span class="toggle-icon">`.
-  - Modal tạo/sửa tổ chức (`#orgModal`): Nhập tên tổ chức, mã đơn vị, đơn vị cha (Dropdown Select), thứ tự sắp xếp và mô tả tổ chức theo bố cục 2 cột cân đối.
+  - Modal tạo/sửa tổ chức (`#orgModal`): bố cục 2 cột; chế độ tạo có đúng các ô của body mục 3.2 (tên, mã đơn vị, đơn vị cha, thứ tự sắp xếp, người đại diện, điện thoại, email, mô tả), không có ô trạng thái/cấp; lỗi `400`/`409` hiện dưới ô (mục 3.2 Frontend).
   - Modal xem chi tiết (`#orgDetailModal`): Xem toàn bộ thông tin đơn vị (mục 3.1.2), kèm nút hành động "Thêm tổ chức con" (chỉ đơn vị `ACTIVE`, `level < 3`) và "Chỉnh sửa", chỉ hiện khi có `org:manage` và đã tải xong.
   - Modal xác nhận xóa (`#deleteModal`).
 
@@ -478,5 +542,6 @@ Màn hình Danh mục tổ chức **chỉ có ở khu vực Admin** (route yêu 
    - **TC-ORG-01e** (`GET /api/v1/admin/organizations/2`, dữ liệu như TC-ORG-01a, đơn vị 2 có 2 con cùng `sort_order` khác tên và 2 nhóm (1 `INACTIVE`)): `200`, `data` đúng 16 trường của mục 3.1.2 (không có `childCount`, `userGroupCount`), `parentName` = tên đơn vị 1, `children` 2 phần tử 5 trường sắp `sortOrder`, `name`, `id`, `userGroups` 2 phần tử 4 trường sắp `name`, `id` (có nhóm `INACTIVE`); `createdAt`/`updatedAt` dạng `+07:00`. Đơn vị gốc → `parentId = null`, `parentName = null`; đơn vị lá không nhóm → `children = []`, `userGroups = []`; cột `description`/`representative_*` `NULL` → `null`; đơn vị `INACTIVE` → `200`. `/organizations/999999` → `404 NOT_FOUND`; `400` (`errors.id`): `abc`, `0`, `01`, `4294967296`; `?x=1` → `400` (`errors.x`). Không thêm dòng `audit_logs`.
    - **TC-ORG-01f** (`GET /api/v1/organizations/2`, token User `REGULAR_USER` của nhóm không gắn đơn vị 2): `200`, cùng dữ liệu như TC-ORG-01e nhưng không có `userGroups` (không cô lập theo nhóm, không `403`); bật bảo trì → `503 MAINTENANCE` (kể cả `/organizations/abc`); token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; nhóm của người gọi `INACTIVE` → `401`.
 2. **TC-ORG-02**: Tạo mới đơn vị con trực thuộc "Tổng công ty 71", xác nhận node mới xuất hiện trong Tree Table.
+   - **TC-ORG-02a** (`POST /api/v1/admin/organizations`, Root Admin, dữ liệu như TC-ORG-01a: đơn vị 1 `TC-71` cấp 0, đơn vị 12 `INACTIVE`, đơn vị 13 cấp 3): body `{ "parentId": 1, "code": " KD-02 ", "name": " Khối Dịch vụ Khách hàng ", "representativePhone": "", "sortOrder": 6 }` → `201`, `data` đúng 16 trường, `code = "KD-02"`, `name` đã cắt khoảng trắng, `level = 1`, `status = "ACTIVE"`, `parentName = "Tổng công ty 71"`, `representativePhone = null`, `children = []`, `userGroups = []`; thêm đúng một dòng `audit_logs` `ORGANIZATION / CREATE`, `resource_id` = id mới, `action_details = { "code": "KD-02", "name": "Khối Dịch vụ Khách hàng", "parentId": 1 }`; `GET .../tree` có nút mới dưới đơn vị 1 theo `sortOrder`. Không `parentId`, không `sortOrder` → `level = 0`, `sortOrder = 0`, `parentId = null`. Gọi lại cùng `code` (kể cả `kd-02` sau khi sửa thành chữ hoa) → `409 CODE_DUPLICATE` (`errors.code`); trùng mã của đơn vị `INACTIVE` cũng `409`. `parentId = 12` → `409 ORGANIZATION_INACTIVE` (`errors.parentId`); `parentId = 13` (cấp 3) → `400` (`errors.parentId`); `parentId = 999999` → `400` (`errors.parentId`). `400`: thiếu `code`/`name`, `code = "kd-02"`, `"KD_02"`, `"-KD"`, `"KD--02"`, `"K"`, 51 ký tự, `name = "AB"`, `parentId = "1"`, `parentId = 0`, `sortOrder = -1`, `sortOrder = 1.5`, `sortOrder = null`, `representativeEmail = "abc"`, `representativePhone = "abc"`, có `level`, có `status`, có query `?x=1`. Lỗi không ghi `audit_logs`. Token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; vai trò thiếu `org:manage` → `403 FORBIDDEN_PERMISSION`.
 3. **TC-ORG-03**: Thử xóa một đơn vị đang có đơn vị con, kiểm tra hệ thống chặn và trả thông báo lỗi hợp lý.
 4. **TC-ORG-04**: Đổi trạng thái từ `ACTIVE` sang `INACTIVE`, kiểm tra badge trạng thái cập nhật màu sắc tương ứng.

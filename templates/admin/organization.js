@@ -9,10 +9,17 @@
  *  - data = { id, parentId, parentName, code, name, level, sortOrder, status, description, representativeName,
  *    representativePhone, representativeEmail, createdAt, updatedAt, children, userGroups } (userGroups chỉ bản Admin);
  *    không có childCount/userGroupCount. 404 → đóng hộp, toast cảnh báo, tải lại cây.
- * Tạo/sửa/xóa (O04–O06) còn là demo, nối API ở các endpoint đó.
+ * Tạo: POST /api/v1/admin/organizations (O04, M01 mục 3.2) từ #orgModal chế độ tạo.
+ *  - Body { code, name, parentId?, sortOrder?, description?, representativeName?, representativePhone?, representativeEmail? };
+ *    không có status/level (đơn vị mới luôn ACTIVE, level = cha + 1). code chữ hoa ^[A-Z0-9]+(-[A-Z0-9]+)*$ 2–50 ký tự
+ *    (ô nhập tự viết hoa, backend không tự đổi).
+ *  - 201 data 16 trường như GET .../:id (children = [], userGroups = []). 400/409 CODE_DUPLICATE → lỗi dưới ô;
+ *    409 ORGANIZATION_INACTIVE → lỗi dưới "Trực thuộc" + tải lại cây. Thành công: đóng hộp, mở sẵn nút cha, tải lại cây.
+ * Sửa/xóa (O05–O06) còn là demo, nối API ở các endpoint đó.
  *
  * Kiểm tay mock: ?treeError=1 (lỗi tải, "Thử lại" thành công), ?treeEmpty=1 (cây rỗng), ?noManage=1 (thiếu org:manage),
- * ?detailError=1 (lần mở chi tiết đầu lỗi mạng, "Thử lại" thành công), ?detailMissing=<id> (đơn vị đã bị xóa → 404).
+ * ?detailError=1 (lần mở chi tiết đầu lỗi mạng, "Thử lại" thành công), ?detailMissing=<id> (đơn vị đã bị xóa → 404),
+ * ?createError=1 (lần tạo đầu lỗi mạng), ?parentInactive=<id> (đơn vị <id> bị ngừng hoạt động ngay trước khi tạo → 409).
  */
 
 const ORG_QS = new URLSearchParams(window.location.search);
@@ -156,6 +163,120 @@ function mockGetOrgDetail(token, idParam, query) {
                 children, userGroups
             },
             timestamp: orgNow() };
+    });
+}
+
+// ---------- Mock POST /api/v1/admin/organizations (M01 mục 3.2) ----------
+const ORG_CODE_RE = /^[A-Z0-9]+(-[A-Z0-9]+)*$/;
+const ORG_PHONE_RE = /^(?=.*[0-9])[0-9+\-.() ]{1,30}$/;     // quy tắc số điện thoại liên hệ chung (02 mục 2)
+const ORG_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ORG_CREATE_FIELDS = ['code', 'name', 'parentId', 'sortOrder', 'description',
+    'representativeName', 'representativePhone', 'representativeEmail'];
+const MOCK_AUDIT_LOGS = [];   // đóng vai audit_logs (chỉ dòng ORGANIZATION / CREATE do mock này ghi)
+let mockOrgNextId = 16;
+let mockCreateFailOnce = ORG_QS.get('createError') === '1';
+
+const orgLen = v => [...v].length;
+const orgBytes = v => new TextEncoder().encode(v).length;
+function isOrgUint(v, min, max) { return typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max; }
+
+// Chuỗi tùy chọn: null/rỗng sau khi cắt → null; sai kiểu → lỗi. Trả { value } hoặc { error }.
+function optionalOrgText(v) {
+    if (v === null || v === undefined) return { value: null };
+    if (typeof v !== 'string') return { error: 'Phải là chuỗi' };
+    const t = v.trim();
+    return { value: t === '' ? null : t };
+}
+
+// Kiểm tra body theo bảng M01 mục 3.2 (backend: DTO + class-validator). Trả { errors, value }.
+function validateOrgCreateBody(body) {
+    const errors = {};
+    const add = (k, m) => { (errors[k] = errors[k] || []).push(m); };
+    const value = {};
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return { errors: { body: ['Body phải là đối tượng JSON'] }, value };
+    Object.keys(body).forEach(k => { if (!ORG_CREATE_FIELDS.includes(k)) add(k, 'Trường không được hỗ trợ'); });
+
+    if (typeof body.code !== 'string' || body.code.trim() === '') add('code', 'Mã đơn vị là bắt buộc');
+    else {
+        value.code = body.code.trim();
+        if (orgLen(value.code) < 2 || orgLen(value.code) > 50) add('code', 'Mã đơn vị dài 2–50 ký tự');
+        else if (!ORG_CODE_RE.test(value.code)) add('code', 'Mã đơn vị chỉ gồm chữ hoa không dấu, chữ số, nối bằng một dấu "-"');
+    }
+    if (typeof body.name !== 'string' || body.name.trim() === '') add('name', 'Tên đơn vị là bắt buộc');
+    else {
+        value.name = body.name.trim();
+        if (orgLen(value.name) < 3 || orgLen(value.name) > 255) add('name', 'Tên đơn vị dài 3–255 ký tự');
+    }
+    if (body.parentId === undefined || body.parentId === null) value.parentId = null;
+    else if (!isOrgUint(body.parentId, 1, 4294967295)) add('parentId', 'Đơn vị cha không hợp lệ');
+    else value.parentId = body.parentId;
+    if (body.sortOrder === undefined) value.sortOrder = 0;
+    else if (!isOrgUint(body.sortOrder, 0, 2147483647)) add('sortOrder', 'Thứ tự là số nguyên từ 0');
+    else value.sortOrder = body.sortOrder;
+
+    const text = (k, check) => {
+        const r = optionalOrgText(body[k]);
+        if (r.error) { add(k, r.error); return; }
+        value[k] = r.value;
+        if (r.value !== null) { const m = check(r.value); if (m) add(k, m); }
+    };
+    text('description', v => (orgBytes(v) > 65535 ? 'Mô tả quá dài' : null));
+    text('representativeName', v => (orgLen(v) > 150 ? 'Tối đa 150 ký tự' : null));
+    text('representativePhone', v => (ORG_PHONE_RE.test(v) ? null : 'Số điện thoại không hợp lệ'));
+    text('representativeEmail', v => (orgLen(v) > 150 ? 'Tối đa 150 ký tự' : (ORG_EMAIL_RE.test(v) ? null : 'Email không hợp lệ')));
+    return { errors, value };
+}
+
+// Giả lập POST /api/v1/admin/organizations: 401 → 400 (query/body) → cha (400/409) → trùng code (409) → 201.
+function mockCreateOrg(token, query, body) {
+    return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+        const fail = (statusCode, errorCode, message, errors) =>
+            Promise.reject({ success: false, statusCode, errorCode, message, errors: errors || null, timestamp: orgNow() });
+        if (!token) return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+        const { errors, value } = validateOrgCreateBody(body);
+        Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được hỗ trợ']; });
+        if (Object.keys(errors).length) return fail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', errors);
+        if (mockCreateFailOnce) {
+            mockCreateFailOnce = false;
+            return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
+        }
+        // Bước 2: đọc khóa chia sẻ dòng cha (giả lập: cha có thể vừa bị ngừng hoạt động bởi ?parentInactive=<id>)
+        let level = 0;
+        let parent = null;
+        if (value.parentId !== null) {
+            parent = MOCK_ORG_ROWS.find(o => o.id === value.parentId);
+            if (parent && ORG_QS.get('parentInactive') === String(parent.id)) parent.status = 'INACTIVE';
+            if (!parent) return fail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', { parentId: ['Đơn vị cha không tồn tại'] });
+            if (parent.status !== 'ACTIVE') {
+                return fail(409, 'ORGANIZATION_INACTIVE', 'Đơn vị cha đã ngừng hoạt động',
+                    { parentId: ['Đơn vị cha đã ngừng hoạt động, không thêm được đơn vị con'] });
+            }
+            if (parent.level >= 3) {
+                return fail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', { parentId: ['Đơn vị cha đã ở cấp 3, không thêm được cấp sâu hơn'] });
+            }
+            level = parent.level + 1;
+        }
+        // Bước 3: uniq_org_code (collation không phân biệt hoa thường; kể cả đơn vị INACTIVE)
+        if (MOCK_ORG_ROWS.some(o => o.code.toUpperCase() === value.code.toUpperCase())) {
+            return fail(409, 'CODE_DUPLICATE', 'Mã đơn vị đã tồn tại', { code: ['Mã đơn vị đã được dùng cho đơn vị khác'] });
+        }
+        const id = mockOrgNextId++;
+        const now = orgNow();
+        MOCK_ORG_ROWS.push({ id, parentId: value.parentId, code: value.code, name: value.name, level, sortOrder: value.sortOrder, status: 'ACTIVE' });
+        MOCK_ORG_EXTRA[id] = { description: value.description, representativeName: value.representativeName,
+            representativePhone: value.representativePhone, representativeEmail: value.representativeEmail, createdAt: now, updatedAt: now };
+        // Bước 4: audit trong cùng transaction
+        MOCK_AUDIT_LOGS.push({ resourceName: 'ORGANIZATION', action: 'CREATE', resourceId: String(id),
+            actionDetails: { code: value.code, name: value.name, parentId: value.parentId } });
+        return { success: true, statusCode: 201, message: 'Tạo đơn vị tổ chức thành công',
+            data: {
+                id, parentId: value.parentId, parentName: parent ? parent.name : null,
+                code: value.code, name: value.name, level, sortOrder: value.sortOrder, status: 'ACTIVE',
+                description: value.description, representativeName: value.representativeName,
+                representativePhone: value.representativePhone, representativeEmail: value.representativeEmail,
+                createdAt: now, updatedAt: now, children: [], userGroups: []
+            },
+            timestamp: now };
     });
 }
 
@@ -336,6 +457,13 @@ document.addEventListener('DOMContentLoaded', () => {
         el.hidden = el.dataset.permission === 'org:manage' ? !manage : false;
     });
     setDetailManageButtons(null);
+    // Mã đơn vị: tự viết hoa khi gõ (backend không tự đổi, M01 mục 3.2)
+    const codeInput = document.getElementById('orgCode');
+    if (codeInput) codeInput.addEventListener('input', () => {
+        const pos = codeInput.selectionStart;
+        codeInput.value = codeInput.value.toUpperCase();
+        try { codeInput.setSelectionRange(pos, pos); } catch (e) { /* bỏ qua */ }
+    });
     loadTree();
 });
 
@@ -350,15 +478,118 @@ function closeModal(modalId) {
     if (modal) modal.classList.remove('show');
 }
 
-// Demo O04/O05: sau khi API trả 200 thì tải lại cả cây (không sửa dòng tại chỗ).
+// ---------- Form tạo/sửa (#orgModal). Tạo: O04 (M01 mục 3.2 Frontend); sửa (O05) còn là demo ----------
+let orgFormMode = 'create';
+let orgFormBusy = false;
+
+function orgFormEl() { return document.getElementById('orgForm'); }
+
+function clearOrgFormErrors() {
+    const form = orgFormEl();
+    if (!form) return;
+    form.querySelectorAll('[data-error-for]').forEach(slot => { slot.textContent = ''; slot.hidden = true; });
+    form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+}
+
+// Hiện errors[field] dưới ô; trả về thông điệp của khóa không có ô (hiện ở toast)
+function showOrgFormErrors(errors) {
+    const form = orgFormEl();
+    const rest = [];
+    Object.keys(errors || {}).forEach(field => {
+        const msg = [].concat(errors[field]).join(' ');
+        const slot = form.querySelector('[data-error-for="' + field + '"]');
+        if (!slot) { rest.push(msg); return; }
+        slot.textContent = msg;
+        slot.hidden = false;
+        if (form.elements[field]) form.elements[field].classList.add('is-invalid');
+    });
+    const first = form.querySelector('.is-invalid');
+    if (first) first.focus();
+    return rest;
+}
+
+function setOrgFormBusy(busy) {
+    orgFormBusy = busy;
+    const form = orgFormEl();
+    form.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = busy; });
+    document.querySelectorAll('#orgModal [data-close-org]').forEach(el => { el.disabled = busy; });
+    const btn = document.getElementById('btnSaveOrg');
+    btn.disabled = busy;
+    btn.textContent = busy ? 'Đang lưu...' : (orgFormMode === 'create' ? 'Thêm đơn vị' : 'Lưu thay đổi');
+}
+
+function closeOrgForm() {
+    if (orgFormBusy) return; // đang gửi: không đóng
+    closeModal('orgModal');
+}
+
+// Đọc form thành body POST: số cho parentId/sortOrder, ô trống của trường tùy chọn → null (sortOrder trống → bỏ).
+function readOrgCreateBody() {
+    const f = orgFormEl().elements;
+    const opt = el => (el.value.trim() === '' ? null : el.value);
+    const body = {
+        code: f.code.value,
+        name: f.name.value,
+        parentId: f.parentId.value === '' ? null : Number(f.parentId.value),
+        description: opt(f.description),
+        representativeName: opt(f.representativeName),
+        representativePhone: opt(f.representativePhone),
+        representativeEmail: opt(f.representativeEmail)
+    };
+    const sort = f.sortOrder.value.trim();
+    if (sort !== '') body.sortOrder = /^[0-9]+$/.test(sort) ? Number(sort) : NaN;
+    return body;
+}
+
+// Kiểm tra trước khi gửi: cùng quy tắc với backend (validateOrgCreateBody), lỗi hiện dưới ô, không gọi API.
+function validateOrgForm(body) {
+    const errors = validateOrgCreateBody(body).errors;
+    if (Number.isNaN(body.sortOrder)) errors.sortOrder = ['Thứ tự là số nguyên từ 0'];
+    return errors;
+}
+
+function submitCreateOrg() {
+    clearOrgFormErrors();
+    const body = readOrgCreateBody();
+    const clientErrors = validateOrgForm(body);
+    if (Object.keys(clientErrors).length) { showOrgFormErrors(clientErrors); return; }
+    setOrgFormBusy(true);
+    orgCallApi(token => mockCreateOrg(token, {}, body))
+        .then(res => {
+            setOrgFormBusy(false);
+            closeModal('orgModal');
+            if (res.data.parentId != null) expandedOrgIds.add(res.data.parentId); // để đơn vị mới hiện ngay trên cây
+            if (window.showToast) window.showToast('Đã thêm đơn vị ' + res.data.name, 'success');
+            loadTree();
+        })
+        .catch(err => {
+            setOrgFormBusy(false);
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            if (err && (err.statusCode === 400 || err.statusCode === 409) && err.errors) {
+                const rest = showOrgFormErrors(err.errors);
+                if (err.errorCode === 'ORGANIZATION_INACTIVE') {
+                    // cha vừa bị ngừng hoạt động: tải lại cây rồi dựng lại ô chọn (giữ lỗi dưới ô)
+                    const keepParent = orgFormEl().elements.parentId.value;
+                    loadTree().then(() => {
+                        fillParentOptions(null);
+                        const sel = orgFormEl().elements.parentId;
+                        sel.value = [...sel.options].some(o => o.value === keepParent) ? keepParent : '';
+                    });
+                }
+                if (rest.length && window.showToast) window.showToast(rest.join(' '), 'error');
+                return;
+            }
+            if (window.showToast) window.showToast((err && err.message) || 'Không thêm được đơn vị. Vui lòng thử lại.', 'error');
+        });
+}
+
 function saveOrg() {
-    const btn = document.querySelector('#orgModal .btn-primary');
-    const originalText = btn.innerText;
-    btn.innerText = 'Đang lưu...';
-    btn.disabled = true;
+    if (orgFormBusy) return;
+    if (orgFormMode === 'create') { submitCreateOrg(); return; }
+    // Demo O05: sau khi API trả 200 thì tải lại cả cây (không sửa dòng tại chỗ).
+    setOrgFormBusy(true);
     setTimeout(() => {
-        btn.innerText = originalText;
-        btn.disabled = false;
+        setOrgFormBusy(false);
         closeModal('orgModal');
         if (window.showToast) window.showToast('Đã lưu thông tin tổ chức (demo)', 'success');
         loadTree();
@@ -526,6 +757,11 @@ function addOrgFromDetail() {
 }
 
 function openEditOrgModal(id) {
+    orgFormMode = 'edit';
+    const form = orgFormEl();
+    if (form) form.reset();
+    clearOrgFormErrors();
+    setOrgFormBusy(false);
     const modalTitle = document.querySelector('#orgModal .modal-header h2');
     if (modalTitle) modalTitle.innerText = 'Chỉnh sửa thông tin tổ chức';
     fillParentOptions(id);
@@ -534,8 +770,11 @@ function openEditOrgModal(id) {
 }
 
 function openCreateOrgModal(parentId = '') {
-    const form = document.getElementById('orgForm');
+    orgFormMode = 'create';
+    const form = orgFormEl();
     if (form) form.reset();
+    clearOrgFormErrors();
+    setOrgFormBusy(false);
     fillParentOptions(null);
 
     const parent = parentId ? orgIndex.get(parentId) : null;
@@ -546,6 +785,8 @@ function openCreateOrgModal(parentId = '') {
     const parentSelect = document.getElementById('parentOrg');
     if (parentSelect) parentSelect.value = parent ? String(parentId) : '';
     openModal('orgModal');
+    const nameInput = document.getElementById('orgName');
+    if (nameInput) nameInput.focus();
 }
 
 function populateOrgForm(id) {
@@ -558,7 +799,11 @@ function populateOrgForm(id) {
     val('parentOrg', org.parentId == null ? '' : String(org.parentId));
     val('sortOrder', String(org.sortOrder));
     // O05: form sửa tải GET .../:id trước khi mở; tạm dùng chi tiết vừa xem nếu cùng id
-    val('orgDesc', orgDetail && orgDetail.id === id ? (orgDetail.description || '') : '');
+    const d = orgDetail && orgDetail.id === id ? orgDetail : {};
+    val('orgDesc', d.description || '');
+    val('orgRepName', d.representativeName || '');
+    val('orgRepPhone', d.representativePhone || '');
+    val('orgRepEmail', d.representativeEmail || '');
 }
 
 function openDeleteOrgModal(id) {
