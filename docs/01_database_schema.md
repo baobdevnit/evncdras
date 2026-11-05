@@ -1133,15 +1133,16 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   `actor_name` varchar(150) NOT NULL COMMENT 'Tên hiển thị; với đăng nhập thất bại là username đã nhập; với SYSTEM là tên job',
   `action` varchar(100) NOT NULL COMMENT 'Mã hành động theo danh mục cố định ở bảng dưới',
   `resource_name` varchar(100) NOT NULL COMMENT 'AUTH, CDR, AUDIO, REPORT, USER, ADMIN, USER_GROUP, PREFIX, ORGANIZATION, SYSTEM',
-  `resource_id` varchar(255) DEFAULT NULL,
+  `resource_id` varchar(255) DEFAULT NULL COMMENT 'Id tài nguyên dạng chuỗi (id tài khoản đích, số điện thoại, cdr_id...); GET /admin/audit-logs lọc khớp chính xác, cùng resource_name',
   `ip_address` varchar(50) DEFAULT NULL,
   `user_agent` text DEFAULT NULL,
   `action_details` json DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_audit_actor` (`actor_type`, `actor_id`, `created_at`, `id`) COMMENT 'Lọc theo tác nhân, sắp created_at/id giảm dần không filesort (GET /admin/profile/recent-activity, GET /admin/audit-logs lọc actorType/actorId)',
-  KEY `idx_audit_action` (`action`),
-  KEY `idx_audit_created` (`created_at`)
+  KEY `idx_audit_action` (`action`, `created_at`, `id`) COMMENT 'GET /admin/audit-logs lọc action + khoảng ngày, sắp created_at/id giảm dần không filesort',
+  KEY `idx_audit_resource` (`resource_name`, `created_at`, `id`) COMMENT 'GET /admin/audit-logs lọc resourceName (± resourceId lọc sau) + khoảng ngày',
+  KEY `idx_audit_created` (`created_at`) COMMENT 'GET /admin/audit-logs chỉ lọc khoảng ngày (InnoDB tự kèm id)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 

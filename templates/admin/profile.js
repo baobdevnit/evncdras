@@ -834,7 +834,7 @@ document.addEventListener('DOMContentLoaded', function() {
         SESSION_REVOKED: 'Thu hồi phiên đăng nhập', TOKEN_REUSE_DETECTED: 'Phát hiện dùng lại phiên',
         PASSWORD_CHANGED: 'Đổi mật khẩu', PASSWORD_RESET: 'Đặt lại mật khẩu',
         LISTEN_AUDIO: 'Nghe ghi âm', DOWNLOAD_AUDIO: 'Tải ghi âm',
-        EXPORT_CDR: 'Xuất CDR', EXPORT_REPORT: 'Xuất báo cáo',
+        EXPORT_CDR: 'Xuất CDR', PURGE_CDR_PARTITION: 'Xóa dữ liệu CDR hết hạn lưu trữ', EXPORT_REPORT: 'Xuất báo cáo',
         TOGGLE_GROUP_RECORDING: 'Đổi quyền nghe ghi âm của nhóm',
         UPDATE_PREFIX_GROUP: 'Sửa nhóm đầu số', ALLOCATE_RANGE: 'Cấp dải số', UPDATE_RANGE: 'Sửa dải số',
         REVOKE_RANGE: 'Thu hồi dải số', UPDATE_NUMBER: 'Sửa thông tin số',
@@ -850,7 +850,8 @@ document.addEventListener('DOMContentLoaded', function() {
         ADMIN: 'quản trị viên', USER: 'người dùng', USER_GROUP: 'nhóm người dùng', ORGANIZATION: 'đơn vị'
     };
     const LOGIN_FAILED_REASONS = {
-        BAD_PASSWORD: 'sai mật khẩu', ACCOUNT_LOCKED: 'tài khoản bị khóa', TEMPORARILY_LOCKED: 'đang khóa tạm'
+        BAD_PASSWORD: 'sai mật khẩu', UNKNOWN_USER: 'không có tài khoản', ACCOUNT_LOCKED: 'tài khoản bị khóa',
+        TEMPORARILY_LOCKED: 'đang khóa tạm', GROUP_INACTIVE: 'nhóm ngừng hoạt động'
     };
     const WARNING_ACTIONS = ['LOGIN_FAILED', 'ACCESS_DENIED'];
 

@@ -302,6 +302,18 @@
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                                 Quản trị viên
                             </button>
+                            <!-- Mục audit-logs (M07 mục 5.2): chỉ hiện khi tài khoản có audit:view (ROOT_ADMIN, SYSTEM_ADMIN) -->
+                            <button
+                                type="button"
+                                class="profile-nav-btn settings-nav-btn"
+                                data-section="audit-logs"
+                                data-tab="audit-logs"
+                                data-permission="audit:view"
+                                hidden
+                            >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                                Nhật ký kiểm toán
+                            </button>
                         </div>
                     </aside>
 
@@ -516,6 +528,84 @@
                             </div>
                         </div>
 
+                        <!-- Nhật ký kiểm toán – GET /api/v1/admin/audit-logs (M07 mục 3.4, 5.2). Chỉ đọc: không có nút sửa/xóa/xuất. -->
+                        <div id="section-audit-logs" class="settings-tab-pane" data-permission="audit:view" hidden>
+                            <div class="card">
+                            <div class="card-header">
+                                <h3>Nhật ký kiểm toán</h3>
+                            </div>
+                            <div class="card-body">
+                                <!-- Bộ lọc: đúng các tham số của API. fromDate/toDate bắt buộc (≤ 31 ngày, mặc định 7 ngày gần nhất);
+                                     actorId/resourceId không có ô nhập: đặt bằng cách bấm tên tác nhân / "Lọc theo đối tượng" (hiện ở #auditChips). -->
+                                <form id="auditFilterForm" class="audit-toolbar" role="search" novalidate>
+                                    <div class="audit-field">
+                                        <label for="auditFromDate">Từ ngày <span class="text-danger">*</span></label>
+                                        <input type="date" id="auditFromDate" name="fromDate" class="form-control" required>
+                                        <small class="field-error" data-error-for="fromDate" hidden></small>
+                                    </div>
+                                    <div class="audit-field">
+                                        <label for="auditToDate">Đến ngày <span class="text-danger">*</span></label>
+                                        <input type="date" id="auditToDate" name="toDate" class="form-control" required>
+                                        <small class="field-error" data-error-for="toDate" hidden></small>
+                                    </div>
+                                    <div class="audit-field">
+                                        <label for="auditActorType">Loại tác nhân</label>
+                                        <select id="auditActorType" name="actorType" class="form-control">
+                                            <option value="">Tất cả</option>
+                                            <option value="ADMIN">Quản trị viên</option>
+                                            <option value="USER">Người dùng</option>
+                                            <option value="SYSTEM">Hệ thống</option>
+                                        </select>
+                                        <small class="field-error" data-error-for="actorType" hidden></small>
+                                    </div>
+                                    <div class="audit-field">
+                                        <label for="auditResourceName">Đối tượng</label>
+                                        <select id="auditResourceName" name="resourceName" class="form-control">
+                                            <option value="">Tất cả</option>
+                                        </select>
+                                        <small class="field-error" data-error-for="resourceName" hidden></small>
+                                    </div>
+                                    <div class="audit-field audit-field--wide">
+                                        <label for="auditAction">Hành động</label>
+                                        <select id="auditAction" name="action" class="form-control">
+                                            <option value="">Tất cả</option>
+                                        </select>
+                                        <small class="field-error" data-error-for="action" hidden></small>
+                                    </div>
+                                    <div class="audit-field audit-field--submit">
+                                        <button type="submit" class="btn btn-primary">Xem</button>
+                                    </div>
+                                </form>
+                                <div id="auditChips" class="audit-chips" hidden></div>
+                                <small class="field-error" data-error-for="actorId" hidden></small>
+                                <small class="field-error" data-error-for="resourceId" hidden></small>
+                                <div id="auditState" class="admins-state" role="status">
+                                    <span id="auditMessage">Đang tải nhật ký kiểm toán...</span>
+                                    <button type="button" id="btnRetryAudit" class="btn btn-outline" hidden>Thử lại</button>
+                                </div>
+                                <div class="table-responsive" id="auditTableWrap" hidden>
+                                    <table class="data-table admins-table audit-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Thời gian</th>
+                                                <th>Tác nhân</th>
+                                                <th>Hành động</th>
+                                                <th>Đối tượng</th>
+                                                <th>Địa chỉ IP</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="auditTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <!-- Phân trang: limit = 20 cố định, khung pagination 02 mục 2.2 -->
+                            <div class="pagination-container" id="auditPagination" hidden>
+                                <div class="pagination-info" id="auditPageInfo"></div>
+                                <ul class="pagination" id="auditPageList" aria-label="Phân trang nhật ký kiểm toán"></ul>
+                            </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -632,6 +722,33 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-primary" data-close-temp>Tôi đã lưu mật khẩu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chi tiết một dòng nhật ký kiểm toán (M07 mục 5.2): chỉ đọc, đủ 11 trường của phần tử GET /admin/audit-logs.
+         JS đổ bằng textContent vào [data-audit-field]; actionDetails hiện JSON thụt lề. -->
+    <div id="auditDetailModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="auditDetailTitle">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h2 id="auditDetailTitle">Chi tiết nhật ký</h2>
+                <button type="button" class="close-btn" data-close-audit aria-label="Đóng">&times;</button>
+            </div>
+            <div class="modal-body">
+                <dl class="audit-detail">
+                    <dt>Mã dòng</dt><dd data-audit-field="id"></dd>
+                    <dt>Thời gian</dt><dd data-audit-field="createdAt"></dd>
+                    <dt>Tác nhân</dt><dd data-audit-field="actor"></dd>
+                    <dt>Hành động</dt><dd data-audit-field="action"></dd>
+                    <dt>Đối tượng</dt><dd data-audit-field="resource"></dd>
+                    <dt>Địa chỉ IP</dt><dd data-audit-field="ipAddress"></dd>
+                    <dt>Trình duyệt (User-Agent)</dt><dd data-audit-field="userAgent" class="audit-detail-ua"></dd>
+                    <dt>Chi tiết</dt><dd><pre data-audit-field="actionDetails" class="audit-detail-json"></pre></dd>
+                </dl>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="btnAuditFilterResource" class="btn btn-outline" hidden>Lọc theo đối tượng</button>
+                <button type="button" class="btn btn-primary" data-close-audit>Đóng</button>
             </div>
         </div>
     </div>

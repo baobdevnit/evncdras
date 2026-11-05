@@ -515,3 +515,154 @@ html {
         flex-wrap: wrap;
     }
 }
+
+/* Mục "Nhật ký kiểm toán" – AuditLogSection (M07 mục 5.2), dựng ở A20. Dùng lại .admins-state, .admins-table */
+#auditTableWrap[hidden],
+#auditPagination[hidden],
+.audit-chips[hidden],
+#btnAuditFilterResource[hidden] {
+    display: none !important;
+}
+
+.audit-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 0.75rem;
+}
+
+.audit-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 0 1 170px;
+    min-width: 150px;
+}
+
+.audit-field label {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.audit-field--wide {
+    flex-basis: 240px;
+}
+
+.audit-field--submit {
+    flex: 0 0 auto;
+    min-width: 0;
+    align-self: flex-end;
+}
+
+.audit-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 0.75rem;
+}
+
+.audit-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px 2px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-hover);
+    font-size: 0.8125rem;
+}
+
+.audit-chip button {
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 4px;
+}
+
+.audit-table tbody tr {
+    cursor: pointer;
+}
+
+.audit-table tbody tr:hover {
+    background: var(--row-hover-bg);
+}
+
+.audit-table tr.audit-row--warning td:first-child {
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.audit-actor-link {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: var(--primary);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+}
+
+.audit-actor-link:hover {
+    text-decoration: underline;
+}
+
+.audit-actor-type {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.audit-detail {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 8px 16px;
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.audit-detail dt {
+    color: var(--text-muted);
+}
+
+.audit-detail dd {
+    margin: 0;
+    word-break: break-word;
+}
+
+.audit-detail-ua {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 0.8125rem;
+}
+
+.audit-detail-json {
+    margin: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-color);
+    font-size: 0.8125rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 240px;
+    overflow: auto;
+}
+
+@media (max-width: 576px) {
+    .audit-field,
+    .audit-field--wide {
+        flex-basis: 100%;
+    }
+
+    .audit-detail {
+        grid-template-columns: 1fr;
+        gap: 2px;
+    }
+
+    .audit-detail dd {
+        margin-bottom: 8px;
+    }
+}

@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const navButtons = document.querySelectorAll('.profile-nav-btn:not([hidden]), .settings-nav-btn:not([hidden])');
-    const sections = ['analysis', 'reporting', 'advanced', 'admins']
+    const sections = ['analysis', 'reporting', 'advanced', 'admins', 'audit-logs']
         .filter(id => { const el = document.getElementById(`section-${id}`); return el && !el.hidden; });
 
     function setActiveNav(sectionId) {
@@ -295,9 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 7. Mục "Quản trị viên" (AdminAccountsSection.vue) – docs/modules/04_auth_admin.md mục 3.2, 3.3, 3.4, 3.6, 3.7, 3.8, 5.2
     // Khung dựng ở A14. Vue: gọi qua API client của cổng Admin (401 → refresh một lần, mẫu window.adminSession.request).
     // ----------------------------------------------------
-    const adminsSection = document.getElementById('section-admins');
-    if (!adminsSection || adminsSection.hidden) return; // thiếu admin:manage: không tải, không gọi API
-
+    // Helper mock dùng chung cho các mục 7, 8 (envelope 02 mục 2.1, 2.3)
     const now = () => new Date().toISOString();
     const unauthorized = () => ({
         success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
@@ -308,6 +306,12 @@ document.addEventListener('DOMContentLoaded', () => {
         message: 'Dữ liệu không hợp lệ', errors, timestamp: now()
     });
     const callApi = fn => (window.adminSession ? window.adminSession.request(fn) : fn('mock-token'));
+
+    initAuditLogs(); // mục 8, độc lập với mục "Quản trị viên" (quyền khác: audit:view)
+
+    const adminsSection = document.getElementById('section-admins');
+    if (!adminsSection || adminsSection.hidden) return; // thiếu admin:manage: không tải, không gọi API
+
     const currentAdminId = account ? account.id : 1; // Vue: authAdmin.admin.id
 
     // Dữ liệu mẫu (thứ tự tùy ý; mock tự sắp như backend): phần tử đúng 12 trường của GET /api/v1/admin/admins
@@ -1267,4 +1271,504 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     loadAdmins();
+
+    // ----------------------------------------------------
+    // 8. Mục "Nhật ký kiểm toán" (AuditLogSection.vue) – docs/modules/07_system_settings.md mục 3.4, 5.2 (A20)
+    // Khai báo hàm (hoisting) để gọi được trước lệnh return sớm của mục 7. Chỉ đọc.
+    // ----------------------------------------------------
+    function initAuditLogs() {
+        const section = document.getElementById('section-audit-logs');
+        if (!section || section.hidden) return; // thiếu audit:view: không tải, không gọi API
+
+        // Danh mục 01 mục 13 (Vue: hằng số chung với nhãn M09 mục 5.1)
+        const RESOURCE_NAMES = ['AUTH', 'CDR', 'AUDIO', 'REPORT', 'USER', 'ADMIN', 'USER_GROUP', 'PREFIX', 'ORGANIZATION', 'SYSTEM'];
+        const RESOURCE_NAME_LABELS = {
+            AUTH: 'Xác thực', CDR: 'CDR', AUDIO: 'Ghi âm', REPORT: 'Báo cáo', USER: 'Người dùng', ADMIN: 'Quản trị viên',
+            USER_GROUP: 'Nhóm người dùng', PREFIX: 'Đầu số', ORGANIZATION: 'Đơn vị', SYSTEM: 'Hệ thống'
+        };
+        const ACTION_GROUPS = [
+            ['Xác thực', ['LOGIN', 'LOGIN_FAILED', 'LOGOUT', 'SESSION_REVOKED', 'TOKEN_REUSE_DETECTED', 'PASSWORD_CHANGED', 'PASSWORD_RESET']],
+            ['Ghi âm, CDR & báo cáo', ['LISTEN_AUDIO', 'DOWNLOAD_AUDIO', 'EXPORT_CDR', 'PURGE_CDR_PARTITION', 'EXPORT_REPORT']],
+            ['Tài khoản, nhóm & đơn vị', ['CREATE', 'UPDATE', 'LOCK', 'UNLOCK', 'DEACTIVATE', 'DELETE', 'CHANGE_ROLE', 'TOGGLE_GROUP_RECORDING']],
+            ['Đầu số', ['UPDATE_PREFIX_GROUP', 'ALLOCATE_RANGE', 'UPDATE_RANGE', 'REVOKE_RANGE', 'UPDATE_NUMBER']],
+            ['Hệ thống', ['UPDATE_SETTINGS', 'RECALCULATE_STATS', 'CREATE_NOTIFICATION', 'RETRY_ENRICHMENT', 'ACCESS_DENIED']]
+        ];
+        const ACTIONS = ACTION_GROUPS.flatMap(g => g[1]); // 30 mã
+        const ACTOR_TYPES = ['ADMIN', 'USER', 'SYSTEM'];
+        const ACTOR_TYPE_LABELS = { ADMIN: 'Quản trị viên', USER: 'Người dùng', SYSTEM: 'Hệ thống' };
+
+        // Nhãn hành động: cùng bảng M09 mục 5.1 (templates/admin/profile.js activityLabel)
+        const ACTION_LABELS = {
+            LOGIN: 'Đăng nhập', LOGIN_FAILED: 'Đăng nhập thất bại', LOGOUT: 'Đăng xuất',
+            SESSION_REVOKED: 'Thu hồi phiên đăng nhập', TOKEN_REUSE_DETECTED: 'Phát hiện dùng lại phiên',
+            PASSWORD_CHANGED: 'Đổi mật khẩu', PASSWORD_RESET: 'Đặt lại mật khẩu',
+            LISTEN_AUDIO: 'Nghe ghi âm', DOWNLOAD_AUDIO: 'Tải ghi âm',
+            EXPORT_CDR: 'Xuất CDR', PURGE_CDR_PARTITION: 'Xóa dữ liệu CDR hết hạn lưu trữ', EXPORT_REPORT: 'Xuất báo cáo',
+            TOGGLE_GROUP_RECORDING: 'Đổi quyền nghe ghi âm của nhóm',
+            UPDATE_PREFIX_GROUP: 'Sửa nhóm đầu số', ALLOCATE_RANGE: 'Cấp dải số', UPDATE_RANGE: 'Sửa dải số',
+            REVOKE_RANGE: 'Thu hồi dải số', UPDATE_NUMBER: 'Sửa thông tin số',
+            UPDATE_SETTINGS: 'Cập nhật cài đặt hệ thống', RECALCULATE_STATS: 'Tính lại thống kê',
+            CREATE_NOTIFICATION: 'Gửi thông báo', RETRY_ENRICHMENT: 'Xử lý lại CDR lỗi',
+            ACCESS_DENIED: 'Thao tác bị từ chối'
+        };
+        const CRUD_LABELS = {
+            CREATE: 'Tạo', UPDATE: 'Cập nhật', LOCK: 'Khóa', UNLOCK: 'Mở khóa',
+            DEACTIVATE: 'Ngừng hoạt động', DELETE: 'Xóa', CHANGE_ROLE: 'Đổi vai trò'
+        };
+        const CRUD_RESOURCE_LABELS = {
+            ADMIN: 'quản trị viên', USER: 'người dùng', USER_GROUP: 'nhóm người dùng', ORGANIZATION: 'đơn vị'
+        };
+        const LOGIN_FAILED_REASONS = {
+            BAD_PASSWORD: 'sai mật khẩu', UNKNOWN_USER: 'không có tài khoản', ACCOUNT_LOCKED: 'tài khoản bị khóa',
+            TEMPORARILY_LOCKED: 'đang khóa tạm', GROUP_INACTIVE: 'nhóm ngừng hoạt động'
+        };
+        const WARNING_ACTIONS = ['LOGIN_FAILED', 'ACCESS_DENIED', 'TOKEN_REUSE_DETECTED'];
+
+        function auditActionLabel(row) {
+            // "Cập nhật hồ sơ của tôi" (M09 mục 5.1) đọc theo dòng: tác nhân sửa chính tài khoản mình
+            if (row.action === 'UPDATE' && (row.resourceName === 'ADMIN' || row.resourceName === 'USER')
+                && row.actorType === row.resourceName && row.actorId !== null && String(row.actorId) === row.resourceId) {
+                return 'Tự cập nhật hồ sơ';
+            }
+            if (row.action === 'SESSION_REVOKED' && row.actionDetails && row.actionDetails.targetActorType) {
+                return row.actionDetails.targetActorType === 'ADMIN'
+                    ? 'Thu hồi mọi phiên của quản trị viên' : 'Thu hồi mọi phiên của người dùng';
+            }
+            if (CRUD_LABELS[row.action] && CRUD_RESOURCE_LABELS[row.resourceName]) {
+                return CRUD_LABELS[row.action] + ' ' + CRUD_RESOURCE_LABELS[row.resourceName];
+            }
+            let label = ACTION_LABELS[row.action] || row.action; // mã chưa có nhãn: hiện nguyên mã
+            if (row.action === 'LOGIN_FAILED' && row.actionDetails && row.actionDetails.reason) {
+                label += ' (' + (LOGIN_FAILED_REASONS[row.actionDetails.reason] || row.actionDetails.reason) + ')';
+            }
+            return label;
+        }
+
+        // Ngày theo giờ Việt Nam (01 "Múi giờ"): YYYY-MM-DD
+        const vnDateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' });
+        const vnDate = d => vnDateFmt.format(d);
+        const DAY_MS = 86400000;
+        const addDays = (ymd, n) => new Date(Date.parse(ymd + 'T00:00:00Z') + n * DAY_MS).toISOString().slice(0, 10);
+        const isValidYmd = s => /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(s + 'T00:00:00Z').toISOString().slice(0, 10) === s;
+        const daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / DAY_MS);
+        const auditTimeFmt = new Intl.DateTimeFormat('vi-VN', {
+            timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+
+        // Dữ liệu mẫu: phần tử đúng 11 trường của GET /admin/audit-logs (M07 mục 3.4), resourceId là chuỗi,
+        // actionDetails là đối tượng JSON. Thời điểm tính lùi từ hôm nay để luôn nằm trong 7 ngày mặc định
+        // (trừ vài dòng cũ 10–40 ngày để thử bộ lọc ngày).
+        const today = vnDate(new Date());
+        const at = (daysAgo, hms) => addDays(today, -daysAgo) + 'T' + hms + '+07:00';
+        const UA_CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+        const UA_FIREFOX = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0';
+        const row = (id, actorType, actorId, actorName, action, resourceName, resourceId, ip, ua, details, createdAt) => ({
+            id, actorType, actorId, actorName, action, resourceName, resourceId, ipAddress: ip, userAgent: ua,
+            actionDetails: details, createdAt
+        });
+        const MOCK_AUDIT_LOGS = [
+            row(90412, 'ADMIN', 1, 'Quản trị viên Tối cao EVNICT', 'PASSWORD_RESET', 'AUTH', '7', '10.10.1.15', UA_CHROME, { targetActorType: 'ADMIN', revokedCount: 2 }, at(0, '09:12:44')),
+            row(90411, 'ADMIN', 1, 'Quản trị viên Tối cao EVNICT', 'LOCK', 'ADMIN', '7', '10.10.1.15', UA_CHROME, { revokedCount: 0 }, at(0, '09:12:44')),
+            row(90410, 'USER', 231, 'Phạm Thu Hà', 'LISTEN_AUDIO', 'AUDIO', '18803321', '10.20.5.41', UA_FIREFOX, null, at(0, '08:55:10')),
+            row(90409, 'USER', null, 'hanoi.ktv01', 'LOGIN_FAILED', 'AUTH', null, '10.20.5.77', UA_CHROME, { reason: 'UNKNOWN_USER' }, at(0, '08:40:02')),
+            row(90408, 'ADMIN', 5, 'Kỹ thuật viên Trực ban EVNHANOI', 'UPDATE', 'ADMIN', '5', '10.10.2.8', UA_CHROME, { changedFields: ['phoneNumber'] }, at(0, '08:21:37')),
+            row(90407, 'ADMIN', 5, 'Kỹ thuật viên Trực ban EVNHANOI', 'LOGIN', 'AUTH', null, '10.10.2.8', UA_CHROME, null, at(0, '08:20:01')),
+            row(90406, 'ADMIN', 7, 'admin.npc', 'LOGIN_FAILED', 'AUTH', null, '10.30.1.9', UA_CHROME, { reason: 'BAD_PASSWORD' }, at(1, '17:02:11')),
+            row(90405, 'ADMIN', 2, 'Quản trị viên Tối cao dự phòng', 'ACCESS_DENIED', 'ADMIN', '1', '10.10.1.16', UA_CHROME, null, at(1, '15:30:00')),
+            row(90404, 'USER', 231, 'Phạm Thu Hà', 'DOWNLOAD_AUDIO', 'AUDIO', '18803102', '10.20.5.41', UA_FIREFOX, null, at(1, '14:11:45')),
+            row(90403, 'USER', 118, 'Ngô Đức Long', 'EXPORT_CDR', 'CDR', null, '10.20.7.3', UA_CHROME, null, at(1, '10:05:12')),
+            row(90402, 'ADMIN', 1, 'Quản trị viên Tối cao EVNICT', 'CREATE', 'ADMIN', '18', '10.10.1.15', UA_CHROME, null, at(2, '16:44:09')),
+            row(90401, 'ADMIN', 5, 'Kỹ thuật viên Trực ban EVNHANOI', 'ALLOCATE_RANGE', 'PREFIX', '41', '10.10.2.8', UA_CHROME, null, at(2, '11:20:30')),
+            row(90400, 'ADMIN', 5, 'Kỹ thuật viên Trực ban EVNHANOI', 'CHANGE_ROLE', 'USER', '118', '10.10.2.8', UA_CHROME, { from: 'REGULAR_USER', to: 'USER_RECORDING' }, at(2, '09:01:00')),
+            row(90399, 'ADMIN', 1, 'Quản trị viên Tối cao EVNICT', 'SESSION_REVOKED', 'AUTH', '9', '10.10.1.15', UA_CHROME, { targetActorType: 'ADMIN', revokedCount: 1 }, at(3, '13:13:13')),
+            row(90398, 'SYSTEM', null, 'partition-maintenance', 'PURGE_CDR_PARTITION', 'CDR', null, null, null, null, at(4, '02:00:05')),
+            row(90397, 'ADMIN', 13, 'Phạm Minh Giám Định', 'UPDATE_SETTINGS', 'SYSTEM', null, '10.10.3.4', UA_CHROME, { op: 'RELOAD_CACHE' }, at(4, '10:30:00')),
+            row(90396, 'ADMIN', 13, 'Phạm Minh Giám Định', 'RETRY_ENRICHMENT', 'SYSTEM', '18790011', '10.10.3.4', UA_CHROME, { success: true }, at(5, '09:45:00')),
+            row(90395, 'USER', 231, 'Phạm Thu Hà', 'PASSWORD_CHANGED', 'AUTH', null, '10.20.5.41', UA_FIREFOX, null, at(6, '08:00:00')),
+            row(90300, 'ADMIN', 1, 'Quản trị viên Tối cao EVNICT', 'UNLOCK', 'ADMIN', '9', '10.10.1.15', UA_CHROME, null, at(12, '15:00:00')),
+            row(90100, 'ADMIN', 5, 'Kỹ thuật viên Trực ban EVNHANOI', 'TOGGLE_GROUP_RECORDING', 'USER_GROUP', '3', '10.10.2.8', UA_CHROME, null, at(40, '10:00:00'))
+        ];
+        // Thêm đăng nhập/đăng xuất thường ngày để có nhiều trang với limit = 20
+        for (let i = 0; i < 24; i++) {
+            const d = i % 7;
+            const hh = String(7 + (i % 10)).padStart(2, '0');
+            MOCK_AUDIT_LOGS.push(row(90000 + i, 'USER', 200 + (i % 5), 'Nhân viên trực ' + (i % 5 + 1),
+                i % 3 === 2 ? 'LOGOUT' : 'LOGIN', 'AUTH', null, '10.20.6.' + (10 + i), UA_CHROME, null, at(d, hh + ':0' + (i % 10) + ':00')));
+        }
+
+        // Giả lập GET /api/v1/admin/audit-logs (A20, M07 mục 3.4; quy tắc chung 02 mục 2.2).
+        // query: object như backend nhận (string; lặp lại → mảng). Lỗi trả 400 theo tên tham số.
+        const AUDIT_QUERY_KEYS = ['fromDate', 'toDate', 'actorType', 'actorId', 'action', 'resourceName', 'resourceId', 'page', 'limit'];
+        function mockGetAuditLogs(token, query) {
+            return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+                if (!token) return Promise.reject(unauthorized());
+                const q = query || {};
+                const errors = {};
+                Object.keys(q).forEach(k => {
+                    if (!AUDIT_QUERY_KEYS.includes(k)) errors[k] = ['Tham số không được nhận'];
+                    else if (Array.isArray(q[k])) errors[k] = ['Chỉ gửi tham số một lần'];
+                });
+                const pick = k => (typeof q[k] === 'string' ? q[k] : undefined);
+                const intParam = (k, def, max) => {
+                    const v = pick(k);
+                    if (v === undefined) return def;
+                    if (!/^[1-9][0-9]{0,8}$/.test(v) || (max && Number(v) > max)) {
+                        errors[k] = [max ? 'Phải là số nguyên từ 1 đến ' + max : 'Phải là số nguyên ≥ 1'];
+                        return def;
+                    }
+                    return Number(v);
+                };
+                const page = intParam('page', 1);
+                const limit = intParam('limit', 20, 100);
+
+                const fromDate = pick('fromDate');
+                const toDate = pick('toDate');
+                if (fromDate === undefined || fromDate === '') errors.fromDate = ['Bắt buộc'];
+                else if (!isValidYmd(fromDate)) errors.fromDate = ['Định dạng YYYY-MM-DD'];
+                if (toDate === undefined || toDate === '') errors.toDate = ['Bắt buộc'];
+                else if (!isValidYmd(toDate)) errors.toDate = ['Định dạng YYYY-MM-DD'];
+                if (!errors.fromDate && !errors.toDate) {
+                    const span = daysBetween(fromDate, toDate);
+                    if (span < 0) errors.toDate = ['Phải từ "Từ ngày" trở đi'];
+                    else if (span > 30) errors.toDate = ['Tối đa 31 ngày'];
+                }
+
+                const actorType = pick('actorType') || '';
+                if (actorType && !ACTOR_TYPES.includes(actorType)) errors.actorType = ['Loại tác nhân không hợp lệ'];
+                const actorIdRaw = pick('actorId') || '';
+                if (actorIdRaw) {
+                    if (!/^[1-9][0-9]{0,9}$/.test(actorIdRaw) || Number(actorIdRaw) > 4294967295) errors.actorId = ['Phải là số nguyên ≥ 1'];
+                    else if (actorType !== 'ADMIN' && actorType !== 'USER') errors.actorId = ['Cần actorType ADMIN hoặc USER'];
+                }
+                const action = pick('action') || '';
+                if (action && !ACTIONS.includes(action)) errors.action = ['Mã hành động không hợp lệ'];
+                const resourceName = pick('resourceName') || '';
+                if (resourceName && !RESOURCE_NAMES.includes(resourceName)) errors.resourceName = ['Đối tượng không hợp lệ'];
+                const resourceId = (pick('resourceId') || '').trim();
+                if (resourceId.length > 255) errors.resourceId = ['Tối đa 255 ký tự'];
+                else if (resourceId && !resourceName) errors.resourceId = ['Cần resourceName'];
+                if (Object.keys(errors).length) return Promise.reject(validationError(errors));
+
+                // WHERE created_at >= fromDate 00:00 AND < toDate + 1 ngày (createdAt ISO +07:00: 10 ký tự đầu là ngày VN)
+                const rows = MOCK_AUDIT_LOGS.filter(r => {
+                    const d = r.createdAt.slice(0, 10);
+                    return d >= fromDate && d <= toDate
+                        && (!actorType || r.actorType === actorType)
+                        && (!actorIdRaw || r.actorId === Number(actorIdRaw))
+                        && (!action || r.action === action)
+                        && (!resourceName || r.resourceName === resourceName)
+                        && (!resourceId || r.resourceId === resourceId);
+                });
+                // ORDER BY created_at DESC, id DESC (cùng offset nên so chuỗi được)
+                rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : b.id - a.id));
+                const total = rows.length;
+                const totalPages = Math.ceil(total / limit);
+                const data = rows.slice((page - 1) * limit, page * limit)
+                    .map(r => Object.assign({}, r, { actionDetails: r.actionDetails ? JSON.parse(JSON.stringify(r.actionDetails)) : null }));
+                return {
+                    success: true, statusCode: 200, message: 'Lấy nhật ký kiểm toán thành công', data,
+                    pagination: { page, limit, total, totalPages, hasNext: page < totalPages, hasPrev: page > 1 },
+                    timestamp: now()
+                };
+            });
+        }
+
+        // ---- Giao diện ----
+        const form = document.getElementById('auditFilterForm');
+        const fromInput = document.getElementById('auditFromDate');
+        const toInput = document.getElementById('auditToDate');
+        const actorTypeSelect = document.getElementById('auditActorType');
+        const resourceSelect = document.getElementById('auditResourceName');
+        const actionSelect = document.getElementById('auditAction');
+        const chips = document.getElementById('auditChips');
+        const stateBox = document.getElementById('auditState');
+        const stateMessage = document.getElementById('auditMessage');
+        const btnRetry = document.getElementById('btnRetryAudit');
+        const tableWrap = document.getElementById('auditTableWrap');
+        const tbody = document.getElementById('auditTableBody');
+        const pagination = document.getElementById('auditPagination');
+        const pageInfo = document.getElementById('auditPageInfo');
+        const pageList = document.getElementById('auditPageList');
+        const detailModal = document.getElementById('auditDetailModal');
+        const btnFilterResource = document.getElementById('btnAuditFilterResource');
+
+        RESOURCE_NAMES.forEach(code => resourceSelect.add(new Option(RESOURCE_NAME_LABELS[code], code)));
+        ACTION_GROUPS.forEach(([groupLabel, codes]) => {
+            const og = document.createElement('optgroup');
+            og.label = groupLabel;
+            codes.forEach(code => og.appendChild(new Option(ACTION_LABELS[code] || CRUD_LABELS[code] || code, code)));
+            actionSelect.appendChild(og);
+        });
+
+        // Trạng thái bộ lọc (Vue: ref trong AuditLogSection.vue). Mặc định 7 ngày gần nhất tính cả hôm nay; limit cố định 20.
+        const auditQuery = {
+            page: 1, limit: 20, fromDate: addDays(today, -6), toDate: today,
+            actorType: '', actorId: '', actorName: '', action: '', resourceName: '', resourceId: ''
+        };
+        fromInput.value = auditQuery.fromDate;
+        toInput.value = auditQuery.toDate;
+        let requestSeq = 0;
+        let rowsById = new Map();
+        let detailRow = null;
+
+        function clearErrors() {
+            section.querySelectorAll('.field-error').forEach(el => { el.hidden = true; el.textContent = ''; });
+        }
+        function showErrors(errors) {
+            Object.keys(errors || {}).forEach(field => {
+                const el = section.querySelector('.field-error[data-error-for="' + field + '"]');
+                if (!el) return;
+                const msg = [].concat(errors[field]).join(' ');
+                el.textContent = (field === 'actorId' ? 'Tác nhân: ' : field === 'resourceId' ? 'Đối tượng: ' : '') + msg;
+                el.hidden = false;
+            });
+        }
+
+        function setState(state, message) {
+            stateBox.hidden = state === 'ready';
+            stateBox.classList.toggle('is-error', state === 'error');
+            if (message) stateMessage.textContent = message;
+            btnRetry.hidden = state !== 'error';
+            tableWrap.hidden = state !== 'ready';
+            if (state !== 'ready') pagination.hidden = true;
+        }
+
+        function renderChips() {
+            chips.replaceChildren();
+            const addChip = (text, onRemove) => {
+                const chip = document.createElement('span');
+                chip.className = 'audit-chip';
+                chip.append(document.createTextNode(text));
+                const x = document.createElement('button');
+                x.type = 'button';
+                x.setAttribute('aria-label', 'Bỏ lọc ' + text);
+                x.textContent = '×';
+                x.addEventListener('click', onRemove);
+                chip.appendChild(x);
+                chips.appendChild(chip);
+            };
+            if (auditQuery.actorId) {
+                addChip('Tác nhân: ' + auditQuery.actorName + ' (' + ACTOR_TYPE_LABELS[auditQuery.actorType] + ' #' + auditQuery.actorId + ')', () => {
+                    auditQuery.actorId = ''; auditQuery.actorName = ''; applyFilters();
+                });
+            }
+            if (auditQuery.resourceId) {
+                addChip('Đối tượng: ' + RESOURCE_NAME_LABELS[auditQuery.resourceName] + ' #' + auditQuery.resourceId, () => {
+                    auditQuery.resourceId = ''; applyFilters();
+                });
+            }
+            chips.hidden = !chips.childElementCount;
+        }
+
+        function renderPagination(p, count) {
+            const from = (p.page - 1) * p.limit + 1;
+            pageInfo.textContent = 'Hiển thị ' + from + '–' + (from + count - 1) + ' / ' + p.total + ' dòng';
+            pageList.replaceChildren();
+            const addItem = (label, page, { disabled = false, active = false, aria } = {}) => {
+                const li = document.createElement('li');
+                li.className = 'page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '');
+                const a = document.createElement('a');
+                a.href = '#';
+                a.className = 'page-link';
+                a.textContent = label;
+                if (aria) a.setAttribute('aria-label', aria);
+                if (active) a.setAttribute('aria-current', 'page');
+                if (!disabled && !active) a.dataset.page = String(page);
+                li.appendChild(a);
+                pageList.appendChild(li);
+            };
+            addItem('«', p.page - 1, { disabled: !p.hasPrev, aria: 'Trang trước' });
+            const first = Math.max(1, Math.min(p.page - 2, p.totalPages - 4));
+            const last = Math.min(p.totalPages, first + 4);
+            for (let i = first; i <= last; i++) addItem(String(i), i, { active: i === p.page });
+            addItem('»', p.page + 1, { disabled: !p.hasNext, aria: 'Trang sau' });
+            pagination.hidden = false;
+        }
+
+        const resourceText = r => RESOURCE_NAME_LABELS[r.resourceName] + (r.resourceId !== null ? ' #' + r.resourceId : '');
+
+        // Dựng bằng textContent (không innerHTML): actorName của LOGIN_FAILED là chuỗi người lạ gõ vào
+        function renderRows(rows) {
+            tbody.replaceChildren();
+            rowsById = new Map(rows.map(r => [String(r.id), r]));
+            rows.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.dataset.auditId = String(r.id);
+                if (WARNING_ACTIONS.includes(r.action)) tr.className = 'audit-row--warning';
+
+                const time = document.createElement('td');
+                time.textContent = auditTimeFmt.format(new Date(r.createdAt));
+
+                const actor = document.createElement('td');
+                if (r.actorId !== null) {
+                    const link = document.createElement('button');
+                    link.type = 'button';
+                    link.className = 'audit-actor-link';
+                    link.dataset.auditId = String(r.id);
+                    link.title = 'Lọc theo tác nhân này';
+                    link.textContent = r.actorName;
+                    actor.appendChild(link);
+                } else {
+                    const name = document.createElement('span');
+                    name.className = 'fw-600';
+                    name.textContent = r.actorName;
+                    actor.appendChild(name);
+                }
+                const type = document.createElement('span');
+                type.className = 'audit-actor-type';
+                type.textContent = ACTOR_TYPE_LABELS[r.actorType] + (r.actorId !== null ? ' #' + r.actorId : '');
+                actor.appendChild(type);
+
+                const act = document.createElement('td');
+                act.textContent = auditActionLabel(r);
+
+                const res = document.createElement('td');
+                res.textContent = resourceText(r);
+
+                const ip = document.createElement('td');
+                ip.textContent = r.ipAddress || '—';
+
+                tr.append(time, actor, act, res, ip);
+                tbody.appendChild(tr);
+            });
+        }
+
+        const hasExtraFilter = () => !!(auditQuery.actorType || auditQuery.actorId || auditQuery.action
+            || auditQuery.resourceName || auditQuery.resourceId);
+
+        // Tải – GET /api/v1/admin/audit-logs. Chỉ gửi tham số có giá trị; fromDate/toDate/page/limit luôn gửi.
+        function loadAuditLogs() {
+            const seq = ++requestSeq;
+            const query = {
+                fromDate: auditQuery.fromDate, toDate: auditQuery.toDate,
+                page: String(auditQuery.page), limit: String(auditQuery.limit)
+            };
+            ['actorType', 'actorId', 'action', 'resourceName', 'resourceId'].forEach(k => { if (auditQuery[k]) query[k] = auditQuery[k]; });
+            renderChips();
+            setState('loading', 'Đang tải nhật ký kiểm toán...');
+            return callApi(token => mockGetAuditLogs(token, query))
+                .then(res => {
+                    if (seq !== requestSeq) return; // đã có request mới hơn
+                    const p = res.pagination;
+                    if (!res.data.length && p.page > 1 && p.totalPages > 0) {
+                        auditQuery.page = p.totalPages;
+                        return loadAuditLogs();
+                    }
+                    if (!res.data.length) {
+                        setState('empty', hasExtraFilter()
+                            ? 'Không có dòng nhật ký phù hợp với bộ lọc'
+                            : 'Không có hoạt động nào trong khoảng ngày đã chọn');
+                        return;
+                    }
+                    renderRows(res.data);
+                    setState('ready');
+                    renderPagination(p, res.data.length);
+                })
+                .catch(err => {
+                    if (seq !== requestSeq) return;
+                    if (err && err.statusCode === 401) return; // request() đã chuyển về login
+                    if (err && err.statusCode === 400) {
+                        showErrors(err.errors);
+                        setState('error', 'Bộ lọc không hợp lệ, vui lòng kiểm tra lại.');
+                        return;
+                    }
+                    setState('error', (err && err.message) || 'Không tải được nhật ký kiểm toán. Vui lòng thử lại.');
+                });
+        }
+
+        // Đọc form → auditQuery; chặn ngày sai trước khi gọi API (không gọi khi lỗi). Đổi lọc thì về trang 1.
+        function applyFilters() {
+            clearErrors();
+            const fromDate = fromInput.value;
+            const toDate = toInput.value;
+            const errors = {};
+            if (!fromDate) errors.fromDate = ['Chọn ngày bắt đầu'];
+            if (!toDate) errors.toDate = ['Chọn ngày kết thúc'];
+            if (fromDate && toDate) {
+                const span = daysBetween(fromDate, toDate);
+                if (span < 0) errors.toDate = ['Phải từ "Từ ngày" trở đi'];
+                else if (span > 30) errors.toDate = ['Tối đa 31 ngày'];
+            }
+            if (Object.keys(errors).length) { showErrors(errors); return; }
+            auditQuery.fromDate = fromDate;
+            auditQuery.toDate = toDate;
+            // actorId chỉ hợp lệ cùng actorType của tác nhân đã chọn; resourceId cùng resourceName
+            if (actorTypeSelect.value !== auditQuery.actorType) { auditQuery.actorId = ''; auditQuery.actorName = ''; }
+            if (resourceSelect.value !== auditQuery.resourceName) auditQuery.resourceId = '';
+            auditQuery.actorType = actorTypeSelect.value;
+            auditQuery.resourceName = resourceSelect.value;
+            auditQuery.action = actionSelect.value;
+            auditQuery.page = 1;
+            loadAuditLogs();
+        }
+
+        form.addEventListener('submit', e => { e.preventDefault(); applyFilters(); });
+        [actorTypeSelect, resourceSelect, actionSelect, fromInput, toInput].forEach(el => el.addEventListener('change', applyFilters));
+
+        pageList.addEventListener('click', e => {
+            const link = e.target.closest('.page-link');
+            if (!link) return;
+            e.preventDefault();
+            if (!link.dataset.page) return;
+            auditQuery.page = Number(link.dataset.page);
+            loadAuditLogs();
+        });
+        btnRetry.addEventListener('click', loadAuditLogs);
+
+        // Hộp chi tiết (chỉ đọc)
+        function openDetail(r) {
+            detailRow = r;
+            const set = (field, text) => { detailModal.querySelector('[data-audit-field="' + field + '"]').textContent = text; };
+            set('id', String(r.id));
+            set('createdAt', auditTimeFmt.format(new Date(r.createdAt)));
+            set('actor', r.actorName + ' — ' + ACTOR_TYPE_LABELS[r.actorType] + (r.actorId !== null ? ' #' + r.actorId : ''));
+            set('action', auditActionLabel(r) + ' (' + r.action + ')');
+            set('resource', resourceText(r) + ' (' + r.resourceName + ')');
+            set('ipAddress', r.ipAddress || '—');
+            set('userAgent', r.userAgent || '—');
+            set('actionDetails', r.actionDetails === null ? 'Không có' : JSON.stringify(r.actionDetails, null, 2));
+            btnFilterResource.hidden = r.resourceId === null;
+            detailModal.classList.add('show');
+        }
+        function closeDetail() {
+            detailModal.classList.remove('show');
+            detailRow = null;
+        }
+        detailModal.querySelectorAll('[data-close-audit]').forEach(el => el.addEventListener('click', closeDetail));
+        detailModal.addEventListener('click', e => { if (e.target === detailModal) closeDetail(); });
+        window.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && detailModal.classList.contains('show')) closeDetail();
+        });
+        btnFilterResource.addEventListener('click', () => {
+            if (!detailRow || detailRow.resourceId === null) return;
+            resourceSelect.value = detailRow.resourceName;
+            auditQuery.resourceName = detailRow.resourceName;
+            auditQuery.resourceId = detailRow.resourceId;
+            closeDetail();
+            applyFilters();
+        });
+
+        tbody.addEventListener('click', e => {
+            const link = e.target.closest('.audit-actor-link');
+            if (link) {
+                // Bấm tên tác nhân: lọc actorType + actorId của dòng (không mở chi tiết)
+                const r = rowsById.get(link.dataset.auditId);
+                if (!r) return;
+                actorTypeSelect.value = r.actorType;
+                auditQuery.actorType = r.actorType;
+                auditQuery.actorId = String(r.actorId);
+                auditQuery.actorName = r.actorName;
+                applyFilters();
+                return;
+            }
+            const tr = e.target.closest('tr[data-audit-id]');
+            if (tr) openDetail(rowsById.get(tr.dataset.auditId));
+        });
+
+        // Kiểm thử thủ công trên trang tĩnh (không có trong Vue)
+        window.__auditMock = { MOCK_AUDIT_LOGS, mockGetAuditLogs, auditQuery, loadAuditLogs, auditActionLabel, ACTIONS, RESOURCE_NAMES };
+
+        loadAuditLogs();
+    }
 });

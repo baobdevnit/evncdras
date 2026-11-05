@@ -120,12 +120,92 @@ Danh mục các Key cấu hình chuẩn (3 phân nhóm: `ANALYSIS`, `REPORTING`,
 
 ### 3.4. Tra cứu nhật ký kiểm toán (`GET /api/v1/admin/audit-logs`)
 
-- **Guard**: `AdminAuthGuard`, `Permission: audit:view`. Chỉ đọc; không có API sửa, xóa hay xuất file `audit_logs` (`docs/01_database_schema.md` mục 13). Bản thân việc tra cứu không ghi `audit_logs`.
-- **Query**:
-  - `fromDate`, `toDate` (bắt buộc, `YYYY-MM-DD`, tính theo `created_at`, cả hai đầu mút); thiếu, sai định dạng, `fromDate > toDate` hoặc khoảng quá 31 ngày trả `400`.
-  - `actorType` (`ADMIN` | `USER` | `SYSTEM`), `actorId` (chỉ đi cùng `actorType` `ADMIN`/`USER`, thiếu `actorType` thì `400`), `action` (một mã trong danh mục `docs/01_database_schema.md` mục 13, mã lạ trả `400`), `resourceName` (một giá trị trong danh mục cùng mục), `page` (mặc định 1), `limit` (mặc định 20, tối đa 100).
-- **Sắp xếp**: `created_at` giảm dần, rồi `id` giảm dần.
-- **Phần tử**: `id`, `actorType`, `actorId`, `actorName`, `action`, `resourceName`, `resourceId`, `ipAddress`, `userAgent`, `actionDetails` (JSON gốc của `action_details`, có thể `null`), `createdAt`. Khung phân trang theo `docs/02_api_contracts.md` mục 2.2.
+- **Guard**: `AdminAuthGuard`, `Permission: audit:view` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` → `403`; tài khoản không còn `ACTIVE` hoặc `must_change_password = 1` → `401 UNAUTHORIZED` (`docs/modules/04_auth_admin.md` mục 3.1.1). Thiếu `audit:view` → `403 FORBIDDEN`.
+- Chỉ đọc; không có API sửa, xóa hay xuất file `audit_logs` (`docs/01_database_schema.md` mục 13). Bản thân việc tra cứu **không** ghi `audit_logs`. Xem được mọi dòng của mọi tác nhân (Admin, User mọi nhóm, `SYSTEM`); không có bản User.
+- **Query** (mọi tham số theo quy ước `docs/02_api_contracts.md` mục 2.2: mỗi tham số một lần, tham số lạ hoặc `sort`/`order` → `400`; lỗi trả `400 VALIDATION_ERROR` với `errors.<tên tham số>`):
+
+| Tham số | Bắt buộc | Quy tắc | Điều kiện SQL |
+|---|---|---|---|
+| `fromDate`, `toDate` | ✓ | `YYYY-MM-DD`, ngày lịch hợp lệ (không nhận giờ/offset), giờ Việt Nam; `fromDate ≤ toDate`; tối đa **31 ngày tính cả hai đầu** (`toDate − fromDate ≤ 30`). Được chọn ngày tương lai. Không giới hạn độ cũ (`audit_logs` không bị dọn) | `created_at >= :fromDate 00:00:00 AND created_at < :toDate + 1 ngày` |
+| `actorType` | | `ADMIN` \| `USER` \| `SYSTEM` (chữ hoa; rỗng = không lọc) | `actor_type = :actorType` |
+| `actorId` | | Rỗng = không lọc; `^[1-9][0-9]{0,9}$` và ≤ 4294967295; bắt buộc đi cùng `actorType` `ADMIN`/`USER` (thiếu `actorType` hoặc `actorType = SYSTEM` → `400`, `errors.actorId`) | `actor_id = :actorId` |
+| `action` | | Một mã trong danh mục `docs/01_database_schema.md` mục 13 (30 mã, chữ hoa; mã lạ → `400`) | `action = :action` |
+| `resourceName` | | Một trong `AUTH`, `CDR`, `AUDIO`, `REPORT`, `USER`, `ADMIN`, `USER_GROUP`, `PREFIX`, `ORGANIZATION`, `SYSTEM` | `resource_name = :resourceName` |
+| `resourceId` | | Cắt khoảng trắng, rỗng = không lọc, ≤ 255 ký tự; bắt buộc đi cùng `resourceName` (thiếu → `400`, `errors.resourceId`). Khớp **chính xác** (vd. `resourceName=ADMIN&resourceId=7`: mọi việc đã làm lên Admin id 7) | `resource_id = :resourceId` |
+| `page`, `limit` | | `page` mặc định 1; `limit` mặc định 20, tối đa 100 | |
+
+  - Không kiểm tra chéo `action` với `resourceName` (vd. `action=LOGIN&resourceName=CDR` hợp lệ, trả rỗng).
+
+- **Truy vấn** (hai câu, cùng `WHERE`, không transaction):
+
+```sql
+SELECT id, actor_type, actor_id, actor_name, action, resource_name, resource_id,
+       ip_address, user_agent, action_details, created_at
+FROM audit_logs
+WHERE created_at >= :fromStart AND created_at < :toEndExclusive
+  /* thêm các điều kiện của tham số đã gửi */
+ORDER BY created_at DESC, id DESC
+LIMIT :limit OFFSET (:page - 1) * :limit;
+
+SELECT COUNT(*) FROM audit_logs WHERE /* như trên */;
+```
+
+  - Index (`docs/01_database_schema.md` mục 13; để optimizer tự chọn, không `FORCE INDEX`): lọc tác nhân → `idx_audit_actor`; lọc `action` → `idx_audit_action` (`action`, `created_at`, `id`); lọc `resourceName` (± `resourceId`) → `idx_audit_resource` (`resource_name`, `created_at`, `id`); chỉ khoảng ngày → `idx_audit_created` (InnoDB tự kèm `id`). Mọi trường hợp đọc theo thứ tự index, không filesort.
+- **Sắp xếp**: `created_at` giảm dần, rồi `id` giảm dần (cố định).
+- **Response** `200`: khung phân trang `docs/02_api_contracts.md` mục 2.2. Mỗi phần tử:
+
+| Trường | Cột | Ghi chú |
+|---|---|---|
+| `id` | `id` | số |
+| `actorType` | `actor_type` | `ADMIN` \| `USER` \| `SYSTEM` |
+| `actorId` | `actor_id` | số hoặc `null` (`SYSTEM`; đăng nhập thất bại với username không tồn tại) |
+| `actorName` | `actor_name` | tên tại thời điểm ghi (không join `admins`/`users`); `LOGIN_FAILED` là username đã nhập; `SYSTEM` là tên job |
+| `action`, `resourceName` | `action`, `resource_name` | mã gốc, frontend tự ánh xạ nhãn |
+| `resourceId` | `resource_id` | **chuỗi** hoặc `null` (vd. `"7"`, số điện thoại, `cdrId`) |
+| `ipAddress`, `userAgent` | `ip_address`, `user_agent` | chuỗi hoặc `null` (`SYSTEM` luôn `null`) |
+| `actionDetails` | `action_details` | đối tượng JSON gốc (đã parse, không phải chuỗi) hoặc `null`; cấu trúc theo danh mục mục 13, không chứa mật khẩu |
+| `createdAt` | `created_at` | ISO 8601 `+07:00` |
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "OK",
+  "data": [
+    {
+      "id": 90412,
+      "actorType": "ADMIN",
+      "actorId": 1,
+      "actorName": "Nguyễn Văn Root",
+      "action": "PASSWORD_RESET",
+      "resourceName": "AUTH",
+      "resourceId": "7",
+      "ipAddress": "10.10.1.15",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36",
+      "actionDetails": { "targetActorType": "ADMIN", "revokedCount": 2 },
+      "createdAt": "2026-11-05T09:12:44+07:00"
+    },
+    {
+      "id": 90398,
+      "actorType": "SYSTEM",
+      "actorId": null,
+      "actorName": "partition-maintenance",
+      "action": "PURGE_CDR_PARTITION",
+      "resourceName": "CDR",
+      "resourceId": null,
+      "ipAddress": null,
+      "userAgent": null,
+      "actionDetails": null,
+      "createdAt": "2026-11-01T02:00:05+07:00"
+    }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 2, "totalPages": 1, "hasNext": false, "hasPrev": false },
+  "timestamp": "2026-11-05T09:15:00+07:00"
+}
+```
+
+- **Lỗi**: `400 VALIDATION_ERROR` (tham số theo bảng trên), `401 UNAUTHORIZED`, `403 FORBIDDEN` (thiếu `audit:view`, token `PASSWORD_CHANGE_ONLY`). Không có `404`/`409`.
+- `PASSWORD_RESET` ghi `resource_name = 'AUTH'`; muốn xem mọi việc làm lên một Admin thì lọc `resourceName=ADMIN&resourceId=<id>` (khóa, mở khóa, sửa, ngừng hoạt động) và `resourceName=AUTH&resourceId=<id>` (đặt lại mật khẩu, thu hồi phiên).
 
 ### 3.5. Tình trạng tiến trình nền (`GET /api/v1/admin/system/jobs`)
 
@@ -198,7 +278,7 @@ Mỗi mục là một component trong `src/apps/admin/views/settings/sections/`,
 | `analysis`, `reporting`, `advanced` | `AnalysisSection.vue`, `ReportingSection.vue`, `AdvancedSection.vue` | `system:manage` | Mục 5.1 |
 | `qos-thresholds` | `QosThresholdsSection.vue` | xem `qos:view`, nút Lưu cần `qos:manage` | Bảng ngưỡng warning/critical theo `metric_name`, `GET`/`PUT /api/v1/admin/qos/thresholds` (`docs/modules/13_core_business_qos_analysis.md` mục 3.3) |
 | `admins` | `AdminAccountsSection.vue` | `admin:manage` | Quản lý Quản trị viên (`docs/modules/04_auth_admin.md` mục 5.2) |
-| `audit-logs` | `AuditLogSection.vue` | `audit:view` | Bảng `GET /api/v1/admin/audit-logs`: lọc `fromDate`/`toDate` (bắt buộc), `actorType`, `actorId`, `action`, `resourceName`, phân trang; chỉ đọc |
+| `audit-logs` | `AuditLogSection.vue` | `audit:view` | "Nhật ký kiểm toán", ánh xạ `#section-audit-logs` của `templates/admin/system-settings.html` (mục 3.4), chỉ đọc. **Bộ lọc**: "Từ ngày"/"Đến ngày" (mặc định 7 ngày gần nhất tính cả hôm nay; frontend chặn trước khi gọi: thiếu ngày, `fromDate > toDate`, quá 31 ngày → báo dưới ô, không gọi API), "Loại tác nhân" (`actorType`: Quản trị viên/Người dùng/Hệ thống), "Đối tượng" (`resourceName`, 10 giá trị), "Hành động" (`action`, 30 mã, nhãn theo `docs/modules/09_admin_profile.md` mục 5.1). **Không** có ô nhập `actorId`/`resourceId`: bấm tên tác nhân ở một dòng (có `actorId`) lọc theo `actorType` + `actorId` của dòng đó; bấm "Lọc theo đối tượng" trong hộp chi tiết (dòng có `resourceId`) lọc `resourceName` + `resourceId`; bộ lọc đang áp hiện thành chip có nút bỏ. Đổi lọc về trang 1, chỉ hiển thị request sau cùng (như `docs/modules/04_auth_admin.md` mục 5.2). **Bảng** `limit = 20`: Thời gian, Tác nhân (tên + nhãn loại; `actorId = null` không bấm được), Hành động (nhãn), Đối tượng (`resourceName` + `resourceId`), IP; bấm dòng mở hộp chi tiết chỉ đọc: đủ 11 trường, `userAgent` nguyên văn, `actionDetails` dạng JSON thụt lề (`null` → "Không có"). Nhãn `resourceName`: `AUTH` "Xác thực", `CDR` "CDR", `AUDIO` "Ghi âm", `REPORT` "Báo cáo", `USER` "Người dùng", `ADMIN` "Quản trị viên", `USER_GROUP` "Nhóm người dùng", `PREFIX` "Đầu số", `ORGANIZATION` "Đơn vị", `SYSTEM` "Hệ thống"; ô "Hành động" nhóm 30 mã theo `optgroup` (Xác thực; Ghi âm, CDR & báo cáo; Tài khoản, nhóm & đơn vị; Đầu số; Hệ thống). Dòng `LOGIN_FAILED`, `ACCESS_DENIED`, `TOKEN_REUSE_DETECTED` có vạch cảnh báo. Nhãn hành động dùng chung bảng `docs/modules/09_admin_profile.md` mục 5.1; quy tắc "Cập nhật hồ sơ của tôi" ở đây đọc là "Tự cập nhật hồ sơ" khi `actorType = resourceName = ADMIN` (hoặc `USER`) và `actorId = resourceId`. Trạng thái tải/lỗi (nút thử lại)/rỗng (khác thông điệp khi có lọc); `400` từ API hiện dưới ô theo `errors[field]`. Mẫu `mockGetAuditLogs`, `loadAuditLogs`, `openAuditDetail` |
 | `jobs` | `WorkerJobsSection.vue` | `system:manage` | "Tình trạng tiến trình nền": bảng `GET /api/v1/admin/system/jobs` (mục 3.5), mỗi job một dòng với badge trạng thái (`IDLE` xanh, `RUNNING` xanh dương, `ERROR` đỏ, `isStale` cam "Không hoạt động"), thời điểm thành công gần nhất, số lần lỗi liên tiếp, lỗi gần nhất (mở rộng xem đủ); thẻ số liệu `enrichment`; tự làm mới mỗi 30 giây. Bên dưới là bảng CDR bị cách ly (mục 3.6) với nút "Làm giàu lại" từng dòng (mục 3.7) |
 
 ---
