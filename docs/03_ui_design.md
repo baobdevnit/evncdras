@@ -399,7 +399,7 @@ Gồm 3 phần bố cục chuẩn:
 - **Toast Notifications (`.toast-card`):**  
   Cố định góc trên bên phải màn hình (`top: 24px; right: 24px; z-index: 10000`). Có thanh viền cạnh trái dày `4px` hiển thị mã màu trạng thái (Xanh lục cho Success, Đỏ cho Error, Vàng cho Warning, Xanh dương cho Info). Hiệu ứng xuất hiện trượt từ phải sang trái bằng chuyển động cubic-bezier `animation: slideInToast 0.35s cubic-bezier(0.16, 1, 0.3, 1)`.
 - **Biểu ngữ Bảo trì Hệ thống (`.maintenance-alert-banner`):**  
-  Hiển thị dải băng rôn màu vàng hổ phách nổi bật trên đầu khu vực làm việc khi quản trị viên bật cờ bảo trì (`Maintenance Mode`), có nút điều hướng nhanh đến cấu hình hệ thống.
+  Hiển thị dải băng rôn màu vàng hổ phách nổi bật trên đầu khu vực làm việc khi quản trị viên bật cờ bảo trì (`Maintenance Mode`). Bản cổng Admin có nút điều hướng nhanh đến cấu hình hệ thống. Bản cổng Member (`MemberLayout`) không có nút, chỉ có thông điệp; hiện khi API client nhận `503 MAINTENANCE` từ một API nghiệp vụ và ẩn khi một API nghiệp vụ trả thành công (`docs/modules/03_auth_user.md` mục 3.2), không đọc cờ từ `localStorage`/`sessionStorage`.
 
 ### 6.8. Quản lý Dải Đầu số PABX (`.prefix-tags` & `.prefix-badge`)
 

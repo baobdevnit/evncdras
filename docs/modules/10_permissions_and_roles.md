@@ -186,7 +186,7 @@ export const GROUP_GATED_PERMISSIONS: Record<string, keyof UserGroup> = {
 
 - **`ROLE_PERMISSIONS`**: bản đồ `roleCode → Set<permissionCode>` nạp từ `permission_roles` khi khởi động ứng dụng. Bảng này chỉ đổi bằng migration nên không cần làm mới lúc chạy.
 - **Thời điểm có hiệu lực**: đổi vai trò của tài khoản có hiệu lực từ lần cấp token kế tiếp (refresh hoặc đăng nhập lại, tối đa 15 phút). Cờ nhóm `allow_recording_access` có hiệu lực ngay ở request kế tiếp vì đọc từ CSDL.
-- **Quyền hiệu lực trả cho frontend** (`GET /auth/me`, response đăng nhập User): `permissions` = quyền của vai trò, **bỏ** các quyền chịu cổng nhóm khi cờ nhóm đang tắt. Frontend dùng danh sách này để ẩn/hiện chức năng; backend vẫn luôn kiểm tra lại theo thuật toán trên.
+- **Quyền hiệu lực trả cho frontend** (`GET /auth/me`, response đăng nhập User): `permissions` = quyền của vai trò, **bỏ** các quyền chịu cổng nhóm khi cờ nhóm đang tắt. Vai trò dùng để tính là vai trò mà `PermissionsGuard` dùng: lúc đăng nhập đọc `user_roles` (cũng là giá trị ghi vào claim), ở `GET /auth/me` lấy claim `roleCode` của Access Token, không đọc lại `user_roles` (`docs/modules/03_auth_user.md` mục 3.2), nên menu không hiện chức năng mà backend còn từ chối sau khi đổi vai trò. Frontend dùng danh sách này để ẩn/hiện chức năng; backend vẫn luôn kiểm tra lại theo thuật toán trên.
 
 ---
 

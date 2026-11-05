@@ -188,13 +188,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ----------------------------------------
-    // 7. Maintenance Mode Banner Check
+    // 7. Biểu ngữ bảo trì: không đọc cờ từ localStorage/sessionStorage; window.memberSession hiện/ẩn
+    //    #maintenanceAlertBanner theo sự kiện `member-maintenance` (U04, M03 mục 3.2).
     // ----------------------------------------
-    const isMaintenanceActive = localStorage.getItem('system_maintenance_mode') === 'true' || sessionStorage.getItem('maintenance_mode') === 'true';
-    const maintenanceBanner = document.getElementById('maintenanceAlertBanner');
-    if (maintenanceBanner && isMaintenanceActive) {
-        maintenanceBanner.style.display = 'flex';
-    }
 
     // ----------------------------------------
     // 8. Logout Modal Handling
@@ -225,13 +221,17 @@ document.addEventListener('DOMContentLoaded', () => {
 // - Chế độ bảo trì KHÔNG chặn refresh, logout (và GET /auth/me); API nghiệp vụ khác trả 503 MAINTENANCE
 //   (mock: thêm ?maintenance=1 vào URL). 503 không phải hết phiên: không refresh, không xóa store.
 // - Template tĩnh không tự chạy guard (để mở từng trang HTML được); Vue gọi ensureSession()
-//   trong router.beforeEach của cổng Member. Nạp tài khoản (GET /auth/me) bổ sung ở U04.
+//   trong router.beforeEach của cổng Member. Nạp tài khoản: GET /api/v1/auth/me (U04, M03 mục 3.2) →
+//   loadMe(); mock: ?role=REGULAR_USER|USER_RECORDING (mặc định GROUP_ADMIN), ?recording=0 (nhóm chưa
+//   được cấp ghi âm), ?account=locked (tài khoản bị khóa: /auth/me 401, refresh 401 → về login).
 // ----------------------------------------
 window.memberSession = (function () {
     const params = new URLSearchParams(window.location.search);
     let accessToken = null;          // Vue: authUser.accessToken (chỉ trong bộ nhớ)
+    let currentUser = null;          // Vue: authUser.user (data của GET /auth/me hoặc data.user của login)
     let refreshPromise = null;       // dùng chung cho các request đồng thời (single-flight)
-    let mockHasRefreshCookie = params.get('session') !== 'none';
+    const MOCK_ACCOUNT_LOCKED = params.get('account') === 'locked';
+    let mockHasRefreshCookie = params.get('session') !== 'none' && !MOCK_ACCOUNT_LOCKED;
     const MOCK_MAINTENANCE = params.get('maintenance') === '1';
 
     const now = () => new Date().toISOString();
@@ -274,19 +274,154 @@ window.memberSession = (function () {
 
     // Bọc mọi lời gọi API cổng Member (trừ /auth/login và /auth/refresh):
     // 401 → refresh một lần rồi gửi lại một lần; refresh lỗi → về trang đăng nhập.
-    // 503 MAINTENANCE → ném lại cho màn hình (thông báo bảo trì), báo sự kiện `member-maintenance`; không refresh.
-    function request(callApi) {
-        return callApi(accessToken).catch(err => {
+    // 503 MAINTENANCE → ném lại cho màn hình, phát sự kiện `member-maintenance` { active: true }; không refresh.
+    // API nghiệp vụ trả thành công → phát `member-maintenance` { active: false } (hết bảo trì, ẩn biểu ngữ).
+    // options.maintenanceExempt = true cho /auth/me, /auth/logout: vẫn 200 khi bảo trì nên không được ẩn biểu ngữ.
+    function request(callApi, options) {
+        const exempt = !!(options && options.maintenanceExempt);
+        const done = res => {
+            if (!exempt) window.dispatchEvent(new CustomEvent('member-maintenance', { detail: { active: false } }));
+            return res;
+        };
+        return callApi(accessToken).then(done, err => {
             if (err && err.statusCode === 503 && err.errorCode === 'MAINTENANCE') {
-                window.dispatchEvent(new CustomEvent('member-maintenance', { detail: { message: err.message } }));
+                window.dispatchEvent(new CustomEvent('member-maintenance', { detail: { active: true, message: err.message } }));
                 throw err;
             }
             if (!err || err.statusCode !== 401) throw err;
             return refreshOnce()
                 .then(token => callApi(token))
+                .then(done)
                 .catch(e => { if (e && e.statusCode === 401) goLogin(); throw e; });
         });
     }
+
+    // ---------- GET /api/v1/auth/me (U04, docs/modules/03_auth_user.md mục 3.2) ----------
+    // Vai trò theo claim roleCode của Access Token (không đọc user_roles); permissions = quyền vai trò,
+    // bỏ quyền ghi âm khi nhóm chưa được cấp, sắp theo code (M10 mục 2.2, 2.3).
+    const ROLE_PERMISSIONS = {
+        GROUP_ADMIN: ['cdr:download_audio', 'cdr:export', 'cdr:filter_advanced', 'cdr:listen_audio', 'cdr:view',
+            'group:manage_admin', 'group:toggle_recording', 'org:view', 'prefix:view', 'qos:view',
+            'report:export', 'report:view', 'user:create', 'user:delete', 'user:edit', 'user:view', 'user_group:view'],
+        USER_RECORDING: ['cdr:download_audio', 'cdr:export', 'cdr:filter_advanced', 'cdr:listen_audio', 'cdr:view',
+            'org:view', 'prefix:view', 'qos:view', 'report:export', 'report:view', 'user_group:view'],
+        REGULAR_USER: ['cdr:export', 'cdr:filter_advanced', 'cdr:view', 'org:view', 'prefix:view', 'qos:view',
+            'report:export', 'report:view', 'user_group:view']
+    };
+    const ROLE_NAMES = { GROUP_ADMIN: 'Quản trị viên nhóm', USER_RECORDING: 'Thành viên nghe ghi âm', REGULAR_USER: 'Thành viên' };
+    const GROUP_GATED_PERMISSIONS = ['cdr:listen_audio', 'cdr:download_audio'];
+    const MOCK_ROLE = ROLE_PERMISSIONS[params.get('role')] ? params.get('role') : 'GROUP_ADMIN'; // = claim roleCode
+    const MOCK_ALLOW_RECORDING = params.get('recording') !== '0';
+
+    // Dữ liệu mẫu đúng cấu trúc `user` (M03 mục 3.1, 3.2).
+    function buildMockUser() {
+        return {
+            id: 10,
+            username: 'cdr.evnit',
+            fullName: 'Trần Thị B',
+            email: 'cdr.evnit@evn.com.vn',
+            avatarUrl: null,
+            userGroup: {
+                id: 1,
+                name: 'Nhóm QLND Khối CNTT',
+                organizationId: 2,          // null cùng organizationName khi nhóm độc lập
+                organizationName: 'Khối CNTT',
+                allowRecordingAccess: MOCK_ALLOW_RECORDING
+            },
+            roleCode: MOCK_ROLE,
+            roleName: ROLE_NAMES[MOCK_ROLE],
+            permissions: ROLE_PERMISSIONS[MOCK_ROLE]
+                .filter(p => MOCK_ALLOW_RECORDING || !GROUP_GATED_PERMISSIONS.includes(p))
+        };
+    }
+
+    // Giả lập backend GET /api/v1/auth/me: không query, chỉ đọc (không audit, không last_login_at);
+    // KHÔNG bị bảo trì chặn. 200 data = user; token thiếu/hết hạn hoặc kiểm tra tài khoản không qua
+    // (không còn ACTIVE, nhóm INACTIVE, token đầy đủ mà must_change_password = 1) → 401 UNAUTHORIZED, không xóa cookie.
+    function mockUserMe(token) {
+        return new Promise(resolve => setTimeout(resolve, 200)).then(() => {
+            if (!token || MOCK_ACCOUNT_LOCKED) return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+            return { success: true, statusCode: 200, message: 'Lấy thông tin tài khoản thành công', data: buildMockUser(), timestamp: now() };
+        });
+    }
+
+    // Nạp `user` vào store (chỉ khi chưa có: sau đăng nhập đã có data.user của login).
+    function loadMe() {
+        if (currentUser) return Promise.resolve(currentUser);
+        return request(token => mockUserMe(token), { maintenanceExempt: true }).then(res => {
+            currentUser = res.data;
+            renderAccount(currentUser);
+            return currentUser;
+        });
+    }
+
+    // meta.permissions của route cổng Member (docs/00_overview_and_architecture.md mục 5.3.4), theo file template.
+    const PAGE_PERMISSIONS = {
+        'cdr-history.html': 'cdr:view', 'qos-debug.html': 'qos:view', 'reports.html': 'report:view',
+        'org-prefix.html': 'prefix:view', 'group-admin.html': 'user:view', 'group-members.html': 'user_group:view'
+    };
+
+    // Header MemberLayout: fullName, roleName · tên nhóm; avatarUrl null → ảnh chữ cái đầu từ fullName.
+    // Sidebar: ẩn mục thiếu quyền; nhóm menu không còn mục nào thì ẩn cả nhóm.
+    // Vue: đọc authUser.user; ảnh chữ cái đầu dùng component nội bộ, không gọi dịch vụ ngoài.
+    function renderAccount(user) {
+        if (!user) return;
+        const box = document.getElementById('userProfileBtn');
+        if (box) {
+            const nameEl = box.querySelector('.user-name');
+            const roleEl = box.querySelector('.user-role');
+            const img = box.querySelector('.avatar');
+            if (nameEl) nameEl.textContent = user.fullName;
+            if (roleEl) {
+                roleEl.textContent = user.roleName + ' · ' + user.userGroup.name;
+                roleEl.title = user.userGroup.name;
+            }
+            if (img) {
+                img.src = user.avatarUrl ||
+                    'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.fullName) + '&background=0033A0&color=fff';
+                img.alt = user.fullName;
+            }
+        }
+        document.querySelectorAll('.sidebar-menu a[href]').forEach(a => {
+            const code = PAGE_PERMISSIONS[a.getAttribute('href')];
+            const li = a.closest('li');
+            if (code && li) li.style.display = user.permissions.includes(code) ? '' : 'none';
+        });
+        document.querySelectorAll('.sidebar-menu .menu-group').forEach(group => {
+            const items = Array.from(group.querySelectorAll('li')).filter(li => li.querySelector('a[href$=".html"]'));
+            if (items.length) group.style.display = items.some(li => li.style.display !== 'none') ? '' : 'none';
+        });
+    }
+
+    // Tài khoản trong store (các màn hình đọc userGroup, permissions từ đây). Trang tĩnh: dữ liệu mẫu.
+    function getAccount() {
+        return currentUser || buildMockUser();
+    }
+
+    // Biểu ngữ bảo trì (.maintenance-alert-banner, 03 mục 6.7) ở đầu .main-wrapper; Vue: nằm trong MemberLayout,
+    // trạng thái ở store. Bản cổng Member không có liên kết tới cài đặt hệ thống.
+    function setMaintenanceBanner(active, message) {
+        let banner = document.getElementById('maintenanceAlertBanner');
+        if (!banner && active) {
+            const host = document.querySelector('.main-wrapper');
+            if (!host) return;
+            banner = document.createElement('div');
+            banner.id = 'maintenanceAlertBanner';
+            banner.className = 'maintenance-alert-banner';
+            banner.setAttribute('role', 'status');
+            banner.innerHTML = '<div class="banner-content">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>' +
+                '<span><strong>Hệ thống đang bảo trì:</strong> <span class="banner-message"></span></span></div>';
+            host.insertBefore(banner, host.firstChild);
+        }
+        if (!banner) return;
+        if (active) {
+            banner.querySelector('.banner-message').textContent =
+                message || 'Các chức năng tra cứu tạm thời không khả dụng, vui lòng quay lại sau.';
+        }
+        banner.style.display = active ? 'flex' : 'none';
+    }
+    window.addEventListener('member-maintenance', e => setMaintenanceBanner(e.detail.active, e.detail.message));
 
     // Giả lập một API nghiệp vụ bất kỳ của cổng Member (vd. GET /api/v1/profile) để minh họa request():
     // không token/hết hạn → 401; đang bảo trì → 503 MAINTENANCE (errors = null).
@@ -299,11 +434,13 @@ window.memberSession = (function () {
     }
 
     // Guard lần đầu vào cổng (kể cả tải lại trang): chưa có token → refresh (chạy cả khi đang bảo trì).
-    // Thành công thì (U04) gọi GET /api/v1/auth/me để nạp `user` vào store; 401 → về login.
+    // Thành công thì gọi GET /api/v1/auth/me (U04) nạp `user` vào store; 401 → về login.
     // Vue: router.beforeEach → ensureSession(), rồi kiểm tra meta.permissions với authUser.user.permissions.
     function ensureSession() {
         const ready = accessToken ? Promise.resolve(accessToken) : refreshOnce();
-        return ready.catch(err => { if (!err || err.statusCode === 401) goLogin(); return null; });
+        return ready
+            .then(() => loadMe())
+            .catch(err => { if (!err || err.statusCode === 401) goLogin(); return null; });
     }
 
     // Giả lập backend POST /api/v1/auth/logout (U03, M03 mục 3.2.1): không có body; KHÔNG bị bảo trì chặn.
@@ -322,20 +459,27 @@ window.memberSession = (function () {
     // Vue: authUser.clear(); preferencesUser.clear(); userSocket.disconnect() (namespace /notifications);
     //      router.replace({ name: 'member.login' }). Cache `memberTheme` ở localStorage giữ lại.
     function logout() {
-        return request(token => mockUserLogout(token))
+        return request(token => mockUserLogout(token), { maintenanceExempt: true })
             .catch(() => null)
-            .then(() => { accessToken = null; goLogin(); });
+            .then(() => { accessToken = null; currentUser = null; goLogin(); });
     }
 
     // Sau đăng nhập (token đầy đủ, mustChangePassword = false; token PASSWORD_CHANGE_ONLY không có cookie)
     // hoặc tự đổi mật khẩu: đặt token mới, backend đã đặt cookie Refresh Token qua Set-Cookie.
-    // Vue: authUser.setAccessToken(token).
+    // Vue: authUser.setAccessToken(token); sau đăng nhập authUser.user = data.user (không gọi /auth/me).
     function setAccessToken(token) {
         accessToken = token;
         mockHasRefreshCookie = true;
     }
 
-    return { ensureSession, request, refreshOnce, logout, setAccessToken, mockUserApi };
+    // Trang tĩnh: không chạy guard (để mở từng trang HTML được), chỉ đổ dữ liệu mẫu vào header/sidebar
+    // như sau khi guard nạp /auth/me. Vue: guard gọi ensureSession().
+    document.addEventListener('DOMContentLoaded', () => {
+        renderAccount(buildMockUser());
+        if (MOCK_MAINTENANCE) setMaintenanceBanner(true);
+    });
+
+    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, getAccount, setAccessToken, mockUserApi };
 })();
 
 // ----------------------------------------

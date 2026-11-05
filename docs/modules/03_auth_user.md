@@ -144,11 +144,55 @@ Cùng khung với bản Admin (`docs/modules/04_auth_admin.md` mục 3.1); mục
 
 - Index phục vụ: `uniq_users_username` (`username_active`), `uniq_users_email` (`email_active`), khóa chính `user_groups`, `organizations`, `user_roles`, `roles`.
 
-### 3.2. Lấy thông tin cá nhân hiện tại (`GET /api/v1/auth/me`)
+### 3.2. Thông tin User đang đăng nhập (`GET /api/v1/auth/me`)
 
-- **Headers**: `Authorization: Bearer <accessToken>`
-- Trả về payload tương tự đối tượng `user` khi login để Vue Frontend khôi phục Auth State khi reload trang.
-- `permissions` là quyền hiệu lực: quyền của vai trò, bỏ `cdr:listen_audio`/`cdr:download_audio` khi nhóm có `allowRecordingAccess = false` (`docs/modules/10_permissions_and_roles.md` mục 2.3).
+Cùng khung với bản Admin (`docs/modules/04_auth_admin.md` mục 3.1.1); mục này ghi đủ cho bản User. Điểm khác bản Admin: kiểm tra nhóm (bước 2), `roleCode` lấy từ claim của Access Token (bước 3), quyền hiệu lực theo cờ nhóm, response có `userGroup`, không bị chế độ bảo trì chặn.
+
+- **Guard**: `UserAuthGuard`, nhận cả token `PASSWORD_CHANGE_ONLY` (`docs/01_database_schema.md` mục 6.1); không cần mã quyền (không qua `PermissionsGuard`). **Không** bị chế độ bảo trì chặn (`docs/02_api_contracts.md` mục 1.2): đang bảo trì vẫn trả `200`, để guard của cổng khôi phục phiên khi tải lại trang (refresh rồi `/auth/me`) và layout vẫn vẽ được tài khoản cùng thông báo bảo trì.
+- **Request**: header `Authorization: Bearer <accessToken>`; không có query, không có body. Gửi query param bất kỳ trả `400 VALIDATION_ERROR`.
+- **Xử lý** (chỉ đọc, không ghi CSDL: không ghi `audit_logs`, không cập nhật `last_login_at`):
+  1. Đọc `users` theo khóa chính `id = sub` của Access Token, join `user_groups` theo khóa chính `users.user_group_id`, left join `organizations` theo khóa chính `user_groups.organization_id` (đọc thường, không khóa).
+  2. **Kiểm tra tài khoản ở mỗi request** (cùng quy tắc mọi API cổng User, `docs/01_database_schema.md` mục 6.1): không thấy dòng, hoặc `users.status` khác `ACTIVE`, hoặc `user_groups.status = 'INACTIVE'` (chốt phòng vệ như bước 2 của mục 3.1: ngừng hoạt động nhóm đã chuyển mọi tài khoản sang `INACTIVE`), hoặc token đầy đủ (không có `scope: "PASSWORD_CHANGE_ONLY"`) mà `must_change_password = 1` (vừa bị quản trị viên đặt lại mật khẩu): `401 UNAUTHORIZED`. Không xóa cookie (phiên đã bị thu hồi khi khóa/ngừng hoạt động/đặt lại mật khẩu), nên client refresh một lần, refresh trả `401` và frontend về trang đăng nhập. Không xét `locked_until` (khóa tạm chỉ chặn đăng nhập), tuổi mật khẩu; token `PASSWORD_CHANGE_ONLY` với `must_change_password = 1` là bình thường. `users.user_group_id` bất biến (mục 1.2) nên luôn trùng claim `userGroupId`.
+  3. **Vai trò và quyền** (chủ dự án chốt ở U04): `roleCode` = claim `roleCode` của Access Token, **không** đọc `user_roles`; `roleName` = `roles.name` của vai trò có `code` đó (5 dòng seed cố định, đọc qua `uniq_roles_code` hoặc nạp sẵn cùng `ROLE_PERMISSIONS`). `permissions` = `ROLE_PERMISSIONS[roleCode]`, **bỏ** các mã trong `GROUP_GATED_PERMISSIONS` (`cdr:listen_audio`, `cdr:download_audio`) khi `user_groups.allow_recording_access = 0` đọc ở bước 1, sắp xếp theo `code` (`docs/modules/10_permissions_and_roles.md` mục 2.3). Lý do: `PermissionsGuard` kiểm tra quyền vai trò theo claim `roleCode`, nên quyền trả cho frontend phải tính từ cùng giá trị đó; nếu đọc `user_roles`, vai trò vừa đổi qua `PUT /users/:id/role` (không thu hồi phiên) sẽ hiện menu mà backend còn trả `403 FORBIDDEN_PERMISSION` tới lần cấp token kế tiếp. Vai trò mới có hiệu lực đồng thời ở guard và `/auth/me` từ lần refresh hoặc đăng nhập kế tiếp (tối đa `security_access_token_minutes`); luồng tải lại trang refresh trước rồi mới gọi `/auth/me` (`docs/00_overview_and_architecture.md` mục 5.3.2) nên lúc đó luôn là vai trò mới nhất. Cờ nhóm thì có hiệu lực ngay vì đọc từ CSDL.
+- **Response** `200`: `data` đúng cấu trúc `user` của mục 3.1 (cùng bảng nguồn trường, trừ `roleCode`/`roleName` lấy theo bước 3), kể cả khi gọi bằng token `PASSWORD_CHANGE_ONLY`; không có `mustChangePassword` (cờ này chỉ có ở response đăng nhập; token giới hạn không có Refresh Token nên không tồn tại qua tải lại trang).
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy thông tin tài khoản thành công",
+  "data": {
+    "id": 10,
+    "username": "cdr.evnit",
+    "fullName": "Trần Thị B",
+    "email": "cdr.evnit@evn.com.vn",
+    "avatarUrl": "/media/avatars/8a1d2c3e-5b6f-4a7d-9e0f-1b2c3d4e5f60.jpg",
+    "userGroup": {
+      "id": 1,
+      "name": "Nhóm QLND Khối CNTT",
+      "organizationId": 2,
+      "organizationName": "Khối CNTT",
+      "allowRecordingAccess": false
+    },
+    "roleCode": "USER_RECORDING",
+    "roleName": "Thành viên nghe ghi âm",
+    "permissions": ["cdr:export", "cdr:filter_advanced", "cdr:view", "org:view", "prefix:view", "qos:view", "report:export", "report:view", "user_group:view"]
+  },
+  "timestamp": "2026-10-26T09:31:00+07:00"
+}
+```
+
+  Ví dụ: `USER_RECORDING` (11 mã) trong nhóm chưa được cấp ghi âm nên còn 9 mã, không có `cdr:listen_audio`, `cdr:download_audio`; nhóm độc lập thì `organizationId`, `organizationName` là `null`.
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng Admin (guard); kiểm tra tài khoản ở mỗi request không qua (bước 2) |
+
+  Không có `403` (không qua `PermissionsGuard`, nhóm `INACTIVE` trả `401` ở bước 2), `404`, `503`.
+- **Frontend**: chỉ gọi khi store `authUser` chưa có `user`, tức sau lần refresh lúc vào cổng hoặc tải lại trang (`docs/00_overview_and_architecture.md` mục 5.3.2); sau đăng nhập không gọi (đăng nhập đã trả `user`), sau tự đổi mật khẩu không gọi. Gọi qua API client cổng Member (`401` → refresh một lần rồi gửi lại); thành công thì lưu `data` vào `authUser.user`. Router guard kiểm `meta.permissions` và sidebar `MemberLayout` ẩn mục thiếu quyền (`docs/00_overview_and_architecture.md` mục 5.3.4) theo `permissions`; ẩn/hiện chức năng ghi âm theo `permissions` (đã áp cờ nhóm) và `userGroup.allowRecordingAccess` (`docs/modules/02_user_group.md` mục 5.3). Header `MemberLayout` hiển thị `fullName`, `roleName` và tên nhóm `userGroup.name`, ảnh `avatarUrl` (`null` thì ảnh chữ cái đầu tạo từ `fullName` ở frontend). Đăng xuất xóa `user` cùng Access Token (mục 3.2.1). **Thông báo bảo trì** (chủ dự án chốt ở U04): `/auth/me` không cho biết chế độ bảo trì; `MemberLayout` hiện `.maintenance-alert-banner` (`docs/03_ui_design.md` mục 6.7, bản cổng Member không có liên kết tới cài đặt hệ thống) khi API client phát sự kiện nhận `503 MAINTENANCE` từ một API nghiệp vụ, và ẩn khi một API nghiệp vụ (không phải `/auth/me`, `/auth/refresh`, `/auth/logout`) trả thành công; không đọc cờ từ `localStorage`/`sessionStorage`. Mẫu: `window.memberSession.loadMe`, `renderAccount`, `getAccount` và biểu ngữ `#maintenanceAlertBanner` trong `templates/member/main.js`.
+- Index phục vụ: khóa chính `users`, `user_groups`, `organizations`; `uniq_roles_code` (nếu không nạp sẵn `roles`).
 
 ### 3.2.1. Làm mới phiên và Đăng xuất (`POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`)
 
@@ -408,5 +452,6 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
    - **TC-USR-02c**: Gửi đồng thời 2 request `refresh` cùng một Refresh Token (giả lập 2 tab), kiểm tra cả hai nhận Access Token, chỉ request đầu có `Set-Cookie`, không phiên nào bị `REUSE_DETECTED`. Dùng lại token đó sau 30 giây thì mọi phiên bị thu hồi.
    - **TC-USR-02d**: Đăng nhập User với `rememberMe = true`, gọi `POST /api/v1/auth/refresh`: `200` `data = { accessToken, expiresIn }`, Access Token mới mang `sub`, `userGroupId`, `roleCode`, `sid` = id phiên mới; cookie mới `Path=/api/v1/auth`, `Max-Age` ≈ số giây còn lại tới `expires_at`; phiên cũ `ROTATED`, không có dòng `audit_logs` mới. Bật `system_maintenance_mode` rồi refresh: vẫn `200`, sau đó `GET /api/v1/auth/me` `200`, `GET /api/v1/profile` `503 MAINTENANCE`. Body `{ "x": 1 }`: `400`. Khóa user đó rồi refresh bằng cookie cũ: `401 UNAUTHORIZED` kèm `Set-Cookie` `Max-Age=0`. Gửi cookie Refresh Token của Admin tới route User: `401`.
    - **TC-USR-02e**: Đăng nhập User, gọi `POST /api/v1/auth/logout`: `200` `data = null`, `Set-Cookie` `Path=/api/v1/auth` `Max-Age=0`, phiên có `revoked_reason = 'LOGOUT'`, một dòng `audit_logs` `AUTH / LOGOUT` (`actor_type = USER`, `actor_name` = họ tên, `resource_id` = id phiên); gọi lại: `200`, không thêm dòng audit; refresh bằng cookie cũ: `401`. Cookie vừa `ROTATED` (tab khác refresh): phiên mới trong chuỗi bị thu hồi. Cookie của User khác kèm Access Token của mình: `200`, phiên kia không đổi. Token `PASSWORD_CHANGE_ONLY` (không cookie): `200`, không audit. Body `{"x":1}` hoặc `?x=1`: `400 VALIDATION_ERROR`. Bật `system_maintenance_mode`: logout vẫn `200`, phiên `LOGOUT`, cookie bị xóa; tắt bảo trì rồi refresh bằng cookie cũ: `401`. Gọi logout ở cổng Member không làm mất phiên cổng Admin trên cùng trình duyệt. Giao diện: mọi trang Member có nút "Đăng xuất" mở hộp xác nhận, bấm xác nhận khóa nút rồi về trang đăng nhập dù API lỗi.
+   - **TC-USR-02f**: Đăng nhập User `GROUP_ADMIN` của nhóm đã được cấp ghi âm, gọi `GET /api/v1/auth/me`: `200`, `data` trùng `data.user` của response đăng nhập (`permissions` 17 mã sắp theo `code`, có `userGroup`), không có `mustChangePassword`, không thêm dòng `audit_logs`, `last_login_at` không đổi. Admin tắt ghi âm của nhóm: gọi lại ngay (cùng token) không còn `cdr:listen_audio`, `cdr:download_audio` (15 mã), `userGroup.allowRecordingAccess = false`. Quản trị viên nhóm đổi vai trò người này sang `REGULAR_USER`: gọi lại bằng Access Token cũ vẫn `roleCode = GROUP_ADMIN` (theo claim, khớp `PermissionsGuard`); refresh rồi gọi lại: `REGULAR_USER`, 9 mã. Token `PASSWORD_CHANGE_ONLY`: `200` cùng cấu trúc. `?x=1`: `400 VALIDATION_ERROR`. Khóa tài khoản, ngừng hoạt động tài khoản, hoặc quản trị viên đặt lại mật khẩu, rồi gọi bằng Access Token đầy đủ còn hạn: `401 UNAUTHORIZED`, không có `Set-Cookie`; refresh sau đó `401` và xóa cookie. Access Token của Admin: `401`. Bật `system_maintenance_mode`: vẫn `200`. Giao diện: tải lại trang → refresh → `/auth/me` một lần, header hiện họ tên, vai trò, tên nhóm; `REGULAR_USER` không thấy mục "Quản trị nhóm" ở sidebar; đang bảo trì thì biểu ngữ vàng hiện sau API nghiệp vụ đầu tiên trả `503`.
 3. **TC-USR-03**: Gọi `PUT /users/:id/role` đổi Quản trị viên nhóm duy nhất trong nhóm sang `REGULAR_USER`, kiểm tra hệ thống chặn `409` với cảnh báo thích hợp và `user_roles` không đổi.
 4. **TC-USR-04**: Group Admin tạo người dùng mới trong nhóm của mình, xác nhận có dòng `user_roles` với vai trò `REGULAR_USER` và người dùng mới tạo có thể đăng nhập bình thường.
