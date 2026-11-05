@@ -469,6 +469,20 @@
                                 <h3>Quản trị viên</h3>
                             </div>
                             <div class="card-body">
+                                <!-- Bộ lọc GET /api/v1/admin/admins (M04 mục 3.2): search, status; không có sắp xếp -->
+                                <div class="admins-toolbar" role="search">
+                                    <div class="admins-search-box">
+                                        <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                        <input type="search" id="adminsSearch" name="search" class="form-control" maxlength="100"
+                                               placeholder="Tìm theo họ tên, tên đăng nhập, email..." aria-label="Tìm quản trị viên" autocomplete="off">
+                                    </div>
+                                    <select id="adminsStatusFilter" name="status" class="form-control admins-status-filter" aria-label="Lọc theo trạng thái">
+                                        <option value="">Tất cả trạng thái</option>
+                                        <option value="ACTIVE">Hoạt động</option>
+                                        <option value="LOCKED">Đã khóa</option>
+                                        <option value="INACTIVE">Ngừng hoạt động</option>
+                                    </select>
+                                </div>
                                 <div id="adminsState" class="admins-state" role="status">
                                     <span id="adminsMessage">Đang tải danh sách quản trị viên...</span>
                                     <button type="button" id="btnRetryAdmins" class="btn btn-outline" hidden>Thử lại</button>
@@ -488,6 +502,11 @@
                                         <tbody id="adminsTableBody"></tbody>
                                     </table>
                                 </div>
+                            </div>
+                            <!-- Phân trang: limit = 10 cố định, khung pagination 02 mục 2.2 -->
+                            <div class="pagination-container" id="adminsPagination" hidden>
+                                <div class="pagination-info" id="adminsPageInfo"></div>
+                                <ul class="pagination" id="adminsPageList" aria-label="Phân trang quản trị viên"></ul>
                             </div>
                             </div>
                         </div>

@@ -144,10 +144,98 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 - Index phục vụ: khóa chính `admins`, `admin_roles`, `roles`.
 
 ### 3.2. Danh sách Quản trị viên (`GET /api/v1/admin/admins`)
-- **Guard**: `AdminAuthGuard`, `Permission: admin:manage`
-- Chỉ vai trò `ROOT_ADMIN` có quyền này.
-- **Query**: `page` (mặc định 1), `limit` (mặc định 10, tối đa 100), `search` (khớp `username`, `email`, `full_name`), `status` (`ACTIVE` | `LOCKED` | `INACTIVE`), như `GET /api/v1/users` (`docs/modules/03_auth_user.md` mục 3.3). Khung phân trang theo `docs/02_api_contracts.md` mục 2.2.
-- **Phần tử**: `id`, `username`, `email`, `fullName`, `phoneNumber`, `avatarUrl`, `status`, `roleCode`, `roleName` (từ `admin_roles`), `lastLoginAt`, `createdAt`, `updatedAt`. Không trả `password_hash`, `failed_login_count`, `locked_until` hay thông tin phiên.
+- **Guard**: `AdminAuthGuard`, `PermissionsGuard` với `admin:manage` (chỉ vai trò `ROOT_ADMIN` có, mục 4.1). Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`; thiếu quyền trả `403 FORBIDDEN_PERMISSION`.
+- **Query** (quy tắc chung `docs/02_api_contracts.md` mục 2.2; không có body):
+
+| Tham số | Kiểu | Mặc định | Ràng buộc |
+|---|---|---|---|
+| `page` | số nguyên | 1 | ≥ 1 |
+| `limit` | số nguyên | 10 | 1–100 |
+| `search` | string | — | Cắt khoảng trắng hai đầu, rỗng = không lọc, ≤ 100 ký tự; khớp chứa trên `username`, `email`, `full_name` (`OR`) |
+| `status` | enum | — (tất cả, kể cả `INACTIVE`) | `ACTIVE` \| `LOCKED` \| `INACTIVE` |
+
+  Sai định dạng, ngoài khoảng, giá trị enum lạ, tham số lặp lại hoặc tham số khác (`sort`, `order`, `roleCode`…) trả `400 VALIDATION_ERROR` với `errors` theo tên tham số.
+- **Xử lý** (chỉ đọc, không ghi CSDL, không ghi `audit_logs`):
+  1. Đọc `admins` theo khóa chính `id = sub`; không thấy dòng hoặc `status` khác `ACTIVE` trả `401 UNAUTHORIZED` (cùng quy tắc mục 3.1.1).
+  2. Đếm và lấy trang trong cùng một điều kiện:
+
+```sql
+SELECT a.id, a.username, a.email, a.full_name, a.phone_number, a.avatar_url, a.status,
+       r.code AS role_code, r.name AS role_name, a.last_login_at, a.created_at, a.updated_at
+FROM admins a
+JOIN admin_roles ar ON ar.admin_id = a.id
+JOIN roles r ON r.id = ar.role_id
+WHERE (:status IS NULL OR a.status = :status)
+  AND (:search IS NULL OR a.username LIKE :pattern ESCAPE '\\'
+       OR a.email LIKE :pattern ESCAPE '\\' OR a.full_name LIKE :pattern ESCAPE '\\')
+ORDER BY (r.code = 'ROOT_ADMIN') DESC, FIELD(a.status, 'ACTIVE', 'LOCKED', 'INACTIVE'), a.full_name, a.id
+LIMIT :limit OFFSET (:page - 1) * :limit;
+-- :pattern = CONCAT('%', <search đã thoát \ % _>, '%'); total: SELECT COUNT(*) cùng FROM/JOIN/WHERE
+```
+
+  Thứ tự cố định (không có tham số sắp xếp): Root Admin trước, rồi `ACTIVE` → `LOCKED` → `INACTIVE`, rồi họ tên, cuối cùng `id` để phân trang ổn định. `page` vượt `totalPages` trả `200`, `data = []`.
+- **Response** `200` (khung `docs/02_api_contracts.md` mục 2.2, không có khóa cấp cao khác):
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách quản trị viên thành công",
+  "data": [
+    {
+      "id": 1,
+      "username": "root.admin@evnict.vn",
+      "email": "root.admin@evnict.vn",
+      "fullName": "Quản trị viên Tối cao EVNICT",
+      "phoneNumber": "02422222222",
+      "avatarUrl": "/media/avatars/3f2a9c4e-7b1d-4e8a-9c2f-1a2b3c4d5e6f.png",
+      "status": "ACTIVE",
+      "roleCode": "ROOT_ADMIN",
+      "roleName": "Quản trị viên tối cao",
+      "lastLoginAt": "2026-11-05T08:15:00+07:00",
+      "createdAt": "2026-08-15T09:00:00+07:00",
+      "updatedAt": "2026-11-05T08:15:00+07:00"
+    },
+    {
+      "id": 7,
+      "username": "admin.npc",
+      "email": "admin.npc@npc.com.vn",
+      "fullName": "Nguyễn Văn Trực",
+      "phoneNumber": null,
+      "avatarUrl": null,
+      "status": "ACTIVE",
+      "roleCode": "SYSTEM_ADMIN",
+      "roleName": "Quản trị viên hệ thống",
+      "lastLoginAt": null,
+      "createdAt": "2026-09-20T14:00:00+07:00",
+      "updatedAt": "2026-09-20T14:00:00+07:00"
+    }
+  ],
+  "pagination": { "page": 1, "limit": 10, "total": 2, "totalPages": 1, "hasNext": false, "hasPrev": false },
+  "timestamp": "2026-11-05T10:00:00+07:00"
+}
+```
+
+| Trường | Nguồn | Ghi chú |
+|---|---|---|
+| `id`, `username`, `email`, `fullName`, `phoneNumber`, `status` | `admins` | `phoneNumber` `null` khi chưa có |
+| `avatarUrl` | `admins.avatar_url` | Đường dẫn tương đối `/media/avatars/...` hoặc `null` (`docs/modules/09_admin_profile.md` mục 3.2.1) |
+| `roleCode`, `roleName` | `roles.code`, `roles.name` qua `admin_roles` | `ROOT_ADMIN` \| `SYSTEM_ADMIN` |
+| `lastLoginAt` | `admins.last_login_at` | `null` khi chưa đăng nhập |
+| `createdAt`, `updatedAt` | `admins` | ISO 8601 `+07:00` |
+
+  Không trả `password_hash`, `must_change_password`, `password_changed_at`, `failed_login_count`, `locked_until`, `created_by_admin_id` hay thông tin phiên. Phần tử này cũng là `data` của `PUT /admin/admins/:id` (mục 3.8).
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Query sai (bảng trên) |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản người gọi không còn `ACTIVE` (bước 1) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Thiếu `admin:manage` (`SYSTEM_ADMIN`) |
+
+- **Frontend** (mục 5.2): ô tìm kiếm (`maxlength="100"`, gửi sau 300 ms ngừng gõ hoặc khi nhấn Enter, chuỗi rỗng sau khi cắt thì bỏ tham số), ô chọn trạng thái ("Tất cả trạng thái" = không gửi `status`), thanh phân trang `limit = 10` (thông tin "Hiển thị x–y / tổng" và nút trang). Đổi tìm kiếm/trạng thái thì về trang 1; chỉ hiển thị kết quả của request gửi sau cùng. `data` rỗng mà `page > 1` và `totalPages > 0` (vd. sau khi một thao tác làm danh sách ngắn lại) thì tải lại trang `totalPages`. Trạng thái: đang tải; lỗi (thông điệp + nút "Thử lại"); rỗng: không lọc thì "Chưa có quản trị viên nào", có lọc thì "Không có quản trị viên phù hợp với bộ lọc". `401` do API client xử lý (refresh một lần rồi gửi lại). Thời gian định dạng ở frontend (`Asia/Ho_Chi_Minh`), nhãn trạng thái: `ACTIVE` "Hoạt động", `LOCKED` "Đã khóa", `INACTIVE` "Ngừng hoạt động". Mẫu: `mockGetAdmins`, `loadAdmins` trong `templates/admin/system-settings.js`.
+- Index phục vụ: khóa chính `admins`, `admin_roles`, `roles`. Bảng `admins` chỉ vài chục dòng nên lọc/sắp xếp quét bảng, không thêm index (`search` khớp chứa cũng không dùng được index).
 
 ### 3.3. Tạo mới Quản trị viên (`POST /api/v1/admin/admins`)
 - **Guard**: `AdminAuthGuard`, `Permission: admin:manage`
@@ -308,7 +396,7 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 
 ### 5.2. Quản lý Quản trị viên trong Cài đặt hệ thống
 - Là mục `admins` (component `AdminAccountsSection.vue`) trong `SystemSettingsView.vue`, mở trực tiếp tại `/admin/settings?section=admins` (`docs/00_overview_and_architecture.md` mục 5.3.3, bảng "Chức năng đặt bên trong màn hình"). Không có route hay view riêng.
-- Template `system-settings.html` có khung mục `#section-admins` (dựng ở A14): bảng `.data-table` với cột họ tên/tên đăng nhập, email, vai trò, trạng thái, đăng nhập gần nhất và thao tác, dữ liệu mock đúng phần tử mục 3.2; hiện mới có thao tác "Thu hồi phiên" (mục 3.7) và hộp xác nhận dùng chung `#confirmModal`. Tìm kiếm, lọc, phân trang và các thao tác còn lại dựng tiếp khi rà từng endpoint.
+- Template `system-settings.html` có khung mục `#section-admins` (dựng ở A14): bảng `.data-table` với cột họ tên/tên đăng nhập, email, vai trò, trạng thái, đăng nhập gần nhất và thao tác, dữ liệu mock đúng phần tử mục 3.2; thanh công cụ tìm kiếm `#adminsSearch` + lọc trạng thái `#adminsStatusFilter`, thanh phân trang `#adminsPagination` (A15, mục 3.2 Frontend); hiện mới có thao tác "Thu hồi phiên" (mục 3.7) và hộp xác nhận dùng chung `#confirmModal`. Các thao tác còn lại dựng tiếp khi rà từng endpoint.
 - Hiển thị danh sách các Admin, nhãn vai trò theo `roleCode` (`ROOT_ADMIN` nổi bật màu vàng gold); thao tác Thêm (hiển thị `temporaryPassword` một lần), Sửa, Khóa/Kích hoạt, Đặt lại mật khẩu, Thu hồi phiên, Ngừng hoạt động – theo các endpoint `/api/v1/admin/admins*`.
 - Ẩn toàn bộ mục (cả nút trên menu `.settings-sidebar`) nếu tài khoản đang đăng nhập không có `admin:manage` (`!authAdminStore.permissions.includes('admin:manage')`).
 
@@ -326,3 +414,4 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 9. **TC-ADM-09**: Đăng nhập Admin, gọi `GET /api/v1/admin/auth/me`: `200`, `data` trùng `data.admin` của response đăng nhập (`permissions` sắp theo `code`, 25 mã với `ROOT_ADMIN`, 24 với `SYSTEM_ADMIN`), không thêm dòng `audit_logs`. Gọi bằng token `PASSWORD_CHANGE_ONLY`: `200` cùng cấu trúc. Gọi kèm `?x=1`: `400 VALIDATION_ERROR`. Khóa admin đó rồi gọi lại bằng Access Token cũ (còn hạn): `401 UNAUTHORIZED`, không có `Set-Cookie`. Bật chế độ bảo trì: vẫn `200`.
 10. **TC-ADM-10**: `SYSTEM_ADMIN` B đăng nhập trên 2 trình duyệt (phiên P1, P2) và có một phiên P0 đã hết hạn chưa thu hồi. Root Admin gọi `DELETE /api/v1/admin/admins/<B>/sessions`: `200` `{ "revokedCount": 2 }`; P1, P2 có `revoked_reason = 'REVOKED_BY_ADMIN'`, P0 giữ nguyên; một dòng `audit_logs` `AUTH / SESSION_REVOKED`, `resource_id` = id của B, `action_details = {"targetActorType":"ADMIN","revokedCount":2}`; refresh ở P1 trả `401` và xóa cookie (không thu hồi thêm, không ghi `TOKEN_REUSE_DETECTED`), Access Token còn hạn của P1 vẫn gọi được API tới khi hết hạn. Gọi lại lần hai: `200` `{ "revokedCount": 0 }`, không thêm dòng audit. B đăng nhập lại được. `:id` là chính Root Admin: `403 SELF_ACTION_FORBIDDEN`; là một Root Admin khác: `403 ROOT_ADMIN_PROTECTED`, không có dòng audit; id không tồn tại: `404 NOT_FOUND`; `:id` = `abc`, `0`, `4294967296`: `400` có `errors.id`; gửi `?x=1` hoặc body `{"x":1}`: `400`. `SYSTEM_ADMIN` gọi: `403 FORBIDDEN_PERMISSION`; token `PASSWORD_CHANGE_ONLY`: `403 PASSWORD_CHANGE_REQUIRED`. Ở mục `admins`, dòng của chính mình, dòng `ROOT_ADMIN`, dòng `LOCKED`/`INACTIVE` không có nút "Thu hồi phiên"; trong "Hoạt động gần đây" của Root Admin có dòng "Thu hồi mọi phiên của quản trị viên".
 
+11. **TC-ADM-11**: Dữ liệu: Root Admin R1 (người gọi), Root Admin R2, `SYSTEM_ADMIN` "Nguyễn Văn Trực" `ACTIVE`, "Trần Thị Giám Sát" `LOCKED`, "Lê Văn Chuyển Công Tác" `INACTIVE`. R1 gọi `GET /api/v1/admin/admins`: `200`, 5 phần tử theo thứ tự R1/R2 (theo `full_name`), rồi `ACTIVE`, `LOCKED`, `INACTIVE`; mỗi phần tử đúng 12 trường mục 3.2 (không có `passwordHash`, `failedLoginCount`, `lockedUntil`, `mustChangePassword`); `pagination = { page: 1, limit: 10, total: 5, totalPages: 1, hasNext: false, hasPrev: false }`. `?status=LOCKED`: 1 phần tử. `?search=%20NGUYỄN%20VĂN%20` (cắt khoảng trắng, không phân biệt hoa thường): 1 phần tử "Nguyễn Văn Trực"; `?search=npc.com`: khớp theo `email`; `?search=%25` chỉ khớp bản ghi chứa ký tự `%` (không khớp mọi dòng); `?search=` (rỗng) như không lọc. `?limit=2&page=3`: `data` 1 phần tử, `totalPages = 3`, `hasNext = false`, `hasPrev = true`; `?page=9`: `200`, `data = []`, `total = 5`. `400` (có `errors` theo tên tham số): `page=0`, `page=abc`, `limit=0`, `limit=101`, `status=active`, `status=DELETED`, `status=ACTIVE&status=LOCKED`, `search` 101 ký tự, `sort=fullName`, `x=1`. `SYSTEM_ADMIN` gọi: `403 FORBIDDEN_PERMISSION`; token `PASSWORD_CHANGE_ONLY`: `403 PASSWORD_CHANGE_REQUIRED`; R1 bị khóa trong lúc Access Token còn hạn: `401 UNAUTHORIZED`. Không có dòng `audit_logs` mới. Giao diện: gõ "giám" → sau 300 ms một request `search=giám&page=1`; đổi trạng thái về trang 1; ở trang 2 mà danh sách chỉ còn 1 trang thì tự tải trang 1.

@@ -273,8 +273,52 @@ html {
 
 .admins-state[hidden],
 .admins-state [hidden],
-#adminsTableWrap[hidden] {
+#adminsTableWrap[hidden],
+#adminsPagination[hidden] {
     display: none !important;
+}
+
+/* Thanh lọc mục "Quản trị viên" (A15) */
+.admins-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 1rem;
+}
+
+.admins-search-box {
+    position: relative;
+    flex: 1 1 280px;
+    max-width: 360px;
+}
+
+.admins-search-box .search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.admins-search-box input {
+    width: 100%;
+    padding-left: 32px;
+    box-sizing: border-box;
+}
+
+.admins-status-filter {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 180px;
+}
+
+@media (max-width: 576px) {
+    .admins-search-box,
+    .admins-status-filter {
+        flex-basis: 100%;
+        max-width: none;
+    }
 }
 
 .admins-table {
