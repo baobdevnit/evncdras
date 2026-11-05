@@ -216,9 +216,9 @@
                     <!-- Sidebar hồ sơ -->
                     <div class="profile-sidebar card">
                         <div class="profile-header-info">
-                            <div class="profile-avatar-wrapper">
+                            <div class="profile-avatar-wrapper" aria-busy="false">
                                 <img src="" alt="Ảnh đại diện" class="profile-avatar-large" id="profileAvatarImg">
-                                <!-- Đổi ảnh chỉ qua POST /api/v1/profile/avatar (M08 mục 3.3, còn rà ở U08) -->
+                                <!-- Đổi ảnh chỉ qua POST /api/v1/profile/avatar (M08 mục 3.3): multipart một phần "file", PNG/JPEG ≤ 2 MB; data = hồ sơ đủ 15 trường -->
                                 <button type="button" class="btn-change-avatar" title="Thay đổi ảnh đại diện"
                                     id="btnChangeAvatar">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

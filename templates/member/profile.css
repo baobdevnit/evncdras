@@ -91,6 +91,32 @@
     height: 16px;
 }
 
+.btn-change-avatar:disabled {
+    cursor: wait;
+    opacity: 0.7;
+    transform: none;
+}
+
+/* Đang gửi POST /profile/avatar: phủ mờ + vòng quay trên ảnh (M08 mục 3.3) */
+.profile-avatar-wrapper.is-uploading::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.55);
+    border: 3px solid transparent;
+    border-top-color: var(--primary);
+    animation: avatar-spin 0.9s linear infinite;
+}
+
+@keyframes avatar-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-avatar-wrapper.is-uploading::after { animation: none; }
+}
+
 .profile-header-info h2 {
     margin: 0 0 8px 0;
     font-size: 1.25rem;

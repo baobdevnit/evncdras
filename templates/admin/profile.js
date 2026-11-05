@@ -99,7 +99,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let profile = null; // Vue: ref trong AdminProfileView (không ghi localStorage)
 
-    function renderProfile(data) {
+    // options.keepForm: không điền lại form đang sửa dở (sau khi đổi ảnh đại diện).
+    function renderProfile(data, options) {
         document.querySelectorAll('[data-field]').forEach(el => {
             const text = formatValue(data[el.dataset.field], el.dataset.format);
             const shown = text === null ? (el.dataset.empty || '—') : text;
@@ -110,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function() {
             profileAvatarImg.alt = data.fullName;
         }
         if (roleBadge) roleBadge.classList.toggle('role-badge--root', data.roleCode === 'ROOT_ADMIN');
-        fillForm(data);
+        if (!(options && options.keepForm)) fillForm(data);
     }
 
     // Giá trị ban đầu của form PUT /admin/profile: chỉ fullName, phoneNumber
@@ -246,7 +247,8 @@ document.addEventListener('DOMContentLoaded', function() {
             callApi(token => mockPostAdminAvatar(token, formData))
                 .then(res => {
                     profile = res.data;
-                    renderProfile(profile);
+                    // Chỉ vẽ lại phần hiển thị, không điền lại form "Thông tin cá nhân" đang sửa dở
+                    renderProfile(profile, { keepForm: true });
                     // Header AdminLayout đổi ảnh ngay (Vue: cập nhật authAdmin.admin.avatarUrl, không gọi /auth/me)
                     if (window.adminSession && window.adminSession.updateAccount) {
                         window.adminSession.updateAccount({ avatarUrl: profile.avatarUrl });
