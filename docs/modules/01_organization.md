@@ -131,14 +131,93 @@ Không có `404` (không có tham số đường dẫn), `409`.
 
 ### 3.1.1. `GET /api/v1/organizations`
 
-- **Mục đích**: danh sách phẳng có lọc và phân trang, dùng cho ô chọn đơn vị có tìm kiếm và tra cứu; màn hình cây dùng mục 3.1. Cây tổ chức không phải dữ liệu của nhóm nên bản User không cô lập theo nhóm, giống mục 3.1.
-- **Query**: `page` (mặc định 1), `limit` (mặc định 20, tối đa 100), `search` (khớp một phần `code`, `name`), `status` (`ACTIVE` | `INACTIVE`, bỏ trống = cả hai), `parentId` (số; `null` = chỉ đơn vị gốc), `level` (`0`–`3`). Sắp `level`, `sort_order`, `name` tăng dần.
-- **Phần tử**: `id`, `parentId`, `parentName`, `code`, `name`, `description`, `representativeName`, `representativePhone`, `representativeEmail`, `level`, `sortOrder`, `status`, `childCount` (số đơn vị con trực tiếp), `createdAt`, `updatedAt`. Bản Admin có thêm `userGroupCount` (số nhóm người dùng tham chiếu, kể cả nhóm `INACTIVE`, là điều kiện chặn xóa ở mục 3.4); bản User không có trường này.
-- Khung phân trang theo `docs/02_api_contracts.md` mục 2.2.
+- **Mục đích**: danh sách **phẳng** có lọc, tìm kiếm và phân trang, dành cho ô chọn đơn vị có tìm kiếm và tra cứu nhanh theo mã/tên; màn hình cây và ô chọn đơn vị cha hiện tại dùng mục 3.1, chi tiết đầy đủ một đơn vị (mô tả, người đại diện, thời gian) lấy ở mục 3.1.2. **Chưa màn hình nào (cả hai cổng) gọi API này**; giữ theo R23-01 (chủ dự án chốt cùng nguyên tắc ở O01, O02), khi thêm màn hình dùng nó phải ghi vào `docs/00_overview_and_architecture.md` mục 5.3.3/5.3.4.
+- **Hai route**, chung service `OrganizationsService.list(filter, withUserGroupCount)` và DTO phần tử; bản Admin thêm đúng một trường `userGroupCount`:
+  - Bản Admin `GET /api/v1/admin/organizations`: `AdminAuthGuard` → `PermissionsGuard` `org:view` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Guard, `403`, `401` như mục 3.1; không bị chế độ bảo trì chặn.
+  - Bản User `GET /api/v1/organizations`: `UserAuthGuard` → bảo trì (`503 MAINTENANCE`) → `PermissionsGuard` `org:view` theo claim `roleCode` (seed: cả 3 vai trò User), kiểm tra tài khoản ở mỗi request như mục 3.1. **Không** cô lập theo nhóm (cây tổ chức không phải dữ liệu của nhóm): trả cùng danh sách như bản Admin, chỉ thiếu `userGroupCount`.
+  - Thứ tự kiểm tra như mục 3.1: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → bảo trì (`503`, chỉ bản User) → quyền (`403 FORBIDDEN_PERMISSION`) → query (`400`) → kiểm tra tài khoản (`401`).
+- **Query** (quy tắc chung `docs/02_api_contracts.md` mục 2.2; không có body):
+
+| Tham số | Kiểu | Mặc định | Ràng buộc | Điều kiện SQL |
+|---|---|---|---|---|
+| `page` | số nguyên | 1 | ≥ 1 | |
+| `limit` | số nguyên | 20 | 1–100 | |
+| `search` | chuỗi | — | Cắt khoảng trắng hai đầu, rỗng = không lọc, ≤ 100 ký tự; khớp **chứa** trên `code`, `name` (`OR`) | `o.code LIKE :pattern OR o.name LIKE :pattern` |
+| `status` | enum | — (cả hai) | `ACTIVE` \| `INACTIVE` | `o.status = :status` |
+| `parentId` | số nguyên | — | Rỗng = không lọc; `^[1-9][0-9]{0,9}$` và ≤ 4294967295. Chỉ các con **trực tiếp** của đơn vị đó. Id không tồn tại không phải lỗi: `200`, `data = []` (chủ dự án chốt ở O02). Không nhận chuỗi `null` (`400`) | `o.parent_id = :parentId` |
+| `level` | số nguyên | — | Rỗng = không lọc; `0`–`3`. Lấy đơn vị gốc: `level=0` (đơn vị gốc luôn có `level = 0`, `docs/01_database_schema.md` mục 4; chủ dự án chốt ở O02 thay cho `parentId=null`) | `o.level = :level` |
+
+  Các bộ lọc kết hợp bằng `AND`. Sai định dạng, ngoài khoảng, giá trị enum lạ, tham số lặp lại hoặc tham số khác (`sort`, `order`, `organizationId`…) trả `400 VALIDATION_ERROR` với `errors` theo tên tham số.
+- **Xử lý** (chỉ đọc, không transaction, không ghi `audit_logs`):
+  1. Kiểm tra tài khoản theo khóa chính như mục 3.1 bước 1.
+  2. Đếm và lấy trang trong cùng một điều kiện:
+
+```sql
+SELECT o.id, o.parent_id, p.name AS parent_name, o.code, o.name, o.level, o.sort_order, o.status,
+       (SELECT COUNT(*) FROM organizations c WHERE c.parent_id = o.id) AS child_count
+       -- chỉ bản Admin:
+       , (SELECT COUNT(*) FROM user_groups ug WHERE ug.organization_id = o.id) AS user_group_count
+FROM organizations o
+LEFT JOIN organizations p ON p.id = o.parent_id
+WHERE (:status IS NULL OR o.status = :status)
+  AND (:parentId IS NULL OR o.parent_id = :parentId)
+  AND (:level IS NULL OR o.level = :level)
+  AND (:search IS NULL OR o.code LIKE :pattern ESCAPE '\' OR o.name LIKE :pattern ESCAPE '\')
+ORDER BY o.level, o.sort_order, o.name, o.id
+LIMIT :limit OFFSET (:page - 1) * :limit;
+-- :pattern = CONCAT('%', <search đã thoát \ % _>, '%'); total: SELECT COUNT(*) FROM organizations o cùng WHERE (không cần JOIN)
+```
+
+  Thứ tự cố định (không có tham số sắp xếp): `level`, `sortOrder`, `name` (collation `utf8mb4_unicode_ci`), `id` tăng dần, cùng tiêu chí với thứ tự anh em của mục 3.1. `childCount` đếm mọi con trực tiếp (kể cả `INACTIVE`); `userGroupCount` đếm mọi nhóm gắn trực tiếp (kể cả `INACTIVE`), cùng nghĩa với mục 3.1 và điều kiện chặn xóa mục 3.4. `page` vượt `totalPages` trả `200`, `data = []`.
+- **Response** `200` (khung `docs/02_api_contracts.md` mục 2.2, không có khóa cấp cao khác). Mỗi phần tử đúng các trường sau (chủ dự án chốt ở O02: thu gọn, không trả `description`, `representativeName`, `representativePhone`, `representativeEmail`, `createdAt`, `updatedAt` — lấy ở mục 3.1.2):
+
+| Trường | Kiểu | Nguồn | Ghi chú |
+|---|---|---|---|
+| `id` | số | `organizations.id` | |
+| `parentId` | số \| `null` | `parent_id` | `null` ở đơn vị gốc |
+| `parentName` | chuỗi ≤ 255 \| `null` | `name` của đơn vị cha | `null` ở đơn vị gốc |
+| `code` | chuỗi ≤ 50 | `code` | |
+| `name` | chuỗi ≤ 255 | `name` | |
+| `level` | `0`–`3` | `level` | |
+| `sortOrder` | số | `sort_order` | |
+| `status` | `ACTIVE` \| `INACTIVE` | `status` | |
+| `childCount` | số | đếm `organizations.parent_id = id` | Số đơn vị con trực tiếp |
+| `userGroupCount` | số | đếm `user_groups.organization_id = id` | **Chỉ bản Admin** |
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách đơn vị tổ chức thành công",
+  "data": [
+    { "id": 2, "parentId": 1, "parentName": "Tổng công ty 71", "code": "IT-01", "name": "Khối Công nghệ Thông tin", "level": 1, "sortOrder": 1, "status": "ACTIVE", "childCount": 1, "userGroupCount": 2 },
+    { "id": 12, "parentId": 1, "parentName": "Tổng công ty 71", "code": "DA-01", "name": "Ban Quản lý dự án (cũ)", "level": 1, "sortOrder": 9, "status": "INACTIVE", "childCount": 0, "userGroupCount": 0 }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 2, "totalPages": 1, "hasNext": false, "hasPrev": false },
+  "timestamp": "2026-11-05T09:00:00+07:00"
+}
+```
+
+Ví dụ trên là bản Admin với `?parentId=1&level=1`; bản User giống hệt nhưng không có `userGroupCount`.
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Query sai định dạng/ngoài khoảng, enum lạ, tham số lặp lại hoặc không có trong bảng trên (`errors.<tên tham số>`) |
+| `401` | `UNAUTHORIZED` | Như mục 3.1 |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `org:view` (chốt phòng vệ) |
+| `503` | `MAINTENANCE` | Chỉ bản User, chế độ bảo trì đang bật |
+
+Không có `404` (kể cả `parentId` không tồn tại), `409`.
+
+- **Frontend**: chưa có màn hình gọi, không có template. Khi dùng cho ô chọn có tìm kiếm thì theo quy ước danh sách `docs/modules/04_auth_admin.md` mục 5.2 (tìm kiếm 300 ms/Enter, chỉ hiển thị request sau cùng), gọi qua API client của cổng (`adminSession.request`/`memberSession.request`).
+- **Index phục vụ**: khóa chính `admins`/`users`/`user_groups` (kiểm tra tài khoản); `organizations` vài chục tới vài trăm dòng nên lọc `status`/`level`/`search` và sắp xếp quét bảng, không thêm index; `idx_org_parent` cho lọc `parentId` và đếm `childCount`; `idx_ug_org` cho đếm `userGroupCount` chỉ đọc index.
 
 ### 3.1.2. `GET /api/v1/organizations/:id`
 
-- **Response**: `data` gồm các trường của một phần tử mục 3.1.1 và `children` (đơn vị con trực tiếp: `id`, `code`, `name`, `level`, `status`, sắp như mục 3.1.1). Bản Admin có thêm `userGroups` (nhóm người dùng gắn trực tiếp vào đơn vị: `id`, `code`, `name`, `status`); bản User không có `userGroups`, `userGroupCount`.
+- **Response**: `data` gồm các trường của một phần tử mục 3.1.1, thêm `description`, `representativeName`, `representativePhone`, `representativeEmail`, `createdAt`, `updatedAt` (không có trong danh sách mục 3.1.1), và `children` (đơn vị con trực tiếp: `id`, `code`, `name`, `level`, `status`, sắp như mục 3.1.1). Bản Admin có thêm `userGroups` (nhóm người dùng gắn trực tiếp vào đơn vị: `id`, `code`, `name`, `status`); bản User không có `userGroups`, `userGroupCount`.
 - `:id` không tồn tại trả `404`. Đơn vị `INACTIVE` vẫn xem được.
 
 ### 3.2. `POST /api/v1/admin/organizations`
@@ -275,7 +354,7 @@ Màn hình Danh mục tổ chức **chỉ có ở khu vực Admin** (route yêu 
 
 ### 5.2. Quản lý trạng thái (Pinia Store: `useOrganizationStore`)
 
-- State: `tree: OrganizationNode[]`, `flatList: Organization[]`, `loading: boolean`, `selectedOrg: Organization | null`.
+- State: `tree: OrganizationNode[]`, `loading: boolean`, `selectedOrg: Organization | null` (chi tiết mục 3.1.2). Màn hình không dùng danh sách phẳng mục 3.1.1 nên store không có `flatList`.
 - Actions: `fetchTree()`, `createOrg(payload)`, `updateOrg(id, payload)`, `deleteOrg(id)`.
 
 ---
@@ -285,6 +364,8 @@ Màn hình Danh mục tổ chức **chỉ có ở khu vực Admin** (route yêu 
 1. **TC-ORG-01**: Lấy danh sách cây tổ chức, kiểm tra các node con hiển thị đúng cấp cha (`parent_id`).
    - **TC-ORG-01a** (`GET /api/v1/admin/organizations/tree`): dữ liệu có 2 gốc, một đơn vị `INACTIVE` cấp 1 có con, hai anh em cùng `sort_order` khác tên, một đơn vị có 2 nhóm (1 nhóm `INACTIVE`): `200`, `data` là mảng 2 gốc theo `sortOrder`, `name`, `id`; mỗi nút đúng 9 trường của mục 3.1 (không có `description`, `representativeName`); nút `INACTIVE` vẫn có, con nằm dưới nó; `userGroupCount = 2`; nút lá `children = []`; không thêm dòng `audit_logs`. Gửi `?status=ACTIVE` → `400 VALIDATION_ERROR` (`errors.status`). Bảng rỗng → `data = []`.
    - **TC-ORG-01b** (`GET /api/v1/organizations/tree`, token User `REGULAR_USER`): cùng cây như TC-ORG-01a nhưng không nút nào có `userGroupCount`, không cô lập theo nhóm; bật `system_maintenance_mode` → `503 MAINTENANCE`; token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; nhóm của người gọi `INACTIVE` → `401 UNAUTHORIZED`; token Admin → `401`.
+   - **TC-ORG-01c** (`GET /api/v1/admin/organizations`, dữ liệu như TC-ORG-01a): không query → `200`, khung phân trang `limit = 20`, thứ tự `level`, `sortOrder`, `name`, `id`, mỗi phần tử đúng 10 trường (không có `description`, `representativeName`, `createdAt`), gốc có `parentId = null`, `parentName = null`; đơn vị có một con `INACTIVE` → `childCount = 1`, đơn vị có 2 nhóm (1 `INACTIVE`) → `userGroupCount = 2`. `?level=0` chỉ đơn vị gốc; `?parentId=1` chỉ con trực tiếp của 1; `?parentId=999999` → `200`, `data = []`, `total = 0`; `?search=it` khớp `IT-01` và tên chứa "it" không phân biệt hoa thường, `?search=%` không khớp tất cả; `?status=INACTIVE&level=1` kết hợp `AND`. `400`: `parentId=null`, `parentId=0`, `level=4`, `status=active`, `limit=101`, `page=0`, `search` 101 ký tự, `sort=name`, `level=1&level=2`. Không thêm dòng `audit_logs`.
+   - **TC-ORG-01d** (`GET /api/v1/organizations`, token User): cùng dữ liệu như TC-ORG-01c nhưng không phần tử nào có `userGroupCount`, không cô lập theo nhóm; bật bảo trì → `503 MAINTENANCE` (trước kiểm tra query: `?level=9` vẫn `503`); token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; nhóm của người gọi `INACTIVE` → `401`.
 2. **TC-ORG-02**: Tạo mới đơn vị con trực thuộc "Tổng công ty 71", xác nhận node mới xuất hiện trong Tree Table.
 3. **TC-ORG-03**: Thử xóa một đơn vị đang có đơn vị con, kiểm tra hệ thống chặn và trả thông báo lỗi hợp lý.
 4. **TC-ORG-04**: Đổi trạng thái từ `ACTIVE` sang `INACTIVE`, kiểm tra badge trạng thái cập nhật màu sắc tương ứng.
