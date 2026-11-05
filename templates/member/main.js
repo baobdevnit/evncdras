@@ -399,8 +399,21 @@ window.memberSession = (function () {
     }
 
     // Tài khoản trong store (các màn hình đọc userGroup, permissions từ đây). Trang tĩnh: dữ liệu mẫu.
+    let mockStaticUser = null;       // trang tĩnh chưa nạp /auth/me: giữ một bản mẫu để updateAccount sửa được
     function getAccount() {
-        return currentUser || buildMockUser();
+        if (currentUser) return currentUser;
+        if (!mockStaticUser) mockStaticUser = buildMockUser();
+        return mockStaticUser;
+    }
+
+    // Sau khi tự sửa hồ sơ (PUT /api/v1/profile, U06) hoặc đổi ảnh (POST /profile/avatar, U08):
+    // gộp các trường hiển thị vào store rồi vẽ lại header, không gọi lại /auth/me.
+    // Vue: Object.assign(authUser.user, patch) (chỉ fullName, avatarUrl).
+    function updateAccount(patch) {
+        const target = getAccount();
+        ['fullName', 'avatarUrl'].forEach(k => { if (patch && k in patch) target[k] = patch[k]; });
+        renderAccount(target);
+        return target;
     }
 
     // Biểu ngữ bảo trì (.maintenance-alert-banner, 03 mục 6.7) ở đầu .main-wrapper; Vue: nằm trong MemberLayout,
@@ -480,11 +493,11 @@ window.memberSession = (function () {
     // Trang tĩnh: không chạy guard (để mở từng trang HTML được), chỉ đổ dữ liệu mẫu vào header/sidebar
     // như sau khi guard nạp /auth/me. Vue: guard gọi ensureSession().
     document.addEventListener('DOMContentLoaded', () => {
-        renderAccount(buildMockUser());
+        renderAccount(getAccount());
         if (MOCK_MAINTENANCE) setMaintenanceBanner(true);
     });
 
-    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, getAccount, setAccessToken, mockUserApi };
+    return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, getAccount, updateAccount, setAccessToken, mockUserApi };
 })();
 
 // ----------------------------------------

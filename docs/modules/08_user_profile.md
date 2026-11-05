@@ -111,9 +111,82 @@ Không trả `password_hash`, `must_change_password`, `failed_login_count`, `loc
 
 ### 3.2. `PUT /api/v1/profile`
 
-- **Body**: `{ "fullName": "Trần Thị Bích", "phoneNumber": "0912345679" }`
-- **Validation**: Không cho phép client gửi `email`, `username`, `roleCode` lên để can thiệp (vai trò chỉ đổi qua `PUT /users/:id/role`). Không nhận `avatarUrl` (ảnh chỉ đổi qua mục 3.3). Gửi các trường này thì trả `400`.
-- Ghi `audit_logs` `USER / UPDATE` (`resource_id` = id người gọi, `action_details = { "changedFields": [...] }`).
+Cùng khung với bản Admin (`docs/modules/09_admin_profile.md` mục 3.2: cập nhật một phần, không đổi gì thì không ghi); mục này ghi đủ cho bản User. Điểm khác bản Admin: kiểm tra nhóm, bị chế độ bảo trì chặn, bảng `users`, response 15 trường của mục 3.1, header `MemberLayout` cập nhật qua `memberSession.updateAccount`.
+
+- **Guard**: `UserAuthGuard`; không cần mã quyền. Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`. **Bị** chế độ bảo trì chặn (`503 MAINTENANCE`, như mục 3.1). Thứ tự: guard (`401`/`403`) → bảo trì (`503`) → kiểm tra query, body (`400`) → xử lý. Không có query (có thì `400`).
+- **Body** (`application/json`, cập nhật một phần, **ít nhất một trường**):
+
+| Trường | Kiểu | Bắt buộc | Quy tắc | Cột đích |
+|---|---|---|---|---|
+| `fullName` | string | Không | Cắt khoảng trắng hai đầu; sau khi cắt dài 1–150 ký tự; `null` hoặc chuỗi rỗng trả `400` | `users.full_name` |
+| `phoneNumber` | string \| null | Không | Cắt khoảng trắng hai đầu; `null` hoặc chuỗi rỗng sau khi cắt = xóa số (`NULL`); còn lại theo quy tắc số điện thoại `docs/02_api_contracts.md` mục 2 (≤ 30 ký tự, chỉ chữ số, khoảng trắng, `+ - . ( )`, có ít nhất một chữ số) | `users.phone_number` |
+
+  Body rỗng `{}` trả `400` (`errors` có khóa `fullName` và `phoneNumber`, thông điệp "Cần gửi ít nhất một trường"). Mọi trường khác trả `400`, `errors` theo tên trường đó: `username`, `email` bất biến (`docs/01_database_schema.md` mục 6); `jobTitle` chỉ Quản trị viên nhóm/Admin sửa qua `PUT /users/:id`; `roleCode` chỉ đổi qua `PUT /users/:id/role`; `userGroupId`/`userGroup` bất biến; `avatarUrl` chỉ đổi qua mục 3.3; `status`, `password`… không bao giờ nhận ở đây.
+- **Xử lý** (một transaction):
+  1. Validate query, body như bảng trên (lỗi trả `400`, không đọc CSDL).
+  2. `SELECT ... FROM users WHERE id = sub FOR UPDATE` (chỉ khóa dòng `users`, không khóa `user_groups`), rồi đọc `user_groups.status` theo khóa chính `users.user_group_id`. **Kiểm tra tài khoản** như mục 3.1 bước 2: không thấy dòng, `status` khác `ACTIVE`, nhóm `INACTIVE` hoặc `must_change_password = 1` → `401 UNAUTHORIZED` (rollback, không ghi gì).
+  3. So từng trường đã gửi (sau chuẩn hóa) với giá trị hiện tại, so chính xác (phân biệt hoa thường); `changedFields` = các trường khác giá trị, theo thứ tự `fullName`, `phoneNumber`.
+  4. `changedFields` rỗng: không `UPDATE`, không ghi `audit_logs`, trả `200` như bước 6.
+  5. Ngược lại: `UPDATE users` chỉ các cột đổi; ghi `audit_logs` `actor_type = 'USER'`, `actor_id = sub`, `actor_name` = `full_name` sau khi sửa, `resource_name = 'USER'`, `action = 'UPDATE'`, `resource_id` = id người gọi, `ip_address`, `user_agent` của request, `action_details = { "changedFields": [...] }` (không ghi giá trị cũ/mới). Không thu hồi phiên, không gửi thông báo.
+  6. Trả `200`, `data` = hồ sơ sau khi sửa, **đúng 15 trường** của mục 3.1 (đọc lại cùng transaction; `roleCode` theo claim như mục 3.1 bước 3).
+- **Ví dụ**:
+
+```http
+PUT /api/v1/profile
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{ "fullName": "Trần Thị Bích", "phoneNumber": null }
+```
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Cập nhật hồ sơ thành công",
+  "data": {
+    "id": 10,
+    "username": "cdr.evnit",
+    "email": "cdr.evnit@evn.com.vn",
+    "fullName": "Trần Thị Bích",
+    "jobTitle": "Trưởng nhóm Kỹ thuật Vận hành",
+    "phoneNumber": null,
+    "avatarUrl": "/media/avatars/8a1d2c3e-5b6f-4a7d-9e0f-1b2c3d4e5f60.jpg",
+    "status": "ACTIVE",
+    "userGroup": { "id": 1, "code": "UMO-IT", "name": "Nhóm QLND Khối CNTT" },
+    "organization": { "id": 2, "code": "IT-01", "name": "Khối CNTT" },
+    "roleCode": "GROUP_ADMIN",
+    "roleName": "Quản trị viên nhóm",
+    "lastLoginAt": "2026-10-26T08:05:00+07:00",
+    "passwordChangedAt": "2026-10-01T14:30:00+07:00",
+    "createdAt": "2026-09-15T09:00:00+07:00"
+  },
+  "timestamp": "2026-10-26T09:40:00+07:00"
+}
+```
+
+```json
+{
+  "success": false,
+  "statusCode": 400,
+  "errorCode": "VALIDATION_ERROR",
+  "message": "Dữ liệu không hợp lệ",
+  "errors": { "jobTitle": ["Trường không được nhận"] },
+  "timestamp": "2026-10-26T09:40:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Body rỗng, sai kiểu, `fullName` rỗng/quá 150 ký tự, `phoneNumber` sai định dạng/quá 30 ký tự, có trường không được nhận, có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng Admin (guard); kiểm tra tài khoản không qua (bước 2) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `503` | `MAINTENANCE` | Đang bật `system_maintenance_mode` (`errors = null`) |
+
+- **Frontend** (`UserProfileView`, form "Thông tin cá nhân"): giá trị ban đầu lấy từ `GET` (mục 3.1); gửi `fullName`, `phoneNumber` (ô trống → `null`) qua `window.memberSession.request` (`401` → refresh một lần rồi gửi lại; `503` → biểu ngữ bảo trì), kiểm tra trước ở client cùng quy tắc của bảng body. Đang gửi thì khóa nút "Lưu thay đổi". Thành công: thay hồ sơ bằng `data`, điền lại form, cập nhật `fullName` của `authUser.user` để header `MemberLayout` đổi theo ngay (không gọi lại `/auth/me`). `400` thì hiện `errors[field]` dưới ô tương ứng (khóa không ứng với ô nào thì hiện ở toast); `503` và lỗi khác hiện toast, giữ nguyên giá trị đang nhập. Nút "Khôi phục" điền lại giá trị của lần tải/lưu gần nhất, không gọi API. Mẫu: `templates/member/profile.js` (`normalizeProfileBody`, `mockPutUserProfile`), `window.memberSession.updateAccount` trong `templates/member/main.js`.
+- Index phục vụ: khóa chính `users`, `user_groups`, `organizations`; `uniq_roles_code` (nếu không nạp sẵn `roles`).
 
 ### 3.3. `POST /api/v1/profile/avatar`
 
@@ -191,7 +264,7 @@ Dữ liệu từ `GET /api/v1/profile` (mục 3.1); trạng thái tải/lỗi `#
 
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
 
-1. **TC-UP-01**: Cập nhật họ tên mới, F5 trang kiểm tra họ tên trên Avatar góc phải Sidebar cập nhật tương ứng.
+1. **TC-UP-01** (`PUT /api/v1/profile`): `{ "fullName": "  Trần Thị Bích  " }` lưu `Trần Thị Bích`, trả `200` đủ 15 trường của mục 3.1, ghi một dòng `audit_logs` `USER / UPDATE` (`resource_id` = id người gọi, `actor_name` = tên mới, `changedFields = ["fullName"]`), header đổi tên ngay không gọi lại `/auth/me`, F5 vẫn là tên mới; gửi lại đúng giá trị đó trả `200` và không ghi thêm dòng audit; `{ "phoneNumber": null }` xóa số. `{}`, `{ "fullName": "" }`, `{ "fullName": null }`, `{ "phoneNumber": "abc" }`, `{ "email": "x@evn.vn" }`, `{ "jobTitle": "Kỹ sư" }`, `{ "avatarUrl": "/media/avatars/x.jpg" }`, `?x=1` đều trả `400 VALIDATION_ERROR` đúng khóa `errors`, CSDL không đổi. Token `PASSWORD_CHANGE_ONLY` → `403`; khóa user hoặc ngừng hoạt động nhóm trong lúc token còn hạn → `401`, không ghi audit; bật `system_maintenance_mode` → `503 MAINTENANCE`, biểu ngữ bảo trì hiện.
 2. **TC-UP-02**: Nhập sai mật khẩu hiện tại khi đổi mật khẩu, xác nhận `400 VALIDATION_ERROR` với `errors.currentPassword = ["Mật khẩu hiện tại không đúng"]` và `users.failed_login_count` tăng 1 (`docs/modules/09_admin_profile.md` mục 3.3).
 3. **TC-UP-03**: Bật Chế độ Tối (Dark Mode), đăng xuất rồi đăng nhập lại trên thiết bị khác, kiểm tra hệ thống vẫn giữ nguyên theme Dark Mode từ CSDL.
 4. **TC-UP-04** (`GET /api/v1/profile`): user `ACTIVE` gọi được `200` đủ 15 trường, không có `permissions`, `password_hash`; nhóm độc lập → `organization = null`. `?x=1` → `400 VALIDATION_ERROR`. Token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`. Khóa user (hoặc đặt lại mật khẩu) rồi gọi bằng Access Token cũ → `401 UNAUTHORIZED`. Đổi vai trò qua `PUT /users/:id/role`: `roleCode` vẫn theo token cũ, sau refresh là vai trò mới. Bật `system_maintenance_mode` → `503 MAINTENANCE`. Không có dòng `audit_logs` mới.

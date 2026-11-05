@@ -360,3 +360,19 @@ textarea.form-control {
     font-weight: 500;
     text-align: right;
 }
+
+/* Lỗi theo trường của 400 VALIDATION_ERROR (PUT /api/v1/profile, M08 mục 3.2) */
+.field-error {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--secondary);
+}
+
+.field-error[hidden] {
+    display: none;
+}
+
+.form-control.is-invalid {
+    border-color: var(--secondary);
+}

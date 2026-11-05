@@ -259,7 +259,7 @@
                                 <h3>Thông tin cá nhân</h3>
                             </div>
                             <div class="card-body">
-                                <!-- Form gửi PUT /api/v1/profile (M08 mục 3.2, còn rà ở U06): chỉ fullName, phoneNumber; các ô khác chỉ đọc -->
+                                <!-- Form gửi PUT /api/v1/profile (docs/modules/08_user_profile.md mục 3.2): chỉ fullName, phoneNumber; các ô khác chỉ đọc; lỗi 400 hiện ở .field-error[data-error-for] -->
                                 <form id="formGeneralInfo" class="profile-form" novalidate>
                                     <!-- Hàng 1: Họ và tên -->
                                     <div class="form-row">
@@ -267,7 +267,9 @@
                                             <label for="fullName">Họ và tên <span class="text-danger">*</span></label>
                                             <input type="text" id="fullName" name="fullName" autocomplete="name"
                                                 class="form-control" required maxlength="150"
+                                                aria-describedby="fullNameError"
                                                 placeholder="Nhập họ và tên đầy đủ">
+                                            <small class="field-error" id="fullNameError" data-error-for="fullName" hidden></small>
                                         </div>
                                     </div>
                                     <div class="name-preview-hint">
@@ -316,7 +318,9 @@
                                             <label for="phoneNumber">Số điện thoại liên hệ</label>
                                             <input type="tel" id="phoneNumber" name="phoneNumber" autocomplete="tel"
                                                 class="form-control" maxlength="30"
+                                                aria-describedby="phoneNumberError"
                                                 placeholder="Ví dụ: 0987654321">
+                                            <small class="field-error" id="phoneNumberError" data-error-for="phoneNumber" hidden></small>
                                             <small class="form-text text-muted">Để trống nếu không có.</small>
                                         </div>
                                         <div class="form-group">
