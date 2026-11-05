@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
-    // 7. Mục "Quản trị viên" (AdminAccountsSection.vue) – docs/modules/04_auth_admin.md mục 3.2, 3.3, 3.4, 3.7, 3.8, 5.2
+    // 7. Mục "Quản trị viên" (AdminAccountsSection.vue) – docs/modules/04_auth_admin.md mục 3.2, 3.3, 3.4, 3.6, 3.7, 3.8, 5.2
     // Khung dựng ở A14. Vue: gọi qua API client của cổng Admin (401 → refresh một lần, mẫu window.adminSession.request).
     // ----------------------------------------------------
     const adminsSection = document.getElementById('section-admins');
@@ -653,6 +653,59 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Cột bí mật của admins (không có trong phần tử GET, chỉ để mock giả lập bước 6 của M04 mục 3.6).
+    // Admin 13 đang khóa tạm do sai mật khẩu.
+    const MOCK_ADMIN_SECRETS = {
+        13: { passwordHash: 'bcrypt:old', mustChangePassword: 0, failedLoginCount: 3, lockedUntil: '2026-12-31T08:00:00+07:00', passwordChangedAt: '2026-10-01T08:00:00+07:00' }
+    };
+
+    // Giả lập PUT /api/v1/admin/admins/:id/reset-password (A19, M04 mục 3.6). Thứ tự kiểm tra như backend:
+    // 400 (:id, query, body có trường) → chính mình 403 SELF_ACTION_FORBIDDEN → không có 404 → ROOT_ADMIN 403
+    // ROOT_ADMIN_PROTECTED (không audit) → INACTIVE 409 ACCOUNT_INACTIVE (LOCKED vẫn đặt lại, giữ LOCKED)
+    // → mật khẩu mới + must_change_password = 1 + xóa khóa tạm → thu hồi phiên còn hiệu lực (PASSWORD_CHANGED)
+    // → AUTH / PASSWORD_RESET { targetActorType: 'ADMIN', revokedCount } (kể cả 0) → 200 { id, temporaryPassword }.
+    // Backend: sinh + băm trước transaction, header Cache-Control: no-store, không ghi mật khẩu vào log.
+    function mockResetAdminPassword(token, rawId, query, body) {
+        return new Promise(resolve => setTimeout(resolve, 500)).then(() => {
+            if (!token) return Promise.reject(unauthorized());
+            const errors = {};
+            Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+            Object.keys(body || {}).forEach(k => { errors[k] = ['Trường không được nhận']; });
+            const idText = String(rawId);
+            if (!/^[1-9][0-9]{0,9}$/.test(idText) || Number(idText) > 4294967295) errors.id = ['Mã quản trị viên không hợp lệ'];
+            if (Object.keys(errors).length) return Promise.reject(validationError(errors));
+
+            const id = Number(idText);
+            const fail = (statusCode, errorCode, message) => Promise.reject({
+                success: false, statusCode, errorCode, message, errors: null, timestamp: now()
+            });
+            if (id === currentAdminId) return fail(403, 'SELF_ACTION_FORBIDDEN', 'Không thể tự đặt lại mật khẩu của chính mình; dùng chức năng Đổi mật khẩu');
+            const target = MOCK_ADMINS.find(a => a.id === id); // backend: SELECT ... FOR UPDATE
+            if (!target) return fail(404, 'NOT_FOUND', 'Không tìm thấy quản trị viên');
+            if (target.roleCode === 'ROOT_ADMIN') return fail(403, 'ROOT_ADMIN_PROTECTED', 'Không thể thao tác trên tài khoản Quản trị viên tối cao');
+            if (target.status === 'INACTIVE') return fail(409, 'ACCOUNT_INACTIVE', 'Tài khoản đã ngừng hoạt động, không thể đặt lại mật khẩu');
+
+            const temporaryPassword = generateTempPassword();
+            const ts = now();
+            const secret = MOCK_ADMIN_SECRETS[id] || (MOCK_ADMIN_SECRETS[id] = { passwordChangedAt: null });
+            Object.assign(secret, {
+                passwordHash: 'bcrypt:<bản băm mới>', mustChangePassword: 1, failedLoginCount: 0, lockedUntil: null
+            }); // passwordChangedAt giữ nguyên
+            target.updatedAt = ts; // status giữ nguyên (LOCKED vẫn LOCKED)
+            const nowMs = Date.now();
+            const live = MOCK_SESSIONS.filter(x => x.actorId === id && !x.revokedAt && Date.parse(x.expiresAt) > nowMs);
+            live.forEach(x => { x.revokedAt = ts; x.revokedReason = 'PASSWORD_CHANGED'; });
+            MOCK_AUDIT.push({
+                actorType: 'ADMIN', actorId: currentAdminId, action: 'PASSWORD_RESET', resourceName: 'AUTH',
+                resourceId: String(id), actionDetails: { targetActorType: 'ADMIN', revokedCount: live.length }, createdAt: ts
+            });
+            return {
+                success: true, statusCode: 200, message: 'Đã đặt lại mật khẩu quản trị viên',
+                data: { id, temporaryPassword }, timestamp: ts
+            };
+        });
+    }
+
     // Định dạng ở frontend (API chỉ trả ISO 8601 và mã enum, R16-07)
     const dateTimeFmt = new Intl.DateTimeFormat('vi-VN', {
         timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -716,6 +769,7 @@ document.addEventListener('DOMContentLoaded', () => {
         && row.roleCode !== 'ROOT_ADMIN' && row.id !== currentAdminId;
     // Nút "Sửa": cùng điều kiện với Khóa/Mở khóa (dòng ACTIVE/LOCKED, không ROOT_ADMIN, không phải mình; M04 mục 3.8 Frontend)
     const canEdit = canSetStatus;
+    const canResetPassword = canSetStatus; // A19: ACTIVE hoặc LOCKED, không ROOT_ADMIN, không phải mình
 
     // Dựng bằng textContent (không innerHTML): họ tên, email do người dùng nhập
     function renderAdmins(rows) {
@@ -776,6 +830,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.dataset.adminId = String(row.id);
                 btn.dataset.status = lock ? 'LOCKED' : 'ACTIVE'; // trạng thái sẽ gửi
                 btn.textContent = lock ? 'Khóa' : 'Mở khóa';
+                actions.appendChild(btn);
+            }
+            if (canResetPassword(row)) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-outline btn-reset-admin-password';
+                btn.dataset.adminId = String(row.id);
+                btn.textContent = 'Đặt lại mật khẩu';
                 actions.appendChild(btn);
             }
             if (canRevokeSessions(row)) {
@@ -934,6 +996,47 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Đặt lại mật khẩu – PUT /api/v1/admin/admins/:id/reset-password (A19, M04 mục 3.6 Frontend). Hộp xác nhận danger;
+    // 200 mở hộp mật khẩu tạm dùng chung (họ tên/tên đăng nhập từ dòng danh sách), không tải lại danh sách;
+    // 403/404/409 toast cảnh báo + tải lại. Hàm showTempPassword khai báo ở phần "Thêm quản trị viên" bên dưới.
+    function confirmResetAdminPassword(id) {
+        const row = adminRows.get(id);
+        if (!row) return;
+        const lockedNote = row.status === 'LOCKED' ? ' Tài khoản vẫn bị khóa; cần mở khóa để đăng nhập.' : '';
+        showConfirmModal({
+            title: 'Đặt lại mật khẩu quản trị viên',
+            message: 'Mật khẩu hiện tại của "' + row.fullName + '" (' + row.username + ') hết hiệu lực ngay và tài khoản bị đăng xuất'
+                + ' khỏi mọi thiết bị. Hệ thống sinh mật khẩu tạm, chỉ hiển thị một lần; người được cấp phải đổi mật khẩu khi đăng nhập.'
+                + lockedNote,
+            confirmText: 'Đặt lại mật khẩu',
+            type: 'danger',
+            action: done => {
+                let reload = false;
+                let result = null;
+                callApi(token => mockResetAdminPassword(token, id))
+                    .then(res => { result = res.data; })
+                    .catch(err => {
+                        const code = err && err.statusCode;
+                        if (code === 401) return; // request() đã chuyển về login
+                        if (code === 403 || code === 404 || code === 409) {
+                            reload = true;
+                            notify(err.message || 'Không thể đặt lại mật khẩu tài khoản này', 'warning');
+                            return;
+                        }
+                        notify((err && err.message) || 'Không đặt lại được mật khẩu. Vui lòng thử lại.', 'error');
+                    })
+                    .finally(() => {
+                        done(); // đóng hộp xác nhận trước khi mở hộp mật khẩu
+                        if (result) {
+                            showTempPassword({ fullName: row.fullName, username: row.username, temporaryPassword: result.temporaryPassword },
+                                'Đã đặt lại mật khẩu');
+                        }
+                        if (reload) loadAdmins();
+                    });
+            }
+        });
+    }
+
     // Thêm quản trị viên – POST /api/v1/admin/admins (A16, M04 mục 3.3 Frontend).
     // Vue: AdminCreateModal.vue + AdminTempPasswordModal.vue trong AdminAccountsSection.vue.
     const btnCreateAdmin = document.getElementById('btnCreateAdmin');
@@ -984,8 +1087,10 @@ document.addEventListener('DOMContentLoaded', () => {
         createModal.classList.remove('show');
     }
 
-    // Hộp mật khẩu tạm: chỉ giữ trong DOM khi đang mở, đóng thì xóa (không lưu store/localStorage/URL)
-    function showTempPassword(data) {
+    // Hộp mật khẩu tạm: chỉ giữ trong DOM khi đang mở, đóng thì xóa (không lưu store/localStorage/URL).
+    // Dùng chung: Thêm (A16, data = response 201) và Đặt lại mật khẩu (A19, họ tên/tên đăng nhập lấy từ dòng danh sách).
+    function showTempPassword(data, title = 'Đã tạo quản trị viên') {
+        document.getElementById('adminTempPasswordTitle').textContent = title;
         document.getElementById('tempPasswordFullName').textContent = data.fullName;
         document.getElementById('tempPasswordUsername').textContent = data.username;
         tempValue.textContent = data.temporaryPassword;
@@ -1147,6 +1252,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editBtn) { openEditAdmin(editBtn.dataset.adminId); return; }
         const btn = e.target.closest('.btn-revoke-sessions');
         if (btn) { confirmRevokeAdminSessions(btn.dataset.adminId); return; }
+        const resetBtn = e.target.closest('.btn-reset-admin-password');
+        if (resetBtn) { confirmResetAdminPassword(resetBtn.dataset.adminId); return; }
         const statusBtn = e.target.closest('.btn-admin-status');
         if (statusBtn) confirmSetAdminStatus(statusBtn.dataset.adminId, statusBtn.dataset.status);
     });
@@ -1155,7 +1262,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Kiểm thử thủ công trên trang tĩnh (không có trong Vue)
     window.__adminsMock = {
         MOCK_ADMINS, MOCK_SESSIONS, MOCK_AUDIT, MOCK_USER_SETTINGS, mockGetAdmins, mockRevokeAdminSessions, mockCreateAdmin,
-        mockSetAdminStatus, mockUpdateAdmin,
+        mockSetAdminStatus, mockUpdateAdmin, mockResetAdminPassword, MOCK_ADMIN_SECRETS,
         generateTempPassword, adminsQuery, loadAdmins
     };
 

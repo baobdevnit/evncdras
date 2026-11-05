@@ -405,6 +405,7 @@ html {
 
 .admins-table .btn-edit-admin,
 .admins-table .btn-revoke-sessions,
+.admins-table .btn-reset-admin-password,
 .admins-table .btn-admin-status {
     padding: 6px 12px;
     font-size: 0.8125rem;

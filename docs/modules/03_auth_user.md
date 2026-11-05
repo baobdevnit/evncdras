@@ -231,8 +231,8 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 ### 3.8. Đặt lại mật khẩu người dùng (`PUT /api/v1/users/:id/reset-password`)
 
 - Không có body. Kiểm tra phạm vi như mục 3.7 bước 1 (bản User: nhóm khác `403 FORBIDDEN_SCOPE_ACCESS`, chính mình `403 SELF_ACTION_FORBIDDEN`, tự đổi qua `PUT /profile/change-password`); tài khoản `INACTIVE` trả `409 ACCOUNT_INACTIVE`.
-- Trong một transaction: sinh mật khẩu tạm 16 ký tự đạt chính sách (`docs/01_database_schema.md` mục 6.1), lưu bản băm, đặt `must_change_password = 1`; thu hồi mọi phiên (`PASSWORD_CHANGED`); ghi `audit_logs` `AUTH / PASSWORD_RESET` (`resource_id` = id người dùng, `action_details = { "targetActorType": "USER" }`). Tài khoản `LOCKED` vẫn đặt lại được, trạng thái giữ `LOCKED`.
-- **Response** `200`: `data = { "id": 25, "temporaryPassword": "<16 ký tự>" }`, trả **một lần**, giống `docs/modules/04_auth_admin.md` mục 3.6.
+- Trong một transaction: sinh mật khẩu tạm 16 ký tự đạt chính sách (`docs/01_database_schema.md` mục 6.1; sinh và băm trước transaction như `docs/modules/04_auth_admin.md` mục 3.3), lưu bản băm, đặt `must_change_password = 1`, `failed_login_count = 0`, `locked_until = NULL` (giữ `password_changed_at`); thu hồi mọi phiên còn hiệu lực (`PASSWORD_CHANGED`, `n` = số phiên); ghi `audit_logs` `AUTH / PASSWORD_RESET` (`resource_id` = id người dùng, `action_details = { "targetActorType": "USER", "revokedCount": n }`, luôn ghi kể cả `n = 0`). Tài khoản `LOCKED` vẫn đặt lại được, trạng thái giữ `LOCKED`. Access Token đầy đủ còn hạn của người dùng đích bị từ chối ngay (`401` khi `must_change_password = 1`, `docs/01_database_schema.md` mục 6.1).
+- **Response** `200`, header `Cache-Control: no-store`: `data = { "id": 25, "temporaryPassword": "<16 ký tự>" }`, trả **một lần**, giống `docs/modules/04_auth_admin.md` mục 3.6.
 
 ### 3.9. Ngừng hoạt động người dùng (`DELETE /api/v1/users/:id`)
 
