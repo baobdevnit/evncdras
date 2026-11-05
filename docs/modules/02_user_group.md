@@ -180,106 +180,134 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
 
 ### 3.1. `GET /api/v1/user-groups`
 
-- **Mục đích**: Lấy danh sách nhóm người dùng, kèm thông tin người đại diện, số thành viên, danh sách/số lượng admin, nhóm đầu số 1-1 và chuỗi cấp bậc tổ chức (nếu có).
-- **Query params**:
-  - `page=1`, `limit=10`, `search=IT`
-  - `organizationId=2`: Lọc theo đơn vị tổ chức cụ thể.
-  - `organizationId=null` hoặc `isStandalone=true`: Lọc các nhóm độc lập không thuộc đơn vị nào.
-- **Response**:
+- **Mục đích**: danh sách **phẳng** các nhóm người dùng, có tìm kiếm, lọc và phân trang. Dùng cho: tab `list-view` của màn hình Nhóm người dùng (`admin.user-groups`, mục 5.1) và ô chọn nhóm nhận thông báo `GROUP:{id}` (`docs/modules/06_notifications.md` mục 5). Phần tử là bản **thu gọn** (chủ dự án chốt ở G01, theo quy ước danh sách của O02): không trả `description`, danh sách Quản trị viên nhóm, chi tiết từng dải số — lấy ở `GET /user-groups/:id` (mục 3.1.2).
+- **Hai route**, chung service `UserGroupsService.list(filter, scope)` và DTO phần tử:
+  - Bản Admin `GET /api/v1/admin/user-groups`: `AdminAuthGuard` → `PermissionsGuard` `user_group:view` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` `403 PASSWORD_CHANGE_REQUIRED`; tài khoản không còn `ACTIVE` hoặc token đầy đủ mà `must_change_password = 1` `401 UNAUTHORIZED` (`docs/modules/04_auth_admin.md` mục 3.1.1). Không bị chế độ bảo trì chặn. Trả mọi nhóm (cả `ACTIVE` lẫn `INACTIVE`).
+  - Bản User `GET /api/v1/user-groups`: `UserAuthGuard` → bảo trì (`503 MAINTENANCE`) → `PermissionsGuard` `user_group:view` theo claim `roleCode` (seed: cả 3 vai trò User); kiểm tra tài khoản ở mỗi request (`docs/modules/03_auth_user.md` mục 3.2). **Cô lập nhóm**: thêm điều kiện `ug.id = <user_group_id của người gọi đọc từ CSDL>`, nên kết quả có tối đa 1 phần tử (nhóm của người gọi); các bộ lọc khác vẫn áp dụng (không khớp thì `data = []`). Cùng query, cùng DTO như bản Admin. **Chưa màn hình Member nào gọi route này** (Danh bạ nhóm dùng mục 3.1.2 và 3.6); giữ theo R23-01 như O01, khi thêm màn hình dùng nó phải ghi vào `docs/00_overview_and_architecture.md` mục 5.3.4.
+  - Thứ tự kiểm tra: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → bảo trì (`503`, chỉ bản User) → quyền (`403 FORBIDDEN_PERMISSION`) → query (`400`) → kiểm tra tài khoản (`401`).
+- **Query** (quy tắc chung `docs/02_api_contracts.md` mục 2.2; không có body):
+
+| Tham số | Kiểu | Mặc định | Ràng buộc | Điều kiện SQL |
+|---|---|---|---|---|
+| `page` | số nguyên | 1 | ≥ 1 | |
+| `limit` | số nguyên | 20 | 1–100 | |
+| `search` | chuỗi | — | Cắt khoảng trắng hai đầu, rỗng = không lọc, ≤ 100 ký tự; khớp **chứa** trên `code`, `name` của nhóm (`OR`) | `ug.code LIKE :pattern OR ug.name LIKE :pattern` |
+| `status` | enum | — (cả hai) | `ACTIVE` \| `INACTIVE` | `ug.status = :status` |
+| `organizationId` | số nguyên | — | Rỗng = không lọc; `^[1-9][0-9]{0,9}$` và ≤ 4294967295. Nhóm gắn vào đơn vị đó **hoặc bất kỳ đơn vị con cháu nào** của nó (chủ dự án chốt ở G01). Id không tồn tại không phải lỗi: `200`, `data = []`. Không nhận chuỗi `null` (`400`) | `ug.organization_id IN (:orgIds)` |
+| `standalone` | `true` | — | Chỉ nhận đúng `true` (giá trị khác `400`): chỉ nhóm độc lập. Gửi cùng `organizationId` → `400` (`errors.standalone`) | `ug.organization_id IS NULL` |
+
+  Các bộ lọc kết hợp bằng `AND`. Sai định dạng, ngoài khoảng, enum lạ, tham số lặp lại hoặc tham số khác (`sort`, `order`, `keyword`, `isStandalone`, `parentId`…) trả `400 VALIDATION_ERROR` với `errors` theo tên tham số.
+- **Xử lý** (chỉ đọc, không transaction, không ghi `audit_logs`):
+  1. Kiểm tra tài khoản theo khóa chính (`admins`, hoặc `users` + `user_groups` ở bản User; bản User lấy `user_group_id` từ dòng `users` vừa đọc để cô lập).
+  2. Đọc toàn bảng đơn vị một lần: `SELECT id, parent_id, name FROM organizations` (vài chục tới vài trăm dòng), dựng bản đồ `id → { parentId, name }` dùng cho hai việc: (a) có `organizationId` thì tính `:orgIds` = đơn vị đó + mọi con cháu (duyệt theo `parent_id`; id không có trong bản đồ thì trả ngay `200` rỗng, không chạy câu bước 3); (b) tính `organizationName`, `hierarchyPath` của từng phần tử ở bước 5 (mục 4.1), không truy vấn thêm theo từng dòng.
+  3. Đếm và lấy trang trong cùng một điều kiện:
+
+```sql
+SELECT ug.id, ug.code, ug.name, ug.status, ug.allow_recording_access, ug.organization_id, ug.created_at,
+       ug.phone_prefix_group_id, ppg.code AS ppg_code,
+       ru.id AS rep_id, ru.full_name AS rep_full_name, ru.email AS rep_email, ru.avatar_url AS rep_avatar_url,
+       (SELECT COUNT(*) FROM users u
+         WHERE u.user_group_id = ug.id AND u.status <> 'INACTIVE') AS user_count,
+       (SELECT COUNT(*) FROM users u
+          JOIN user_roles ur ON ur.user_id = u.id
+          JOIN roles r ON r.id = ur.role_id AND r.code = 'GROUP_ADMIN'
+         WHERE u.user_group_id = ug.id AND u.status = 'ACTIVE') AS admin_count
+FROM user_groups ug
+JOIN phone_prefix_groups ppg ON ppg.id = ug.phone_prefix_group_id
+LEFT JOIN users ru ON ru.id = ug.representative_user_id
+WHERE (:scopeGroupId IS NULL OR ug.id = :scopeGroupId)            -- chỉ bản User
+  AND (:status IS NULL OR ug.status = :status)
+  AND (:orgIds IS NULL OR ug.organization_id IN (:orgIds))
+  AND (:standalone IS NULL OR ug.organization_id IS NULL)
+  AND (:search IS NULL OR ug.code LIKE :pattern ESCAPE '\' OR ug.name LIKE :pattern ESCAPE '\')
+ORDER BY ug.code, ug.id
+LIMIT :limit OFFSET (:page - 1) * :limit;
+-- :pattern = CONCAT('%', <search đã thoát \ % _>, '%'); total: SELECT COUNT(*) FROM user_groups ug cùng WHERE (không JOIN)
+```
+
+  4. Dải số của các nhóm trên trang, một câu: `SELECT prefix_group_id, prefix, SUM(total_numbers) AS total FROM phone_prefix_ranges WHERE prefix_group_id IN (:ppgIds) GROUP BY prefix_group_id, prefix ORDER BY prefix_group_id, prefix`. Nhóm không có dải: `prefixes = []`, `totalNumbers = 0`.
+  5. Ghép phần tử. Thứ tự cố định (không có tham số sắp xếp, chủ dự án chốt ở G01): `code` (collation `utf8mb4_unicode_ci`), `id` tăng dần. `page` vượt `totalPages` trả `200`, `data = []`.
+- **Ý nghĩa số đếm**: `userCount` = thành viên chưa `INACTIVE` (`ACTIVE` + `LOCKED`), cùng nghĩa với mục 3.1.1; `adminCount` = người dùng `ACTIVE` mang vai trò `GROUP_ADMIN`, cùng điều kiện với quy tắc tối thiểu 1 Quản trị viên nhóm (BR-UG-02, mục 4.2). Nhóm `INACTIVE` luôn có `userCount = 0`, `adminCount = 0`, `representative = null` (mục 3.4).
+- **Response** `200` (khung `docs/02_api_contracts.md` mục 2.2, không có khóa cấp cao khác; không có số liệu thống kê tổng hợp). Mỗi phần tử đúng các trường sau:
+
+| Trường | Kiểu | Nguồn | Ghi chú |
+|---|---|---|---|
+| `id` | số | `user_groups.id` | |
+| `code` | chuỗi ≤ 50 | `code` | |
+| `name` | chuỗi ≤ 255 | `name` | |
+| `status` | `ACTIVE` \| `INACTIVE` | `status` | |
+| `allowRecordingAccess` | boolean | `allow_recording_access` | Tầng 1 ghi âm (BR-UG-05) |
+| `organizationId` | số \| `null` | `organization_id` | `null`: nhóm độc lập |
+| `organizationName` | chuỗi ≤ 255 \| `null` | `organizations.name` | `null` khi `organizationId = null` |
+| `hierarchyPath` | mảng chuỗi | bước 2 | Tên các đơn vị từ gốc tới **chính** đơn vị của nhóm (phần tử cuối = `organizationName`); `[]` ở nhóm độc lập (BR-UG-04) |
+| `phonePrefixGroup` | đối tượng | `phone_prefix_groups` + bước 4 | `{ id, code, prefixes, totalNumbers }`: `prefixes` là các `prefix` khác nhau của dải số (chuỗi, tăng dần, vd. `["42", "46"]`), `totalNumbers` = tổng `total_numbers` của mọi dải (`0` khi chưa cấp dải). Không trả `name` (xem ở mục 3.1.2) |
+| `userCount` | số | đếm | Xem trên |
+| `adminCount` | số | đếm | Xem trên |
+| `representative` | đối tượng \| `null` | `users` theo `representative_user_id` | `{ id, fullName, email, avatarUrl }`; `null` khi cột NULL. Không trả `roleCode` (người đại diện luôn là `GROUP_ADMIN` khi được đặt, mục 3.3) |
+| `createdAt` | chuỗi ISO 8601 `+07:00` | `created_at` | Ngày thiết lập nhóm |
 
 ```json
 {
   "success": true,
   "statusCode": 200,
-  "message": "Lấy danh sách nhóm QLND thành công",
+  "message": "Lấy danh sách nhóm người dùng thành công",
   "data": [
     {
       "id": 1,
-      "code": "UMO-IT",
-      "name": "Khối Công nghệ Thông tin",
+      "code": "UMO-IT-01",
+      "name": "Khối Công nghệ Thông tin - Nhóm Vận hành",
+      "status": "ACTIVE",
+      "allowRecordingAccess": true,
       "organizationId": 2,
-      "organizationName": "Khối CNTT",
-      "hierarchyPath": ["Tổng công ty 71", "Khối CNTT"],
-      "phonePrefixGroup": {
-        "id": 10,
-        "code": "PG-UMO-IT",
-        "name": "Nhóm đầu số Khối CNTT",
-        "ranges": [
-          { "rangeFrom": "42000", "rangeTo": "42999" },
-          { "rangeFrom": "46000", "rangeTo": "46999" }
-        ],
-        "totalNumbers": 2000
-      },
+      "organizationName": "Khối Công nghệ Thông tin",
+      "hierarchyPath": ["Tổng công ty 71", "Khối Công nghệ Thông tin"],
+      "phonePrefixGroup": { "id": 10, "code": "PG-UMO-IT-01", "prefixes": ["42", "46"], "totalNumbers": 2000 },
       "userCount": 45,
       "adminCount": 2,
-      "representative": {
-        "id": 10,
-        "fullName": "Trần Thị B",
-        "email": "tran.b@71portal.vn",
-        "avatarUrl": "/media/avatars/8a1d2c3e-5b6f-4a7d-9e0f-1b2c3d4e5f60.jpg",
-        "roleCode": "GROUP_ADMIN"
-      },
-      "admins": [
-        {
-          "id": 10,
-          "fullName": "Trần Thị B",
-          "email": "tran.b@71portal.vn"
-        },
-        {
-          "id": 15,
-          "fullName": "Lê Văn C",
-          "email": "le.c@71portal.vn"
-        }
-      ],
-      "createdAt": "2026-05-24T00:00:00+07:00",
-      "status": "ACTIVE"
+      "representative": { "id": 10, "fullName": "Trần Thị B", "email": "tran.b@71portal.vn", "avatarUrl": "/media/avatars/8a1d2c3e-5b6f-4a7d-9e0f-1b2c3d4e5f60.jpg" },
+      "createdAt": "2026-03-15T08:30:00+07:00"
     },
     {
-      "id": 2,
-      "code": "UMO-AUDIT",
-      "name": "Tổ Giám sát Kiểm toán Độc lập",
-      "organizationId": null,
-      "organizationName": null,
-      "hierarchyPath": [],
-      "phonePrefixGroup": {
-        "id": 12,
-        "code": "PG-UMO-AUDIT",
-        "name": "Nhóm đầu số Ban Kiểm toán",
-        "ranges": [
-          { "rangeFrom": "49000", "rangeTo": "49999" }
-        ],
-        "totalNumbers": 1000
-      },
-      "userCount": 8,
-      "adminCount": 1,
-      "representative": {
-        "id": 28,
-        "fullName": "Nguyễn Văn D",
-        "email": "nguyen.d@audit.evn.vn",
-        "avatarUrl": null,
-        "roleCode": "GROUP_ADMIN"
-      },
-      "admins": [
-        {
-          "id": 28,
-          "fullName": "Nguyễn Văn D",
-          "email": "nguyen.d@audit.evn.vn"
-        }
-      ],
-      "createdAt": "2026-06-10T00:00:00+07:00",
-      "status": "ACTIVE"
+      "id": 6,
+      "code": "UMO-TBA-500",
+      "name": "Nhóm Thử nghiệm Trạm Biến áp 500kV",
+      "status": "INACTIVE",
+      "allowRecordingAccess": false,
+      "organizationId": 4,
+      "organizationName": "Phòng Phát triển Phần mềm",
+      "hierarchyPath": ["Tổng công ty 71", "Khối Công nghệ Thông tin", "Phòng Phát triển Phần mềm"],
+      "phonePrefixGroup": { "id": 15, "code": "PG-UMO-TBA-500", "prefixes": [], "totalNumbers": 0 },
+      "userCount": 0,
+      "adminCount": 0,
+      "representative": null,
+      "createdAt": "2026-07-20T14:05:00+07:00"
     }
   ],
-  "pagination": {
-    "page": 1,
-    "limit": 10,
-    "total": 2,
-    "totalPages": 1,
-    "hasNext": false,
-    "hasPrev": false
-  }
+  "pagination": { "page": 1, "limit": 20, "total": 2, "totalPages": 1, "hasNext": false, "hasPrev": false },
+  "timestamp": "2026-11-05T09:00:00+07:00"
 }
 ```
+
+Ví dụ trên là bản Admin với `?organizationId=2` (nhóm 6 gắn đơn vị 4 là con của 2 nên cũng khớp). Nhóm độc lập có `organizationId = null`, `organizationName = null`, `hierarchyPath = []`.
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Query sai định dạng/ngoài khoảng, enum lạ, `standalone` khác `true` hoặc gửi cùng `organizationId`, tham số lặp lại hoặc không có trong bảng trên (`errors.<tên tham số>`) |
+| `401` | `UNAUTHORIZED` | Thiếu/sai/hết hạn Access Token; tài khoản không còn `ACTIVE` (bản User: cả nhóm `INACTIVE`) hoặc token đầy đủ mà `must_change_password = 1` |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `user_group:view` (chốt phòng vệ, seed cấp cho mọi vai trò) |
+| `503` | `MAINTENANCE` | Chỉ bản User, chế độ bảo trì đang bật |
+
+Không có `404` (kể cả `organizationId` không tồn tại), `409`.
+
+- **Frontend** (`admin.user-groups`, tab `list-view`; mẫu `templates/admin/user_group.js`: `mockGetUserGroups`, `loadUserGroups`, `renderUserGroupsTable`, `renderUgPagination`, `loadOrgFilterOptions`):
+  - Gọi qua `adminSession.request`; quy ước danh sách `docs/modules/04_auth_admin.md` mục 5.2: tìm kiếm 300 ms/Enter, đổi bộ lọc về trang 1, chỉ hiển thị response của request sau cùng, trang rỗng mà `page > 1` thì lùi về trang cuối, rỗng có lọc/không lọc khác thông điệp, trạng thái tải/lỗi + "Thử lại". `limit` = `itemsPerPage` của store `preferencesAdmin` (10/20/50, mặc định 10).
+  - Ô lọc đơn vị: "Tất cả đơn vị", "Nhóm độc lập" (`standalone=true`), rồi các đơn vị từ `GET /api/v1/admin/organizations/tree` (`docs/modules/01_organization.md` mục 3.1) thụt lề theo `level`; chọn đơn vị thì gửi `organizationId` (gồm cả nhóm của đơn vị con). Cây lỗi thì ô lọc chỉ còn hai lựa chọn đầu, danh sách vẫn tải. Ô trạng thái: "Tất cả", `ACTIVE` "Hoạt động", `INACTIVE` "Ngừng hoạt động".
+  - Cột: Nhóm (`code`, nhãn trạng thái, nhãn "Ghi âm" khi `allowRecordingAccess`, `name` bấm mở chi tiết), Đơn vị (`hierarchyPath` dạng `A › B › C`, nhãn "Nhóm độc lập" khi rỗng), Nhóm đầu số (`phonePrefixGroup.code`, `prefixes` hiển thị `42xxx, 46xxx` hoặc "Chưa cấp dải số", `totalNumbers`), Quản trị viên (người đại diện: ảnh hoặc chữ cái đầu, họ tên, email; "Chưa có người đại diện" khi `null`; số `adminCount`), Thành viên (`userCount`), Ngày thiết lập (`createdAt` dạng `dd/MM/yyyy`), Thao tác. Tổng số nhóm theo bộ lọc lấy từ `pagination.total`; màn hình **không** có thẻ thống kê tổng hợp (chủ dự án chốt ở G01: API không trả).
+  - Nút "Thêm nhóm mới", "Sửa", "Quản trị viên nhóm", "Ngừng hoạt động" chỉ hiện khi store có `user_group:manage`; nút ghi trên dòng chỉ hiện ở dòng `ACTIVE` (nhóm `INACTIVE` là trạng thái cuối, mục 3.3–3.4). Không có nút tạm dừng/kích hoạt lại (không có API).
+- **Index phục vụ**: khóa chính `admins`/`users` (kiểm tra tài khoản); `user_groups` vài chục tới vài trăm dòng nên lọc `status`/`search` quét bảng, sắp xếp đọc theo `uniq_ug_code`; `idx_ug_org` cho lọc `organization_id IN (...)`/`IS NULL`; `idx_users_group` + khóa chính `user_roles` cho `userCount`/`adminCount`; `idx_ppr_group` cho bước 4; khóa chính `phone_prefix_groups`, `users` cho JOIN.
 
 ### 3.1.1. `GET /api/v1/user-groups/tree`
 
@@ -321,7 +349,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, dùng để li
 
 ### 3.1.2. `GET /api/v1/user-groups/:id`
 
-- **Response**: `data` gồm mọi trường của một phần tử mục 3.1 (`phonePrefixGroup`, `representative`, `admins`, `userCount`, `adminCount`, `hierarchyPath`…) và thêm `description`, `allowRecordingAccess`, `updatedAt`. Mỗi phần tử `phonePrefixGroup.ranges` có thêm `id`, `prefix`, `totalNumbers` để mở chi tiết dải (`GET /prefixes/:id`, `docs/modules/11_core_business_phone_numbers.md` mục 4.1.1). Không trả danh sách thành viên: bản Admin dùng `GET /admin/users?groupId=`, bản User dùng `GET /users` hoặc mục 3.6.
+- **Response**: `data` gồm mọi trường của một phần tử mục 3.1 (`phonePrefixGroup`, `representative`, `userCount`, `adminCount`, `hierarchyPath`…) và thêm `description`, `updatedAt`, `admins` (Quản trị viên nhóm `{ id, fullName, email }`), `phonePrefixGroup.name`, `phonePrefixGroup.ranges` (mỗi dải `id`, `prefix`, `rangeFrom`, `rangeTo`, `totalNumbers`) để mở chi tiết dải (`GET /prefixes/:id`, `docs/modules/11_core_business_phone_numbers.md` mục 4.1.1). Không trả danh sách thành viên: bản Admin dùng `GET /admin/users?groupId=`, bản User dùng `GET /users` hoặc mục 3.6.
 - **Phạm vi**: bản Admin xem mọi nhóm, kể cả `INACTIVE` (`representative = null`, `admins = []`). Bản User chỉ xem nhóm của người gọi; `:id` là nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS` (`docs/02_api_contracts.md` mục 2.3).
 - `:id` không tồn tại trả `404`.
 
@@ -487,24 +515,37 @@ backend/src/
 
 ### 4.1. Hàm tính toán Hierarchy Path xử lý `organizationId` Nullable trong `user-groups.service.ts`
 
-```typescript
-async getHierarchyPath(organizationId: number | null): Promise<string[]> {
-  // Nếu nhóm độc lập không gắn đơn vị tổ chức, trả về mảng rỗng
-  if (!organizationId) {
-    return [];
-  }
+Bảng `organizations` nhỏ (vài chục tới vài trăm dòng) nên đọc **một lần** cho cả request (`SELECT id, parent_id, name FROM organizations`), rồi tính đường đi trong bộ nhớ cho mọi nhóm của trang; không truy vấn theo từng nhóm, từng cấp (mục 3.1 bước 2). Cây tối đa 4 cấp (`level` 0–3) nên vòng lặp tối đa 4 bước; giới hạn bước để không lặp vô hạn nếu dữ liệu hỏng.
 
+```typescript
+type OrgMap = Map<number, { parentId: number | null; name: string }>;
+
+async loadOrgMap(): Promise<OrgMap> {
+  const rows = await this.orgRepo.find({ select: { id: true, parentId: true, name: true } });
+  return new Map(rows.map(o => [o.id, { parentId: o.parentId, name: o.name }]));
+}
+
+// Nhóm độc lập (organizationId NULL) → []; phần tử cuối là chính đơn vị của nhóm (= organizationName)
+getHierarchyPath(orgs: OrgMap, organizationId: number | null): string[] {
   const path: string[] = [];
-  let currentId: number | null = organizationId;
-  
-  while (currentId) {
-    const org = await this.orgRepo.findOne({ where: { id: currentId } });
+  let currentId = organizationId;
+  for (let step = 0; currentId && step < 4; step++) {
+    const org = orgs.get(currentId);
     if (!org) break;
     path.unshift(org.name);
     currentId = org.parentId;
   }
-  
   return path;
+}
+
+// Lọc organizationId của mục 3.1: đơn vị đó + mọi con cháu; id không có → [] (trả 200 rỗng)
+getSubtreeIds(orgs: OrgMap, rootId: number): number[] {
+  if (!orgs.has(rootId)) return [];
+  const ids = [rootId];
+  for (let i = 0; i < ids.length; i++) {
+    orgs.forEach((o, id) => { if (o.parentId === ids[i]) ids.push(id); });
+  }
+  return ids;
 }
 ```
 
@@ -551,21 +592,21 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
 - **Bộ Tabs**:
   - `list-view`: Hiển thị bảng dữ liệu phẳng hỗ trợ tìm kiếm, lọc theo đơn vị tổ chức hoặc xem riêng nhóm độc lập.
   - `tree-view`: Hiển thị cây phân cấp phân nhánh theo Đơn vị tổ chức. Bổ sung nhánh chuyên biệt: **"Nhóm độc lập (Không gắn đơn vị)"** để hiển thị các User Groups có `organization_id = NULL`.
-- **Table Data Grid**:
-  - Cột "Tổ chức QLND": Tên nhóm, Mã nhóm.
-  - Cột "Đơn vị trên cây tổ chức": Hiển thị chuỗi cấp bậc `.hierarchy-path` (nếu có) hoặc thẻ badge màu trung tính `.badge-standalone: "Nhóm độc lập"`.
-  - Cột "Nhóm đầu số điện thoại (1-1)": Badge hiển thị mã nhóm đầu số và danh sách prefix (`PG-UMO-IT: 42xxx, 46xxx`).
-  - Cột "Quản trị viên nhóm": Hiển thị danh sách avatar/tên các admin kèm badge số lượng (`badge-admin-count`), đánh dấu người đại diện chính.
-  - Cột "Số thành viên": Badge đếm tổng số users trực thuộc nhóm (`.badge-count`).
+- **Table Data Grid** (`list-view`, dữ liệu `GET /api/v1/admin/user-groups`, bộ lọc/cột/nút theo mục 3.1 "Frontend"; không có thẻ thống kê tổng hợp):
+  - Cột "Nhóm": Mã nhóm, nhãn trạng thái, nhãn "Ghi âm" (Tầng 1), Tên nhóm (bấm mở chi tiết).
+  - Cột "Đơn vị": chuỗi cấp bậc `hierarchyPath` (nếu có) hoặc badge trung tính `.badge-standalone` "Nhóm độc lập".
+  - Cột "Nhóm đầu số (1-1)": mã nhóm đầu số, các prefix (`42xxx, 46xxx`, hoặc "Chưa cấp dải số") và tổng số số.
+  - Cột "Quản trị viên nhóm": người đại diện (ảnh, họ tên, email) và số Quản trị viên nhóm `adminCount`; danh sách đầy đủ ở hộp chi tiết (mục 3.1.2).
+  - Cột "Thành viên": `userCount` (thành viên chưa `INACTIVE`). Cột "Ngày thiết lập": `createdAt`.
 - **Modal Thiết lập mới / Chỉnh sửa (`#userGroupModal`)**:
   - Dropdown chọn đơn vị trên Cây tổ chức: Tùy chọn (Optional), cho phép chọn nút tổ chức hoặc chọn tùy chọn "Không gắn đơn vị (Nhóm độc lập)".
   - Khối "Quản trị viên nhóm đầu tiên" (chỉ khi tạo mới): nhập tên đăng nhập, email, họ tên, số điện thoại, chức danh. Sau khi lưu, hiển thị mật khẩu tạm **một lần** trong hộp thoại có nút sao chép và cảnh báo "Mật khẩu chỉ hiển thị một lần".
 
 ### 5.2. Khu vực Admin – Pinia Store (`useUserGroupStore`)
 
-- State: `userGroups: UserGroupItem[]`, `loading: boolean`, `pagination: PaginationInfo` (không có danh sách nhóm đầu số để chọn: nhóm đầu số tạo tự động, mục 3.2).
+- State: `userGroups: UserGroupItem[]` (phần tử mục 3.1), `query: { page, limit, search, status, organizationId, standalone }`, `loading: boolean`, `error: string | null`, `pagination: PaginationInfo` (không có danh sách nhóm đầu số để chọn: nhóm đầu số tạo tự động, mục 3.2).
 - Actions:
-  - `fetchUserGroups(query)`: Lấy danh sách nhóm (hỗ trợ filter orgId hoặc standalone).
+  - `fetchUserGroups()`: gọi `GET /admin/user-groups` với `query` hiện tại (chỉ gửi tham số có giá trị; `organizationId` và `standalone` loại trừ nhau), chỉ nhận response của request sau cùng (mục 3.1).
   - `createUserGroup(payload)`: Kiểm tra ràng buộc 1-1 và admin tối thiểu $\ge 1$.
   - `updateUserGroup(id, payload)`: Cập nhật thông tin nhóm.
   - `changeMemberRole(userId, roleCode)`: Gọi `PUT /users/:id/role`; bắt lỗi `409` khi vi phạm tối thiểu 1 admin hoặc nhóm chưa mở Tầng 1.
@@ -592,24 +633,29 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
 
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
 
-1. **TC-UG-01 (Nhiều thành viên)**: Tạo nhóm và gán 10 người dùng thành viên. Xác nhận API trả về `userCount = 10` và danh sách thành viên thuộc đúng nhóm.
-2. **TC-UG-02 (Tối thiểu 1 Quản trị viên nhóm)**:
+1. **TC-UG-01a (Danh sách nhóm, mục 3.1)**: dữ liệu có cây `1 → 2 → 4`, nhóm A gắn đơn vị 2, nhóm B gắn 4, nhóm C độc lập, nhóm D `INACTIVE`.
+   - `GET /admin/user-groups?organizationId=2` → A, B (cả nhánh), sắp `code`, `id`; `?organizationId=4` → chỉ B; `?organizationId=999` → `200`, `data = []`; `?standalone=true` → C; `?standalone=true&organizationId=2`, `?standalone=false`, `?organizationId=null`, `?keyword=x`, `?sort=name` → `400`.
+   - `?search=it` khớp chứa trên `code`/`name` không phân biệt hoa thường; `search` chứa `%`/`_` được thoát; `limit=101` → `400`; `page` vượt `totalPages` → `200` rỗng.
+   - Phần tử đúng 13 trường; B có `hierarchyPath` 3 phần tử, phần tử cuối = `organizationName`; C có `hierarchyPath = []`; nhóm chưa cấp dải có `prefixes = []`, `totalNumbers = 0`; D có `userCount = 0`, `adminCount = 0`, `representative = null`; thành viên `LOCKED` tính vào `userCount`, Quản trị viên nhóm `LOCKED` không tính vào `adminCount`.
+   - Bản User `GET /user-groups` bằng tài khoản nhóm A → chỉ A; cùng tài khoản `?status=INACTIVE` → `data = []`; bật bảo trì → `503`.
+2. **TC-UG-01 (Nhiều thành viên)**: Tạo nhóm và gán 10 người dùng thành viên. Xác nhận API trả về `userCount = 10` và danh sách thành viên thuộc đúng nhóm.
+3. **TC-UG-02 (Tối thiểu 1 Quản trị viên nhóm)**:
    - Thử tạo nhóm không có `initialAdmin` -> `400 Bad Request`. Tạo nhóm với `initialAdmin.email` đã tồn tại -> `409 ACCOUNT_DUPLICATE` và **không** có dòng `user_groups` nào được tạo (rollback). Tạo nhóm hợp lệ -> nhóm có đúng 1 Quản trị viên, `representative_user_id` trỏ tới người đó, response có `temporaryPassword`, đăng nhập lần đầu bị yêu cầu đổi mật khẩu.
    - Một nhóm có 1 Quản trị viên duy nhất, gọi API hạ quyền hoặc xóa user đó -> Xác nhận hệ thống chặn với thông báo lỗi yêu cầu duy trì ít nhất 1 Quản trị viên.
    - Thêm Quản trị viên thứ 2 vào nhóm -> Xác nhận hạ quyền 1 trong 2 người thành công.
-3. **TC-UG-03 (Nhóm đầu số tạo tự động 1 - 1)**:
+4. **TC-UG-03 (Nhóm đầu số tạo tự động 1 - 1)**:
    - Tạo Nhóm người dùng `UMO-IT` -> có đúng 1 dòng `phone_prefix_groups` mới với `code = 'PG-UMO-IT'`, `user_groups.phone_prefix_group_id` trỏ tới nó, chưa có dải số.
    - Gửi `phonePrefixGroupId` trong body `POST` hoặc `PUT` -> `400`.
    - `POST /api/v1/admin/prefixes` cho nhóm đầu số của một nhóm `INACTIVE` -> `409 GROUP_INACTIVE`.
-4. **TC-UG-04 (Tham chiếu Đơn vị Cây tổ chức tùy chọn & Nhóm độc lập)**:
+5. **TC-UG-04 (Tham chiếu Đơn vị Cây tổ chức tùy chọn & Nhóm độc lập)**:
    - Tạo Nhóm người dùng với `organizationId = null` -> Xác nhận tạo thành công, `hierarchyPath` trả về `[]`, giao diện hiển thị nhãn "Nhóm độc lập".
-5. **TC-UG-05 (Một đơn vị tổ chức có nhiều nhóm người dùng)**:
+6. **TC-UG-05 (Một đơn vị tổ chức có nhiều nhóm người dùng)**:
    - Tạo 2 nhóm người dùng khác nhau (`UMO-IT-01` và `UMO-IT-02`) cùng trỏ về đơn vị `organizationId = 2` -> Xác nhận cả 2 nhóm đều lưu thành công, cùng hiển thị đúng `hierarchyPath` của đơn vị đó trên cây tổ chức.
-6. **TC-UG-06 (Ràng buộc toàn vẹn khi ngừng hoạt động nhóm)**:
+7. **TC-UG-06 (Ràng buộc toàn vẹn khi ngừng hoạt động nhóm)**:
    - Nhóm có 1 Quản trị viên nhóm và 2 thành viên `ACTIVE`, gọi API DELETE không có `revokeRanges` -> Xác nhận nhóm có `status = 'INACTIVE'`, `representative_user_id = NULL`, cả 3 tài khoản có `status = 'INACTIVE'` và mọi phiên của họ bị thu hồi (`ACCOUNT_LOCKED`), dải số của nhóm vẫn còn (`range_id` không đổi), CDR và `stats_*` của nhóm vẫn còn nguyên. Sau đó `DELETE /api/v1/admin/prefixes/:id` trên dải của nhóm `INACTIVE` -> thành công.
    - Lặp lại với nhóm khác, gọi `DELETE ...?revokeRanges=true` -> mọi số trong dải của nhóm có `range_id = NULL` (số `ALLOCATED` về `FREE`, số `LOCKED` giữ nguyên), nhóm đầu số còn liên kết nhưng rỗng.
    - Gọi lại API DELETE trên nhóm đã `INACTIVE` -> `409 GROUP_INACTIVE`.
    - Trước khi ngừng hoạt động nhóm, gọi `DELETE /api/v1/users/:id` với Quản trị viên nhóm duy nhất -> `409` (quy tắc tối thiểu 1 Quản trị viên nhóm vẫn áp dụng khi nhóm còn `ACTIVE`).
-7. **TC-UG-07 (Danh bạ nhóm cho thành viên thường)**:
+8. **TC-UG-07 (Danh bạ nhóm cho thành viên thường)**:
    - Đăng nhập khu vực Member bằng `REGULAR_USER` -> mở `/group-members` thành công; `GET /api/v1/user-groups/me/members` trả `200`, chỉ thành viên `ACTIVE` cùng nhóm, không có trường `username`, `status`, `lastLoginAt`.
    - Cùng tài khoản gọi `GET /api/v1/users` -> `403 FORBIDDEN_PERMISSION`; menu không có mục "Quản trị nhóm", truy cập thẳng `/group-admin` -> trang 403 của khu vực Member.

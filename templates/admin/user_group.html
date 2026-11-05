@@ -255,70 +255,6 @@
                     </div>
                 </div>
 
-                <!-- KPI / Stats Overview Grid: 4 Thẻ thống kê -->
-                <div class="ug-stats-grid">
-                    <!-- 1. Tổng nhóm người dùng -->
-                    <div class="ug-stat-card">
-                        <div class="ug-stat-icon primary">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="9" cy="7" r="4"></circle>
-                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                            </svg>
-                        </div>
-                        <div class="ug-stat-info">
-                            <div class="stat-value" id="statTotalGroups">0</div>
-                            <div class="stat-label">Tổng số nhóm</div>
-                        </div>
-                    </div>
-
-                    <!-- 2. Số nhóm hoạt động -->
-                    <div class="ug-stat-card">
-                        <div class="ug-stat-icon success">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                            </svg>
-                        </div>
-                        <div class="ug-stat-info">
-                            <div class="stat-value" id="statActiveGroups" style="color: #059669;">0</div>
-                            <div class="stat-label">nhóm đang hoạt động</div>
-                        </div>
-                    </div>
-
-                    <!-- 3. Số nhóm tạm dừng -->
-                    <div class="ug-stat-card">
-                        <div class="ug-stat-icon warning">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <line x1="10" y1="15" x2="10" y2="9"></line>
-                                <line x1="14" y1="15" x2="14" y2="9"></line>
-                            </svg>
-                        </div>
-                        <div class="ug-stat-info">
-                            <div class="stat-value" id="statInactiveGroups" style="color: #d97706;">0</div>
-                            <div class="stat-label">nhóm đã tạm dừng</div>
-                        </div>
-                    </div>
-
-                    <!-- 4. Tổng số Thành viên -->
-                    <div class="ug-stat-card">
-                        <div class="ug-stat-icon info">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="8.5" cy="7" r="4"></circle>
-                                <line x1="20" y1="8" x2="20" y2="14"></line>
-                                <line x1="23" y1="11" x2="17" y2="11"></line>
-                            </svg>
-                        </div>
-                        <div class="ug-stat-info">
-                            <div class="stat-value" id="statTotalMembers">0</div>
-                            <div class="stat-label">Tổng số thành viên</div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Main Card: Danh sách Nhóm người dùng -->
                 <div class="card" style="padding: 0; overflow: hidden;">
                     <!-- Filter Toolbar -->
@@ -328,23 +264,21 @@
                                 <circle cx="11" cy="11" r="8"></circle>
                                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                             </svg>
-                            <input type="text" id="searchGroupInput"
-                                placeholder="Tìm theo tên nhóm, mã nhóm, dải số...">
+                            <input type="search" id="searchGroupInput" maxlength="100"
+                                placeholder="Tìm theo mã hoặc tên nhóm..." aria-label="Tìm theo mã hoặc tên nhóm">
                         </div>
                         <div class="filter-selects">
-                            <select id="filterOrgSelect">
-                                <option value="all">Tất cả đơn vị tổ chức</option>
-                                <option value="standalone">🏢 Chỉ xem nhóm chưa gắn tổ chức</option>
-                                <option value="2">Khối Công nghệ Thông tin</option>
-                                <option value="3">Khối Kinh doanh</option>
-                                <option value="4">Điện lực Thanh Xuân</option>
+                            <!-- organizationId (đơn vị và mọi đơn vị con cháu) | standalone=true; các đơn vị nạp từ GET /admin/organizations/tree -->
+                            <select id="filterOrgSelect" aria-label="Lọc theo đơn vị">
+                                <option value="">Tất cả đơn vị</option>
+                                <option value="standalone">Nhóm độc lập</option>
                             </select>
-                            <select id="filterStatusSelect">
-                                <option value="all">Tất cả trạng thái</option>
-                                <option value="ACTIVE">Đang hoạt động</option>
-                                <option value="INACTIVE">Tạm dừng</option>
+                            <select id="filterStatusSelect" aria-label="Lọc theo trạng thái">
+                                <option value="">Tất cả trạng thái</option>
+                                <option value="ACTIVE">Hoạt động</option>
+                                <option value="INACTIVE">Ngừng hoạt động</option>
                             </select>
-                            <button class="btn btn-sm btn-outline" onclick="location.reload()" title="Làm mới dữ liệu">
+                            <button class="btn btn-sm btn-outline" onclick="loadUserGroups()" title="Tải lại danh sách">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                     style="width: 14px; height: 14px; margin-right: 4px;">
                                     <polyline points="23 4 23 10 17 10"></polyline>
@@ -354,7 +288,7 @@
                                 </svg>
                                 Làm mới
                             </button>
-                            <button class="btn btn-primary" onclick="openCreateGroupModal()"
+                            <button class="btn btn-primary" onclick="openCreateGroupModal()" data-permission="user_group:manage" hidden
                                 style="padding: 7px 14px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                     style="width: 16px; height: 16px;">
@@ -366,21 +300,34 @@
                         </div>
                     </div>
 
-                    <!-- Danh sách nhóm người dùng -->
-                    <div id="listViewContainer" class="table-responsive">
+                    <!-- Danh sách nhóm người dùng – GET /api/v1/admin/user-groups (M02 mục 3.1). Không có thẻ thống kê tổng hợp. -->
+                    <div class="ug-list-head">
+                        <h3>Danh sách nhóm</h3>
+                        <span id="ugTotalBadge" class="badge-count" hidden></span>
+                    </div>
+                    <div id="ugListState" class="ug-list-state" role="status">
+                        <span id="ugListMessage">Đang tải danh sách nhóm người dùng...</span>
+                        <button type="button" id="btnRetryUserGroups" class="btn btn-sm btn-outline" onclick="loadUserGroups()" hidden>Thử lại</button>
+                    </div>
+                    <div id="listViewContainer" class="table-responsive" hidden>
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th style="min-width: 240px;">Tên nhóm</th>
-                                    <th style="min-width: 220px;">Tổ chức</th>
-                                    <th style="min-width: 130px;">Số lượng</th>
-                                    <th class="text-right" style="min-width: 230px; width: 230px;">Hành động</th>
+                                    <th style="min-width: 240px;">Nhóm</th>
+                                    <th style="min-width: 200px;">Đơn vị</th>
+                                    <th style="min-width: 160px;">Nhóm đầu số</th>
+                                    <th style="min-width: 200px;">Quản trị viên nhóm</th>
+                                    <th>Thành viên</th>
+                                    <th>Ngày thiết lập</th>
+                                    <th class="text-right">Thao tác</th>
                                 </tr>
                             </thead>
-                            <tbody id="userGroupsTableBody">
-                                <!-- Rendered dynamically via user_group.js -->
-                            </tbody>
+                            <tbody id="userGroupsTableBody"></tbody>
                         </table>
+                    </div>
+                    <div class="pagination-container" id="ugPagination" hidden>
+                        <div class="pagination-info" id="ugPageInfo"></div>
+                        <ul class="pagination" id="ugPageList" aria-label="Phân trang nhóm người dùng"></ul>
                     </div>
                 </div>
 

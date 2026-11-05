@@ -1,93 +1,129 @@
-/* templates/user_group.css */
+/* templates/admin/user_group.css */
 
-/* KPI / Stat Overview Cards */
-.ug-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 20px;
+/* Thuộc tính hidden luôn thắng style inline (nút data-permission, khối trạng thái, phân trang) */
+[hidden] {
+    display: none !important;
 }
 
-@media (max-width: 1024px) {
-    .ug-stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 600px) {
-    .ug-stats-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-.ug-stat-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px 20px;
+/* Danh sách nhóm – GET /api/v1/admin/user-groups (M02 mục 3.1); không có thẻ thống kê tổng hợp */
+.ug-list-head {
     display: flex;
     align-items: center;
-    gap: 16px;
-    box-shadow: var(--shadow-sm);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    gap: 10px;
+    padding: 14px 20px 0;
 }
 
-.ug-stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+.ug-list-head h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-main);
 }
 
-.ug-stat-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
+.ug-list-state {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    gap: 10px;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-align: center;
 }
 
-.ug-stat-icon.primary {
-    background: var(--primary-light);
-    color: var(--primary);
-}
-
-.ug-stat-icon.success {
-    background: rgba(16, 185, 129, 0.12);
-    color: #10b981;
-}
-
-.ug-stat-icon.warning {
-    background: rgba(245, 158, 11, 0.12);
-    color: #d97706;
-}
-
-.ug-stat-icon.info {
-    background: rgba(14, 165, 233, 0.12);
-    color: #0284c7;
-}
-
-.ug-stat-icon.danger {
-    background: var(--secondary-light);
+.ug-list-state.is-error {
     color: var(--secondary);
 }
 
-.ug-stat-icon svg {
-    width: 22px;
-    height: 22px;
+.ug-org-cell {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
 }
 
-.ug-stat-info .stat-value {
-    font-size: 1.45rem;
-    font-weight: 700;
-    color: var(--text-main);
-    line-height: 1.2;
-}
-
-.ug-stat-info .stat-label {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+.ug-org-cell svg {
+    width: 16px;
+    height: 16px;
+    color: var(--primary);
+    flex-shrink: 0;
     margin-top: 2px;
+}
+
+.ug-org-name {
+    display: block;
+    font-weight: 600;
+    color: var(--text-main);
+    font-size: 0.88rem;
+}
+
+.ug-org-path,
+.ug-rep-email,
+.ug-admin-count,
+.ug-ppg-prefixes {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+}
+
+.ug-ppg {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.ug-rep {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ug-rep-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    object-fit: cover;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary-light);
+    color: var(--primary);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.ug-rep-name {
+    display: block;
+    font-weight: 600;
+    color: var(--text-main);
+    font-size: 0.86rem;
+}
+
+.ug-admin-count {
+    margin-top: 4px;
+}
+
+.ug-date {
+    white-space: nowrap;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.ug-member-count,
+.ug-member-count:hover {
+    cursor: default;
+    border-color: var(--border);
+    color: var(--text-main);
+}
+
+a.group-name {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+a.group-name:hover {
+    text-decoration: underline;
 }
 
 /* Tab Navigation */

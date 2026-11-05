@@ -1,10 +1,8 @@
-// templates/user_group.js
-
-// Mock data initialized with the 4 core business rules:
-// 1. Nhóm chứa nhiều thành viên (1 - N)
-// 2. Nhóm có ít nhất một Quản trị viên nhóm (Group Admin Safeguard)
-// 3. Nhóm liên kết với một nhóm đầu số điện thoại theo ràng buộc 1 - 1
-// 4. Tham chiếu Cây tổ chức: 1 đơn vị có nhiều nhóm, hoặc nhóm độc lập (organization_id = null)
+// templates/admin/user_group.js – màn hình Nhóm người dùng (admin.user-groups, M02 mục 5.1)
+//
+// Tab list-view dùng GET /api/v1/admin/user-groups (G01, mock mockGetUserGroups bên dưới mảng này).
+// Mảng userGroupsData là dữ liệu CŨ chỉ còn phục vụ các hộp chi tiết / sửa / quản trị viên / ngừng hoạt động
+// và tab tree-view (chưa rà: G02, G03, G05–G07); không phải dạng response của API danh sách.
 
 let userGroupsData = [
     {
@@ -206,21 +204,239 @@ const allPhonePrefixGroups = [
 let activeTab = 'list';
 let currentManagingGroupId = null;
 
+/* ==========================================================================
+ * Tab list-view: GET /api/v1/admin/user-groups (G01, M02 mục 3.1)
+ * Vue: UserGroupView.vue + useUserGroupStore (fetchUserGroups, query, pagination).
+ * Kiểm tay mock: ?listError=1 (lỗi tải một lần, "Thử lại" thành công), ?listEmpty=1 (chưa có nhóm),
+ * ?orgTreeError=1 (ô lọc đơn vị chỉ còn "Tất cả"/"Nhóm độc lập"), ?noManage=1 (thiếu user_group:manage).
+ * Các hộp chi tiết/sửa/quản trị viên/ngừng hoạt động bên dưới vẫn dùng mảng cũ userGroupsData
+ * cho tới khi rà G03, G05–G07.
+ * ========================================================================== */
+const UG_QS = new URLSearchParams(window.location.search);
+function ugNow() { return new Date().toISOString().replace('Z', '+07:00'); }
+const ugCallApi = fn => (window.adminSession ? window.adminSession.request(fn) : fn('mock-token'));
+
+// Bảng organizations giả lập (id, parent_id, code, name, level, sort_order, status) – cây 1 → 2 → 4, 1 → 3, 1 → 5
+const MOCK_UG_ORGS = [
+    { id: 1, parentId: null, code: 'TC-71', name: 'Tổng công ty 71', level: 0, sortOrder: 1, status: 'ACTIVE' },
+    { id: 2, parentId: 1, code: 'IT-01', name: 'Khối Công nghệ Thông tin', level: 1, sortOrder: 1, status: 'ACTIVE' },
+    { id: 3, parentId: 1, code: 'KD-01', name: 'Khối Kinh doanh', level: 1, sortOrder: 2, status: 'ACTIVE' },
+    { id: 4, parentId: 2, code: 'DEV-01', name: 'Phòng Phát triển Phần mềm', level: 2, sortOrder: 1, status: 'ACTIVE' },
+    { id: 5, parentId: 1, code: 'DL-TX', name: 'Điện lực Thanh Xuân', level: 1, sortOrder: 3, status: 'INACTIVE' }
+];
+
+// Dòng user_groups đã JOIN như câu SQL bước 3 (số đếm, người đại diện) + dải số (bước 4: prefix, total_numbers).
+// Nhóm INACTIVE: userCount = adminCount = 0, representative = null (M02 mục 3.4).
+const MOCK_UG_ROWS = [
+    { id: 1, code: 'UMO-IT-01', name: 'Khối Công nghệ Thông tin - Nhóm Vận hành', status: 'ACTIVE', allowRecordingAccess: true,
+      organizationId: 2, ppg: { id: 10, code: 'PG-UMO-IT-01' }, ranges: [{ prefix: '46', total: 1000 }, { prefix: '42', total: 1000 }],
+      userCount: 45, adminCount: 2, representative: { id: 10, fullName: 'Trần Thị B', email: 'tran.b@71portal.vn', avatarUrl: null },
+      createdAt: '2026-03-15T08:30:00+07:00' },
+    { id: 2, code: 'UMO-IT-02', name: 'Khối Công nghệ Thông tin - Nhóm Phần mềm', status: 'ACTIVE', allowRecordingAccess: false,
+      organizationId: 4, ppg: { id: 11, code: 'PG-UMO-IT-02' }, ranges: [{ prefix: '43', total: 500 }, { prefix: '43', total: 300 }],
+      userCount: 32, adminCount: 1, representative: { id: 18, fullName: 'Hoàng Văn Tuấn', email: 'tuan.hv@71portal.vn', avatarUrl: null },
+      createdAt: '2026-04-02T10:00:00+07:00' },
+    { id: 3, code: 'UMO-KD-01', name: 'Khối Kinh doanh & Dịch vụ Khách hàng', status: 'ACTIVE', allowRecordingAccess: true,
+      organizationId: 3, ppg: { id: 12, code: 'PG-UMO-KD-01' }, ranges: [{ prefix: '48', total: 1000 }, { prefix: '49', total: 1000 }],
+      userCount: 68, adminCount: 2, representative: { id: 22, fullName: 'Phạm Thu Hương', email: 'huong.pt@71portal.vn', avatarUrl: null },
+      createdAt: '2026-04-18T09:15:00+07:00' },
+    { id: 4, code: 'UMO-AUDIT-GLOBAL', name: 'Tổ Giám sát Kiểm toán Độc lập', status: 'ACTIVE', allowRecordingAccess: false,
+      organizationId: null, ppg: { id: 13, code: 'PG-UMO-AUDIT-GLOBAL' }, ranges: [{ prefix: '20', total: 1000 }],
+      userCount: 12, adminCount: 1, representative: { id: 31, fullName: 'Nguyễn Hải Nam', email: 'nam.nh@evn.com.vn', avatarUrl: null },
+      createdAt: '2026-05-10T14:00:00+07:00' },
+    { id: 5, code: 'UMO-EXPERT-SEC', name: 'Tổ Chuyên gia SOC An toàn Thông tin', status: 'ACTIVE', allowRecordingAccess: false,
+      organizationId: null, ppg: { id: 14, code: 'PG-UMO-EXPERT-SEC' }, ranges: [],
+      userCount: 1, adminCount: 1, representative: null,
+      createdAt: '2026-06-01T08:00:00+07:00' },
+    { id: 6, code: 'UMO-TBA-500', name: 'Nhóm Thử nghiệm Trạm Biến áp 500kV', status: 'INACTIVE', allowRecordingAccess: false,
+      organizationId: 4, ppg: { id: 15, code: 'PG-UMO-TBA-500' }, ranges: [],
+      userCount: 0, adminCount: 0, representative: null,
+      createdAt: '2026-07-20T14:05:00+07:00' }
+];
+
+const UG_QUERY_KEYS = ['page', 'limit', 'search', 'status', 'organizationId', 'standalone'];
+const UG_STATUSES = ['ACTIVE', 'INACTIVE'];
+const ugCollator = new Intl.Collator('vi', { sensitivity: 'base' });
+let ugListFailOnce = UG_QS.get('listError') === '1';
+
+function ugUnauthorized() {
+    return { success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+        message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: ugNow() };
+}
+function ugValidationError(errors) {
+    return { success: false, statusCode: 400, errorCode: 'VALIDATION_ERROR', message: 'Dữ liệu không hợp lệ', errors, timestamp: ugNow() };
+}
+
+// Giả lập GET /api/v1/admin/organizations/tree (M01 mục 3.1): data là mảng nút gốc, anh em sortOrder, name, id.
+function mockGetOrgTreeForFilter(token) {
+    return new Promise(resolve => setTimeout(resolve, 200)).then(() => {
+        if (!token) return Promise.reject(ugUnauthorized());
+        if (UG_QS.get('orgTreeError') === '1') {
+            return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
+        }
+        const build = parentId => MOCK_UG_ORGS.filter(o => o.parentId === parentId)
+            .sort((a, b) => a.sortOrder - b.sortOrder || ugCollator.compare(a.name, b.name) || a.id - b.id)
+            .map(o => Object.assign({}, o, { userGroupCount: MOCK_UG_ROWS.filter(g => g.organizationId === o.id).length, children: build(o.id) }));
+        return { success: true, statusCode: 200, message: 'Lấy cây tổ chức thành công', data: build(null), timestamp: ugNow() };
+    });
+}
+
+// Đường đi từ gốc tới chính đơn vị (M02 mục 4.1 getHierarchyPath), và đơn vị + mọi con cháu (getSubtreeIds)
+function ugHierarchyPath(orgId) {
+    const path = [];
+    let cur = orgId;
+    for (let step = 0; cur && step < 4; step++) {
+        const org = MOCK_UG_ORGS.find(o => o.id === cur);
+        if (!org) break;
+        path.unshift(org.name);
+        cur = org.parentId;
+    }
+    return path;
+}
+function ugSubtreeIds(rootId) {
+    if (!MOCK_UG_ORGS.some(o => o.id === rootId)) return [];
+    const ids = [rootId];
+    for (let i = 0; i < ids.length; i++) MOCK_UG_ORGS.forEach(o => { if (o.parentId === ids[i]) ids.push(o.id); });
+    return ids;
+}
+
+// Giả lập GET /api/v1/admin/user-groups (M02 mục 3.1). Token thiếu → 401; tham số lạ/lặp lại, page/limit sai,
+// search > 100, status lạ, organizationId sai định dạng (kể cả "null"), standalone khác "true" hoặc đi cùng
+// organizationId → 400; organizationId không tồn tại → 200 rỗng. Sắp code, id; phần tử đúng 13 trường.
+function mockGetUserGroups(token, query) {
+    return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+        if (!token) return Promise.reject(ugUnauthorized());
+        const q = query || {};
+        const errors = {};
+        Object.keys(q).forEach(k => {
+            if (!UG_QUERY_KEYS.includes(k)) errors[k] = ['Tham số không được nhận'];
+            else if (Array.isArray(q[k])) errors[k] = ['Chỉ gửi tham số một lần'];
+        });
+        const pick = k => (typeof q[k] === 'string' ? q[k] : undefined);
+        const intParam = (k, def, max) => {
+            const v = pick(k);
+            if (v === undefined) return def;
+            if (!/^[1-9][0-9]{0,8}$/.test(v) || (max && Number(v) > max)) {
+                errors[k] = [max ? 'Phải là số nguyên từ 1 đến ' + max : 'Phải là số nguyên ≥ 1'];
+                return def;
+            }
+            return Number(v);
+        };
+        const page = intParam('page', 1);
+        const limit = intParam('limit', 20, 100);
+        let search = pick('search');
+        search = search === undefined ? '' : search.trim();
+        if (search.length > 100) errors.search = ['Tối đa 100 ký tự'];
+        const status = pick('status') || '';
+        if (status && !UG_STATUSES.includes(status)) errors.status = ['Trạng thái không hợp lệ'];
+        const orgParam = pick('organizationId');
+        let orgId = null;
+        if (orgParam !== undefined && orgParam !== '') {
+            if (!/^[1-9][0-9]{0,9}$/.test(orgParam) || Number(orgParam) > 4294967295) errors.organizationId = ['Mã đơn vị không hợp lệ'];
+            else orgId = Number(orgParam);
+        }
+        const standaloneParam = pick('standalone');
+        const standalone = standaloneParam === 'true';
+        if (standaloneParam !== undefined && !standalone) errors.standalone = ['Chỉ nhận giá trị true'];
+        else if (standalone && orgParam !== undefined && orgParam !== '') errors.standalone = ['Không dùng cùng organizationId'];
+        if (Object.keys(errors).length) return Promise.reject(ugValidationError(errors));
+
+        if (ugListFailOnce) {
+            ugListFailOnce = false;
+            return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
+        }
+        const orgIds = orgId === null ? null : ugSubtreeIds(orgId);
+        const needle = search.toLocaleLowerCase('vi');
+        const source = UG_QS.get('listEmpty') === '1' ? [] : MOCK_UG_ROWS;
+        const rows = source.filter(g => (!status || g.status === status)
+            && (!orgIds || orgIds.includes(g.organizationId))
+            && (!standalone || g.organizationId === null)
+            && (!needle || [g.code, g.name].some(v => v.toLocaleLowerCase('vi').includes(needle))));
+        rows.sort((a, b) => ugCollator.compare(a.code, b.code) || a.id - b.id);
+        const total = rows.length;
+        const totalPages = Math.ceil(total / limit);
+        const data = rows.slice((page - 1) * limit, page * limit).map(g => {
+            const path = ugHierarchyPath(g.organizationId);
+            const prefixes = [...new Set(g.ranges.map(r => r.prefix))].sort();
+            return {
+                id: g.id, code: g.code, name: g.name, status: g.status, allowRecordingAccess: g.allowRecordingAccess,
+                organizationId: g.organizationId,
+                organizationName: g.organizationId === null ? null : path[path.length - 1],
+                hierarchyPath: path,
+                phonePrefixGroup: { id: g.ppg.id, code: g.ppg.code, prefixes, totalNumbers: g.ranges.reduce((s, r) => s + r.total, 0) },
+                userCount: g.userCount, adminCount: g.adminCount,
+                representative: g.representative ? Object.assign({}, g.representative) : null,
+                createdAt: g.createdAt
+            };
+        });
+        return {
+            success: true, statusCode: 200, message: 'Lấy danh sách nhóm người dùng thành công', data,
+            pagination: { page, limit, total, totalPages, hasNext: page < totalPages, hasPrev: page > 1 },
+            timestamp: ugNow()
+        };
+    });
+}
+
+// Trạng thái bộ lọc (Vue: useUserGroupStore.query). limit = itemsPerPage của preferencesAdmin (10/20/50, mặc định 10).
+const ugQuery = { page: 1, search: '', status: '', org: '' }; // org: '' | 'standalone' | '<id>'
+let ugRequestSeq = 0; // chỉ hiển thị response của request gửi sau cùng
+
+function canManageUserGroups() {
+    if (UG_QS.get('noManage') === '1') return false;
+    const account = window.adminSession ? window.adminSession.getAccount() : null;
+    return !!(account && (account.permissions || []).includes('user_group:manage'));
+}
+
+// Phần tử data-permission="user_group:manage" (nút "Thêm nhóm mới") ẩn khi store thiếu mã; gọi sau khi có tài khoản.
+function applyUgPermissions() {
+    const manage = canManageUserGroups();
+    document.querySelectorAll('[data-permission="user_group:manage"]').forEach(el => { el.hidden = !manage; });
+}
+
+function ugItemsPerPage() {
+    const prefs = window.adminSession && window.adminSession.getPreferences ? window.adminSession.getPreferences() : null;
+    const n = prefs && prefs.itemsPerPage;
+    return [10, 20, 50].includes(n) ? n : 10;
+}
+
 document.addEventListener('DOMContentLoaded', function () {
-    renderStats();
-    renderUserGroupsTable();
     setupEventListeners();
+    applyUgPermissions();
+    loadOrgFilterOptions();
+    loadUserGroups();
 });
 
 function setupEventListeners() {
-    // Search & Filters
     const searchInput = document.getElementById('searchGroupInput');
     const orgFilter = document.getElementById('filterOrgSelect');
     const statusFilter = document.getElementById('filterStatusSelect');
 
-    if (searchInput) searchInput.addEventListener('input', applyFilters);
-    if (orgFilter) orgFilter.addEventListener('change', applyFilters);
-    if (statusFilter) statusFilter.addEventListener('change', applyFilters);
+    // Tìm kiếm gửi sau 300 ms ngừng gõ hoặc khi nhấn Enter; đổi bộ lọc thì về trang 1.
+    let searchTimer = null;
+    const applySearch = () => {
+        clearTimeout(searchTimer);
+        const value = searchInput.value.trim();
+        if (value === ugQuery.search) return;
+        ugQuery.search = value;
+        ugQuery.page = 1;
+        loadUserGroups();
+    };
+    if (searchInput) {
+        searchInput.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(applySearch, 300); });
+        searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applySearch(); } });
+    }
+    if (orgFilter) orgFilter.addEventListener('change', () => { ugQuery.org = orgFilter.value; ugQuery.page = 1; loadUserGroups(); });
+    if (statusFilter) statusFilter.addEventListener('change', () => { ugQuery.status = statusFilter.value; ugQuery.page = 1; loadUserGroups(); });
+
+    const pageList = document.getElementById('ugPageList');
+    if (pageList) pageList.addEventListener('click', e => {
+        const link = e.target.closest('.page-link');
+        if (!link) return;
+        e.preventDefault();
+        if (!link.dataset.page) return;
+        ugQuery.page = Number(link.dataset.page);
+        loadUserGroups();
+    });
 
     // Close modal on click outside backdrop or ESC key
     window.addEventListener('click', function (e) {
@@ -240,144 +456,187 @@ function setupEventListeners() {
     });
 }
 
-function renderStats() {
-    const totalGroups = userGroupsData.length;
-    const activeGroups = userGroupsData.filter(g => g.status === 'ACTIVE').length;
-    const inactiveGroups = userGroupsData.filter(g => g.status === 'INACTIVE').length;
-    const totalMembers = userGroupsData.reduce((sum, g) => sum + g.userCount, 0);
-
-    const elTotal = document.getElementById('statTotalGroups');
-    const elActive = document.getElementById('statActiveGroups');
-    const elInactive = document.getElementById('statInactiveGroups');
-    const elMembers = document.getElementById('statTotalMembers');
-
-    if (elTotal) elTotal.innerText = totalGroups;
-    if (elActive) elActive.innerText = activeGroups;
-    if (elInactive) elInactive.innerText = inactiveGroups;
-    if (elMembers) elMembers.innerText = totalMembers;
+// Ô lọc đơn vị: "Tất cả", "Nhóm độc lập", rồi các đơn vị của cây (thụt lề theo level). Cây lỗi: giữ hai lựa chọn đầu.
+function loadOrgFilterOptions() {
+    const select = document.getElementById('filterOrgSelect');
+    if (!select) return Promise.resolve();
+    return ugCallApi(token => mockGetOrgTreeForFilter(token))
+        .then(res => {
+            while (select.options.length > 2) select.remove(2);
+            (function walk(nodes) {
+                nodes.forEach(n => {
+                    const opt = document.createElement('option');
+                    opt.value = String(n.id);
+                    opt.textContent = '  '.repeat(n.level) + (n.level ? '↳ ' : '') + n.name
+                        + (n.status === 'ACTIVE' ? '' : ' (ngừng hoạt động)');
+                    select.appendChild(opt);
+                    walk(n.children);
+                });
+            })(res.data);
+        })
+        .catch(() => { /* lỗi tải cây không chặn danh sách; 401 đã được request() xử lý */ });
 }
 
-function applyFilters() {
-    const keyword = (document.getElementById('searchGroupInput')?.value || '').toLowerCase().trim();
-    const orgFilterVal = document.getElementById('filterOrgSelect')?.value || 'all';
-    const statusFilterVal = document.getElementById('filterStatusSelect')?.value || 'all';
-
-    const filtered = userGroupsData.filter(group => {
-        // Keyword check
-        const matchKeyword = !keyword ||
-            group.code.toLowerCase().includes(keyword) ||
-            group.name.toLowerCase().includes(keyword) ||
-            group.phonePrefixGroup.code.toLowerCase().includes(keyword) ||
-            (group.organizationName && group.organizationName.toLowerCase().includes(keyword));
-
-        // Org check
-        let matchOrg = true;
-        if (orgFilterVal === 'standalone') {
-            matchOrg = group.organizationId === null;
-        } else if (orgFilterVal !== 'all') {
-            matchOrg = group.organizationId === parseInt(orgFilterVal, 10);
-        }
-
-        // Status check
-        let matchStatus = true;
-        if (statusFilterVal !== 'all') {
-            matchStatus = group.status === statusFilterVal;
-        }
-
-        return matchKeyword && matchOrg && matchStatus;
-    });
-
-    renderUserGroupsTable(filtered);
+function ugBuildQuery() {
+    // limit đọc lại mỗi lần gửi: store preferencesAdmin có thể nạp xong sau khi màn hình mở
+    const query = { page: String(ugQuery.page), limit: String(ugItemsPerPage()) };
+    if (ugQuery.search) query.search = ugQuery.search;
+    if (ugQuery.status) query.status = ugQuery.status;
+    if (ugQuery.org === 'standalone') query.standalone = 'true';
+    else if (ugQuery.org) query.organizationId = ugQuery.org;
+    return query;
 }
 
-function renderUserGroupsTable(data = userGroupsData) {
+function setUgState(state, message) {
+    const box = document.getElementById('ugListState');
+    const msg = document.getElementById('ugListMessage');
+    const retry = document.getElementById('btnRetryUserGroups');
+    const wrap = document.getElementById('listViewContainer');
+    const pagination = document.getElementById('ugPagination');
+    if (box) {
+        box.hidden = state === 'ready';
+        box.classList.toggle('is-error', state === 'error');
+    }
+    if (msg && message) msg.textContent = message;
+    if (retry) retry.hidden = state !== 'error';
+    if (wrap) wrap.hidden = state !== 'ready';
+    if (pagination && state !== 'ready') pagination.hidden = true;
+    const total = document.getElementById('ugTotalBadge');
+    if (total && state !== 'ready') total.hidden = true;
+}
+
+function loadUserGroups() {
+    const seq = ++ugRequestSeq;
+    setUgState('loading', 'Đang tải danh sách nhóm người dùng...');
+    return ugCallApi(token => mockGetUserGroups(token, ugBuildQuery()))
+        .then(res => {
+            if (seq !== ugRequestSeq) return; // đã có request mới hơn
+            applyUgPermissions();
+            const p = res.pagination;
+            if (!res.data.length && p.page > 1 && p.totalPages > 0) {
+                ugQuery.page = p.totalPages; // danh sách ngắn lại: lùi về trang cuối
+                return loadUserGroups();
+            }
+            if (!res.data.length) {
+                const filtered = ugQuery.search || ugQuery.status || ugQuery.org;
+                setUgState('empty', filtered ? 'Không có nhóm người dùng phù hợp với bộ lọc' : 'Chưa có nhóm người dùng nào');
+                return;
+            }
+            renderUserGroupsTable(res.data);
+            setUgState('ready');
+            renderUgPagination(p, res.data.length);
+        })
+        .catch(err => {
+            if (seq !== ugRequestSeq) return;
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            setUgState('error', (err && err.message) || 'Không tải được danh sách nhóm người dùng. Vui lòng thử lại.');
+        });
+}
+
+function renderUgPagination(p, count) {
+    const box = document.getElementById('ugPagination');
+    const info = document.getElementById('ugPageInfo');
+    const list = document.getElementById('ugPageList');
+    const totalBadge = document.getElementById('ugTotalBadge');
+    if (totalBadge) { totalBadge.textContent = p.total + ' nhóm'; totalBadge.hidden = false; }
+    if (!box || !info || !list) return;
+    const from = (p.page - 1) * p.limit + 1;
+    info.textContent = 'Hiển thị ' + from + '–' + (from + count - 1) + ' / ' + p.total + ' nhóm';
+    list.replaceChildren();
+    const addItem = (label, page, { disabled = false, active = false, aria } = {}) => {
+        const li = document.createElement('li');
+        li.className = 'page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '');
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'page-link';
+        a.textContent = label;
+        if (aria) a.setAttribute('aria-label', aria);
+        if (active) a.setAttribute('aria-current', 'page');
+        if (!disabled && !active) a.dataset.page = String(page);
+        li.appendChild(a);
+        list.appendChild(li);
+    };
+    addItem('«', p.page - 1, { disabled: !p.hasPrev, aria: 'Trang trước' });
+    const first = Math.max(1, Math.min(p.page - 2, p.totalPages - 4));
+    const last = Math.min(p.totalPages, first + 4);
+    for (let i = first; i <= last; i++) addItem(String(i), i, { active: i === p.page });
+    addItem('»', p.page + 1, { disabled: !p.hasNext, aria: 'Trang sau' });
+    box.hidden = false;
+}
+
+function ugEsc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function ugFormatDate(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+}
+function ugInitials(name) {
+    const parts = String(name || '').trim().split(/\s+/);
+    return ((parts.length > 1 ? parts[0][0] : '') + (parts[parts.length - 1][0] || '')).toUpperCase();
+}
+
+const UG_ICONS = {
+    view: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
+    admins: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>',
+    remove: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>',
+    org: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>',
+    users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+    rec: '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>'
+};
+
+// Một dòng = một phần tử của GET /admin/user-groups (13 trường, M02 mục 3.1). Không dùng trường không có trong response.
+function renderUserGroupsTable(data) {
     const tbody = document.getElementById('userGroupsTableBody');
     if (!tbody) return;
-
-    if (data.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="4" class="text-center py-4 text-muted">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 40px; height: 40px; margin-bottom: 8px; opacity: 0.5;"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-                    <p>Không tìm thấy nhóm người dùng nào phù hợp với bộ lọc</p>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
+    const manage = canManageUserGroups();
     tbody.innerHTML = data.map(group => {
-        // Chỉ hiển thị tên tổ chức liên kết, không liệt kê cây phân cấp
-        let orgContent = '';
-        if (group.organizationId) {
-            orgContent = `
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; color: var(--primary); flex-shrink: 0;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
-                    <span class="fw-600 text-main" style="font-size: 0.9rem;">${group.organizationName}</span>
-                </div>
-            `;
-        } else {
-            orgContent = `
-                <span class="badge-standalone">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 13px; height: 13px;"><rect x="4" y="4" width="16" height="16" rx="2"></rect><line x1="9" y1="15" x2="15" y2="15"></line></svg>
-                    Nhóm độc lập (Toàn HT)
-                </span>
-            `;
-        }
-
-        // Member Count (1-N)
-        const memberContent = `
-            <span class="member-count-badge" onclick="openViewMembersModal(${group.id})" title="Bấm để xem danh sách ${group.userCount} thành viên">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                ${group.userCount} thành viên
-            </span>
-        `;
-
+        const active = group.status === 'ACTIVE';
+        const orgContent = group.hierarchyPath.length
+            ? `<div class="ug-org-cell">${UG_ICONS.org}<div>
+                   <span class="ug-org-name">${ugEsc(group.organizationName)}</span>
+                   ${group.hierarchyPath.length > 1 ? `<span class="ug-org-path">${group.hierarchyPath.slice(0, -1).map(ugEsc).join(' › ')}</span>` : ''}
+               </div></div>`
+            : `<span class="badge-standalone">Nhóm độc lập</span>`;
+        const ppg = group.phonePrefixGroup;
+        const prefixText = ppg.prefixes.length
+            ? ppg.prefixes.map(p => ugEsc(p) + 'xxx').join(', ') + ' · ' + ppg.totalNumbers.toLocaleString('vi-VN') + ' số'
+            : 'Chưa cấp dải số';
+        const rep = group.representative;
+        const repContent = rep
+            ? `<div class="ug-rep">
+                   ${rep.avatarUrl ? `<img class="ug-rep-avatar" src="${ugEsc(rep.avatarUrl)}" alt="">` : `<span class="ug-rep-avatar">${ugEsc(ugInitials(rep.fullName))}</span>`}
+                   <div><span class="ug-rep-name">${ugEsc(rep.fullName)}</span><span class="ug-rep-email">${ugEsc(rep.email)}</span></div>
+               </div>`
+            : `<span class="text-muted">Chưa có người đại diện</span>`;
+        const writeButtons = manage && active ? `
+                <button class="action-btn" onclick="openManageAdminsModal(${group.id})" title="Quản trị viên nhóm">${UG_ICONS.admins}</button>
+                <button class="action-btn edit-btn" onclick="openEditGroupModal(${group.id})" title="Sửa nhóm">${UG_ICONS.edit}</button>
+                <button class="action-btn delete-btn" onclick="openDeleteGroupModal(${group.id})" title="Ngừng hoạt động nhóm">${UG_ICONS.remove}</button>` : '';
         return `
             <tr>
                 <td>
                     <div class="group-title-cell">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="group-code">${group.code}</span>
-                            <span class="badge-status ${group.status === 'ACTIVE' ? 'active' : 'inactive'}">${group.status === 'ACTIVE' ? 'Hoạt động' : 'Tạm dừng'}</span>
-                            ${group.allowRecordingAccess
-                                ? `<span class="badge-recording" title="Đã kích hoạt quyền Ghi âm thoại (Tầng 1 - BR-UG-05)"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg> Ghi âm</span>`
-                                : ''
-                            }
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <span class="group-code">${ugEsc(group.code)}</span>
+                            <span class="badge-status ${active ? 'active' : 'inactive'}">${active ? 'Hoạt động' : 'Ngừng hoạt động'}</span>
+                            ${group.allowRecordingAccess ? `<span class="badge-recording" title="Đã cấp quyền ghi âm cho nhóm (Tầng 1)">${UG_ICONS.rec} Ghi âm</span>` : ''}
                         </div>
-                        <span class="group-name" style="cursor: pointer; color: var(--primary);" onclick="openGroupDetailModal(${group.id})" title="Bấm để xem chi tiết nhóm">${group.name}</span>
-                        <span class="group-desc" title="${group.description}">${group.description}</span>
+                        <a href="#" class="group-name" onclick="event.preventDefault(); openGroupDetailModal(${group.id})" title="Xem chi tiết nhóm">${ugEsc(group.name)}</a>
                     </div>
                 </td>
                 <td>${orgContent}</td>
-                <td>${memberContent}</td>
-                <td class="text-right" style="white-space: nowrap; width: 230px;">
+                <td><div class="ug-ppg"><span class="group-code">${ugEsc(ppg.code)}</span><span class="ug-ppg-prefixes">${prefixText}</span></div></td>
+                <td>${repContent}<span class="ug-admin-count">${group.adminCount} quản trị viên</span></td>
+                <td><span class="member-count-badge ug-member-count" title="Thành viên chưa ngừng hoạt động">${UG_ICONS.users} ${group.userCount}</span></td>
+                <td class="ug-date">${ugFormatDate(group.createdAt)}</td>
+                <td class="text-right" style="white-space: nowrap;">
                     <div class="action-btn-group">
-                        <button class="action-btn view-btn" onclick="openGroupDetailModal(${group.id})" title="Xem chi tiết nhóm">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                        </button>
-                        <button class="action-btn" onclick="openManageAdminsModal(${group.id})" title="Phân quyền Quản trị viên nhóm">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                        </button>
-                        ${group.status === 'ACTIVE' ? `
-                        <button class="action-btn status-btn suspend-btn" onclick="openToggleStatusModal(${group.id})" title="Tạm ngưng hoạt động nhóm">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="10" y1="15" x2="10" y2="9"></line><line x1="14" y1="15" x2="14" y2="9"></line></svg>
-                        </button>
-                        ` : `
-                        <button class="action-btn status-btn activate-btn" onclick="openToggleStatusModal(${group.id})" title="Kích hoạt lại nhóm">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                        </button>
-                        `}
-                        <button class="action-btn edit-btn" onclick="openEditGroupModal(${group.id})" title="Chỉnh sửa thông tin nhóm">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                        </button>
-                        <button class="action-btn delete-btn" onclick="openDeleteGroupModal(${group.id})" title="Xóa nhóm người dùng">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                        </button>
+                        <button class="action-btn view-btn" onclick="openGroupDetailModal(${group.id})" title="Xem chi tiết nhóm">${UG_ICONS.view}</button>${writeButtons}
                     </div>
                 </td>
-            </tr>
-        `;
+            </tr>`;
     }).join('');
 }
 
@@ -820,8 +1079,7 @@ function saveUserGroup() {
     }
 
     closeModal('userGroupModal');
-    renderStats();
-    renderUserGroupsTable();
+    loadUserGroups();
     if (activeTab === 'tree') renderOrgGroupedView();
 }
 
@@ -894,8 +1152,7 @@ function demoteAdmin(groupId, adminId) {
 
     showToast('Đã hạ quyền Quản trị viên thành công', 'success');
     renderAdminsListInModal(group);
-    renderStats();
-    renderUserGroupsTable();
+    loadUserGroups();
     if (activeTab === 'tree') renderOrgGroupedView();
 }
 
@@ -926,8 +1183,7 @@ function promoteNewAdmin() {
 
     showToast(`Đã bổ nhiệm ${newAdmin.fullName} làm Quản trị viên nhóm`, 'success');
     renderAdminsListInModal(group);
-    renderStats();
-    renderUserGroupsTable();
+    loadUserGroups();
     if (activeTab === 'tree') renderOrgGroupedView();
 }
 
@@ -1028,8 +1284,7 @@ function confirmDeleteGroup() {
     closeModal('deleteGroupModal');
     showToast(`Đã xóa nhóm thành công. Nhóm đầu số ${ppgCode} đã được giải phóng về trạng thái sẵn sàng.`, 'success');
 
-    renderStats();
-    renderUserGroupsTable();
+    loadUserGroups();
     if (activeTab === 'tree') renderOrgGroupedView();
 }
 
@@ -1172,8 +1427,7 @@ function confirmToggleStatus() {
         'success'
     );
 
-    applyFilters();
-    renderStats();
+    loadUserGroups();
 }
 
 // Toast notification

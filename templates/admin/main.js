@@ -276,7 +276,8 @@ window.adminSession = (function () {
         roleCode: 'ROOT_ADMIN',
         roleName: 'Quản trị viên tối cao',
         permissions: ['admin:manage', 'audit:view', 'cdr:download_audio', 'cdr:export', 'cdr:filter_advanced',
-            'cdr:listen_audio', 'cdr:view', 'org:manage', 'org:view', 'qos:manage', 'qos:view', 'role:view', 'system:manage']
+            'cdr:listen_audio', 'cdr:view', 'org:manage', 'org:view', 'qos:manage', 'qos:view', 'role:view', 'system:manage',
+            'user_group:manage', 'user_group:view']
     };
 
     // Giả lập backend GET /api/v1/admin/auth/me (A04): không query, không ghi CSDL.

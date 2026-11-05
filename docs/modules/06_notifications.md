@@ -221,7 +221,7 @@ export class MailerService {
 ### 5.2. Soạn thông báo (chỉ khu vực Admin)
 
 - Nút "Soạn thông báo" trên header `NotificationsView` của khu vực Admin, chỉ hiện khi tài khoản có `system:manage`. Template `notifications.html` chưa có nút này: dựng modal theo kiểu `.modal` chung.
-- Modal gồm `type` (`SYSTEM_MAINTENANCE` \| `GENERAL`), `title`, `content`, `severity` (`INFO` \| `WARNING` \| `CRITICAL`; `CRITICAL` gửi thêm email cho người nhận đã bật `email_notification_enabled`, `docs/01_database_schema.md` mục 10), `target` (`ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` với dropdown chỉ liệt kê nhóm `ACTIVE` từ `GET /api/v1/admin/user-groups` \| `EVERYONE`); gửi `POST /api/v1/admin/notifications`; thành công trả `201` với `data = { id, recipientCount }` (`recipientCount` = số dòng `notification_recipients` đã tạo), đóng modal và hiện toast.
+- Modal gồm `type` (`SYSTEM_MAINTENANCE` \| `GENERAL`), `title`, `content`, `severity` (`INFO` \| `WARNING` \| `CRITICAL`; `CRITICAL` gửi thêm email cho người nhận đã bật `email_notification_enabled`, `docs/01_database_schema.md` mục 10), `target` (`ALL_ADMINS` \| `ALL_USERS` \| `GROUP:{id}` với dropdown chỉ liệt kê nhóm `ACTIVE` từ `GET /api/v1/admin/user-groups?status=ACTIVE&limit=100` (đọc tiếp các trang khi `pagination.hasNext`; hiển thị `code` – `name`, `docs/modules/02_user_group.md` mục 3.1) \| `EVERYONE`); gửi `POST /api/v1/admin/notifications`; thành công trả `201` với `data = { id, recipientCount }` (`recipientCount` = số dòng `notification_recipients` đã tạo), đóng modal và hiện toast.
 - Khu vực Member không có chức năng này.
 
 ### 5.3. Quản lý trạng thái Pinia Store (`useNotificationStore`)
