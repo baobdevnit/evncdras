@@ -237,7 +237,7 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 ### 3.9. Ngừng hoạt động người dùng (`DELETE /api/v1/users/:id`)
 
 - Khóa dòng nhóm và kiểm tra như mục 3.7 (bước 1, 2; bước 3 áp cho mọi `GROUP_ADMIN` `ACTIVE` cuối cùng: `409 LAST_GROUP_ADMIN`).
-- Trong một transaction: `status = 'INACTIVE'`; thu hồi mọi phiên (`ACCOUNT_LOCKED`); nếu là `representative_user_id` của nhóm thì đặt `NULL`; giữ dòng `user_roles` (`docs/01_database_schema.md` mục 14); ghi `audit_logs` `USER / DEACTIVATE`.
+- Trong một transaction: `status = 'INACTIVE'`; thu hồi mọi phiên (`ACCOUNT_LOCKED`); nếu là `representative_user_id` của nhóm thì đặt `NULL`; giữ dòng `user_roles` (`docs/01_database_schema.md` mục 14); ghi `audit_logs` `USER / DEACTIVATE` (`action_details = { "revokedCount": n }`, kể cả `0`, như `docs/modules/04_auth_admin.md` mục 3.9).
 - **Response** `200`: `data = { id, status: "INACTIVE" }`. Không xóa cứng, không kích hoạt lại; `username`/`email` được dùng lại cho tài khoản mới (mục 1.2).
 
 ### 3.10. Thu hồi mọi phiên của người dùng (`DELETE /api/v1/admin/users/:id/sessions`)

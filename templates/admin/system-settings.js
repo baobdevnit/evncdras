@@ -710,6 +710,55 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Giả lập DELETE /api/v1/admin/admins/:id (A21, M04 mục 3.9). Thứ tự kiểm tra như backend:
+    // 400 (:id, query, body có trường) → chính mình 403 SELF_ACTION_FORBIDDEN (không audit) → không có 404
+    // → ROOT_ADMIN 403 ROOT_ADMIN_PROTECTED: rollback rồi ghi riêng ADMIN / ACCESS_DENIED → INACTIVE 409 ACCOUNT_INACTIVE
+    // (LOCKED vẫn ngừng hoạt động được) → status = INACTIVE, thu hồi phiên còn hiệu lực (ACCOUNT_LOCKED)
+    // → ADMIN / DEACTIVATE { revokedCount } (kể cả 0) → 200 { id, status: 'INACTIVE' }. Không xóa cứng.
+    function mockDeactivateAdmin(token, rawId, query, body) {
+        return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+            if (!token) return Promise.reject(unauthorized());
+            const errors = {};
+            Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+            Object.keys(body || {}).forEach(k => { errors[k] = ['Trường không được nhận']; });
+            const idText = String(rawId);
+            if (!/^[1-9][0-9]{0,9}$/.test(idText) || Number(idText) > 4294967295) errors.id = ['Mã quản trị viên không hợp lệ'];
+            if (Object.keys(errors).length) return Promise.reject(validationError(errors));
+
+            const id = Number(idText);
+            const fail = (statusCode, errorCode, message) => Promise.reject({
+                success: false, statusCode, errorCode, message, errors: null, timestamp: now()
+            });
+            if (id === currentAdminId) return fail(403, 'SELF_ACTION_FORBIDDEN', 'Không thể tự ngừng hoạt động tài khoản của chính mình');
+            const target = MOCK_ADMINS.find(a => a.id === id); // backend: SELECT ... FOR UPDATE
+            if (!target) return fail(404, 'NOT_FOUND', 'Không tìm thấy quản trị viên');
+            if (target.roleCode === 'ROOT_ADMIN') {
+                // Backend: ROLLBACK transaction chính rồi INSERT riêng (cảnh báo an ninh không mất theo rollback)
+                MOCK_AUDIT.push({
+                    actorType: 'ADMIN', actorId: currentAdminId, action: 'ACCESS_DENIED', resourceName: 'ADMIN',
+                    resourceId: String(id), actionDetails: { attemptedAction: 'DEACTIVATE', errorCode: 'ROOT_ADMIN_PROTECTED' }, createdAt: now()
+                });
+                return fail(403, 'ROOT_ADMIN_PROTECTED', 'Không thể thao tác trên tài khoản Quản trị viên tối cao');
+            }
+            if (target.status === 'INACTIVE') return fail(409, 'ACCOUNT_INACTIVE', 'Tài khoản đã ngừng hoạt động');
+
+            const ts = now();
+            target.status = 'INACTIVE'; // username/email được giải phóng (username_active/email_active = NULL)
+            target.updatedAt = ts;
+            const nowMs = Date.now();
+            const live = MOCK_SESSIONS.filter(x => x.actorId === id && !x.revokedAt && Date.parse(x.expiresAt) > nowMs);
+            live.forEach(x => { x.revokedAt = ts; x.revokedReason = 'ACCOUNT_LOCKED'; });
+            MOCK_AUDIT.push({
+                actorType: 'ADMIN', actorId: currentAdminId, action: 'DEACTIVATE', resourceName: 'ADMIN',
+                resourceId: String(id), actionDetails: { revokedCount: live.length }, createdAt: ts
+            });
+            return {
+                success: true, statusCode: 200, message: 'Đã ngừng hoạt động tài khoản quản trị viên',
+                data: { id, status: 'INACTIVE' }, timestamp: ts
+            };
+        });
+    }
+
     // Định dạng ở frontend (API chỉ trả ISO 8601 và mã enum, R16-07)
     const dateTimeFmt = new Intl.DateTimeFormat('vi-VN', {
         timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -774,6 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Nút "Sửa": cùng điều kiện với Khóa/Mở khóa (dòng ACTIVE/LOCKED, không ROOT_ADMIN, không phải mình; M04 mục 3.8 Frontend)
     const canEdit = canSetStatus;
     const canResetPassword = canSetStatus; // A19: ACTIVE hoặc LOCKED, không ROOT_ADMIN, không phải mình
+    const canDeactivate = canSetStatus; // A21: ACTIVE hoặc LOCKED, không ROOT_ADMIN, không phải mình
 
     // Dựng bằng textContent (không innerHTML): họ tên, email do người dùng nhập
     function renderAdmins(rows) {
@@ -850,6 +900,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.className = 'btn btn-outline-danger btn-revoke-sessions';
                 btn.dataset.adminId = String(row.id);
                 btn.textContent = 'Thu hồi phiên';
+                actions.appendChild(btn);
+            }
+            if (canDeactivate(row)) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-outline-danger btn-deactivate-admin';
+                btn.dataset.adminId = String(row.id);
+                btn.textContent = 'Ngừng hoạt động';
                 actions.appendChild(btn);
             }
 
@@ -1036,6 +1094,44 @@ document.addEventListener('DOMContentLoaded', () => {
                                 'Đã đặt lại mật khẩu');
                         }
                         if (reload) loadAdmins();
+                    });
+            }
+        });
+    }
+
+    // Ngừng hoạt động – DELETE /api/v1/admin/admins/:id (A21, M04 mục 3.9 Frontend). Hộp xác nhận danger nêu rõ
+    // không hoàn tác được. 200/403/404/409 đều tải lại danh sách (dòng xuống nhóm INACTIVE hoặc biến khỏi trang
+    // khi đang lọc trạng thái; trang rỗng thì loadAdmins tự lùi về trang cuối).
+    function confirmDeactivateAdmin(id) {
+        const row = adminRows.get(id);
+        if (!row) return;
+        showConfirmModal({
+            title: 'Ngừng hoạt động quản trị viên',
+            message: 'Tài khoản "' + row.fullName + '" (' + row.username + ') sẽ bị đăng xuất khỏi mọi thiết bị ngay và không'
+                + ' đăng nhập được nữa. Thao tác không hoàn tác được: không thể kích hoạt lại. Tên đăng nhập và email được'
+                + ' giải phóng để tạo tài khoản mới; nhật ký cũ vẫn được giữ.',
+            confirmText: 'Ngừng hoạt động',
+            type: 'danger',
+            action: done => {
+                let reload = false;
+                callApi(token => mockDeactivateAdmin(token, id))
+                    .then(res => {
+                        reload = true;
+                        notify(res.message, 'success');
+                    })
+                    .catch(err => {
+                        const code = err && err.statusCode;
+                        if (code === 401) return; // request() đã chuyển về login
+                        if (code === 403 || code === 404 || code === 409) {
+                            reload = true;
+                            notify(err.message || 'Không thể ngừng hoạt động tài khoản này', 'warning');
+                            return;
+                        }
+                        notify((err && err.message) || 'Không ngừng hoạt động được tài khoản. Vui lòng thử lại.', 'error');
+                    })
+                    .finally(() => {
+                        done();
+                        if (reload) loadAdmins(); // giữ bộ lọc và trang hiện tại
                     });
             }
         });
@@ -1258,6 +1354,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn) { confirmRevokeAdminSessions(btn.dataset.adminId); return; }
         const resetBtn = e.target.closest('.btn-reset-admin-password');
         if (resetBtn) { confirmResetAdminPassword(resetBtn.dataset.adminId); return; }
+        const deactivateBtn = e.target.closest('.btn-deactivate-admin');
+        if (deactivateBtn) { confirmDeactivateAdmin(deactivateBtn.dataset.adminId); return; }
         const statusBtn = e.target.closest('.btn-admin-status');
         if (statusBtn) confirmSetAdminStatus(statusBtn.dataset.adminId, statusBtn.dataset.status);
     });
@@ -1266,7 +1364,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Kiểm thử thủ công trên trang tĩnh (không có trong Vue)
     window.__adminsMock = {
         MOCK_ADMINS, MOCK_SESSIONS, MOCK_AUDIT, MOCK_USER_SETTINGS, mockGetAdmins, mockRevokeAdminSessions, mockCreateAdmin,
-        mockSetAdminStatus, mockUpdateAdmin, mockResetAdminPassword, MOCK_ADMIN_SECRETS,
+        mockSetAdminStatus, mockUpdateAdmin, mockResetAdminPassword, mockDeactivateAdmin, MOCK_ADMIN_SECRETS,
         generateTempPassword, adminsQuery, loadAdmins
     };
 
