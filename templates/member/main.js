@@ -222,10 +222,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // - Access Token chỉ giữ trong bộ nhớ (biến/store), KHÔNG ghi localStorage/sessionStorage.
 // - Refresh Token là cookie HttpOnly `Path=/api/v1/auth`: JS không đọc/ghi được, trình duyệt tự gửi kèm
 //   request refresh (mock giả lập bằng biến `mockHasRefreshCookie`; thêm ?session=none vào URL = chưa đăng nhập).
-// - Chế độ bảo trì KHÔNG chặn refresh (và GET /auth/me); API nghiệp vụ khác trả 503 MAINTENANCE
+// - Chế độ bảo trì KHÔNG chặn refresh, logout (và GET /auth/me); API nghiệp vụ khác trả 503 MAINTENANCE
 //   (mock: thêm ?maintenance=1 vào URL). 503 không phải hết phiên: không refresh, không xóa store.
 // - Template tĩnh không tự chạy guard (để mở từng trang HTML được); Vue gọi ensureSession()
-//   trong router.beforeEach của cổng Member. Nạp tài khoản (GET /auth/me) bổ sung ở U04, logout ở U03.
+//   trong router.beforeEach của cổng Member. Nạp tài khoản (GET /auth/me) bổ sung ở U04.
 // ----------------------------------------
 window.memberSession = (function () {
     const params = new URLSearchParams(window.location.search);
@@ -306,6 +306,27 @@ window.memberSession = (function () {
         return ready.catch(err => { if (!err || err.statusCode === 401) goLogin(); return null; });
     }
 
+    // Giả lập backend POST /api/v1/auth/logout (U03, M03 mục 3.2.1): không có body; KHÔNG bị bảo trì chặn.
+    // Luôn 200 data = null kèm Set-Cookie xóa cookie (idempotent: không có cookie/phiên đã thu hồi vẫn 200);
+    // Access Token thiếu/hết hạn → 401 UNAUTHORIZED (request() sẽ refresh một lần rồi gửi lại).
+    function mockUserLogout(token) {
+        return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+            if (!token) return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+            mockHasRefreshCookie = false; // backend đã thu hồi phiên (LOGOUT) và xóa cookie
+            return { success: true, statusCode: 200, message: 'Đăng xuất thành công', data: null, timestamp: now() };
+        });
+    }
+
+    // Đăng xuất: gọi API qua request() (401 → refresh một lần rồi gửi lại), rồi DÙ thành công hay lỗi
+    // vẫn xóa phiên phía client và về trang đăng nhập.
+    // Vue: authUser.clear(); preferencesUser.clear(); userSocket.disconnect() (namespace /notifications);
+    //      router.replace({ name: 'member.login' }). Cache `memberTheme` ở localStorage giữ lại.
+    function logout() {
+        return request(token => mockUserLogout(token))
+            .catch(() => null)
+            .then(() => { accessToken = null; goLogin(); });
+    }
+
     // Sau đăng nhập (token đầy đủ, mustChangePassword = false; token PASSWORD_CHANGE_ONLY không có cookie)
     // hoặc tự đổi mật khẩu: đặt token mới, backend đã đặt cookie Refresh Token qua Set-Cookie.
     // Vue: authUser.setAccessToken(token).
@@ -314,7 +335,7 @@ window.memberSession = (function () {
         mockHasRefreshCookie = true;
     }
 
-    return { ensureSession, request, refreshOnce, setAccessToken, mockUserApi };
+    return { ensureSession, request, refreshOnce, logout, setAccessToken, mockUserApi };
 })();
 
 // ----------------------------------------
@@ -332,14 +353,24 @@ window.openLogoutModal = function() {
 };
 
 window.closeLogoutModal = function() {
+    // Đang gửi POST /auth/logout (nút đã khóa) thì không đóng hộp.
+    const busy = document.querySelector('#logoutModal .confirm-modal-btn--danger');
+    if (busy && busy.disabled) return;
     const modal = document.getElementById('logoutModal');
     if (modal) {
         modal.style.display = 'none';
     }
 };
 
+// Nút "Đăng xuất" trong #logoutModal: khóa nút khi đang gọi API, tránh bấm hai lần.
 window.confirmLogout = function() {
-    window.location.href = 'login.html';
+    const btn = document.querySelector('#logoutModal .confirm-modal-btn--danger');
+    if (btn) {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = 'Đang đăng xuất...';
+    }
+    window.memberSession.logout();
 };
 
 window.showToast = function(message, type = 'success', duration = 4000) {
