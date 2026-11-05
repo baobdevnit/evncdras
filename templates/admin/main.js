@@ -353,13 +353,14 @@ window.adminSession = (function () {
 
     // Áp thiết lập lên giao diện toàn cổng: data-theme, sidebar ban đầu; itemsPerPage/dashboardWidgets/soundAlertEnabled
     // do từng màn hình đọc qua getPreferences(). Ghi cache `adminTheme` (chỉ theme) để chống nháy ở lần tải sau.
-    function applyPreferences(prefs) {
+    // options.skipCache: áp tạm (savePreferences trước khi có 200, hoàn tác) không ghi cache.
+    function applyPreferences(prefs, options) {
         const root = document.documentElement;
         if (prefs.theme === 'LIGHT') root.setAttribute('data-theme', 'light');
         else if (prefs.theme === 'DARK') root.setAttribute('data-theme', 'dark');
         else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) root.setAttribute('data-theme', 'dark');
         else root.removeAttribute('data-theme');
-        writeThemeCache(prefs.theme);
+        if (!(options && options.skipCache)) writeThemeCache(prefs.theme);
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) sidebar.classList.toggle('collapsed', !!prefs.isSidebarCollapsed);
         window.dispatchEvent(new CustomEvent('theme-changed', { detail: { isDark: root.getAttribute('data-theme') === 'dark' } }));
@@ -377,9 +378,10 @@ window.adminSession = (function () {
         });
     }
 
-    // Bản sao thiết lập hiện tại (chưa nạp → mặc định DDL).
+    // Bản sao thiết lập hiện tại (chưa nạp → mặc định DDL, theme theo cache).
     function getPreferences() {
-        return clonePreferences(currentPreferences || DEFAULT_PREFERENCES);
+        return clonePreferences(currentPreferences ||
+            Object.assign({}, DEFAULT_PREFERENCES, { theme: readThemeCache() || DEFAULT_PREFERENCES.theme }));
     }
 
     // ---------- Lưu thiết lập: PUT /api/v1/admin/profile/preferences (A10, M09 mục 3.7) ----------
@@ -446,21 +448,24 @@ window.adminSession = (function () {
     // Lưu một thay đổi theo kiểu "áp ngay, lỗi thì hoàn tác" (M09 mục 3.7):
     // 1) chụp giá trị cũ các trường của patch, đổi store + áp giao diện ngay;
     // 2) PUT chỉ các trường đó qua request() (401 → refresh một lần rồi gửi lại);
-    // 3) thành công: store = data của response; lỗi: trả các trường đó về giá trị cũ rồi ném lỗi để màn hình báo.
+    // 3) thành công: store = data của response, áp lại + ghi cache adminTheme; lỗi: trả các trường đó về giá trị cũ
+    //    rồi ném lỗi để màn hình báo. Áp tạm/hoàn tác không ghi cache. Store trống lúc gọi (nạp ở guard lỗi):
+    //    lỗi thì store trở lại trống (màn hình cài đặt vẫn gọi lại GET), giao diện về mặc định + theme đã cache.
     // Vue: action `save(patch)` của store preferencesAdmin.
     function savePreferences(patch) {
+        const wasEmpty = !currentPreferences;
         const before = getPreferences();
         const previous = {};
         Object.keys(patch).forEach(k => { previous[k] = before[k]; });
         currentPreferences = Object.assign(getPreferences(), clonePreferences(Object.assign({}, before, patch)));
-        applyPreferences(currentPreferences);
+        applyPreferences(currentPreferences, { skipCache: true });
         return request(token => mockAdminUpdatePreferences(token, patch)).then(res => {
             currentPreferences = res.data;
             applyPreferences(currentPreferences);
             return getPreferences();
         }).catch(err => {
-            currentPreferences = Object.assign(getPreferences(), previous);
-            applyPreferences(currentPreferences);
+            currentPreferences = wasEmpty ? null : Object.assign(getPreferences(), previous);
+            applyPreferences(getPreferences(), { skipCache: true });
             throw err;
         });
     }

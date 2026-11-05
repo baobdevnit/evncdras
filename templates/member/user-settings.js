@@ -3,16 +3,17 @@
  * PAGE: Cài đặt tài khoản Member (AccountSettingsView, /account-settings)
  * File: templates/member/user-settings.js
  * API: GET /api/v1/profile/preferences (docs/modules/08_user_profile.md mục 3.5.1, mục 5.2)
- * Lưu thay đổi: PUT /api/v1/profile/preferences (U12, M08 mục 3.5.2; chưa nối: hiện chỉ đổi store
- *   qua memberSession.setPreferences và áp giao diện). U12: áp ngay, chỉ gửi trường vừa đổi, đang gửi thì
- *   khóa điều khiển, lỗi thì hoàn tác + toast (khung A10, templates/admin/user-settings.js).
+ * Lưu thay đổi: PUT /api/v1/profile/preferences (M08 mục 3.5.2) qua memberSession.savePreferences: áp ngay,
+ *   chỉ gửi trường vừa đổi, đang gửi thì khóa điều khiển, lỗi thì hoàn tác + toast (503: toast cảnh báo + biểu ngữ
+ *   bảo trì); không có nút "Lưu" (khung A10, templates/admin/user-settings.js).
  * ============================================================
  *
  * Dữ liệu: store preferencesUser (window.memberSession.getPreferences). Guard của cổng đã nạp một lần khi vào cổng;
  * lần nạp đó lỗi (mạng, 503 bảo trì) thì store trống → màn hình tự gọi loadPreferences và hiện trạng thái
  * tải/lỗi + nút "Thử lại". Màn hình chỉ có điều khiển cho đúng 5 trường của response: theme, isSidebarCollapsed,
  * itemsPerPage, emailNotificationEnabled, soundAlertEnabled (không có dashboardWidgets).
- * Mock: ?maintenance=1 (503), ?prefsError=1 (lỗi mạng lần đầu), ?account=locked (401 → về login).
+ * Mock: ?maintenance=1 (503), ?prefsError=1 (lỗi mạng lần đầu), ?account=locked (401 → về login),
+ *   ?prefsSave=fail (PUT lỗi mạng lần đầu → hoàn tác), ?prefsSave=503 (bảo trì bật sau khi đã nạp → hoàn tác).
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -91,23 +92,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnRetry.addEventListener('click', load);
 
-    // ---------- Thay đổi (U12 sẽ gọi PUT .../preferences chỉ trường vừa đổi; lỗi thì hoàn tác) ----------
-    function change(patch, message) {
-        render(session.setPreferences(patch));
-        notify(message);
+    // ---------- Thay đổi: PUT /api/v1/profile/preferences chỉ trường vừa đổi (M08 mục 3.5.2) ----------
+    // savePreferences áp ngay vào store/giao diện (preferences-changed → render), lỗi thì tự hoàn tác.
+    // Đang gửi thì khóa điều khiển đó (nhóm theme khóa cả 3 lựa chọn).
+    function change(patch, message, lockEls) {
+        lockEls.forEach(el => { el.disabled = true; });
+        return session.savePreferences(patch)
+            .then(prefs => { render(prefs); notify(message); })
+            .catch(err => {
+                render(session.getPreferences());
+                if (err && err.statusCode === 401) return; // đã chuyển về trang đăng nhập
+                if (err && err.statusCode === 503) { notify(err.message, 'warning'); return; } // biểu ngữ do request()
+                const fieldMsg = err && err.errors && Object.values(err.errors)[0];
+                notify((fieldMsg && fieldMsg[0]) || (err && err.statusCode && err.message) ||
+                    'Không lưu được thiết lập. Vui lòng thử lại.', 'error');
+            })
+            .finally(() => { lockEls.forEach(el => { el.disabled = false; }); });
     }
 
     themeInputs.forEach(input => input.addEventListener('change', () => {
-        if (input.checked) change({ theme: input.value }, 'Đã đổi chế độ giao diện.');
+        if (input.checked) change({ theme: input.value }, 'Đã đổi chế độ giao diện.', Array.from(themeInputs));
     }));
     sidebarInput.addEventListener('change', () =>
-        change({ isSidebarCollapsed: sidebarInput.checked }, 'Đã cập nhật trạng thái menu mặc định.'));
+        change({ isSidebarCollapsed: sidebarInput.checked }, 'Đã cập nhật trạng thái menu mặc định.', [sidebarInput]));
     itemsPerPageSelect.addEventListener('change', () =>
-        change({ itemsPerPage: Number(itemsPerPageSelect.value) }, `Hiển thị ${itemsPerPageSelect.value} bản ghi mỗi trang.`));
+        change({ itemsPerPage: Number(itemsPerPageSelect.value) }, `Hiển thị ${itemsPerPageSelect.value} bản ghi mỗi trang.`, [itemsPerPageSelect]));
     emailInput.addEventListener('change', () =>
-        change({ emailNotificationEnabled: emailInput.checked }, 'Đã cập nhật nhận email cảnh báo.'));
+        change({ emailNotificationEnabled: emailInput.checked }, 'Đã cập nhật nhận email cảnh báo.', [emailInput]));
     soundInput.addEventListener('change', () =>
-        change({ soundAlertEnabled: soundInput.checked }, 'Đã cập nhật âm thanh cảnh báo.'));
+        change({ soundAlertEnabled: soundInput.checked }, 'Đã cập nhật âm thanh cảnh báo.', [soundInput]));
 
     // Nút đổi Sáng/Tối ở header cũng đổi store → đồng bộ lại các điều khiển
     window.addEventListener('preferences-changed', e => { if (!layout.hidden) render(e.detail); });

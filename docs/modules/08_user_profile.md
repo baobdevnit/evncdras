@@ -304,12 +304,89 @@ Không trả `id`, `user_type`, `user_id`, `custom_preferences`, `updated_at`, k
   - Guard của khu vực Member, khi store `authUser` đã có `user` (sau đăng nhập hoặc sau `GET /api/v1/auth/me`, `docs/modules/03_auth_user.md` mục 3.2) mà store `preferencesUser` (`src/apps/member/stores/preferencesUser.store.ts`) còn trống, gọi API này qua `request()` của client cổng Member (`401` → refresh một lần rồi gửi lại; `503` → biểu ngữ bảo trì) và lưu `data` vào store. Store đã có dữ liệu thì không gọi lại; đăng xuất thì xóa store (giữ `memberTheme`). Token `PASSWORD_CHANGE_ONLY` không gọi (route bị buộc đổi mật khẩu dùng mặc định và `memberTheme` đã cache). Gọi lỗi (trừ `401`, kể cả `503`) **không chặn** vào cổng: dùng giá trị mặc định ở bảng trên, store vẫn trống để lần vào màn hình cài đặt gọi lại.
   - Áp dụng: `theme` → `LIGHT` gắn `data-theme="light"`, `DARK` gắn `data-theme="dark"`, `SYSTEM` bỏ thuộc tính để theo `prefers-color-scheme`; `isSidebarCollapsed` → trạng thái ban đầu của sidebar (nút thu gọn ở sidebar chỉ đổi tạm, không ghi storage, không lưu); `itemsPerPage` → `limit` mặc định của các bảng phân trang (đổi tạm ở từng màn hình không lưu); `soundAlertEnabled` → phát chuông khi nhận thông báo `CRITICAL`; `emailNotificationEnabled` chỉ hiển thị ở màn hình cài đặt.
   - Chống nháy giao diện (FOUC): sau khi nạp, ghi **riêng giá trị `theme`** vào `localStorage` khóa `memberTheme`; script đầu trang đọc khóa này trước khi Vue chạy (`SYSTEM` hoặc chưa có thì theo `prefers-color-scheme`). Không ghi trường khác, không dùng `sessionStorage`.
-  - `AccountSettingsView` (`/account-settings`, mục 5.2) đọc từ store, không gọi lại API; store trống (lần nạp ở guard lỗi) thì gọi API, hiện trạng thái tải/lỗi kèm nút "Thử lại" (`503`: thông điệp bảo trì của API trong khối trạng thái, cùng biểu ngữ của `request()`; `401` sau refresh thất bại: `request()` đã về `member.login`). Màn hình chỉ có điều khiển cho đúng 5 trường của response. Mẫu: `templates/member/user-settings.js`, `window.memberSession.loadPreferences`/`getPreferences`/`setPreferences`/`applyPreferences` trong `templates/member/main.js`.
+  - `AccountSettingsView` (`/account-settings`, mục 5.2) đọc từ store, không gọi lại API; store trống (lần nạp ở guard lỗi) thì gọi API, hiện trạng thái tải/lỗi kèm nút "Thử lại" (`503`: thông điệp bảo trì của API trong khối trạng thái, cùng biểu ngữ của `request()`; `401` sau refresh thất bại: `request()` đã về `member.login`). Màn hình chỉ có điều khiển cho đúng 5 trường của response. Mẫu: `templates/member/user-settings.js`, `window.memberSession.loadPreferences`/`getPreferences`/`hasPreferences`/`applyPreferences` trong `templates/member/main.js` (lưu: `savePreferences`, mục 3.5.2).
 - Index phục vụ: khóa chính `users`, `user_groups`; `uniq_user_settings` (`user_type`, `user_id`). Không cần index khác.
 
 #### 3.5.2. `PUT /api/v1/profile/preferences`
 
-- Body, xử lý (upsert theo `uniq_user_settings`, không ghi `audit_logs`), response, lỗi và cách frontend lưu (áp ngay, lỗi thì hoàn tác) theo bản Admin `docs/modules/09_admin_profile.md` mục 3.7, khác ở `UserAuthGuard`, `user_type = 'USER'`, store `preferencesUser` và **không** nhận `dashboardWidgets` (gửi thì `400` như trường lạ). *(Còn rà ở U12: nhóm `INACTIVE`, chế độ bảo trì `503`, mẫu `templates/member/user-settings.*`, nút theme ở `templates/member/main.js`; U11 đã dựng màn hình với điều khiển chỉ đổi store qua `memberSession.setPreferences`.)*
+Cùng khung với bản Admin (`docs/modules/09_admin_profile.md` mục 3.7: cập nhật một phần, không `null`, không ép kiểu, upsert chỉ cột đã gửi, không ghi `audit_logs`, áp ngay lỗi thì hoàn tác); mục này ghi đủ các bước cho bản User. Điểm khác bản Admin: bị chế độ bảo trì chặn, kiểm tra tài khoản bản User (nhóm, `must_change_password`), `user_type = 'USER'`, **không** nhận `dashboardWidgets` và không đụng `custom_preferences`, store `preferencesUser`, khóa `localStorage` `memberTheme`, mẫu `templates/member/{main,user-settings}.js`.
+
+- **Guard**: `UserAuthGuard`; không cần mã quyền. Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`. **Bị** chế độ bảo trì chặn (`503 MAINTENANCE`, trả trước khi kiểm tra body). Thứ tự: guard (`401`/`403`) → bảo trì (`503`) → kiểm tra query/body (`400`) → kiểm tra tài khoản (`401`) → ghi.
+- **Request**: không có query (có thì `400`). **Body** (`application/json`, cập nhật một phần, **ít nhất một trường**; trường không gửi giữ nguyên giá trị đã lưu, chưa có dòng thì giữ mặc định DDL). Không trường nào nhận `null`. Kiểu phải đúng JSON, không tự ép kiểu (`"20"`, `1`/`0`, `"true"` đều trả `400`):
+
+| Trường | Kiểu | Quy tắc | Cột đích |
+|---|---|---|---|
+| `theme` | string | Đúng một trong `LIGHT`, `DARK`, `SYSTEM` (chữ hoa) | `user_settings.theme` |
+| `isSidebarCollapsed` | boolean | `true` / `false` | `is_sidebar_collapsed` |
+| `itemsPerPage` | integer | Đúng một trong `10`, `20`, `50` | `items_per_page` |
+| `emailNotificationEnabled` | boolean | `true` / `false` | `email_notification_enabled` |
+| `soundAlertEnabled` | boolean | `true` / `false` | `sound_alert_enabled` |
+
+  Body rỗng `{}` trả `400` (`errors` có đủ 5 khóa trên, thông điệp "Cần gửi ít nhất một trường"). Mọi trường khác (`dashboardWidgets`, `customPreferences`, `id`, `userType`, `userId`, `updatedAt`…) trả `400`, `errors` theo tên trường đó ("Trường không được phép cập nhật").
+- **Xử lý** (một transaction, **không** ghi `audit_logs`: thiết lập cá nhân, R24-04):
+  1. Validate query/body như trên (lỗi trả `400`, không đọc CSDL).
+  2. Đọc `users` theo khóa chính `id = sub`, join `user_groups` theo khóa chính (đọc thường, **không** khóa: API không sửa `users`). **Kiểm tra tài khoản ở mỗi request** như mục 3.5.1 bước 1: không thấy dòng, `users.status` khác `ACTIVE`, `user_groups.status = 'INACTIVE'` (chốt phòng vệ) hoặc `must_change_password = 1` (token đầy đủ) → `401 UNAUTHORIZED`, không xóa cookie, không ghi.
+  3. Upsert một câu theo `uniq_user_settings`, chỉ các cột của trường đã gửi (cột không gửi khi chèn mới lấy mặc định DDL; `custom_preferences` không có trong câu lệnh nên dòng mới là `NULL`, dòng cũ giữ nguyên):
+     ```sql
+     INSERT INTO user_settings (user_type, user_id, <cột đã gửi>)
+     VALUES ('USER', :sub, <giá trị>)
+     ON DUPLICATE KEY UPDATE <cột đã gửi> = VALUES(<cột>);
+     ```
+  4. Không so sánh giá trị cũ: gửi lại đúng giá trị đang lưu vẫn trả `200`. Không thu hồi phiên, không gửi thông báo, không đẩy Socket.IO: tab/thiết bị khác của cùng user nhận giá trị mới ở lần vào cổng kế tiếp.
+  5. Đọc lại dòng `user_settings` trong cùng transaction, chuẩn hóa như mục 3.5.1 bước 3, trả `200`, `data` = **đúng 5 trường** như response của mục 3.5.1.
+- **Ví dụ**:
+
+```http
+PUT /api/v1/profile/preferences
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{ "theme": "DARK" }
+```
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Cập nhật thiết lập thành công",
+  "data": {
+    "theme": "DARK",
+    "isSidebarCollapsed": false,
+    "itemsPerPage": 20,
+    "emailNotificationEnabled": true,
+    "soundAlertEnabled": false
+  },
+  "timestamp": "2026-11-05T09:10:00+07:00"
+}
+```
+
+```json
+{
+  "success": false,
+  "statusCode": 400,
+  "errorCode": "VALIDATION_ERROR",
+  "message": "Dữ liệu không hợp lệ",
+  "errors": { "dashboardWidgets": ["Trường không được phép cập nhật"] },
+  "timestamp": "2026-11-05T09:10:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Body rỗng, giá trị `null`, sai kiểu, `theme`/`itemsPerPage` ngoài tập cho phép, có trường không được nhận (kể cả `dashboardWidgets`), có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng Admin (guard); kiểm tra tài khoản không qua (bước 2) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `503` | `MAINTENANCE` | Đang bật `system_maintenance_mode` (`errors = null`), kể cả khi body sai |
+
+- **Frontend** (áp ngay, lỗi thì hoàn tác; không có nút "Lưu"; cùng cách bản Admin):
+  - Mỗi lần đổi một điều khiển ở `AccountSettingsView` (mục 5.2), hoặc bấm nút Sáng/Tối ở header `MemberLayout`: chụp lại giá trị cũ, cập nhật store `preferencesUser` và áp lên giao diện ngay (`data-theme`, sidebar), rồi gửi `PUT` **chỉ trường vừa đổi** qua `request()` của client cổng Member (`401` → refresh một lần rồi gửi lại; `503` → biểu ngữ bảo trì). Lúc áp tạm **chưa** ghi cache `memberTheme`.
+  - Đang gửi thì khóa điều khiển đó (nhóm chọn theme khóa cả 3 lựa chọn; nút header khóa nút). Thành công: thay store bằng `data`, áp lại, ghi cache `memberTheme` (chỉ `theme`), toast ngắn. Lỗi (trừ `401` đã chuyển về đăng nhập): trả **các trường của lần gửi đó** về giá trị cũ trong store và điều khiển, áp lại giao diện, toast `message` của lỗi (`400`: thông điệp đầu tiên của `errors`); `503` toast **cảnh báo** (vàng) kèm biểu ngữ bảo trì, các lỗi khác toast lỗi.
+  - **Store trống** (lần nạp ở guard lỗi, vd. vào cổng lúc bảo trì; chỉ nút header gửi được vì màn hình cài đặt chưa hiện điều khiển): áp tạm trên nền mặc định DDL + `memberTheme` đã cache; thành công thì store = `data` (đủ 5 trường, coi như đã nạp); lỗi thì store **trở lại trống** (không giữ giá trị mặc định như dữ liệu đã nạp, để màn hình cài đặt vẫn gọi lại `GET`) và giao diện về theme đã cache, cache không đổi.
+  - Nút thu gọn sidebar ở header **không** gọi API (chỉ thu gọn/mở tạm, mục 3.5.1); giá trị mặc định chỉ đổi ở màn hình cài đặt.
+  - Mẫu: `window.memberSession.savePreferences` (mock `mockPutUserPreferences`) trong `templates/member/main.js`, hàm `change()` trong `templates/member/user-settings.js`; mock lỗi lưu: `?prefsSave=fail` (lỗi mạng lần đầu), `?prefsSave=503` (bảo trì bật sau khi đã nạp).
+- Index phục vụ: khóa chính `users`, `user_groups`; `uniq_user_settings` (`user_type`, `user_id`) cho upsert. Không cần index khác.
 
 ### 3.6. Phiên đăng nhập của chính mình (`GET /api/v1/auth/sessions`, `DELETE /api/v1/auth/sessions/:id`)
 
@@ -441,3 +518,4 @@ Dữ liệu từ store `preferencesUser` (mục 3.5.1); store trống thì gọi
 5. **TC-UP-05** (`POST /api/v1/profile/avatar`): ảnh JPEG 1,5 MB 1200×800 có EXIF GPS: `200`, `data` đủ 15 trường của mục 3.1, `avatarUrl` dạng `/media/avatars/<uuid>.jpg`; file trên đĩa 256×256, không còn EXIF; một dòng `audit_logs` `USER / UPDATE` (`resource_id` = id người gọi, `actor_name` = `full_name`, `changedFields = ["avatarUrl"]`); header `MemberLayout` đổi ảnh ngay không gọi lại `/auth/me`, form "Thông tin cá nhân" đang sửa dở giữ nguyên; tải PNG kế tiếp thì file JPEG cũ bị xóa. File 2,1 MB, file `.png` thực chất là PDF, thiếu phần `file`, hai phần `file`, thêm phần `fullName`, gửi JSON, `?x=1` đều trả `400 VALIDATION_ERROR` và không có file mới trong `AVATAR_STORAGE_DIR`. Token `PASSWORD_CHANGE_ONLY` → `403`; khóa user hoặc ngừng hoạt động nhóm trong lúc token còn hạn → `401`, không ghi audit, không còn file mồ côi. Bật `system_maintenance_mode` → `503 MAINTENANCE` (cả khi file sai định dạng), không có file tạm, biểu ngữ bảo trì hiện, ảnh cũ giữ nguyên.
 6. **TC-UP-06** (`GET /api/v1/auth/sessions`): user A đăng nhập ở trình duyệt X (08:15) rồi Y (09:00); ở X refresh lúc 09:40. Gọi từ X: `200`, `data` mảng 2 phần tử, phần tử đầu là phiên của X (`isCurrent = true`, `id` = phiên mới sau xoay vòng, `loggedInAt` = 08:15, `lastActiveAt` = 09:40), sau là Y; mỗi phần tử đúng 7 trường. Tab thứ hai của X vừa refresh (tab đầu còn `sid` cũ): vẫn đánh dấu đúng phiên mới của X. Gọi bằng token của user B (cookie trình duyệt của A) chỉ trả phiên của B; phiên Admin cùng `id` số với A không xuất hiện (`actor_type`). Không phát sinh `audit_logs`, `last_used_at` không đổi. `?x=1` → `400`; token `PASSWORD_CHANGE_ONLY` → `403`; khóa user, ngừng hoạt động nhóm hoặc đặt lại mật khẩu trong lúc token còn hạn → `401`. Bật `system_maintenance_mode` → `503 MAINTENANCE` (khối phiên hiện lỗi + "Thử lại" riêng, biểu ngữ bảo trì hiện), `POST /auth/logout` vẫn `200`.
 7. **TC-UP-07** (`DELETE /api/v1/auth/sessions/:id`): user A có phiên X (đang dùng) và Y (trình duyệt khác). Từ X, `DELETE /api/v1/auth/sessions/<Y>` trả `200` `{ "revoked": true }`; Y có `revoked_reason = 'REVOKED_BY_SELF'`; một dòng `audit_logs` `AUTH / SESSION_REVOKED` (`actor_type = 'USER'`, `actor_name` = `full_name` của A, `resource_id` = id của Y, `action_details` `NULL`); refresh ở Y trả `401` và xóa cookie, Access Token còn hạn của Y vẫn gọi được API tới khi hết hạn. Gọi lại cùng id: `200` `{ "revoked": false }`, không thêm dòng audit. Y refresh (Y → Y') rồi X gọi `DELETE` với id cũ của Y: Y' bị thu hồi, `resource_id` = id của Y'. `DELETE` id của X, hoặc id cũ của X trước khi xoay vòng: `400 VALIDATION_ERROR` có `errors.id`, X vẫn hiệu lực. Id phiên của user B, id phiên Admin trùng `actor_id` số với A, id không tồn tại: `404 NOT_FOUND` cùng thông điệp. `:id` = `abc`, `0`, `-1`: `400` có `errors.id`; `?x=1` hoặc body `{"x":1}`: `400`; token `PASSWORD_CHANGE_ONLY` → `403`; khóa A, ngừng hoạt động nhóm hoặc đặt lại mật khẩu trong lúc token còn hạn → `401`, Y không bị thu hồi. Bật `system_maintenance_mode` → `503 MAINTENANCE` (kể cả `:id` = `abc`), Y không bị thu hồi, toast cảnh báo + biểu ngữ bảo trì, danh sách giữ nguyên. Ở màn hình hồ sơ, dòng "Phiên này" không có nút "Thu hồi"; thu hồi Y qua hộp xác nhận thì Y biến khỏi danh sách.
+8. **TC-UP-08** (`PUT /api/v1/profile/preferences`): user chưa có dòng `user_settings`: `{ "theme": "DARK" }` trả `200`, `data` đúng 5 trường (`theme = "DARK"`, còn lại mặc định, không có `dashboardWidgets`); CSDL có đúng một dòng `user_settings` mới `user_type = 'USER'`, `custom_preferences = NULL`; không có dòng `audit_logs`. Dòng đã có `custom_preferences` (sửa tay) thì sau `{ "itemsPerPage": 50 }` vẫn giữ nguyên `custom_preferences`. Mỗi body sau trả `400 VALIDATION_ERROR` đúng khóa `errors` và CSDL không đổi: `{}`, `{ "theme": "dark" }`, `{ "theme": null }`, `{ "itemsPerPage": 100 }`, `{ "itemsPerPage": "20" }`, `{ "isSidebarCollapsed": 1 }`, `{ "dashboardWidgets": [] }`, `{ "customPreferences": {} }`; `?x=1` → `400`; token `PASSWORD_CHANGE_ONLY` → `403`; khóa user, ngừng hoạt động nhóm hoặc đặt lại mật khẩu trong lúc token còn hạn → `401`, CSDL không đổi. Bật `system_maintenance_mode` → `503 MAINTENANCE` (kể cả body `{}`), CSDL không đổi. Ở màn hình cài đặt: đổi "Tối" thì giao diện tối ngay, nhóm chọn theme khóa tới khi xong, `localStorage.memberTheme = "DARK"` sau khi `200`; giả lập lỗi lưu (`?prefsSave=fail`) thì điều khiển và giao diện trở về giá trị cũ, toast lỗi, cache không đổi; bảo trì bật sau khi đã nạp (`?prefsSave=503`) thì cũng hoàn tác, toast cảnh báo, biểu ngữ hiện. Vào cổng lúc bảo trì (store trống) rồi bấm nút theme ở header: `503`, giao diện về theme đã cache, màn hình cài đặt vẫn hiện thông điệp bảo trì + "Thử lại" (không hiện giá trị mặc định như đã nạp).

@@ -51,11 +51,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (themeToggleBtn) {
         updateIcon();
 
-        // Nút ở header đổi nhanh Sáng ↔ Tối qua store thiết lập (memberSession.setPreferences áp data-theme,
-        // cache `memberTheme`, phát theme-changed). U12 sẽ lưu qua PUT /api/v1/profile/preferences { theme }.
+        // Nút ở header đổi nhanh Sáng ↔ Tối và lưu ngay: PUT /api/v1/profile/preferences { theme } (U12, M08 mục 3.5.2).
+        // Áp ngay, đang gửi thì khóa nút, lỗi thì savePreferences đã hoàn tác → chỉ báo toast
+        // (503 bảo trì: toast cảnh báo, biểu ngữ do request() hiện).
         themeToggleBtn.addEventListener('click', () => {
+            if (themeToggleBtn.disabled) return;
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-            window.memberSession.setPreferences({ theme: isDark ? 'LIGHT' : 'DARK' });
+            themeToggleBtn.disabled = true;
+            window.memberSession.savePreferences({ theme: isDark ? 'LIGHT' : 'DARK' })
+                .catch(err => {
+                    if (err && err.statusCode === 401) return; // đã chuyển về trang đăng nhập
+                    if (typeof window.showToast === 'function') {
+                        window.showToast((err && err.message) || 'Không lưu được chế độ giao diện.',
+                            err && err.statusCode === 503 ? 'warning' : 'error');
+                    }
+                })
+                .finally(() => { themeToggleBtn.disabled = false; });
         });
         window.addEventListener('theme-changed', updateIcon);
     }
@@ -517,12 +528,87 @@ window.memberSession = (function () {
         return !!currentPreferences;
     }
 
-    // Đổi store rồi áp ngay (chưa gọi API). U12 thay bằng savePreferences(patch): PUT chỉ trường vừa đổi,
-    // áp ngay, lỗi thì hoàn tác (khung A10, templates/admin/main.js).
-    function setPreferences(patch) {
+    // ---------- Lưu thiết lập: PUT /api/v1/profile/preferences (U12, M08 mục 3.5.2) ----------
+    const PREF_FIELDS = ['theme', 'isSidebarCollapsed', 'itemsPerPage', 'emailNotificationEnabled', 'soundAlertEnabled'];
+
+    // Kiểm tra body như backend: cập nhật một phần, ít nhất một trường, không null, không ép kiểu;
+    // trường khác (kể cả dashboardWidgets của bản Admin) → 400. Trả errors hoặc null.
+    function validatePreferencesBody(body) {
+        const errors = {};
+        const add = (field, msg) => { (errors[field] = errors[field] || []).push(msg); };
+        const keys = Object.keys(body || {});
+        if (keys.length === 0) {
+            PREF_FIELDS.forEach(f => add(f, 'Cần gửi ít nhất một trường'));
+            return errors;
+        }
+        keys.forEach(k => { if (!PREF_FIELDS.includes(k)) add(k, 'Trường không được phép cập nhật'); });
+        if ('theme' in body && !THEMES.includes(body.theme)) add('theme', 'Chế độ giao diện chỉ nhận LIGHT, DARK hoặc SYSTEM');
+        if ('itemsPerPage' in body && ![10, 20, 50].includes(body.itemsPerPage)) add('itemsPerPage', 'Số dòng mỗi trang chỉ nhận 10, 20 hoặc 50');
+        ['isSidebarCollapsed', 'emailNotificationEnabled', 'soundAlertEnabled'].forEach(f => {
+            if (f in body && typeof body[f] !== 'boolean') add(f, 'Giá trị phải là true hoặc false');
+        });
+        return Object.keys(errors).length ? errors : null;
+    }
+
+    // Mock lỗi lưu: ?prefsSave=fail → lỗi mạng ở lần PUT đầu; ?prefsSave=503 → bảo trì bật sau khi đã nạp (PUT luôn 503).
+    let mockPrefsSaveFail = params.get('prefsSave') === 'fail';
+    const MOCK_PREFS_SAVE_MAINTENANCE = params.get('prefsSave') === '503';
+
+    // Giả lập backend PUT /api/v1/profile/preferences: thứ tự guard (401/403) → bảo trì (503, trước kiểm tra body)
+    // → query/body (400) → đọc users + user_groups (kiểm tra tài khoản, 401) → upsert theo uniq_user_settings chỉ cột
+    // đã gửi (user_type = 'USER', không đụng custom_preferences); không ghi audit. 200 data = đúng 5 trường như GET.
+    // MOCK_PREFERENCES đóng vai dòng user_settings đã lưu.
+    function mockPutUserPreferences(token, body, query) {
+        return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+            if (mockPrefsSaveFail) { mockPrefsSaveFail = false; return Promise.reject(new Error('Network Error')); }
+            if (!token) return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+            if (MOCK_MAINTENANCE || MOCK_PREFS_SAVE_MAINTENANCE) return fail(503, 'MAINTENANCE', 'Hệ thống đang bảo trì, vui lòng quay lại sau');
+            const errors = (query && Object.keys(query).length)
+                ? { query: ['API không nhận tham số truy vấn'] }
+                : validatePreferencesBody(body);
+            if (errors) {
+                return Promise.reject({
+                    success: false, statusCode: 400, errorCode: 'VALIDATION_ERROR',
+                    message: 'Dữ liệu không hợp lệ', errors, timestamp: now()
+                });
+            }
+            if (MOCK_ACCOUNT_LOCKED) return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+            Object.assign(MOCK_PREFERENCES, body);
+            return {
+                success: true, statusCode: 200, message: 'Cập nhật thiết lập thành công',
+                data: clonePreferences(MOCK_PREFERENCES), timestamp: now()
+            };
+        });
+    }
+
+    // Lưu một thay đổi theo kiểu "áp ngay, lỗi thì hoàn tác" (M08 mục 3.5.2, khung A10 của adminSession):
+    // 1) chụp giá trị cũ các trường của patch, đổi store + áp giao diện ngay (chưa ghi cache memberTheme);
+    // 2) PUT chỉ các trường đó qua request() (401 → refresh một lần rồi gửi lại; 503 → biểu ngữ bảo trì);
+    // 3) thành công: store = data của response, áp lại + ghi cache; lỗi: trả các trường đó về giá trị cũ rồi ném lỗi
+    //    để nơi gọi báo toast. Store trống lúc gọi (nạp ở guard lỗi): lỗi thì store trở lại trống (màn hình cài đặt
+    //    vẫn gọi lại GET), giao diện về mặc định + theme đã cache.
+    // Vue: action `save(patch)` của store preferencesUser.
+    function savePreferences(patch) {
+        const wasEmpty = !currentPreferences;
+        const before = getPreferences();
         currentPreferences = Object.assign(getPreferences(), patch);
-        applyPreferences(currentPreferences);
-        return getPreferences();
+        applyPreferences(currentPreferences, { skipCache: true });
+        return request(token => mockPutUserPreferences(token, patch)).then(res => {
+            currentPreferences = res.data;
+            applyPreferences(currentPreferences);
+            return getPreferences();
+        }).catch(err => {
+            if (wasEmpty) {
+                currentPreferences = null;
+            } else {
+                // Chỉ trả các trường của lần gửi này (lần lưu khác đang chạy không bị ghi đè); khóa lạ thì bỏ.
+                const next = getPreferences();
+                Object.keys(patch).forEach(k => { if (k in before) next[k] = before[k]; else delete next[k]; });
+                currentPreferences = next;
+            }
+            applyPreferences(getPreferences(), { skipCache: true });
+            throw err;
+        });
     }
 
     // Giả lập một API nghiệp vụ bất kỳ của cổng Member (vd. GET /api/v1/profile) để minh họa request():
@@ -592,7 +678,7 @@ window.memberSession = (function () {
     });
 
     return { ensureSession, request, refreshOnce, loadMe, logout, renderAccount, getAccount, updateAccount, setAccessToken, mockUserApi,
-        loadPreferences, getPreferences, hasPreferences, setPreferences, applyPreferences };
+        loadPreferences, getPreferences, hasPreferences, savePreferences, applyPreferences };
 })();
 
 // ----------------------------------------

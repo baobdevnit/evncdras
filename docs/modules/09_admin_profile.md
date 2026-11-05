@@ -663,6 +663,7 @@ Content-Type: application/json
   - Mỗi lần đổi một điều khiển ở `AccountSettingsView` (mục 5.2), hoặc bấm nút Sáng/Tối ở header `AdminLayout`: chụp lại giá trị cũ, cập nhật store `preferencesAdmin` và áp lên giao diện ngay (như mục 3.6), rồi gửi `PUT` **chỉ trường vừa đổi** qua API client của cổng (`401` → refresh một lần rồi gửi lại). Đổi widget (công tắc hoặc lên/xuống) gửi đủ mảng `dashboardWidgets` 6 phần tử, `order` đánh lại 1…6.
   - Đang gửi thì khóa điều khiển đó (nút header: khóa nút). Thành công: thay store bằng `data`, áp lại, ghi cache `adminTheme` (chỉ `theme`), toast ngắn. Lỗi (trừ `401` đã chuyển về đăng nhập): trả **các trường của lần gửi đó** về giá trị cũ trong store và điều khiển, áp lại giao diện, toast `message` của lỗi.
   - Nút thu gọn sidebar ở header **không** gọi API (chỉ thu gọn/mở tạm, mục 3.6); giá trị mặc định chỉ đổi ở màn hình cài đặt.
+  - Lúc áp tạm **chưa** ghi cache `adminTheme` (chỉ ghi sau `200`, nên hoàn tác không cần sửa cache). **Store trống** (lần nạp ở guard lỗi; chỉ nút header gửi được): áp tạm trên nền mặc định DDL + theme đã cache; thành công thì store = `data`; lỗi thì store **trở lại trống** (không giữ mặc định như dữ liệu đã nạp, để màn hình cài đặt vẫn gọi lại `GET`), giao diện về theme đã cache. Bản User: `docs/modules/08_user_profile.md` mục 3.5.2.
   - Mẫu: `window.adminSession.savePreferences` trong `templates/admin/main.js`, hàm `change()` trong `templates/admin/user-settings.js`.
 - Index phục vụ: khóa chính `admins`; `uniq_user_settings` (`user_type`, `user_id`) cho upsert.
 
