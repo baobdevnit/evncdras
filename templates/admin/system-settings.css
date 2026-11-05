@@ -247,3 +247,119 @@ html {
         border-bottom-color: var(--primary) !important;
     }
 }
+
+/* Mục "Quản trị viên" – AdminAccountsSection (M04 mục 5.2), khung dựng ở A14 */
+.settings-tab-pane[hidden],
+.settings-nav-btn[hidden] {
+    display: none !important;
+}
+
+.admins-state {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 1rem;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.admins-state.is-error {
+    border-color: var(--secondary);
+    color: var(--secondary);
+}
+
+.admins-state[hidden],
+.admins-state [hidden],
+#adminsTableWrap[hidden] {
+    display: none !important;
+}
+
+.admins-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.admins-table th,
+.admins-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.admins-table th {
+    background-color: var(--table-header-bg);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.admins-table tbody tr:hover {
+    background-color: var(--row-hover-bg);
+}
+
+.admins-sub {
+    font-size: 0.8125rem;
+}
+
+.admins-self-tag {
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background-color: var(--primary-light);
+    color: var(--primary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+.admins-role {
+    padding: 4px 10px;
+    border-radius: 12px;
+    background-color: var(--primary-light);
+    color: var(--primary);
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* ROOT_ADMIN nổi bật màu vàng gold (M04 mục 5.2) */
+.admins-role--root {
+    background-color: var(--accent-light);
+    color: #9a7b00;
+    border: 1px solid var(--accent);
+}
+
+[data-theme="dark"] .admins-role--root {
+    color: var(--accent);
+}
+
+.admins-status--active {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.admins-status--locked {
+    background-color: var(--accent-light);
+    color: #b45309;
+}
+
+.admins-status--inactive {
+    background-color: var(--secondary-light);
+    color: var(--secondary);
+}
+
+.admins-actions-col {
+    text-align: right !important;
+    white-space: nowrap;
+}
+
+.admins-table .btn-revoke-sessions {
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+}

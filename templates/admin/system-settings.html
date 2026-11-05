@@ -290,6 +290,18 @@
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                                 Hệ thống
                             </button>
+                            <!-- Mục admins (M04 mục 5.2): chỉ hiện khi tài khoản có admin:manage (ROOT_ADMIN) -->
+                            <button
+                                type="button"
+                                class="profile-nav-btn settings-nav-btn"
+                                data-section="admins"
+                                data-tab="admins"
+                                data-permission="admin:manage"
+                                hidden
+                            >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                Quản trị viên
+                            </button>
                         </div>
                     </aside>
 
@@ -446,6 +458,38 @@
                                 </div>
                             </div>
                         </div>
+                        </div>
+
+                        <!-- Tab 4: Quản trị viên – AdminAccountsSection.vue (M04 mục 3.2, 3.7, 5.2).
+                             Khung dựng ở A14: danh sách mock theo phần tử GET /admin/admins, thao tác "Thu hồi phiên".
+                             Tìm kiếm/lọc/phân trang (A15) và các thao tác khác (A16–A21) dựng tiếp. -->
+                        <div id="section-admins" class="settings-tab-pane" data-permission="admin:manage" hidden>
+                            <div class="card">
+                            <div class="card-header">
+                                <h3>Quản trị viên</h3>
+                            </div>
+                            <div class="card-body">
+                                <div id="adminsState" class="admins-state" role="status">
+                                    <span id="adminsMessage">Đang tải danh sách quản trị viên...</span>
+                                    <button type="button" id="btnRetryAdmins" class="btn btn-outline" hidden>Thử lại</button>
+                                </div>
+                                <div class="table-responsive" id="adminsTableWrap" hidden>
+                                    <table class="data-table admins-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Quản trị viên</th>
+                                                <th>Email</th>
+                                                <th>Vai trò</th>
+                                                <th>Trạng thái</th>
+                                                <th>Đăng nhập gần nhất</th>
+                                                <th class="admins-actions-col">Thao tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="adminsTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            </div>
                         </div>
 
                     </div>

@@ -195,9 +195,45 @@ Bảng MariaDB: `admins`, `admin_roles`, `roles`, `permission_roles`, `permissio
 
 ### 3.7. Thu hồi mọi phiên của Admin khác (`DELETE /api/v1/admin/admins/:id/sessions`)
 
-- **Guard**: `AdminAuthGuard`, `Permission: admin:manage`. Không có body.
-- Thu hồi mọi phiên còn hiệu lực của admin `:id` (`revoked_reason = 'REVOKED_BY_ADMIN'`), ghi `audit_logs` `AUTH / SESSION_REVOKED` với `action_details = { "targetActorType": "ADMIN", "revokedCount": n }`. Response `200`: `data = { "revokedCount": n }` (0 nếu không còn phiên nào).
-- Chặn chính mình (`403 SELF_ACTION_FORBIDDEN`; thu hồi phiên của mình qua `DELETE /admin/auth/sessions/:id`) và tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`). Tài khoản `INACTIVE` không còn phiên nên trả `200` với `revokedCount = 0`.
+- **Guard**: `AdminAuthGuard`, `PermissionsGuard` với `admin:manage` (chỉ vai trò `ROOT_ADMIN` có, mục 4.1). Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`; thiếu quyền trả `403 FORBIDDEN_PERMISSION`.
+- **Request**: `:id` là `admins.id` (`int(11) unsigned`): chuỗi `^[1-9][0-9]{0,9}$` và ≤ 4294967295, sai thì `400 VALIDATION_ERROR` với `errors.id`. Không có query, không có body; gửi query param hoặc body có trường thì `400 VALIDATION_ERROR`.
+- **Xử lý** (một transaction):
+  1. Đọc `admins` theo khóa chính `id = sub`; không thấy dòng hoặc `status` khác `ACTIVE` trả `401 UNAUTHORIZED` (cùng quy tắc mục 3.1.1).
+  2. `:id` = `sub` trả `403 SELF_ACTION_FORBIDDEN` (thu hồi phiên khác của mình qua `DELETE /admin/auth/sessions/:id`, phiên đang dùng qua `logout`).
+  3. `SELECT ... FROM admins WHERE id = :id FOR UPDATE` (khóa chính; chạy tuần tự với khóa, ngừng hoạt động, đặt lại mật khẩu cùng tài khoản). Không thấy trả `404 NOT_FOUND`.
+  4. Vai trò của tài khoản đích (`admin_roles` theo khóa chính `admin_id`, nối `roles`) là `ROOT_ADMIN` trả `403 ROOT_ADMIN_PROTECTED`; không ghi `audit_logs` (chỉ người có `admin:manage`, tức Root Admin, gọi được API này).
+  5. `UPDATE auth_sessions SET revoked_at = NOW(), revoked_reason = 'REVOKED_BY_ADMIN' WHERE actor_type = 'ADMIN' AND actor_id = :id AND revoked_at IS NULL AND expires_at > NOW()` (qua `idx_session_actor`); `n` = số dòng bị sửa. Phiên đã hết hạn mà chưa thu hồi để nguyên (job dọn dẹp xóa, `docs/01_database_schema.md` mục 6.1). Không xét `status` của tài khoản đích: `LOCKED`/`INACTIVE` đã bị thu hồi mọi phiên khi khóa/ngừng hoạt động nên thường `n = 0`.
+  6. `n > 0`: ghi `audit_logs` `AUTH / SESSION_REVOKED` (`actor_type = 'ADMIN'`, `actor_id` = `sub`, `actor_name` = `admins.full_name` của người gọi, `resource_id` = `:id` (id admin đích, không phải id phiên), `ip_address`, `user_agent` của request, `action_details = { "targetActorType": "ADMIN", "revokedCount": n }`). `n = 0`: không ghi gì (như `logout` và `DELETE /admin/auth/sessions/:id`).
+- **Refresh đồng thời của tài khoản đích**: `refresh` khóa phiên theo `refresh_token_hash`; câu `UPDATE` bước 5 là đọc khóa nên chạy tuần tự với nó: refresh commit trước thì phiên mới (vừa xoay vòng) bị bước 5 thu hồi; bước 5 trước thì refresh thấy `REVOKED_BY_ADMIN` và trả `401` (xóa cookie, không phải `REUSE_DETECTED`), kể cả nhánh ân hạn đi theo chuỗi tới phiên đã bị thu hồi. Lần đăng nhập commit sau thời điểm thu hồi tạo phiên mới hợp lệ, không bị ảnh hưởng.
+- **Hiệu lực trên thiết bị bị thu hồi**: Access Token đã cấp vẫn dùng được tới khi hết hạn (tối đa `security_access_token_minutes` phút), như `docs/modules/09_admin_profile.md` mục 3.5.2; lần refresh kế tiếp trả `401`. Không có sự kiện Socket.IO đẩy ra ngay. Muốn chặn ngay cả Access Token thì khóa tài khoản (mục 3.4: guard trả `401` khi không còn `ACTIVE`).
+- **Response** `200`:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đã thu hồi phiên đăng nhập của quản trị viên",
+  "data": { "revokedCount": 2 },
+  "timestamp": "2026-11-05T10:30:00+07:00"
+}
+```
+
+`revokedCount = 0` (thông điệp "Tài khoản không có phiên đăng nhập nào đang hoạt động") khi bước 5 không sửa dòng nào. Không trả danh sách phiên.
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | `:id` sai định dạng (`errors.id`); có query param hoặc body có trường |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản người gọi không còn `ACTIVE` (bước 1) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Thiếu `admin:manage` (`SYSTEM_ADMIN`) |
+| `403` | `SELF_ACTION_FORBIDDEN` | `:id` là chính người gọi (bước 2) |
+| `403` | `ROOT_ADMIN_PROTECTED` | Tài khoản đích mang vai trò `ROOT_ADMIN` (bước 4) |
+| `404` | `NOT_FOUND` | Không có admin `:id` (bước 3) |
+
+- **Frontend** (mục 5.2): nút "Thu hồi phiên" chỉ có ở dòng `status = ACTIVE`, `roleCode` khác `ROOT_ADMIN` và `id` khác `authAdmin.admin.id`. Bấm nút mở `ConfirmModal` (`docs/03_ui_design.md` mục 6.6, loại nguy hiểm) nêu họ tên và tên đăng nhập, nói rõ các thiết bị của tài khoản đó bị đăng xuất khi Access Token hiện tại hết hạn (tối đa 15 phút mặc định) và tài khoản vẫn đăng nhập lại được. Xác nhận thì gọi qua API client của cổng (`401` → refresh một lần rồi gửi lại); trong lúc gửi khóa hai nút, không đóng hộp. Kết quả: `200` `revokedCount > 0` toast thành công "Đã thu hồi n phiên đăng nhập của <họ tên>"; `revokedCount = 0` toast thông tin "Tài khoản không có phiên nào đang hoạt động"; `403 SELF_ACTION_FORBIDDEN`/`ROOT_ADMIN_PROTECTED`, `404` toast cảnh báo theo `message` rồi tải lại danh sách (dữ liệu trên màn hình đã cũ); lỗi khác toast lỗi, giữ nguyên danh sách. Danh sách không hiển thị số phiên nên `200` không cần tải lại. Mẫu: `mockRevokeAdminSessions`, `confirmRevokeAdminSessions` trong `templates/admin/system-settings.js`.
+- Index phục vụ: khóa chính `admins`, `admin_roles`; `idx_session_actor` (bước 5).
 - Bản tương ứng cho người dùng đơn vị là `DELETE /api/v1/admin/users/:id/sessions` (quyền `user:edit`, `docs/modules/03_auth_user.md` mục 3.10), cùng cách xử lý, `targetActorType = "USER"`.
 
 ### 3.8. Sửa thông tin Admin khác (`PUT /api/v1/admin/admins/:id`)
@@ -272,7 +308,7 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 
 ### 5.2. Quản lý Quản trị viên trong Cài đặt hệ thống
 - Là mục `admins` (component `AdminAccountsSection.vue`) trong `SystemSettingsView.vue`, mở trực tiếp tại `/admin/settings?section=admins` (`docs/00_overview_and_architecture.md` mục 5.3.3, bảng "Chức năng đặt bên trong màn hình"). Không có route hay view riêng.
-- Template `system-settings.html` chưa có mục này: dựng theo cùng bố cục `.settings-section` và bảng `.data-table` của template.
+- Template `system-settings.html` có khung mục `#section-admins` (dựng ở A14): bảng `.data-table` với cột họ tên/tên đăng nhập, email, vai trò, trạng thái, đăng nhập gần nhất và thao tác, dữ liệu mock đúng phần tử mục 3.2; hiện mới có thao tác "Thu hồi phiên" (mục 3.7) và hộp xác nhận dùng chung `#confirmModal`. Tìm kiếm, lọc, phân trang và các thao tác còn lại dựng tiếp khi rà từng endpoint.
 - Hiển thị danh sách các Admin, nhãn vai trò theo `roleCode` (`ROOT_ADMIN` nổi bật màu vàng gold); thao tác Thêm (hiển thị `temporaryPassword` một lần), Sửa, Khóa/Kích hoạt, Đặt lại mật khẩu, Thu hồi phiên, Ngừng hoạt động – theo các endpoint `/api/v1/admin/admins*`.
 - Ẩn toàn bộ mục (cả nút trên menu `.settings-sidebar`) nếu tài khoản đang đăng nhập không có `admin:manage` (`!authAdminStore.permissions.includes('admin:manage')`).
 
@@ -288,4 +324,5 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 7. **TC-ADM-07**: Đăng nhập Admin với `rememberMe = true`, gọi `POST /api/v1/admin/auth/refresh`: `200` có `data = { accessToken, expiresIn }`, cookie mới có `Max-Age` ≈ số giây còn lại tới `expires_at`, phiên cũ `ROTATED` và phiên mới cùng `expires_at`, `remember_me = 1`; với `rememberMe = false` cookie mới không có `Max-Age`. Khóa admin đó rồi refresh bằng cookie cũ: `401 UNAUTHORIZED`, response có `Set-Cookie` `Max-Age=0`. Gửi cookie Refresh Token của User tới route Admin: `401`.
 8. **TC-ADM-08**: Đăng nhập Admin, gọi `POST /api/v1/admin/auth/logout`: `200` với `data = null`, `Set-Cookie` `Max-Age=0`, phiên có `revoked_reason = 'LOGOUT'`, một dòng `audit_logs` `AUTH / LOGOUT` (`resource_id` = id phiên); gọi lại lần nữa: `200`, không thêm dòng audit; refresh bằng cookie cũ: `401`. Gọi logout bằng cookie vừa `ROTATED` (trong lúc tab khác refresh): phiên mới trong chuỗi bị thu hồi. Gọi bằng token `PASSWORD_CHANGE_ONLY`: `200`, không ghi audit. Gọi kèm body `{"x":1}`: `400 VALIDATION_ERROR`.
 9. **TC-ADM-09**: Đăng nhập Admin, gọi `GET /api/v1/admin/auth/me`: `200`, `data` trùng `data.admin` của response đăng nhập (`permissions` sắp theo `code`, 25 mã với `ROOT_ADMIN`, 24 với `SYSTEM_ADMIN`), không thêm dòng `audit_logs`. Gọi bằng token `PASSWORD_CHANGE_ONLY`: `200` cùng cấu trúc. Gọi kèm `?x=1`: `400 VALIDATION_ERROR`. Khóa admin đó rồi gọi lại bằng Access Token cũ (còn hạn): `401 UNAUTHORIZED`, không có `Set-Cookie`. Bật chế độ bảo trì: vẫn `200`.
+10. **TC-ADM-10**: `SYSTEM_ADMIN` B đăng nhập trên 2 trình duyệt (phiên P1, P2) và có một phiên P0 đã hết hạn chưa thu hồi. Root Admin gọi `DELETE /api/v1/admin/admins/<B>/sessions`: `200` `{ "revokedCount": 2 }`; P1, P2 có `revoked_reason = 'REVOKED_BY_ADMIN'`, P0 giữ nguyên; một dòng `audit_logs` `AUTH / SESSION_REVOKED`, `resource_id` = id của B, `action_details = {"targetActorType":"ADMIN","revokedCount":2}`; refresh ở P1 trả `401` và xóa cookie (không thu hồi thêm, không ghi `TOKEN_REUSE_DETECTED`), Access Token còn hạn của P1 vẫn gọi được API tới khi hết hạn. Gọi lại lần hai: `200` `{ "revokedCount": 0 }`, không thêm dòng audit. B đăng nhập lại được. `:id` là chính Root Admin: `403 SELF_ACTION_FORBIDDEN`; là một Root Admin khác: `403 ROOT_ADMIN_PROTECTED`, không có dòng audit; id không tồn tại: `404 NOT_FOUND`; `:id` = `abc`, `0`, `4294967296`: `400` có `errors.id`; gửi `?x=1` hoặc body `{"x":1}`: `400`. `SYSTEM_ADMIN` gọi: `403 FORBIDDEN_PERMISSION`; token `PASSWORD_CHANGE_ONLY`: `403 PASSWORD_CHANGE_REQUIRED`. Ở mục `admins`, dòng của chính mình, dòng `ROOT_ADMIN`, dòng `LOCKED`/`INACTIVE` không có nút "Thu hồi phiên"; trong "Hoạt động gần đây" của Root Admin có dòng "Thu hồi mọi phiên của quản trị viên".
 

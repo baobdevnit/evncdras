@@ -774,6 +774,7 @@ document.addEventListener('DOMContentLoaded', function() {
         { id: 10377, actorType: 'ADMIN', actorId: 1, action: 'LOGIN', resourceName: 'AUTH', resourceId: null, ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: null, createdAt: '2026-10-12T08:15:00+07:00' },
         { id: 10371, actorType: 'ADMIN', actorId: 1, action: 'LOGIN_FAILED', resourceName: 'AUTH', resourceId: null, ipAddress: '10.0.40.7', userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0', actionDetails: { reason: 'BAD_PASSWORD' }, createdAt: '2026-10-12T07:58:44+07:00' },
         { id: 10360, actorType: 'ADMIN', actorId: 2, action: 'PASSWORD_RESET', resourceName: 'AUTH', resourceId: '1', ipAddress: '10.0.12.9', userAgent: UA_CHROME, actionDetails: null, createdAt: '2026-10-11T17:20:00+07:00' },
+        { id: 10331, actorType: 'ADMIN', actorId: 1, action: 'SESSION_REVOKED', resourceName: 'AUTH', resourceId: '7', ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: { targetActorType: 'ADMIN', revokedCount: 2 }, createdAt: '2026-10-11T16:40:00+07:00' },
         { id: 10322, actorType: 'ADMIN', actorId: 1, action: 'UPDATE_SETTINGS', resourceName: 'SYSTEM', resourceId: null, ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: { op: 'RELOAD_CACHE' }, createdAt: '2026-10-11T16:02:10+07:00' },
         { id: 10301, actorType: 'ADMIN', actorId: 1, action: 'ACCESS_DENIED', resourceName: 'ADMIN', resourceId: '1', ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: null, createdAt: '2026-10-11T15:47:33+07:00' },
         { id: 10288, actorType: 'ADMIN', actorId: 1, action: 'ALLOCATE_RANGE', resourceName: 'PREFIX', resourceId: '12', ipAddress: '10.0.12.34', userAgent: UA_CHROME, actionDetails: null, createdAt: '2026-10-11T14:30:00+07:00' },
@@ -857,6 +858,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Vue: so resourceId với authAdmin.admin.id
         if (row.resourceName === 'ADMIN' && row.action === 'UPDATE' && row.resourceId === String(MOCK_PROFILE.id)) {
             return 'Cập nhật hồ sơ của tôi';
+        }
+        // Thu hồi mọi phiên của tài khoản khác (A14, N08): actionDetails.targetActorType; tự thu hồi một phiên: actionDetails = null
+        if (row.action === 'SESSION_REVOKED' && row.actionDetails && row.actionDetails.targetActorType) {
+            return row.actionDetails.targetActorType === 'ADMIN'
+                ? 'Thu hồi mọi phiên của quản trị viên' : 'Thu hồi mọi phiên của người dùng';
         }
         if (CRUD_LABELS[row.action] && RESOURCE_LABELS[row.resourceName]) {
             return CRUD_LABELS[row.action] + ' ' + RESOURCE_LABELS[row.resourceName];

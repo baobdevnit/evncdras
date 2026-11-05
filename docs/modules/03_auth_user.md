@@ -242,7 +242,7 @@ Bảng MariaDB: `users`, `user_roles`, `user_groups`, `roles`, `permission_roles
 ### 3.10. Thu hồi mọi phiên của người dùng (`DELETE /api/v1/admin/users/:id/sessions`)
 
 - Chỉ bản Admin, quyền `user:edit`. Không có body. Quản trị viên nhóm không có API này; họ khóa tài khoản (mục 3.7) để thu hồi phiên.
-- Cùng cách xử lý `docs/modules/04_auth_admin.md` mục 3.7: thu hồi mọi phiên còn hiệu lực (`REVOKED_BY_ADMIN`), ghi `audit_logs` `AUTH / SESSION_REVOKED` với `action_details = { "targetActorType": "USER", "revokedCount": n }`, trả `200` với `data = { revokedCount }`. Tài khoản `INACTIVE` trả `revokedCount = 0`. `:id` không tồn tại trả `404`.
+- Cùng cách xử lý `docs/modules/04_auth_admin.md` mục 3.7 (bỏ bước chặn chính mình và `ROOT_ADMIN`; bước 3, 5 đọc `users`, `actor_type = 'USER'`): thu hồi mọi phiên còn hiệu lực (`REVOKED_BY_ADMIN`); `n > 0` thì ghi `audit_logs` `AUTH / SESSION_REVOKED` (`resource_id` = id người dùng) với `action_details = { "targetActorType": "USER", "revokedCount": n }`, `n = 0` không ghi gì; trả `200` với `data = { revokedCount }`. Tài khoản `INACTIVE` trả `revokedCount = 0`. `:id` không tồn tại trả `404 NOT_FOUND`.
 
 ---
 
