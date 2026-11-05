@@ -592,7 +592,7 @@ backend/src/
 
 ### 4.1. Thuật toán dựng cây (Recursive Tree Builder) trong `organizations.service.ts`
 
-Dùng cho mục 3.1 (`withUserGroupCount = true` ở controller Admin, `false` ở controller Member) và làm khung cho `GET /user-groups/tree` (`docs/modules/02_user_group.md` mục 3.1.1).
+Dùng cho mục 3.1 (`withUserGroupCount = true` ở controller Admin, `false` ở controller Member).
 
 ```typescript
 async getTree(withUserGroupCount: boolean): Promise<OrganizationTreeNodeDto[]> {

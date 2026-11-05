@@ -332,7 +332,7 @@ backend/
 │   │   │   ├── scope/             <-- GroupScopeInterceptor / @GroupScope(): lấy user_group_id của người dùng làm phạm vi dữ liệu
 │   │   │   ├── profile/           <-- user-profile.controller.ts (/profile*)
 │   │   │   ├── users/             <-- users.controller.ts (/users*, Quản trị viên nhóm quản lý thành viên)
-│   │   │   ├── user-groups/       <-- user-groups.controller.ts (/user-groups/me*, /user-groups/tree)
+│   │   │   ├── user-groups/       <-- user-groups.controller.ts (/user-groups, /user-groups/:id, /user-groups/me/members)
 │   │   │   ├── organizations/     <-- organizations.controller.ts (chỉ đọc)
 │   │   │   ├── phone-numbers/     <-- prefixes.controller.ts, phone-numbers.controller.ts (chỉ đọc, theo nhóm)
 │   │   │   ├── cdr/               <-- cdr.controller.ts (bản User: luôn cô lập nhóm; stream/download ghi âm)

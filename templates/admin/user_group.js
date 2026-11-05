@@ -1,8 +1,9 @@
 // templates/admin/user_group.js – màn hình Nhóm người dùng (admin.user-groups, M02 mục 5.1)
 //
-// Tab list-view dùng GET /api/v1/admin/user-groups (G01, mock mockGetUserGroups bên dưới mảng này).
+// Danh sách nhóm dùng GET /api/v1/admin/user-groups (G01, mock mockGetUserGroups bên dưới mảng này).
 // Mảng userGroupsData là dữ liệu CŨ chỉ còn phục vụ các hộp chi tiết / sửa / quản trị viên / ngừng hoạt động
-// và tab tree-view (chưa rà: G02, G03, G05–G07); không phải dạng response của API danh sách.
+// (chưa rà: G03, G05–G07); không phải dạng response của API danh sách.
+// Màn hình chỉ có danh sách phẳng: không có tab/chế độ xem cây nhóm (API GET /user-groups/tree đã bỏ ở G02).
 
 let userGroupsData = [
     {
@@ -201,11 +202,10 @@ const allPhonePrefixGroups = [
     { id: 109, code: "PG-CPC-01", name: "Nhóm dải số Tổng công ty Điện lực miền Trung", prefixes: ["93xxx"], count: 1000 }
 ];
 
-let activeTab = 'list';
 let currentManagingGroupId = null;
 
 /* ==========================================================================
- * Tab list-view: GET /api/v1/admin/user-groups (G01, M02 mục 3.1)
+ * Danh sách nhóm: GET /api/v1/admin/user-groups (G01, M02 mục 3.1)
  * Vue: UserGroupView.vue + useUserGroupStore (fetchUserGroups, query, pagination).
  * Kiểm tay mock: ?listError=1 (lỗi tải một lần, "Thử lại" thành công), ?listEmpty=1 (chưa có nhóm),
  * ?orgTreeError=1 (ô lọc đơn vị chỉ còn "Tất cả"/"Nhóm độc lập"), ?noManage=1 (thiếu user_group:manage).
@@ -640,112 +640,6 @@ function renderUserGroupsTable(data) {
     }).join('');
 }
 
-function renderOrgGroupedView() {
-    const container = document.getElementById('orgGroupedContainer');
-    if (!container) return;
-
-    // Phân loại nhóm theo đơn vị tổ chức và nhóm độc lập
-    const orgMap = {};
-    const standaloneGroups = [];
-
-    userGroupsData.forEach(g => {
-        if (!g.organizationId) {
-            standaloneGroups.push(g);
-        } else {
-            if (!orgMap[g.organizationId]) {
-                orgMap[g.organizationId] = {
-                    orgName: g.organizationName,
-                    hierarchyPath: g.hierarchyPath,
-                    groups: []
-                };
-            }
-            orgMap[g.organizationId].groups.push(g);
-        }
-    });
-
-    let html = '';
-
-    // Render các đơn vị có nhiều nhóm
-    for (const orgId in orgMap) {
-        const item = orgMap[orgId];
-        html += `
-            <div class="org-group-block">
-                <div class="org-group-header">
-                    <div class="org-group-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-                        <span>${item.orgName}</span>
-                        <span class="badge-count" style="font-size: 0.75rem;">${item.groups.length} nhóm trực thuộc</span>
-                    </div>
-                    <div class="hierarchy-breadcrumb" style="font-size: 0.75rem;">
-                        ${item.hierarchyPath.join(' &gt; ')}
-                    </div>
-                </div>
-                <div class="org-groups-list">
-                    ${item.groups.map(g => renderGroupCard(g)).join('')}
-                </div>
-            </div>
-        `;
-    }
-
-    // Render nhóm độc lập
-    if (standaloneGroups.length > 0) {
-        html += `
-            <div class="org-group-block" style="border-left: 4px solid #64748b;">
-                <div class="org-group-header" style="background: rgba(100, 116, 139, 0.08);">
-                    <div class="org-group-title standalone">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line></svg>
-                        <span>🏢 Nhóm Độc lập / Chưa phân bổ vào Cây tổ chức</span>
-                        <span class="badge-count" style="font-size: 0.75rem;">${standaloneGroups.length} nhóm</span>
-                    </div>
-                    <span class="text-muted" style="font-size: 0.75rem;">(organization_id = NULL)</span>
-                </div>
-                <div class="org-groups-list">
-                    ${standaloneGroups.map(g => renderGroupCard(g)).join('')}
-                </div>
-            </div>
-        `;
-    }
-
-    container.innerHTML = html;
-}
-
-function renderGroupCard(group) {
-    return `
-        <div class="ug-card-item">
-            <div class="ug-card-header">
-                <div>
-                    <span class="group-code">${group.code}</span>
-                    <h4 style="margin-top: 4px; font-size: 0.92rem; color: var(--text-main); font-weight: 600;">${group.name}</h4>
-                </div>
-                <span class="badge-status ${group.status === 'ACTIVE' ? 'active' : 'inactive'}">${group.status === 'ACTIVE' ? 'Hoạt động' : 'Tạm dừng'}</span>
-            </div>
-            <div class="ug-card-body">
-                <div>
-                    <span class="prefix-badge-binding">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                        ${group.phonePrefixGroup.code}: ${group.phonePrefixGroup.prefixes.join(', ')} (1-1)
-                    </span>
-                </div>
-                <div class="ug-card-metric-row">
-                    <span>Quản trị viên:</span>
-                    <span class="fw-600 text-main" onclick="openManageAdminsModal(${group.id})" style="cursor: pointer; color: var(--primary);">
-                        ${group.admins.length} QTV (${group.representative.fullName})
-                    </span>
-                </div>
-                <div class="ug-card-metric-row">
-                    <span>Thành viên trực thuộc:</span>
-                    <span class="fw-600 text-main">${group.userCount} người dùng</span>
-                </div>
-            </div>
-            <div class="ug-card-actions">
-                <button class="btn btn-sm btn-outline" onclick="openManageAdminsModal(${group.id})">Quản trị viên</button>
-                <button class="btn btn-sm btn-outline" onclick="openEditGroupModal(${group.id})">Sửa</button>
-                <button class="btn btn-sm btn-outline text-danger" onclick="openDeleteGroupModal(${group.id})">Xóa</button>
-            </div>
-        </div>
-    `;
-}
-
 // Modal Handlers
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
@@ -1080,7 +974,6 @@ function saveUserGroup() {
 
     closeModal('userGroupModal');
     loadUserGroups();
-    if (activeTab === 'tree') renderOrgGroupedView();
 }
 
 // Manage Group Admins Modal
@@ -1153,7 +1046,6 @@ function demoteAdmin(groupId, adminId) {
     showToast('Đã hạ quyền Quản trị viên thành công', 'success');
     renderAdminsListInModal(group);
     loadUserGroups();
-    if (activeTab === 'tree') renderOrgGroupedView();
 }
 
 function promoteNewAdmin() {
@@ -1184,7 +1076,6 @@ function promoteNewAdmin() {
     showToast(`Đã bổ nhiệm ${newAdmin.fullName} làm Quản trị viên nhóm`, 'success');
     renderAdminsListInModal(group);
     loadUserGroups();
-    if (activeTab === 'tree') renderOrgGroupedView();
 }
 
 // View Members Modal
@@ -1285,7 +1176,6 @@ function confirmDeleteGroup() {
     showToast(`Đã xóa nhóm thành công. Nhóm đầu số ${ppgCode} đã được giải phóng về trạng thái sẵn sàng.`, 'success');
 
     loadUserGroups();
-    if (activeTab === 'tree') renderOrgGroupedView();
 }
 
 // Toggle Status Modal (Tạm ngưng / Kích hoạt Nhóm người dùng)
