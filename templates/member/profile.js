@@ -487,5 +487,173 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // ------------------------------------------------------------
+    // Phiên đăng nhập của tôi – GET /api/v1/auth/sessions (U09, M08 mục 3.6.1; đặc tả chung M09 mục 3.5.1)
+    // Thứ tự: guard (401/403) → bảo trì (503) → query (400) → đọc users + user_groups, kiểm tra tài khoản (401)
+    // → phiên hiện tại theo claim sid (đi chuỗi ROTATED, không theo cookie) → các phiên còn hiệu lực của chính mình.
+    // 200: data = mảng, mỗi phần tử đúng 7 trường, phiên hiện tại đứng đầu; chỉ đọc, không audit, không đổi last_used_at.
+    // Mock: ?maintenance=1 (503), ?account=locked (401 → về login), ?sessionsError=1 (lỗi mạng ở lần tải đầu).
+    // ------------------------------------------------------------
+    const UA_CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+    const UA_ANDROID = 'Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36';
+    const UA_FIREFOX_WIN = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0';
+    const MOCK_USER_ID = 10; // sub của Access Token (cùng id hồ sơ mẫu)
+
+    // MOCK_AUTH_SESSIONS đóng vai các dòng auth_sessions (đủ cột để minh họa WHERE và chuỗi xoay vòng).
+    // 5101 → 5120: phiên của trình duyệt này đã xoay vòng lúc 09:42 (logged_in_at chép nguyên).
+    const MOCK_AUTH_SESSIONS = [
+        { id: 5101, actorType: 'USER', actorId: 10, ipAddress: '10.0.21.15', userAgent: UA_CHROME, loggedInAt: '2026-11-05T08:15:00+07:00', createdAt: '2026-11-05T08:15:00+07:00', lastUsedAt: null, expiresAt: '2026-11-12T08:15:00+07:00', revokedAt: '2026-11-05T09:42:10+07:00', revokedReason: 'ROTATED', replacedBySessionId: 5120 },
+        { id: 5120, actorType: 'USER', actorId: 10, ipAddress: '10.0.21.15', userAgent: UA_CHROME, loggedInAt: '2026-11-05T08:15:00+07:00', createdAt: '2026-11-05T09:42:10+07:00', lastUsedAt: '2026-11-05T09:42:10+07:00', expiresAt: '2026-11-12T08:15:00+07:00', revokedAt: null, revokedReason: null, replacedBySessionId: null },
+        { id: 5088, actorType: 'USER', actorId: 10, ipAddress: '10.0.88.4', userAgent: UA_ANDROID, loggedInAt: '2026-11-04T07:50:00+07:00', createdAt: '2026-11-04T16:05:30+07:00', lastUsedAt: '2026-11-04T16:05:30+07:00', expiresAt: '2026-11-11T07:50:00+07:00', revokedAt: null, revokedReason: null, replacedBySessionId: null },
+        { id: 5040, actorType: 'USER', actorId: 10, ipAddress: null, userAgent: null, loggedInAt: '2026-11-05T07:20:00+07:00', createdAt: '2026-11-05T07:20:00+07:00', lastUsedAt: null, expiresAt: '2026-11-06T07:20:00+07:00', revokedAt: null, revokedReason: null, replacedBySessionId: null },
+        // Không được trả: đã thu hồi, đã hết hạn, của user khác, của Admin trùng id số (khác actor_type)
+        { id: 5002, actorType: 'USER', actorId: 10, ipAddress: '10.0.21.15', userAgent: UA_FIREFOX_WIN, loggedInAt: '2026-11-02T09:00:00+07:00', createdAt: '2026-11-02T09:00:00+07:00', lastUsedAt: null, expiresAt: '2026-11-09T09:00:00+07:00', revokedAt: '2026-11-02T17:30:00+07:00', revokedReason: 'LOGOUT', replacedBySessionId: null },
+        { id: 4600, actorType: 'USER', actorId: 10, ipAddress: '10.0.21.15', userAgent: UA_CHROME, loggedInAt: '2026-10-20T08:00:00+07:00', createdAt: '2026-10-20T08:00:00+07:00', lastUsedAt: null, expiresAt: '2026-10-27T08:00:00+07:00', revokedAt: null, revokedReason: null, replacedBySessionId: null },
+        { id: 5110, actorType: 'USER', actorId: 11, ipAddress: '10.0.21.40', userAgent: UA_CHROME, loggedInAt: '2026-11-05T09:10:00+07:00', createdAt: '2026-11-05T09:10:00+07:00', lastUsedAt: null, expiresAt: '2026-11-12T09:10:00+07:00', revokedAt: null, revokedReason: null, replacedBySessionId: null },
+        { id: 5115, actorType: 'ADMIN', actorId: 10, ipAddress: '10.0.12.34', userAgent: UA_CHROME, loggedInAt: '2026-11-05T09:20:00+07:00', createdAt: '2026-11-05T09:20:00+07:00', lastUsedAt: null, expiresAt: '2026-11-12T09:20:00+07:00', revokedAt: null, revokedReason: null, replacedBySessionId: null }
+    ];
+    // Claim sid của Access Token tab này: còn trỏ 5101 vì tab khác vừa refresh (minh họa đi theo chuỗi).
+    const MOCK_TOKEN_SID = 5101;
+    const MOCK_NOW = Date.parse('2026-11-05T09:45:00+07:00'); // thay cho NOW() để dữ liệu mẫu ổn định
+    let mockSessionsNetworkError = params.get('sessionsError') === '1';
+
+    function isLiveSession(row) {
+        return row.revokedAt === null && Date.parse(row.expiresAt) > MOCK_NOW;
+    }
+
+    // WHERE id = ? AND actor_type = 'USER' AND actor_id = :sub (khóa chính)
+    function findOwnSession(id, actorId) {
+        return MOCK_AUTH_SESSIONS.find(r => r.id === id && r.actorType === 'USER' && r.actorId === actorId) || null;
+    }
+
+    // Đi theo replaced_by_session_id tối đa 5 bước tới phiên còn hiệu lực (01 mục 6.1); không tới được → null
+    function followSessionChain(row, actorId) {
+        for (let step = 0; row && step <= 5; step++) {
+            if (isLiveSession(row)) return row;
+            if (row.revokedReason !== 'ROTATED' || !row.replacedBySessionId) return null;
+            row = findOwnSession(row.replacedBySessionId, actorId);
+        }
+        return null;
+    }
+
+    // Phiên hiện tại: id = sid của chính mình, đi theo chuỗi xoay vòng (M08 mục 3.6, M09 mục 3.5)
+    function resolveCurrentSessionId(sid, actorId) {
+        const row = followSessionChain(findOwnSession(sid, actorId), actorId);
+        return row ? row.id : null;
+    }
+
+    function mockGetMySessions(token, query) {
+        return new Promise(resolve => setTimeout(resolve, 350)).then(() => {
+            if (mockSessionsNetworkError) { mockSessionsNetworkError = false; return Promise.reject(new Error('Network Error')); }
+            if (!token || MOCK_ACCOUNT_LOCKED) return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+            if (MOCK_MAINTENANCE) return fail(503, 'MAINTENANCE', 'Hệ thống đang bảo trì, vui lòng quay lại sau');
+            if (query && Object.keys(query).length) {
+                return Promise.reject(validationError({ query: ['API không nhận tham số truy vấn'] }));
+            }
+            const currentId = resolveCurrentSessionId(MOCK_TOKEN_SID, MOCK_USER_ID);
+            const lastActive = r => r.lastUsedAt || r.createdAt; // COALESCE(last_used_at, created_at)
+            const rows = MOCK_AUTH_SESSIONS
+                .filter(r => r.actorType === 'USER' && r.actorId === MOCK_USER_ID && isLiveSession(r))
+                .sort((a, b) => ((b.id === currentId) - (a.id === currentId))
+                    || (Date.parse(lastActive(b)) - Date.parse(lastActive(a))) || (b.id - a.id))
+                .map(r => ({
+                    id: r.id, ipAddress: r.ipAddress, userAgent: r.userAgent, loggedInAt: r.loggedInAt,
+                    lastActiveAt: lastActive(r), expiresAt: r.expiresAt, isCurrent: r.id === currentId
+                }));
+            return {
+                success: true, statusCode: 200, message: 'Lấy danh sách phiên đăng nhập thành công',
+                data: rows, timestamp: now()
+            };
+        });
+    }
+
+    // Rút tên trình duyệt + hệ điều hành từ userAgent (hàm nội bộ, giống admin/profile.js; API không trả tên ghép sẵn).
+    // Thứ tự kiểm tra quan trọng: Edge/Opera chứa "Chrome", Chrome chứa "Safari", Android chứa "Linux".
+    function describeUserAgent(ua) {
+        if (!ua) return null;
+        const browsers = [[/Edg\//, 'Edge'], [/OPR\//, 'Opera'], [/Firefox\//, 'Firefox'], [/Chrome\//, 'Chrome'], [/Version\/[\d.]+.*Safari\//, 'Safari']];
+        const systems = [[/Windows NT/, 'Windows'], [/Android/, 'Android'], [/iPhone|iPad/, 'iOS'], [/Mac OS X/, 'macOS'], [/Linux/, 'Linux']];
+        const browser = (browsers.find(([re]) => re.test(ua)) || [])[1];
+        const os = (systems.find(([re]) => re.test(ua)) || [])[1];
+        if (browser && os) return browser + ' trên ' + os;
+        return browser || os || null;
+    }
+
+    const sessionsState = document.getElementById('sessionsState');
+    const sessionsMessage = document.getElementById('sessionsMessage');
+    const btnRetrySessions = document.getElementById('btnRetrySessions');
+    const sessionList = document.getElementById('sessionList');
+
+    function setSessionsState(state, message) {
+        if (sessionsState) {
+            sessionsState.hidden = state === 'ready';
+            sessionsState.classList.toggle('is-error', state === 'error');
+        }
+        if (sessionsMessage && message) sessionsMessage.textContent = message;
+        if (btnRetrySessions) btnRetrySessions.hidden = state !== 'error';
+        if (sessionList) sessionList.hidden = state !== 'ready';
+    }
+
+    // Dựng bằng textContent: userAgent, ipAddress do client gửi lên
+    function renderSessions(rows) {
+        if (!sessionList) return;
+        sessionList.replaceChildren();
+        rows.forEach(row => {
+            const li = document.createElement('li');
+            li.className = 'session-item' + (row.isCurrent ? ' session-item--current' : '');
+            li.dataset.sessionId = String(row.id);
+            if (row.userAgent) li.title = row.userAgent;
+            const body = document.createElement('div');
+            const device = document.createElement('p');
+            device.className = 'session-device';
+            device.append(describeUserAgent(row.userAgent) || 'Thiết bị không xác định');
+            if (row.isCurrent) {
+                const tag = document.createElement('span');
+                tag.className = 'session-current-tag';
+                tag.textContent = 'Phiên này';
+                device.appendChild(tag);
+            }
+            body.appendChild(device);
+            const meta = document.createElement('p');
+            meta.className = 'session-meta';
+            meta.textContent = [
+                row.ipAddress ? 'IP: ' + row.ipAddress : null,
+                'Đăng nhập: ' + formatValue(row.loggedInAt, 'datetime'),
+                'Hoạt động gần nhất: ' + formatValue(row.lastActiveAt, 'datetime')
+            ].filter(Boolean).join(' · ');
+            body.appendChild(meta);
+            const expiry = document.createElement('time');
+            expiry.className = 'session-expiry';
+            expiry.dateTime = row.expiresAt;
+            expiry.textContent = 'Hết hạn ' + formatValue(row.expiresAt, 'datetime');
+            const side = document.createElement('div');
+            side.className = 'session-side';
+            side.appendChild(expiry);
+            li.appendChild(body);
+            li.appendChild(side);
+            sessionList.appendChild(li);
+        });
+    }
+
+    // Tải độc lập với hồ sơ: lỗi khối này không ẩn #profileLayout và ngược lại.
+    function loadSessions() {
+        setSessionsState('loading', 'Đang tải phiên đăng nhập...');
+        return callApi(token => mockGetMySessions(token))
+            .then(res => {
+                if (!res.data.length) { setSessionsState('empty', 'Không có phiên nào đang hoạt động'); return; }
+                renderSessions(res.data);
+                setSessionsState('ready');
+            })
+            .catch(err => {
+                // 401 sau khi refresh thất bại: request() đã chuyển về login.
+                if (err && err.statusCode === 401) return;
+                // 503: request() đã hiện biểu ngữ bảo trì; khối vẫn hiện thông điệp + nút thử lại.
+                setSessionsState('error', (err && err.statusCode && err.message) || 'Không tải được phiên đăng nhập. Vui lòng thử lại.');
+            });
+    }
+
+    if (btnRetrySessions) btnRetrySessions.addEventListener('click', loadSessions);
+
     loadProfile();
+    loadSessions();
 });

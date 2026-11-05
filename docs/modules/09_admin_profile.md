@@ -404,7 +404,7 @@ Content-Type: application/json
 
 ### 3.5. Phiên đăng nhập của chính mình (`GET /api/v1/admin/auth/sessions`, `DELETE /api/v1/admin/auth/sessions/:id`)
 
-Đặc tả chung cho hai cổng: bản User (`GET /api/v1/auth/sessions`, `docs/modules/08_user_profile.md` mục 3.6) khác ở `UserAuthGuard` và `actor_type = 'USER'`. Thu hồi mọi phiên của Admin khác dùng `DELETE /api/v1/admin/admins/:id/sessions` (`docs/modules/04_auth_admin.md` mục 3.7).
+Đặc tả chung cho hai cổng: bản User (`docs/modules/08_user_profile.md` mục 3.6) khác ở `UserAuthGuard`, `actor_type = 'USER'`, kiểm tra tài khoản bản User (nhóm `INACTIVE`, `must_change_password`) và **bị** chế độ bảo trì chặn (`503`). Thu hồi mọi phiên của Admin khác dùng `DELETE /api/v1/admin/admins/:id/sessions` (`docs/modules/04_auth_admin.md` mục 3.7).
 
 - **Phiên hiện tại** (dùng cho `isCurrent` của `GET` và chặn thu hồi phiên hiện tại ở `DELETE`): xác định từ claim `sid` của Access Token, **không** từ cookie (cookie dùng chung giữa các tab có thể là của tài khoản khác vừa đăng nhập; cách này cũng dùng được ở API ngoài `Path` cookie, như `change-password`). Đọc phiên `id = sid` có `actor_type = 'ADMIN'`, `actor_id = sub`; còn hiệu lực (`revoked_at IS NULL AND expires_at > NOW()`) thì đó là phiên hiện tại; đã `ROTATED` (tab khác vừa refresh, Access Token của tab này còn mang `sid` cũ) thì đi theo chuỗi `replaced_by_session_id` tối đa 5 bước tới phiên còn hiệu lực, như `docs/01_database_schema.md` mục 6.1; không tới được thì không có phiên hiện tại.
 
@@ -472,7 +472,7 @@ Không trả `actor_type`, `actor_id`, `refresh_token_hash`, `remember_me`, `rev
 
 #### 3.5.2. `DELETE /api/v1/admin/auth/sessions/:id`
 
-Đặc tả chung cho hai cổng: bản User (`DELETE /api/v1/auth/sessions/:id`, `docs/modules/08_user_profile.md` mục 3.6) khác ở `UserAuthGuard`, `actor_type = 'USER'`, bước 1 đọc `users`.
+Đặc tả chung cho hai cổng: bản User (`DELETE /api/v1/auth/sessions/:id`, `docs/modules/08_user_profile.md` mục 3.6.2) khác ở `UserAuthGuard`, `actor_type = 'USER'`, bước 1 đọc `users`.
 
 - **Guard**: `AdminAuthGuard`; không cần mã quyền. Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`. Cookie Refresh Token được trình duyệt gửi kèm nhưng API **không** đọc.
 - **Request**: `:id` là số nguyên dương (`auth_sessions.id`, `bigint unsigned`; chuỗi `^[1-9][0-9]{0,18}$`), sai thì `400 VALIDATION_ERROR` với `errors.id`. Không có query, không có body; gửi query param hoặc body có trường thì `400 VALIDATION_ERROR`. `:id` có thể là id đọc từ danh sách trước đó mà phiên đã xoay vòng (`ROTATED`) sau đó.

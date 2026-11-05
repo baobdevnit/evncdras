@@ -386,6 +386,24 @@
                                 </form>
                             </div>
                         </div>
+
+                        <!-- Phiên đăng nhập của tôi: GET /api/v1/auth/sessions (M08 mục 3.6.1; đặc tả chung M09 mục 3.5.1).
+                             data = mảng phiên còn hiệu lực { id, ipAddress, userAgent, loggedInAt, lastActiveAt, expiresAt, isCurrent },
+                             phiên hiện tại (theo claim sid) đứng đầu; không phân trang. Tải độc lập với hồ sơ (lỗi khối này
+                             không ẩn hồ sơ); 503 bảo trì hiện lỗi + "Thử lại" ở khối này. Tên trình duyệt/hệ điều hành do frontend
+                             rút từ userAgent; profile.js dựng từng <li>. Nút "Thu hồi" từng phiên: U10 (M08 mục 3.6.2). -->
+                        <div class="card" id="my-sessions">
+                            <div class="card-header">
+                                <h3>Phiên đăng nhập của tôi</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="sessions-state" id="sessionsState" role="status" aria-live="polite">
+                                    <span id="sessionsMessage">Đang tải phiên đăng nhập...</span>
+                                    <button type="button" class="btn btn-outline" id="btnRetrySessions" hidden>Thử lại</button>
+                                </div>
+                                <ul class="session-list" id="sessionList" hidden></ul>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </main>
