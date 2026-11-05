@@ -216,6 +216,108 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ----------------------------------------
+// Mock phiên Member – POST /api/v1/auth/refresh (U02; docs/modules/03_auth_user.md mục 3.2.1,
+// docs/00_overview_and_architecture.md mục 5.3.2). Cùng khung với window.adminSession (templates/admin/main.js).
+// Vue: store Pinia `authUser` + API client của cổng Member (src/apps/member/api/).
+// - Access Token chỉ giữ trong bộ nhớ (biến/store), KHÔNG ghi localStorage/sessionStorage.
+// - Refresh Token là cookie HttpOnly `Path=/api/v1/auth`: JS không đọc/ghi được, trình duyệt tự gửi kèm
+//   request refresh (mock giả lập bằng biến `mockHasRefreshCookie`; thêm ?session=none vào URL = chưa đăng nhập).
+// - Chế độ bảo trì KHÔNG chặn refresh (và GET /auth/me); API nghiệp vụ khác trả 503 MAINTENANCE
+//   (mock: thêm ?maintenance=1 vào URL). 503 không phải hết phiên: không refresh, không xóa store.
+// - Template tĩnh không tự chạy guard (để mở từng trang HTML được); Vue gọi ensureSession()
+//   trong router.beforeEach của cổng Member. Nạp tài khoản (GET /auth/me) bổ sung ở U04, logout ở U03.
+// ----------------------------------------
+window.memberSession = (function () {
+    const params = new URLSearchParams(window.location.search);
+    let accessToken = null;          // Vue: authUser.accessToken (chỉ trong bộ nhớ)
+    let refreshPromise = null;       // dùng chung cho các request đồng thời (single-flight)
+    let mockHasRefreshCookie = params.get('session') !== 'none';
+    const MOCK_MAINTENANCE = params.get('maintenance') === '1';
+
+    const now = () => new Date().toISOString();
+    const fail = (statusCode, errorCode, message) => Promise.reject({
+        success: false, statusCode, errorCode, message, errors: null, timestamp: now()
+    });
+
+    // Giả lập backend POST /api/v1/auth/refresh: không có body; không bị bảo trì chặn.
+    // 200 { accessToken, expiresIn } (cookie mới qua Set-Cookie, không nằm trong body);
+    // mọi lỗi phiên/tài khoản/nhóm 401 UNAUTHORIZED (backend đồng thời xóa cookie). Không có 403/503.
+    function mockUserRefresh() {
+        return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+            if (!mockHasRefreshCookie) {
+                return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+            }
+            return {
+                success: true, statusCode: 200, message: 'Làm mới phiên thành công',
+                // Token thật mang sub, userGroupId, roleCode, sid (id phiên mới sau xoay vòng).
+                data: { accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-user-refreshed', expiresIn: 900 },
+                timestamp: now()
+            };
+        });
+    }
+
+    // Gọi refresh đúng một lần cho mọi request đang chờ; lỗi thì xóa token (cookie đã bị backend xóa).
+    function refreshOnce() {
+        if (!refreshPromise) {
+            refreshPromise = mockUserRefresh()
+                .then(res => { accessToken = res.data.accessToken; return accessToken; })
+                .catch(err => { accessToken = null; mockHasRefreshCookie = false; throw err; })
+                .finally(() => { refreshPromise = null; });
+        }
+        return refreshPromise;
+    }
+
+    function goLogin() {
+        // Vue: authUser.clear(); router.replace({ name: 'member.login' })
+        window.location.href = 'login.html';
+    }
+
+    // Bọc mọi lời gọi API cổng Member (trừ /auth/login và /auth/refresh):
+    // 401 → refresh một lần rồi gửi lại một lần; refresh lỗi → về trang đăng nhập.
+    // 503 MAINTENANCE → ném lại cho màn hình (thông báo bảo trì), báo sự kiện `member-maintenance`; không refresh.
+    function request(callApi) {
+        return callApi(accessToken).catch(err => {
+            if (err && err.statusCode === 503 && err.errorCode === 'MAINTENANCE') {
+                window.dispatchEvent(new CustomEvent('member-maintenance', { detail: { message: err.message } }));
+                throw err;
+            }
+            if (!err || err.statusCode !== 401) throw err;
+            return refreshOnce()
+                .then(token => callApi(token))
+                .catch(e => { if (e && e.statusCode === 401) goLogin(); throw e; });
+        });
+    }
+
+    // Giả lập một API nghiệp vụ bất kỳ của cổng Member (vd. GET /api/v1/profile) để minh họa request():
+    // không token/hết hạn → 401; đang bảo trì → 503 MAINTENANCE (errors = null).
+    function mockUserApi(token) {
+        return new Promise(resolve => setTimeout(resolve, 200)).then(() => {
+            if (!token) return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+            if (MOCK_MAINTENANCE) return fail(503, 'MAINTENANCE', 'Hệ thống đang bảo trì');
+            return { success: true, statusCode: 200, message: 'OK', data: null, timestamp: now() };
+        });
+    }
+
+    // Guard lần đầu vào cổng (kể cả tải lại trang): chưa có token → refresh (chạy cả khi đang bảo trì).
+    // Thành công thì (U04) gọi GET /api/v1/auth/me để nạp `user` vào store; 401 → về login.
+    // Vue: router.beforeEach → ensureSession(), rồi kiểm tra meta.permissions với authUser.user.permissions.
+    function ensureSession() {
+        const ready = accessToken ? Promise.resolve(accessToken) : refreshOnce();
+        return ready.catch(err => { if (!err || err.statusCode === 401) goLogin(); return null; });
+    }
+
+    // Sau đăng nhập (token đầy đủ, mustChangePassword = false; token PASSWORD_CHANGE_ONLY không có cookie)
+    // hoặc tự đổi mật khẩu: đặt token mới, backend đã đặt cookie Refresh Token qua Set-Cookie.
+    // Vue: authUser.setAccessToken(token).
+    function setAccessToken(token) {
+        accessToken = token;
+        mockHasRefreshCookie = true;
+    }
+
+    return { ensureSession, request, refreshOnce, setAccessToken, mockUserApi };
+})();
+
+// ----------------------------------------
 // Global Helpers for DashboardLayout
 // ----------------------------------------
 window.openLogoutModal = function() {

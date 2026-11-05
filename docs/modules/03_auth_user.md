@@ -153,17 +153,17 @@ Cùng khung với bản Admin (`docs/modules/04_auth_admin.md` mục 3.1); mục
 ### 3.2.1. Làm mới phiên và Đăng xuất (`POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`)
 
 - **`POST /auth/refresh`** (đặc tả chung cho cả hai cổng; bản Admin `POST /api/v1/admin/auth/refresh` khác ở các điểm ghi tại `docs/modules/04_auth_admin.md` mục 3.5):
-  - **Guard**: public (không cần Access Token). Không có body; gửi body có trường thì `400 VALIDATION_ERROR`. Đọc Refresh Token từ cookie (`Path=/api/v1/auth`).
+  - **Guard**: public (không cần Access Token). **Không** bị chế độ bảo trì chặn (`docs/02_api_contracts.md` mục 1.2, chủ dự án chốt ở U02): đang bảo trì vẫn xoay vòng và cấp token như bình thường, để phiên giữ nguyên và frontend gọi được `GET /auth/me` rồi hiển thị thông báo bảo trì; các API nghiệp vụ khác vẫn `503`. Không có body; gửi body có trường thì `400 VALIDATION_ERROR`. Đọc Refresh Token từ cookie (`Path=/api/v1/auth`).
   - **Xử lý** (một transaction, theo thứ tự; chính sách `docs/01_database_schema.md` mục 6.1):
     1. Không có cookie: `401`.
     2. `SELECT ... FOR UPDATE` phiên theo `refresh_token_hash` = SHA-256 của cookie và `actor_type` của cổng (`USER`). Không thấy: `401`.
     3. Phiên đã thu hồi:
        - `ROTATED` và `revoked_at` cách hiện tại ≤ 30 giây: đi theo `replaced_by_session_id` (tối đa 5 bước) tới phiên đang hiệu lực. Có thì kiểm tra tài khoản (bước 5) rồi chỉ cấp Access Token mới (`sid` = id phiên đích), **không** `Set-Cookie`, không ghi CSDL. Không có thì `401` (không coi là dùng lại).
-       - `ROTATED` quá 30 giây (dùng lại token): thu hồi mọi phiên còn hiệu lực của tài khoản (`REUSE_DETECTED`), ghi `audit_logs` `AUTH / TOKEN_REUSE_DETECTED` (`actor_type`, `actor_id` = chủ phiên, `ip_address`, `user_agent` của request, `action_details = { "revokedCount": n }`), **commit** rồi trả `401`.
+       - `ROTATED` quá 30 giây (dùng lại token): thu hồi mọi phiên còn hiệu lực của tài khoản (`REUSE_DETECTED`), ghi `audit_logs` `AUTH / TOKEN_REUSE_DETECTED` (`actor_type` = `USER`, `actor_id` = chủ phiên, `actor_name` = `users.full_name`, `resource_id` = id tài khoản, `ip_address`, `user_agent` của request, `action_details = { "revokedCount": n }`), **commit** rồi trả `401`.
        - Lý do thu hồi khác: `401`.
     4. `expires_at <= NOW()`: `401`.
-    5. Tài khoản `status` khác `ACTIVE` hoặc nhóm `INACTIVE`: `401` (bình thường phiên đã bị thu hồi khi khóa/ngừng hoạt động). Không xét `locked_until`, `must_change_password`, tuổi mật khẩu.
-    6. Xoay vòng: tạo phiên mới (`refresh_token_hash` của Refresh Token mới, `ip_address`/`user_agent` của request, `last_used_at = NOW()`, chép `actor_type`, `actor_id`, `remember_me`, `logged_in_at`, `expires_at` của phiên cũ); phiên cũ `revoked_at = NOW()`, `revoked_reason = 'ROTATED'`, `replaced_by_session_id` = id phiên mới. Ký Access Token mới với `roleCode` (và `userGroupId`) đọc lại từ CSDL lúc cấp, `sid` = id phiên mới.
+    5. Đọc `users` theo khóa chính `actor_id` của phiên, join `user_groups` theo khóa chính (đọc thường, không khóa). Tài khoản `status` khác `ACTIVE` hoặc nhóm `INACTIVE`: `401` (bình thường phiên đã bị thu hồi khi khóa/ngừng hoạt động; nhánh nhóm `INACTIVE` là chốt phòng vệ như bước 2 của mục 3.1). Không xét `locked_until`, `must_change_password`, tuổi mật khẩu, không ghi `audit_logs`.
+    6. Xoay vòng: tạo phiên mới (`refresh_token_hash` của Refresh Token mới, `ip_address`/`user_agent` của request, `last_used_at = NOW()`, chép `actor_type`, `actor_id`, `remember_me`, `logged_in_at`, `expires_at` của phiên cũ); phiên cũ `revoked_at = NOW()`, `revoked_reason = 'ROTATED'`, `replaced_by_session_id` = id phiên mới. Ký Access Token mới bằng `JWT_USER_SECRET` với `sub`, `userGroupId`, `roleCode` (đọc lại từ `user_roles` lúc cấp, nên vai trò vừa đổi có hiệu lực ngay), `sid` = id phiên mới. Nhánh ân hạn (bước 3) ký cùng các claim này.
   - **Response** `200`, `Set-Cookie` cookie mới (`Max-Age` = số giây còn lại tới `expires_at` khi `remember_me = 1`, không có `Max-Age` khi `0`; trừ nhánh ân hạn):
 
     ```json
@@ -177,7 +177,9 @@ Cùng khung với bản Admin (`docs/modules/04_auth_admin.md` mục 3.1); mục
     ```
 
     `expiresIn` = `security_access_token_minutes` × 60 (giây). Không trả thông tin tài khoản: frontend gọi `GET /auth/me` sau đó (`docs/00_overview_and_architecture.md` mục 5.3.2).
-  - **Lỗi**: `400 VALIDATION_ERROR` (body có trường); mọi nhánh còn lại `401 UNAUTHORIZED`, cùng thông điệp, và luôn kèm `Set-Cookie` xóa cookie (cùng `Path`, `Max-Age=0`). Refresh thành công không ghi `audit_logs`; chỉ nhánh dùng lại token ghi `TOKEN_REUSE_DETECTED`.
+  - **Lỗi**: `400 VALIDATION_ERROR` (body có trường); mọi nhánh còn lại `401 UNAUTHORIZED`, cùng thông điệp, và luôn kèm `Set-Cookie` xóa cookie (cùng `Path`, `Max-Age=0`). Không có `403`/`503`. Refresh thành công không ghi `audit_logs`; chỉ nhánh dùng lại token ghi `TOKEN_REUSE_DETECTED`.
+  - **Frontend** (`docs/00_overview_and_architecture.md` mục 5.3.2): API client cổng Member gọi refresh **một lần** cho mọi request đồng thời (single-flight); không áp refresh-khi-`401` cho chính `/auth/refresh` và `/auth/login`; `503 MAINTENANCE` của API khác không kích hoạt refresh và không xóa phiên. Access Token chỉ giữ trong store `authUser` (bộ nhớ). Mẫu `window.memberSession` (`refreshOnce`, `request`, `ensureSession`) trong `templates/member/main.js`.
+  - Index phục vụ: `uniq_session_token` (bước 2), khóa chính `auth_sessions` (đi chuỗi `replaced_by_session_id`), khóa chính `users`, `user_groups`, `user_roles` (bước 5–6), `idx_session_actor` (thu hồi mọi phiên khi dùng lại token).
 - **`POST /auth/logout`** (đặc tả chung cho cả hai cổng; bản Admin `POST /api/v1/admin/auth/logout` khác ở các điểm ghi tại `docs/modules/04_auth_admin.md` mục 3.5):
   - **Guard**: `UserAuthGuard`, nhận cả token `PASSWORD_CHANGE_ONLY`; không cần mã quyền. Không có body; gửi body có trường thì `400 VALIDATION_ERROR`. Đọc Refresh Token từ cookie (`Path=/api/v1/auth`, cookie được gửi kèm vì `/api/v1/auth/logout` nằm trong `Path`).
   - **Xử lý** (một transaction):
@@ -403,5 +405,6 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
 2. **TC-USR-02**: Đăng nhập sai mật khẩu 5 lần liên tiếp, kiểm tra lần thứ 6 (kể cả đúng mật khẩu) trả về `423 ACCOUNT_TEMPORARILY_LOCKED` kèm `errors.lockedUntil`; sau 15 phút đăng nhập đúng được và `failed_login_count` về 0.
    - **TC-USR-02b**: Dùng lại một Refresh Token đã được xoay vòng, kiểm tra mọi phiên của tài khoản bị thu hồi (`revoked_reason = 'REUSE_DETECTED'`).
    - **TC-USR-02c**: Gửi đồng thời 2 request `refresh` cùng một Refresh Token (giả lập 2 tab), kiểm tra cả hai nhận Access Token, chỉ request đầu có `Set-Cookie`, không phiên nào bị `REUSE_DETECTED`. Dùng lại token đó sau 30 giây thì mọi phiên bị thu hồi.
+   - **TC-USR-02d**: Đăng nhập User với `rememberMe = true`, gọi `POST /api/v1/auth/refresh`: `200` `data = { accessToken, expiresIn }`, Access Token mới mang `sub`, `userGroupId`, `roleCode`, `sid` = id phiên mới; cookie mới `Path=/api/v1/auth`, `Max-Age` ≈ số giây còn lại tới `expires_at`; phiên cũ `ROTATED`, không có dòng `audit_logs` mới. Bật `system_maintenance_mode` rồi refresh: vẫn `200`, sau đó `GET /api/v1/auth/me` `200`, `GET /api/v1/profile` `503 MAINTENANCE`. Body `{ "x": 1 }`: `400`. Khóa user đó rồi refresh bằng cookie cũ: `401 UNAUTHORIZED` kèm `Set-Cookie` `Max-Age=0`. Gửi cookie Refresh Token của Admin tới route User: `401`.
 3. **TC-USR-03**: Gọi `PUT /users/:id/role` đổi Quản trị viên nhóm duy nhất trong nhóm sang `REGULAR_USER`, kiểm tra hệ thống chặn `409` với cảnh báo thích hợp và `user_roles` không đổi.
 4. **TC-USR-04**: Group Admin tạo người dùng mới trong nhóm của mình, xác nhận có dòng `user_roles` với vai trò `REGULAR_USER` và người dùng mới tạo có thể đăng nhập bình thường.
