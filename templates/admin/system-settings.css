@@ -403,9 +403,14 @@ html {
     white-space: nowrap;
 }
 
-.admins-table .btn-revoke-sessions {
+.admins-table .btn-revoke-sessions,
+.admins-table .btn-admin-status {
     padding: 6px 12px;
     font-size: 0.8125rem;
+}
+
+.admins-table .btn-admin-status + .btn-revoke-sessions {
+    margin-left: 6px;
 }
 
 /* Thêm quản trị viên – POST /admin/admins (M04 mục 3.3 Frontend) */

@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
-    // 7. Mục "Quản trị viên" (AdminAccountsSection.vue) – docs/modules/04_auth_admin.md mục 3.2, 3.3, 3.7, 5.2
+    // 7. Mục "Quản trị viên" (AdminAccountsSection.vue) – docs/modules/04_auth_admin.md mục 3.2, 3.3, 3.4, 3.7, 5.2
     // Khung dựng ở A14. Vue: gọi qua API client của cổng Admin (401 → refresh một lần, mẫu window.adminSession.request).
     // ----------------------------------------------------
     const adminsSection = document.getElementById('section-admins');
@@ -332,7 +332,8 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 5101, actorId: 5, revokedAt: null, revokedReason: null, expiresAt: '2026-12-31T08:00:00+07:00' },
         { id: 5102, actorId: 5, revokedAt: null, revokedReason: null, expiresAt: '2026-12-31T08:00:00+07:00' },
         { id: 5103, actorId: 5, revokedAt: null, revokedReason: null, expiresAt: '2026-10-01T08:00:00+07:00' },
-        { id: 5104, actorId: 9, revokedAt: '2026-10-03T11:00:00+07:00', revokedReason: 'ACCOUNT_LOCKED', expiresAt: '2026-12-31T08:00:00+07:00' }
+        { id: 5104, actorId: 9, revokedAt: '2026-10-03T11:00:00+07:00', revokedReason: 'ACCOUNT_LOCKED', expiresAt: '2026-12-31T08:00:00+07:00' },
+        { id: 5105, actorId: 13, revokedAt: null, revokedReason: null, expiresAt: '2026-12-31T08:00:00+07:00' }
     ];
     const MOCK_AUDIT = []; // dòng audit_logs mà mock ghi (để kiểm tra khi chạy thử)
 
@@ -439,6 +440,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 message: n > 0 ? 'Đã thu hồi phiên đăng nhập của quản trị viên' : 'Tài khoản không có phiên đăng nhập nào đang hoạt động',
                 data: { revokedCount: n }, timestamp: now()
             };
+        });
+    }
+
+    // Giả lập PUT /api/v1/admin/admins/:id/status (A17, M04 mục 3.4). Thứ tự kiểm tra như backend:
+    // 400 (:id, body đúng một trường status ACTIVE|LOCKED, query) → chính mình 403 SELF_ACTION_FORBIDDEN → không có 404
+    // → ROOT_ADMIN 403 ROOT_ADMIN_PROTECTED (không ghi audit) → INACTIVE 409 ACCOUNT_INACTIVE → trùng trạng thái 200 không ghi
+    // → LOCKED: thu hồi phiên còn hiệu lực (ACCOUNT_LOCKED) + ADMIN / LOCK { revokedCount }; ACTIVE: ADMIN / UNLOCK.
+    const ADMIN_SET_STATUSES = ['ACTIVE', 'LOCKED'];
+    function mockSetAdminStatus(token, rawId, body, query) {
+        return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+            if (!token) return Promise.reject(unauthorized());
+            const errors = {};
+            Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+            const idText = String(rawId);
+            if (!/^[1-9][0-9]{0,9}$/.test(idText) || Number(idText) > 4294967295) errors.id = ['Mã quản trị viên không hợp lệ'];
+            const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+            Object.keys(b).forEach(k => { if (k !== 'status') errors[k] = ['Trường không được nhận']; });
+            if (b.status === undefined || b.status === null) errors.status = ['Bắt buộc nhập'];
+            else if (!ADMIN_SET_STATUSES.includes(b.status)) errors.status = ['Chỉ nhận ACTIVE hoặc LOCKED'];
+            if (Object.keys(errors).length) return Promise.reject(validationError(errors));
+
+            const id = Number(idText);
+            const status = b.status;
+            const fail = (statusCode, errorCode, message) => Promise.reject({
+                success: false, statusCode, errorCode, message, errors: null, timestamp: now()
+            });
+            if (id === currentAdminId) return fail(403, 'SELF_ACTION_FORBIDDEN', 'Không thể tự khóa hoặc mở khóa tài khoản của chính mình');
+            const target = MOCK_ADMINS.find(a => a.id === id); // backend: SELECT ... FOR UPDATE
+            if (!target) return fail(404, 'NOT_FOUND', 'Không tìm thấy quản trị viên');
+            if (target.roleCode === 'ROOT_ADMIN') return fail(403, 'ROOT_ADMIN_PROTECTED', 'Không thể thao tác trên tài khoản Quản trị viên tối cao');
+            if (target.status === 'INACTIVE') return fail(409, 'ACCOUNT_INACTIVE', 'Tài khoản đã ngừng hoạt động, không thể khóa hoặc mở khóa');
+
+            const ok = message => ({ success: true, statusCode: 200, message, data: { id, status: target.status }, timestamp: now() });
+            if (target.status === status) return ok('Tài khoản đã ở trạng thái này'); // không UPDATE, không audit
+
+            const ts = now();
+            target.status = status;
+            target.updatedAt = ts;
+            const audit = { actorType: 'ADMIN', actorId: currentAdminId, resourceName: 'ADMIN', resourceId: String(id), createdAt: ts };
+            if (status === 'LOCKED') {
+                const nowMs = Date.now();
+                const live = MOCK_SESSIONS.filter(x => x.actorId === id && !x.revokedAt && Date.parse(x.expiresAt) > nowMs);
+                live.forEach(x => { x.revokedAt = ts; x.revokedReason = 'ACCOUNT_LOCKED'; });
+                MOCK_AUDIT.push(Object.assign(audit, { action: 'LOCK', actionDetails: { revokedCount: live.length } }));
+                return ok('Đã khóa tài khoản quản trị viên');
+            }
+            // Mở khóa: không đổi failed_login_count, locked_until; phiên cũ không được khôi phục
+            MOCK_AUDIT.push(Object.assign(audit, { action: 'UNLOCK', actionDetails: null }));
+            return ok('Đã mở khóa tài khoản quản trị viên');
         });
     }
 
@@ -588,6 +638,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Nút "Thu hồi phiên": chỉ dòng ACTIVE, không ROOT_ADMIN, không phải chính mình (M04 mục 3.7 Frontend)
     const canRevokeSessions = row => row.status === 'ACTIVE' && row.roleCode !== 'ROOT_ADMIN' && row.id !== currentAdminId;
+    // Nút "Khóa" (dòng ACTIVE) / "Mở khóa" (dòng LOCKED): không ROOT_ADMIN, không phải chính mình (M04 mục 3.4 Frontend)
+    const canSetStatus = row => (row.status === 'ACTIVE' || row.status === 'LOCKED')
+        && row.roleCode !== 'ROOT_ADMIN' && row.id !== currentAdminId;
 
     // Dựng bằng textContent (không innerHTML): họ tên, email do người dùng nhập
     function renderAdmins(rows) {
@@ -632,6 +685,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const actions = document.createElement('td');
             actions.className = 'admins-actions-col';
+            if (canSetStatus(row)) {
+                const lock = row.status === 'ACTIVE';
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn ' + (lock ? 'btn-outline-danger' : 'btn-outline') + ' btn-admin-status';
+                btn.dataset.adminId = String(row.id);
+                btn.dataset.status = lock ? 'LOCKED' : 'ACTIVE'; // trạng thái sẽ gửi
+                btn.textContent = lock ? 'Khóa' : 'Mở khóa';
+                actions.appendChild(btn);
+            }
             if (canRevokeSessions(row)) {
                 const btn = document.createElement('button');
                 btn.type = 'button';
@@ -743,6 +806,46 @@ document.addEventListener('DOMContentLoaded', () => {
                     .finally(() => {
                         done();
                         if (reload) loadAdmins();
+                    });
+            }
+        });
+    }
+
+    // Khóa / Mở khóa – PUT /api/v1/admin/admins/:id/status (A17, M04 mục 3.4 Frontend). Cả hai đều qua hộp xác nhận
+    // (Khóa: danger, Mở khóa: primary). 200/403/404/409 đều tải lại danh sách: trạng thái đổi làm đổi thứ tự sắp xếp,
+    // và với bộ lọc trạng thái thì dòng có thể biến khỏi trang.
+    function confirmSetAdminStatus(id, status) {
+        const row = adminRows.get(id);
+        if (!row) return;
+        const lock = status === 'LOCKED';
+        const who = '"' + row.fullName + '" (' + row.username + ')';
+        showConfirmModal({
+            title: lock ? 'Khóa tài khoản quản trị viên' : 'Mở khóa tài khoản quản trị viên',
+            message: lock
+                ? 'Tài khoản ' + who + ' sẽ bị đăng xuất khỏi mọi thiết bị ngay và không đăng nhập được cho tới khi được mở khóa.'
+                : 'Tài khoản ' + who + ' sẽ đăng nhập lại được bằng mật khẩu hiện tại. Các phiên đăng nhập cũ không được khôi phục.',
+            confirmText: lock ? 'Khóa tài khoản' : 'Mở khóa',
+            type: lock ? 'danger' : 'primary',
+            action: done => {
+                let reload = false;
+                callApi(token => mockSetAdminStatus(token, id, { status }))
+                    .then(res => {
+                        reload = true;
+                        notify(res.message, 'success');
+                    })
+                    .catch(err => {
+                        const code = err && err.statusCode;
+                        if (code === 401) return; // request() đã chuyển về login
+                        if (code === 403 || code === 404 || code === 409) {
+                            reload = true;
+                            notify(err.message || 'Không thể đổi trạng thái tài khoản này', 'warning');
+                            return;
+                        }
+                        notify((err && err.message) || 'Không đổi được trạng thái. Vui lòng thử lại.', 'error');
+                    })
+                    .finally(() => {
+                        done();
+                        if (reload) loadAdmins(); // giữ bộ lọc và trang hiện tại
                     });
             }
         });
@@ -873,13 +976,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     adminsTableBody.addEventListener('click', e => {
         const btn = e.target.closest('.btn-revoke-sessions');
-        if (btn) confirmRevokeAdminSessions(btn.dataset.adminId);
+        if (btn) { confirmRevokeAdminSessions(btn.dataset.adminId); return; }
+        const statusBtn = e.target.closest('.btn-admin-status');
+        if (statusBtn) confirmSetAdminStatus(statusBtn.dataset.adminId, statusBtn.dataset.status);
     });
     btnRetryAdmins.addEventListener('click', loadAdmins);
 
     // Kiểm thử thủ công trên trang tĩnh (không có trong Vue)
     window.__adminsMock = {
         MOCK_ADMINS, MOCK_SESSIONS, MOCK_AUDIT, MOCK_USER_SETTINGS, mockGetAdmins, mockRevokeAdminSessions, mockCreateAdmin,
+        mockSetAdminStatus,
         generateTempPassword, adminsQuery, loadAdmins
     };
 

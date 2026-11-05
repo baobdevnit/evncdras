@@ -318,10 +318,59 @@ SELECT id, username_active, email_active FROM admins
 - Index phục vụ: khóa chính `admins` (bước 1, 7); `uniq_admins_username`, `uniq_admins_email` (bước 2, chặn trùng ở mức CSDL); `uniq_roles_code` (bước 4); `uniq_user_settings` (bước 5).
 
 ### 3.4. Khóa / Mở khóa Admin (`PUT /api/v1/admin/admins/:id/status`)
-- **Guard**: `AdminAuthGuard`, `Permission: admin:manage`
-- Body `{ "status": "ACTIVE" | "LOCKED" }`. Khóa thu hồi mọi phiên của admin đó (`ACCOUNT_LOCKED`).
-- Chặn không cho phép khóa tài khoản chính mình (`403 SELF_ACTION_FORBIDDEN`) hoặc tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`).
-- Tài khoản đã `INACTIVE` trả `409` (`ACCOUNT_INACTIVE`): `INACTIVE` là trạng thái cuối, không kích hoạt lại (`docs/01_database_schema.md` mục 14).
+
+- **Guard**: `AdminAuthGuard`, `PermissionsGuard` với `admin:manage` (chỉ vai trò `ROOT_ADMIN` có, mục 4.1). Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`; thiếu quyền trả `403 FORBIDDEN_PERMISSION`.
+- **Request**: `:id` là `admins.id` như mục 3.7 (`^[1-9][0-9]{0,9}$` và ≤ 4294967295, sai thì `400` với `errors.id`). Không có query (gửi query param trả `400`). Body JSON đúng một trường:
+
+```json
+{ "status": "LOCKED" }
+```
+
+| Trường | Kiểu | Bắt buộc | Ràng buộc |
+|---|---|---|---|
+| `status` | string | Có | `ACTIVE` (mở khóa) hoặc `LOCKED` (khóa), đúng chữ hoa; giá trị khác, kể cả `INACTIVE` (ngừng hoạt động qua mục 3.9) và `active`, trả `400` |
+
+  Thiếu `status`, sai kiểu, sai giá trị hoặc có trường khác trả `400 VALIDATION_ERROR` với `errors` theo tên trường; không ghi `audit_logs`.
+- **Xử lý** (một transaction, theo thứ tự; dừng ở lỗi đầu tiên):
+  1. Đọc `admins` theo khóa chính `id = sub`; không thấy dòng hoặc `status` khác `ACTIVE` trả `401 UNAUTHORIZED` (cùng quy tắc mục 3.1.1).
+  2. `:id` = `sub` trả `403 SELF_ACTION_FORBIDDEN` với cả hai giá trị `status` (không tự khóa/tự mở khóa).
+  3. `SELECT id, status, full_name, username FROM admins WHERE id = :id FOR UPDATE` (khóa chính; chạy tuần tự với thu hồi phiên, đặt lại mật khẩu, sửa, ngừng hoạt động cùng tài khoản: mọi thao tác quản trị trên một Admin khóa dòng `admins` trước rồi mới tới `auth_sessions`). Không thấy trả `404 NOT_FOUND`.
+  4. Vai trò của tài khoản đích (`admin_roles` theo khóa chính `admin_id`, nối `roles`) là `ROOT_ADMIN` trả `403 ROOT_ADMIN_PROTECTED` với cả hai giá trị `status`; không ghi `audit_logs` (chỉ Root Admin gọi được API này, như mục 3.7; riêng mục 3.9 ghi `ACCESS_DENIED`).
+  5. `status` hiện tại là `INACTIVE` trả `409 ACCOUNT_INACTIVE` (trạng thái cuối, không kích hoạt lại, `docs/01_database_schema.md` mục 14).
+  6. `status` hiện tại bằng `status` trong body: trả `200` với `data` như dưới, không `UPDATE`, không thu hồi phiên, không ghi `audit_logs` (như `docs/modules/03_auth_user.md` mục 3.7).
+  7. Sang `LOCKED`: `UPDATE admins SET status = 'LOCKED' WHERE id = :id`; rồi `UPDATE auth_sessions SET revoked_at = NOW(), revoked_reason = 'ACCOUNT_LOCKED' WHERE actor_type = 'ADMIN' AND actor_id = :id AND revoked_at IS NULL AND expires_at > NOW()` (qua `idx_session_actor`, cùng điều kiện mục 3.7 bước 5), `n` = số dòng bị sửa; ghi `audit_logs` `ADMIN / LOCK` với `action_details = { "revokedCount": n }` (kể cả `n = 0`).
+     Sang `ACTIVE`: `UPDATE admins SET status = 'ACTIVE' WHERE id = :id`; ghi `audit_logs` `ADMIN / UNLOCK` với `action_details = NULL`.
+     Cả hai: `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `admins.full_name` của người gọi, `resource_id` = `:id`, `ip_address`, `user_agent` của request. Không đổi `failed_login_count`, `locked_until` (khóa tạm do sai mật khẩu tách biệt với `LOCKED`), `must_change_password`, `password_hash`; mở khóa không khôi phục phiên cũ, Admin phải đăng nhập lại.
+- **Hiệu lực**: khóa có tác dụng ngay ở request kế tiếp của tài khoản bị khóa, kể cả với Access Token còn hạn: `AdminAuthGuard` đọc `admins.status` mỗi request và trả `401 UNAUTHORIZED` khi không còn `ACTIVE` (mục 3.1.1); `refresh` trả `401` và xóa cookie (`docs/modules/03_auth_user.md` mục 3.2.1 bước 3 hoặc 5); đăng nhập trả `403 ACCOUNT_LOCKED` (mục 3.1). Refresh đồng thời commit trước lần khóa (đọc `status` lúc còn `ACTIVE`) có thể tạo phiên mới lọt câu thu hồi bước 7, nhưng phiên đó không dùng được vì các kiểm tra trên đọc `status` mới. Không có sự kiện Socket.IO đẩy ra; tab đang mở của tài khoản bị khóa về trang đăng nhập ở lần gọi API kế tiếp.
+- **Response** `200`: `data = { id, status }` (trạng thái sau khi xử lý).
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đã khóa tài khoản quản trị viên",
+  "data": { "id": 7, "status": "LOCKED" },
+  "timestamp": "2026-11-05T15:00:00+07:00"
+}
+```
+
+  Thông điệp: "Đã khóa tài khoản quản trị viên" / "Đã mở khóa tài khoản quản trị viên"; bước 6: "Tài khoản đã ở trạng thái này".
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | `:id` sai định dạng (`errors.id`); body sai (bảng trên); có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản người gọi không còn `ACTIVE` (bước 1) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Thiếu `admin:manage` (`SYSTEM_ADMIN`) |
+| `403` | `SELF_ACTION_FORBIDDEN` | `:id` là chính người gọi (bước 2) |
+| `403` | `ROOT_ADMIN_PROTECTED` | Tài khoản đích mang vai trò `ROOT_ADMIN` (bước 4) |
+| `404` | `NOT_FOUND` | Không có admin `:id` (bước 3) |
+| `409` | `ACCOUNT_INACTIVE` | Tài khoản đích đã `INACTIVE` (bước 5) |
+
+- **Frontend** (mục 5.2): nút "Khóa" chỉ có ở dòng `status = ACTIVE`, nút "Mở khóa" chỉ ở dòng `status = LOCKED`; cả hai chỉ khi `roleCode` khác `ROOT_ADMIN` và `id` khác `authAdmin.admin.id` (dòng `INACTIVE` không có nút). Bấm nút mở `ConfirmModal` (`docs/03_ui_design.md` mục 6.6) nêu họ tên và tên đăng nhập: Khóa loại nguy hiểm, nói rõ tài khoản bị đăng xuất khỏi mọi thiết bị ngay và không đăng nhập được tới khi mở khóa; Mở khóa loại thường (`primary`), nói rõ tài khoản đăng nhập lại được bằng mật khẩu hiện tại. Xác nhận thì gửi `{ status }` qua API client của cổng (`401` → refresh một lần rồi gửi lại); trong lúc gửi khóa hai nút, không đóng hộp. Kết quả: `200` toast thành công theo `message` rồi **tải lại** danh sách (giữ bộ lọc và trang; thứ tự sắp xếp đổi theo trạng thái, lọc theo trạng thái có thể làm dòng biến mất); `403`, `404`, `409` toast cảnh báo theo `message` rồi tải lại danh sách; lỗi khác toast lỗi, giữ nguyên danh sách. Mẫu: `mockSetAdminStatus`, `confirmSetAdminStatus` trong `templates/admin/system-settings.js`.
+- Index phục vụ: khóa chính `admins`, `admin_roles` (bước 1, 3, 4); `idx_session_actor` (bước 7).
+- Bản tương ứng cho người dùng đơn vị là `PUT /api/v1/users/:id/status` (`docs/modules/03_auth_user.md` mục 3.7), khác ở khóa dòng nhóm trước và chặn Quản trị viên nhóm cuối cùng (`409 LAST_GROUP_ADMIN`).
 
 ### 3.5. Làm mới phiên và Đăng xuất (`POST /api/v1/admin/auth/refresh`, `POST /api/v1/admin/auth/logout`)
 
@@ -444,7 +493,7 @@ Không có guard riêng cho Root Admin. Controller quản lý Admin dùng `Permi
 export class AdminsController { /* ... */ } // backend/src/apps/admin/admins/admins.controller.ts
 ```
 
-Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`, ghi `audit_logs` `ACCESS_DENIED`) và tự khóa/tự xóa chính mình (`403 SELF_ACTION_FORBIDDEN`).
+Service chặn khóa/mở khóa, đặt lại mật khẩu, thu hồi phiên, ngừng hoạt động trên tài khoản mang vai trò `ROOT_ADMIN` (`403 ROOT_ADMIN_PROTECTED`), và chặn các thao tác đó cùng sửa thông tin (mục 3.8) trên chính mình (`403 SELF_ACTION_FORBIDDEN`). Chỉ ngừng hoạt động (mục 3.9) ghi thêm `audit_logs` `ADMIN / ACCESS_DENIED` khi chặn `ROOT_ADMIN`; các API còn lại không ghi (chỉ Root Admin gọi được, mục 3.4, 3.7).
 
 ---
 
@@ -461,7 +510,7 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 
 ### 5.2. Quản lý Quản trị viên trong Cài đặt hệ thống
 - Là mục `admins` (component `AdminAccountsSection.vue`) trong `SystemSettingsView.vue`, mở trực tiếp tại `/admin/settings?section=admins` (`docs/00_overview_and_architecture.md` mục 5.3.3, bảng "Chức năng đặt bên trong màn hình"). Không có route hay view riêng.
-- Template `system-settings.html` có khung mục `#section-admins` (dựng ở A14): bảng `.data-table` với cột họ tên/tên đăng nhập, email, vai trò, trạng thái, đăng nhập gần nhất và thao tác, dữ liệu mock đúng phần tử mục 3.2; thanh công cụ tìm kiếm `#adminsSearch` + lọc trạng thái `#adminsStatusFilter`, thanh phân trang `#adminsPagination` (A15, mục 3.2 Frontend); thao tác "Thu hồi phiên" (mục 3.7) với hộp xác nhận dùng chung `#confirmModal`; nút "Thêm quản trị viên" `#btnCreateAdmin` mở `#adminCreateModal`, thành công mở `#adminTempPasswordModal` (A16, mục 3.3 Frontend). Các thao tác còn lại dựng tiếp khi rà từng endpoint.
+- Template `system-settings.html` có khung mục `#section-admins` (dựng ở A14): bảng `.data-table` với cột họ tên/tên đăng nhập, email, vai trò, trạng thái, đăng nhập gần nhất và thao tác, dữ liệu mock đúng phần tử mục 3.2; thanh công cụ tìm kiếm `#adminsSearch` + lọc trạng thái `#adminsStatusFilter`, thanh phân trang `#adminsPagination` (A15, mục 3.2 Frontend); thao tác "Thu hồi phiên" (mục 3.7) với hộp xác nhận dùng chung `#confirmModal`; nút "Thêm quản trị viên" `#btnCreateAdmin` mở `#adminCreateModal`, thành công mở `#adminTempPasswordModal` (A16, mục 3.3 Frontend); nút "Khóa"/"Mở khóa" với `#confirmModal` (A17, mục 3.4 Frontend). Các thao tác còn lại dựng tiếp khi rà từng endpoint.
 - Hiển thị danh sách các Admin, nhãn vai trò theo `roleCode` (`ROOT_ADMIN` nổi bật màu vàng gold); thao tác Thêm (hiển thị `temporaryPassword` một lần), Sửa, Khóa/Kích hoạt, Đặt lại mật khẩu, Thu hồi phiên, Ngừng hoạt động – theo các endpoint `/api/v1/admin/admins*`.
 - Ẩn toàn bộ mục (cả nút trên menu `.settings-sidebar`) nếu tài khoản đang đăng nhập không có `admin:manage` (`!authAdminStore.permissions.includes('admin:manage')`).
 
@@ -482,3 +531,5 @@ Service chặn thao tác khóa/xóa trên tài khoản mang vai trò `ROOT_ADMIN
 11. **TC-ADM-11**: Dữ liệu: Root Admin R1 (người gọi), Root Admin R2, `SYSTEM_ADMIN` "Nguyễn Văn Trực" `ACTIVE`, "Trần Thị Giám Sát" `LOCKED`, "Lê Văn Chuyển Công Tác" `INACTIVE`. R1 gọi `GET /api/v1/admin/admins`: `200`, 5 phần tử theo thứ tự R1/R2 (theo `full_name`), rồi `ACTIVE`, `LOCKED`, `INACTIVE`; mỗi phần tử đúng 12 trường mục 3.2 (không có `passwordHash`, `failedLoginCount`, `lockedUntil`, `mustChangePassword`); `pagination = { page: 1, limit: 10, total: 5, totalPages: 1, hasNext: false, hasPrev: false }`. `?status=LOCKED`: 1 phần tử. `?search=%20NGUYỄN%20VĂN%20` (cắt khoảng trắng, không phân biệt hoa thường): 1 phần tử "Nguyễn Văn Trực"; `?search=npc.com`: khớp theo `email`; `?search=%25` chỉ khớp bản ghi chứa ký tự `%` (không khớp mọi dòng); `?search=` (rỗng) như không lọc. `?limit=2&page=3`: `data` 1 phần tử, `totalPages = 3`, `hasNext = false`, `hasPrev = true`; `?page=9`: `200`, `data = []`, `total = 5`. `400` (có `errors` theo tên tham số): `page=0`, `page=abc`, `limit=0`, `limit=101`, `status=active`, `status=DELETED`, `status=ACTIVE&status=LOCKED`, `search` 101 ký tự, `sort=fullName`, `x=1`. `SYSTEM_ADMIN` gọi: `403 FORBIDDEN_PERMISSION`; token `PASSWORD_CHANGE_ONLY`: `403 PASSWORD_CHANGE_REQUIRED`; R1 bị khóa trong lúc Access Token còn hạn: `401 UNAUTHORIZED`. Không có dòng `audit_logs` mới. Giao diện: gõ "giám" → sau 300 ms một request `search=giám&page=1`; đổi trạng thái về trang 1; ở trang 2 mà danh sách chỉ còn 1 trang thì tự tải trang 1.
 
 12. **TC-ADM-12**: Dữ liệu: Root Admin R1 (người gọi) `username = root.admin@evnict.vn`, `SYSTEM_ADMIN` `admin.npc` / `admin.npc@npc.com.vn` `ACTIVE`, `admin.old` / `admin.old@evnict.vn` `INACTIVE`. R1 gọi `POST /api/v1/admin/admins` với `{ "username": "  admin.hanoi ", "email": "admin.hanoi@evnhanoi.vn", "fullName": " Kỹ thuật viên Trực ban ", "phoneNumber": "" }`: `201`, header `Cache-Control: no-store`; `data` đúng 12 trường mục 3.2 (`username = "admin.hanoi"`, `fullName` đã cắt, `phoneNumber = null`, `status = ACTIVE`, `roleCode = SYSTEM_ADMIN`, `lastLoginAt = null`) và `temporaryPassword` 16 ký tự, có đủ chữ hoa, chữ thường, chữ số, ký tự đặc biệt, không có `I O l o i 0 1`. CSDL: một dòng `admins` (`must_change_password = 1`, `password_changed_at = NULL`, `created_by_admin_id` = R1, `password_hash` khớp `bcrypt.compare(temporaryPassword)`), một dòng `admin_roles` vai trò `SYSTEM_ADMIN`, một dòng `user_settings` (`ADMIN`, mặc định DDL), một dòng `audit_logs` `ADMIN / CREATE` (`resource_id` = id mới, `action_details = {"username":"admin.hanoi","email":"admin.hanoi@evnhanoi.vn","roleCode":"SYSTEM_ADMIN"}`, không chứa mật khẩu); log ứng dụng không chứa chuỗi mật khẩu. Đăng nhập bằng tài khoản mới: `mustChangePassword = true` (TC-ADM-06). `409 ACCOUNT_DUPLICATE`, không có dòng mới nào ở 4 bảng: `username = "ADMIN.NPC"` (`errors.username`); `email = "Admin.NPC@npc.com.vn"` (`errors.email`); `username = "admin.npc@npc.com.vn"` (trùng chéo email, `errors.username`); `email = "root.admin@evnict.vn"` (trùng `email` và chéo `username` của R1, `errors.email`); cả hai trùng: `errors` có cả hai khóa. `username = "admin.old"`, `email = "admin.old@evnict.vn"` (của tài khoản `INACTIVE`): `201`. Hai request tạo cùng `username` gửi đồng thời: một `201`, một `409` (không `500`). `400 VALIDATION_ERROR` (`errors` theo tên trường): thiếu `email`; `username` `ab`, `admin hanoi`, `quản.trị`, 101 ký tự; `email` `abc`, `a@b`, 151 ký tự; `fullName` `"   "`; `phoneNumber` `"abc"`; có `password`, `roleCode`, `status`; `?x=1`. `SYSTEM_ADMIN` gọi: `403 FORBIDDEN_PERMISSION`; token `PASSWORD_CHANGE_ONLY`: `403 PASSWORD_CHANGE_REQUIRED`. Giao diện: hộp Thêm chỉ có 4 ô; `409` hiện lỗi dưới ô, hộp không đóng; `201` mở hộp mật khẩu tạm có nút "Sao chép", đóng hộp thì mật khẩu không còn trong DOM và danh sách được tải lại có dòng mới.
+
+13. **TC-ADM-13**: Dữ liệu: Root Admin R1 (người gọi), Root Admin R2, `SYSTEM_ADMIN` B `ACTIVE` có 2 phiên còn hạn và 1 phiên đã hết hạn chưa thu hồi, C `LOCKED`, D `INACTIVE`. R1 gọi `PUT /api/v1/admin/admins/<B>/status` `{ "status": "LOCKED" }`: `200` `data = { "id": <B>, "status": "LOCKED" }`; `admins.status = LOCKED`, 2 phiên còn hạn có `revoked_reason = 'ACCOUNT_LOCKED'`, phiên hết hạn giữ nguyên; một dòng `audit_logs` `ADMIN / LOCK` (`resource_id` = id B, `action_details = {"revokedCount":2}`); Access Token còn hạn của B gọi `GET /api/v1/admin/auth/me` trả `401`, refresh trả `401` và xóa cookie, đăng nhập trả `403 ACCOUNT_LOCKED`. Gọi lại cùng body: `200`, không thêm dòng audit. Mở khóa B `{ "status": "ACTIVE" }`: `200`, một dòng `ADMIN / UNLOCK` (`action_details = NULL`), `failed_login_count`/`locked_until` không đổi, B đăng nhập lại được, phiên cũ vẫn bị thu hồi. Mở khóa C: `200`. D (cả hai giá trị): `409 ACCOUNT_INACTIVE`. `:id` là R1: `403 SELF_ACTION_FORBIDDEN`; là R2 (cả hai giá trị): `403 ROOT_ADMIN_PROTECTED`, không có dòng audit; id không tồn tại: `404 NOT_FOUND`. `400 VALIDATION_ERROR`: `:id` = `abc`, `0`, `4294967296` (`errors.id`); body `{}`, `{ "status": "INACTIVE" }`, `{ "status": "locked" }`, `{ "status": 1 }`, `{ "status": "LOCKED", "x": 1 }`; `?x=1`. `SYSTEM_ADMIN` gọi: `403 FORBIDDEN_PERMISSION`; token `PASSWORD_CHANGE_ONLY`: `403 PASSWORD_CHANGE_REQUIRED`. Giao diện: dòng R1, R2, D không có nút Khóa/Mở khóa; B có "Khóa", C có "Mở khóa"; xác nhận Khóa → toast thành công, danh sách tải lại và B hiện "Đã khóa"; "Hoạt động gần đây" của R1 có "Khóa quản trị viên", "Mở khóa quản trị viên".
