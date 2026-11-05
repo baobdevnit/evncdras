@@ -34,36 +34,80 @@ Bảng MariaDB: `users` và `user_settings`.
 
 ### 3.1. `GET /api/v1/profile`
 
-- **Guard**: `UserAuthGuard`
-- **Response**: Trả về chi tiết tài khoản user, thông tin nhóm QLND và đơn vị trực thuộc.
+Cùng khung với bản Admin (`docs/modules/09_admin_profile.md` mục 3.1); mục này ghi đủ cho bản User. Điểm khác bản Admin: kiểm tra nhóm, `roleCode` theo claim của Access Token, response có `jobTitle`, `userGroup`, `organization`, bị chế độ bảo trì chặn.
+
+- **Guard**: `UserAuthGuard`; không cần mã quyền (không qua `PermissionsGuard`). Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED` (`docs/01_database_schema.md` mục 6.1). **Bị** chế độ bảo trì chặn: `503 MAINTENANCE` (`docs/02_api_contracts.md` mục 1.2; không thuộc danh sách miễn `/auth/me`, `/auth/refresh`, `/auth/logout`). Thứ tự: guard (`401`/`403`) → bảo trì (`503`) → kiểm tra query (`400`) → xử lý.
+- **Request**: header `Authorization: Bearer <accessToken>`; không có query, không có body. Gửi query param bất kỳ trả `400 VALIDATION_ERROR`.
+- **Xử lý** (chỉ đọc, không ghi CSDL, không ghi `audit_logs`):
+  1. Đọc `users` theo khóa chính `id = sub` của Access Token, join `user_groups` theo khóa chính `users.user_group_id`, left join `organizations` theo khóa chính `user_groups.organization_id` (đọc thường, không khóa).
+  2. **Kiểm tra tài khoản ở mỗi request** (cùng quy tắc `GET /api/v1/auth/me`, `docs/modules/03_auth_user.md` mục 3.2 bước 2): không thấy dòng, `users.status` khác `ACTIVE`, `user_groups.status = 'INACTIVE'` (chốt phòng vệ) hoặc `must_change_password = 1` (token đầy đủ) → `401 UNAUTHORIZED`, không xóa cookie.
+  3. **Vai trò** (chủ dự án chốt ở U05): `roleCode` = claim `roleCode` của Access Token, **không** đọc `user_roles`; `roleName` = `roles.name` của vai trò có `code` đó (như `/auth/me` bước 3). Lý do: hồ sơ, header và menu (đều từ `/auth/me`) luôn hiện cùng một vai trò với `PermissionsGuard`; vai trò vừa đổi qua `PUT /users/:id/role` hiện từ lần refresh kế tiếp (tối đa `security_access_token_minutes`).
+- **Response** `200`: hồ sơ để hiển thị và làm giá trị ban đầu cho form `PUT` (mục 3.2); `PUT /profile` và `POST /profile/avatar` trả `data` đúng 15 trường này. Không có `permissions`, `allowRecordingAccess` (quyền và cờ nhóm chỉ lấy từ store `authUser.user`, nạp từ đăng nhập hoặc `/auth/me`).
+
+| Trường | Nguồn | Ghi chú |
+|---|---|---|
+| `id` | `users.id` | |
+| `username` | `users.username` | Chỉ đọc (bất biến, `docs/01_database_schema.md` mục 6) |
+| `email` | `users.email` | Chỉ đọc (bất biến) |
+| `fullName` | `users.full_name` | Sửa qua mục 3.2 |
+| `jobTitle` | `users.job_title` | `null` khi chưa có; chỉ đọc ở hồ sơ (Quản trị viên nhóm/Admin sửa qua `PUT /users/:id`) |
+| `phoneNumber` | `users.phone_number` | `null` khi chưa nhập; sửa qua mục 3.2 |
+| `avatarUrl` | `users.avatar_url` | `null` khi chưa tải ảnh (frontend dựng ảnh chữ cái đầu từ `fullName`); đổi qua mục 3.3 |
+| `status` | `users.status` | Luôn `ACTIVE` (tài khoản khác `ACTIVE` nhận `401`) |
+| `userGroup` | `{ id, code, name }` từ `user_groups` | Nhóm QLND, chỉ đọc (`user_group_id` bất biến) |
+| `organization` | `{ id, code, name }` từ `organizations` qua `user_groups.organization_id` | `null` khi nhóm độc lập (`organization_id IS NULL`); đơn vị `INACTIVE` vẫn trả bình thường |
+| `roleCode`, `roleName` | Claim `roleCode`, `roles.name` (bước 3) | Huy hiệu vai trò (mục 5.1) |
+| `lastLoginAt` | `users.last_login_at` | |
+| `passwordChangedAt` | `users.password_changed_at` | `null` khi chưa từng đổi |
+| `createdAt` | `users.created_at` | |
+
+Không trả `password_hash`, `must_change_password`, `failed_login_count`, `locked_until`, `updated_at`, `user_group_id` riêng lẻ. Thời gian theo ISO 8601 `+07:00` (`docs/02_api_contracts.md` mục 2).
 
 ```json
 {
   "success": true,
   "statusCode": 200,
+  "message": "Lấy hồ sơ thành công",
   "data": {
     "id": 10,
-    "username": "tran.b",
-    "email": "tran.b@71portal.vn",
+    "username": "cdr.evnit",
+    "email": "cdr.evnit@evn.com.vn",
     "fullName": "Trần Thị B",
     "jobTitle": "Trưởng nhóm Kỹ thuật Vận hành",
     "phoneNumber": "0912345678",
     "avatarUrl": "/media/avatars/8a1d2c3e-5b6f-4a7d-9e0f-1b2c3d4e5f60.jpg",
+    "status": "ACTIVE",
     "userGroup": {
       "id": 1,
-      "name": "Khối Công nghệ Thông tin",
-      "code": "UMO-IT"
+      "code": "UMO-IT",
+      "name": "Nhóm QLND Khối CNTT"
     },
     "organization": {
       "id": 2,
-      "name": "Khối Công nghệ Thông tin",
-      "code": "IT-01"
+      "code": "IT-01",
+      "name": "Khối CNTT"
     },
     "roleCode": "GROUP_ADMIN",
-    "roleName": "Quản trị viên nhóm"
-  }
+    "roleName": "Quản trị viên nhóm",
+    "lastLoginAt": "2026-10-26T08:05:00+07:00",
+    "passwordChangedAt": "2026-10-01T14:30:00+07:00",
+    "createdAt": "2026-09-15T09:00:00+07:00"
+  },
+  "timestamp": "2026-10-26T09:31:00+07:00"
 }
 ```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng Admin (guard); kiểm tra tài khoản không qua (bước 2) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `503` | `MAINTENANCE` | Đang bật `system_maintenance_mode` (`errors = null`) |
+
+- **Frontend** (`UserProfileView`): gọi mỗi lần vào màn hình qua API client cổng Member (`window.memberSession.request`: `401` → refresh một lần rồi gửi lại; `503` → biểu ngữ bảo trì, không refresh). Phần đầu thẻ hiển thị `avatarUrl`, `fullName`, huy hiệu `roleName`, `email`; khối thông tin tài khoản hiển thị `lastLoginAt`, `passwordChangedAt` (`null` → "Chưa đổi"), `createdAt` do frontend tự định dạng; form điền `fullName`, `phoneNumber` (sửa được), `username`, `email`, `jobTitle` (`null` → "—"), `userGroup.name` (kèm `code`), `organization.name` (`null` → "Nhóm độc lập"), `roleName` (chỉ đọc). Lỗi tải (kể cả `503`) thì hiện thông báo và nút thử lại, không hiện dữ liệu mẫu. Mẫu: `templates/member/profile.js` (`mockGetUserProfile`, `loadProfile`).
+- Index phục vụ: khóa chính `users`, `user_groups`, `organizations`; `uniq_roles_code` (nếu không nạp sẵn `roles`).
 
 ### 3.2. `PUT /api/v1/profile`
 
@@ -135,16 +179,13 @@ Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView
 
 ### 5.1. Bố cục Giao diện (`UserProfileView.vue`, ánh xạ `templates/member/profile.html`)
 
+Dữ liệu từ `GET /api/v1/profile` (mục 3.1); trạng thái tải/lỗi `#profileLoadState` (nút thử lại), nội dung `#profileLayout` chỉ hiện khi tải xong. Đổi mật khẩu và thiết lập giao diện là màn hình riêng (`member.change-password`, `member.account-settings`), không phải tab của trang này.
+
 - **Panel bên trái (`.profile-sidebar`)**:
-  - Avatar cỡ lớn (`.profile-avatar-large`) kèm nút tải ảnh đại diện `.btn-change-avatar`.
-  - Họ tên, nhãn vai trò `.role-badge`, email.
-  - Các nút chuyển Tab: "Thông tin chung", "Bảo mật & Mật khẩu", "Cài đặt & Giao diện".
-- **Panel bên phải (`.profile-content`)**:
-  - Tab 1: Form cập nhật họ tên, điện thoại, các trường readonly đơn vị và quyền hạn.
-  - Tab 2: Form đổi mật khẩu với nút bật/tắt mắt xem mật khẩu (`.eye-icon`).
-  - Tab 3: Nhóm lựa chọn giao diện 3 giá trị Sáng / Tối / Theo hệ thống, thanh menu thu gọn, chọn số dòng hiển thị mỗi bảng.
-- **Tích hợp đồng bộ Theme**:
-  - Khi người dùng chọn giao diện, cập nhật trực tiếp `document.documentElement.setAttribute('data-theme', theme.toLowerCase())` (với `SYSTEM`: bỏ thuộc tính `data-theme` để theo `prefers-color-scheme` của trình duyệt) và gọi API lưu cấu hình.
+  - Avatar cỡ lớn (`.profile-avatar-large`) kèm nút tải ảnh đại diện `.btn-change-avatar` (mục 3.3).
+  - `fullName`, huy hiệu vai trò `.role-badge` (`roleName`), `email`.
+  - Khối thông tin tài khoản `.account-meta` (chỉ đọc): `lastLoginAt`, `passwordChangedAt`, `createdAt`.
+- **Panel bên phải (`.profile-content`)**: form "Thông tin cá nhân": `fullName`, `phoneNumber` sửa được (mục 3.2); `username`, `email`, `jobTitle`, nhóm QLND (`userGroup`), đơn vị (`organization`), vai trò (`roleName`) chỉ đọc. Không có ô cho trường không có cột/API (phòng ban tự nhập, ghi chú hồ sơ…).
 
 ---
 
@@ -153,3 +194,4 @@ Cả 3 route chỉ cần đăng nhập (không mã quyền). `ChangePasswordView
 1. **TC-UP-01**: Cập nhật họ tên mới, F5 trang kiểm tra họ tên trên Avatar góc phải Sidebar cập nhật tương ứng.
 2. **TC-UP-02**: Nhập sai mật khẩu hiện tại khi đổi mật khẩu, xác nhận `400 VALIDATION_ERROR` với `errors.currentPassword = ["Mật khẩu hiện tại không đúng"]` và `users.failed_login_count` tăng 1 (`docs/modules/09_admin_profile.md` mục 3.3).
 3. **TC-UP-03**: Bật Chế độ Tối (Dark Mode), đăng xuất rồi đăng nhập lại trên thiết bị khác, kiểm tra hệ thống vẫn giữ nguyên theme Dark Mode từ CSDL.
+4. **TC-UP-04** (`GET /api/v1/profile`): user `ACTIVE` gọi được `200` đủ 15 trường, không có `permissions`, `password_hash`; nhóm độc lập → `organization = null`. `?x=1` → `400 VALIDATION_ERROR`. Token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`. Khóa user (hoặc đặt lại mật khẩu) rồi gọi bằng Access Token cũ → `401 UNAUTHORIZED`. Đổi vai trò qua `PUT /users/:id/role`: `roleCode` vẫn theo token cũ, sau refresh là vai trò mới. Bật `system_maintenance_mode` → `503 MAINTENANCE`. Không có dòng `audit_logs` mới.

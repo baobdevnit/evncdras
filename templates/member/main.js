@@ -283,15 +283,20 @@ window.memberSession = (function () {
             if (!exempt) window.dispatchEvent(new CustomEvent('member-maintenance', { detail: { active: false } }));
             return res;
         };
-        return callApi(accessToken).then(done, err => {
+        // 503 có thể tới ở lần gửi lại sau refresh (refresh miễn bảo trì), nên kiểm tra ở cả hai lần.
+        const maintenance = err => {
             if (err && err.statusCode === 503 && err.errorCode === 'MAINTENANCE') {
                 window.dispatchEvent(new CustomEvent('member-maintenance', { detail: { active: true, message: err.message } }));
-                throw err;
+                return true;
             }
+            return false;
+        };
+        return callApi(accessToken).then(done, err => {
+            if (maintenance(err)) throw err;
             if (!err || err.statusCode !== 401) throw err;
             return refreshOnce()
                 .then(token => callApi(token))
-                .then(done)
+                .then(done, e => { maintenance(e); throw e; })
                 .catch(e => { if (e && e.statusCode === 401) goLogin(); throw e; });
         });
     }
