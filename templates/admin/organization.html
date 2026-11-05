@@ -323,34 +323,70 @@
         <div class="modal-content modal-lg">
             <div class="modal-header">
                 <h2>Chi tiết tổ chức - <span id="detailOrgTitle" class="text-main"></span></h2>
-                <button class="close-btn" onclick="closeModal('orgDetailModal')">&times;</button>
+                <button class="close-btn" onclick="closeOrgDetail()">&times;</button>
             </div>
+            <!-- Thân hộp do organization.js vẽ từ GET /api/v1/admin/organizations/:id (M01 mục 3.1.2): tải / lỗi + "Thử lại" / dữ liệu -->
             <div class="modal-body">
-                <div class="detail-grid">
-                    <div class="detail-item">
-                        <span class="detail-label">Tên tổ chức/đơn vị</span>
-                        <span class="detail-value fw-600" id="detailOrgName"></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Mã đơn vị</span>
-                        <span class="detail-value"><span class="badge-code" id="detailOrgCode"></span></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Trực thuộc (Đơn vị cha)</span>
-                        <span class="detail-value" id="detailParentOrg"></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Thứ tự sắp xếp</span>
-                        <span class="detail-value" id="detailSortOrder"></span>
-                    </div>
-                    <div class="detail-item col-span-2">
-                        <span class="detail-label">Mô tả tổ chức</span>
-                        <div class="detail-value detail-desc" id="detailOrgDesc"></div>
+                <div id="orgDetailState" class="detail-state" hidden></div>
+                <div id="orgDetailContent" hidden>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Tên tổ chức/đơn vị</span>
+                            <span class="detail-value fw-600" data-detail="name"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Mã đơn vị</span>
+                            <span class="detail-value"><span class="badge-code" data-detail="code"></span></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Trạng thái</span>
+                            <span class="detail-value" data-detail="status"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Cấp</span>
+                            <span class="detail-value" data-detail="level"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Trực thuộc (Đơn vị cha)</span>
+                            <span class="detail-value" data-detail="parentName"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Thứ tự sắp xếp</span>
+                            <span class="detail-value" data-detail="sortOrder"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Người đại diện</span>
+                            <span class="detail-value" data-detail="representativeName"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Điện thoại</span>
+                            <span class="detail-value" data-detail="representativePhone"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Email</span>
+                            <span class="detail-value" data-detail="representativeEmail"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Ngày tạo / Cập nhật lần cuối</span>
+                            <span class="detail-value" data-detail="timestamps"></span>
+                        </div>
+                        <div class="detail-item col-span-2">
+                            <span class="detail-label">Mô tả tổ chức</span>
+                            <div class="detail-value detail-desc" data-detail="description"></div>
+                        </div>
+                        <div class="detail-item col-span-2">
+                            <span class="detail-label">Đơn vị con trực thuộc</span>
+                            <ul class="detail-list" id="detailChildren"></ul>
+                        </div>
+                        <div class="detail-item col-span-2">
+                            <span class="detail-label">Nhóm người dùng trực thuộc</span>
+                            <ul class="detail-list" id="detailUserGroups"></ul>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-outline" onclick="closeModal('orgDetailModal')">Đóng</button>
+                <button class="btn btn-outline" onclick="closeOrgDetail()">Đóng</button>
                 <button class="btn btn-outline" data-manage="add" hidden onclick="addOrgFromDetail()" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     Thêm tổ chức con

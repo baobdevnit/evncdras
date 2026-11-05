@@ -191,3 +191,49 @@ tr.expanded .toggle-icon {
 .tree-table tr.tree-state:hover {
     background-color: transparent;
 }
+/* Hộp chi tiết (M01 mục 3.1.2 Frontend): trạng thái tải/lỗi, danh sách đơn vị con và nhóm trực thuộc */
+.detail-state {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 2rem 1rem;
+}
+.detail-state .btn {
+    margin-left: 0.75rem;
+}
+.detail-desc {
+    white-space: pre-line;
+}
+.detail-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 8px;
+}
+.detail-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+    color: var(--text-color);
+}
+.detail-list li + li {
+    border-top: 1px solid var(--border, #e2e8f0);
+}
+.detail-list li .detail-list-name {
+    flex: 1;
+}
+.detail-list li.detail-list-empty {
+    color: var(--text-muted);
+}
+/* Hộp chi tiết dài (đơn vị con, nhóm): giới hạn theo chiều cao màn hình, cuộn trong thân hộp */
+#orgDetailModal .modal-content {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 2rem);
+}
+#orgDetailModal .modal-body {
+    overflow-y: auto;
+    min-height: 0;
+}

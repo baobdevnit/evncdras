@@ -5,16 +5,22 @@
  *  - Không query, không phân trang; data = mảng nút gốc, mỗi nút
  *    { id, parentId, code, name, level, sortOrder, status, userGroupCount, children } (userGroupCount chỉ bản Admin).
  *  - Gọi qua adminSession.request (401 → refresh một lần rồi gửi lại); tải lại cả cây sau mỗi thao tác ghi.
- * Chi tiết đơn vị (O03), tạo/sửa/xóa (O04–O06) còn là demo, nối API ở các endpoint đó.
+ * Chi tiết: GET /api/v1/admin/organizations/:id (O03, M01 mục 3.1.2), gọi mỗi lần mở #orgDetailModal.
+ *  - data = { id, parentId, parentName, code, name, level, sortOrder, status, description, representativeName,
+ *    representativePhone, representativeEmail, createdAt, updatedAt, children, userGroups } (userGroups chỉ bản Admin);
+ *    không có childCount/userGroupCount. 404 → đóng hộp, toast cảnh báo, tải lại cây.
+ * Tạo/sửa/xóa (O04–O06) còn là demo, nối API ở các endpoint đó.
  *
- * Kiểm tay mock: ?treeError=1 (lỗi tải, "Thử lại" thành công), ?treeEmpty=1 (cây rỗng), ?noManage=1 (thiếu org:manage).
+ * Kiểm tay mock: ?treeError=1 (lỗi tải, "Thử lại" thành công), ?treeEmpty=1 (cây rỗng), ?noManage=1 (thiếu org:manage),
+ * ?detailError=1 (lần mở chi tiết đầu lỗi mạng, "Thử lại" thành công), ?detailMissing=<id> (đơn vị đã bị xóa → 404).
  */
 
 const ORG_QS = new URLSearchParams(window.location.search);
 
 // ---------- Mock backend ----------
-// MOCK_ORG_ROWS đóng vai bảng organizations (chỉ các cột câu SELECT ở bước 2 đọc);
-// MOCK_UG_COUNTS đóng vai kết quả COUNT(*) user_groups GROUP BY organization_id (kể cả nhóm INACTIVE).
+// MOCK_ORG_ROWS đóng vai bảng organizations (các cột cây đọc); MOCK_ORG_EXTRA là các cột còn lại của cùng dòng
+// (chỉ chi tiết O03 đọc; dòng không có trong map thì các cột đó NULL, thời gian mặc định).
+// MOCK_USER_GROUPS đóng vai bảng user_groups (chỉ các cột O01/O03 đọc), kể cả nhóm INACTIVE.
 const MOCK_ORG_ROWS = [
     { id: 1, parentId: null, code: 'TC-71', name: 'Tổng công ty 71', level: 0, sortOrder: 1, status: 'ACTIVE' },
     { id: 14, parentId: null, code: 'EVNNPC', name: 'Tổng công ty Điện lực miền Bắc', level: 0, sortOrder: 2, status: 'ACTIVE' },
@@ -32,8 +38,29 @@ const MOCK_ORG_ROWS = [
     { id: 15, parentId: 12, code: 'DA-01-HT', name: 'Tổ Hạ tầng dự án', level: 2, sortOrder: 1, status: 'ACTIVE' },
     { id: 13, parentId: 3, code: 'DEV-01-CDR', name: 'Tổ Ứng dụng CDR', level: 3, sortOrder: 1, status: 'ACTIVE' }
 ];
-const MOCK_UG_COUNTS = { 2: 2, 5: 1, 14: 1 };
+const MOCK_ORG_EXTRA = {
+    1: { description: 'Đơn vị quản lý cấp cao điều hành mạng lưới viễn thông, hạ tầng kỹ thuật và dịch vụ tổng đài nội bộ toàn hệ thống.',
+        representativeName: 'Trần Quốc Bảo', representativePhone: '024 3974 0001', representativeEmail: 'vanphong@tc71.evn.com.vn',
+        createdAt: '2026-09-15T08:00:00+07:00', updatedAt: '2026-10-20T10:15:00+07:00' },
+    2: { description: 'Quản trị hạ tầng công nghệ thông tin, máy chủ tổng đài PABX và hệ thống phân tích CDR.\nĐảm bảo an toàn thông tin cho toàn khối.',
+        representativeName: 'Nguyễn Văn A', representativePhone: '024 3974 1234', representativeEmail: 'it@evn.com.vn',
+        createdAt: '2026-10-01T08:00:00+07:00', updatedAt: '2026-11-02T14:30:00+07:00' },
+    3: { description: 'Nghiên cứu, thiết kế và phát triển các giải pháp phần mềm nghiệp vụ, ứng dụng phân tích CDR.',
+        representativeName: 'Lê Thị B', representativePhone: null, representativeEmail: 'dev@evn.com.vn',
+        createdAt: '2026-10-01T08:05:00+07:00', updatedAt: '2026-10-01T08:05:00+07:00' },
+    12: { description: 'Đơn vị đã giải thể, giữ lại để tra cứu.', representativeName: null, representativePhone: null, representativeEmail: null,
+        createdAt: '2026-09-15T08:30:00+07:00', updatedAt: '2026-10-30T16:45:00+07:00' }
+};
+const MOCK_USER_GROUPS = [
+    { id: 7, organizationId: 2, code: 'UMO-IT-01', name: 'Nhóm QLND Khối CNTT', status: 'ACTIVE' },
+    { id: 9, organizationId: 2, code: 'UMO-IT-OLD', name: 'Nhóm QLND Khối CNTT (cũ)', status: 'INACTIVE' },
+    { id: 11, organizationId: 5, code: 'UMO-KD-01', name: 'Nhóm QLND Khối Kinh doanh', status: 'ACTIVE' },
+    { id: 15, organizationId: 14, code: 'UMO-NPC-01', name: 'Nhóm QLND EVNNPC', status: 'ACTIVE' }
+];
+// Kết quả COUNT(*) user_groups GROUP BY organization_id (O01 bước 3, kể cả nhóm INACTIVE)
+const MOCK_UG_COUNTS = MOCK_USER_GROUPS.reduce((acc, g) => { acc[g.organizationId] = (acc[g.organizationId] || 0) + 1; return acc; }, {});
 let mockTreeFailOnce = ORG_QS.get('treeError') === '1';
+let mockDetailFailOnce = ORG_QS.get('detailError') === '1';
 
 function orgNow() { return new Date().toISOString().replace('Z', '+07:00'); }
 
@@ -78,6 +105,57 @@ function mockGetOrgTree(token, query) {
         const rows = ORG_QS.get('treeEmpty') === '1' ? [] : MOCK_ORG_ROWS;
         return { success: true, statusCode: 200, message: 'Lấy cây tổ chức thành công',
             data: buildOrgTree(rows, true), timestamp: orgNow() };
+    });
+}
+
+const orgByName = (a, b) => a.name.localeCompare(b.name, 'vi') || a.id - b.id;
+
+// Giả lập GET /api/v1/admin/organizations/:id (M01 mục 3.1.2): token thiếu → 401; :id sai định dạng hoặc
+// có query → 400; không có dòng → 404; 200 data 16 trường (children sắp sortOrder, name, id; userGroups sắp name, id).
+function mockGetOrgDetail(token, idParam, query) {
+    return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+        if (!token) {
+            return Promise.reject({ success: false, statusCode: 401, errorCode: 'UNAUTHORIZED',
+                message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', errors: null, timestamp: orgNow() });
+        }
+        const errors = {};
+        const idStr = String(idParam);
+        if (!/^[1-9][0-9]{0,9}$/.test(idStr) || Number(idStr) > 4294967295) errors.id = ['Mã đơn vị không hợp lệ'];
+        Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được hỗ trợ']; });
+        if (Object.keys(errors).length) {
+            return Promise.reject({ success: false, statusCode: 400, errorCode: 'VALIDATION_ERROR',
+                message: 'Dữ liệu không hợp lệ', errors, timestamp: orgNow() });
+        }
+        if (mockDetailFailOnce) {
+            mockDetailFailOnce = false;
+            return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
+        }
+        const id = Number(idStr);
+        const row = MOCK_ORG_ROWS.find(o => o.id === id);
+        if (!row || ORG_QS.get('detailMissing') === idStr) {
+            return Promise.reject({ success: false, statusCode: 404, errorCode: 'NOT_FOUND',
+                message: 'Không tìm thấy đơn vị tổ chức', errors: null, timestamp: orgNow() });
+        }
+        const parent = row.parentId == null ? null : MOCK_ORG_ROWS.find(o => o.id === row.parentId);
+        const extra = MOCK_ORG_EXTRA[id] || {};
+        const children = MOCK_ORG_ROWS.filter(o => o.parentId === id)
+            .sort((a, b) => a.sortOrder - b.sortOrder || orgByName(a, b))
+            .map(o => ({ id: o.id, code: o.code, name: o.name, level: o.level, status: o.status }));
+        const userGroups = MOCK_USER_GROUPS.filter(g => g.organizationId === id).sort(orgByName)
+            .map(g => ({ id: g.id, code: g.code, name: g.name, status: g.status }));
+        return { success: true, statusCode: 200, message: 'Lấy thông tin đơn vị tổ chức thành công',
+            data: {
+                id: row.id, parentId: row.parentId, parentName: parent ? parent.name : null,
+                code: row.code, name: row.name, level: row.level, sortOrder: row.sortOrder, status: row.status,
+                description: extra.description ?? null,
+                representativeName: extra.representativeName ?? null,
+                representativePhone: extra.representativePhone ?? null,
+                representativeEmail: extra.representativeEmail ?? null,
+                createdAt: extra.createdAt || '2026-09-15T08:00:00+07:00',
+                updatedAt: extra.updatedAt || '2026-09-15T08:00:00+07:00',
+                children, userGroups
+            },
+            timestamp: orgNow() };
     });
 }
 
@@ -257,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-permission]').forEach(el => {
         el.hidden = el.dataset.permission === 'org:manage' ? !manage : false;
     });
-    document.querySelectorAll('#orgDetailModal [data-manage]').forEach(el => { el.hidden = !manage; });
+    setDetailManageButtons(null);
     loadTree();
 });
 
@@ -287,43 +365,163 @@ function saveOrg() {
     }, 800);
 }
 
-// Chi tiết: dữ liệu đầy đủ lấy từ GET /api/v1/admin/organizations/:id (O03); tạm dùng mô tả mẫu dưới đây.
+// ---------- Chi tiết đơn vị (O03, M01 mục 3.1.2 Frontend; Vue: store selectedOrg / fetchDetail) ----------
 let currentDetailOrgId = null;
 let currentDeleteOrgId = null;
+let orgDetail = null;       // data của lần tải chi tiết thành công gần nhất (form sửa O05 dùng lại khi cùng id)
+let orgDetailSeq = 0;
 
-const orgDescriptions = {
-    1: 'Đơn vị quản lý cấp cao điều hành mạng lưới viễn thông, hạ tầng kỹ thuật và dịch vụ tổng đài nội bộ toàn hệ thống.',
-    2: 'Quản trị hạ tầng công nghệ thông tin, máy chủ tổng đài PABX, hệ thống phân tích nhật ký cuộc gọi CDR và đảm bảo an toàn thông tin.',
-    3: 'Nghiên cứu, thiết kế và phát triển các giải pháp phần mềm nghiệp vụ, ứng dụng phân tích CDR và cổng dịch vụ nội bộ EVN.',
-    4: 'Theo dõi, vận hành 24/7 hạ tầng mạng thoại VoIP, tổng đài nội bộ PABX, giám sát các chỉ số chất lượng dịch vụ QoS.',
-    5: 'Điều phối hoạt động kinh doanh dịch vụ viễn thông, chăm sóc đối tác, quản lý doanh thu và phát triển khách hàng.'
-};
+const ORG_LEVEL_LABELS = ['Cấp 0 – Tập đoàn', 'Cấp 1 – Tổng công ty', 'Cấp 2 – Khối/Công ty', 'Cấp 3 – Phòng ban/Điện lực'];
+
+// Định dạng ngày giờ ở frontend (R16-07): API trả ISO 8601 +07:00
+function formatOrgDateTime(iso) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false,
+        year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function orgStatusBadge(status) {
+    const badge = document.createElement('span');
+    badge.className = 'badge-status ' + (status === 'ACTIVE' ? 'active' : 'inactive');
+    badge.textContent = status === 'ACTIVE' ? 'Hoạt động' : 'Ngừng hoạt động';
+    return badge;
+}
+
+// "Thêm tổ chức con": org:manage + ACTIVE + level < 3; "Chỉnh sửa": org:manage. Ẩn khi đang tải/lỗi.
+function setDetailManageButtons(data) {
+    const manage = canManageOrg();
+    const addBtn = document.querySelector('#orgDetailModal [data-manage="add"]');
+    const editBtn = document.querySelector('#orgDetailModal [data-manage="edit"]');
+    if (addBtn) addBtn.hidden = !(manage && data && data.status === 'ACTIVE' && data.level < 3);
+    if (editBtn) editBtn.hidden = !(manage && data);
+}
+
+function setDetailState(message, withRetry) {
+    const state = document.getElementById('orgDetailState');
+    const content = document.getElementById('orgDetailContent');
+    if (content) content.hidden = true;
+    setDetailManageButtons(null);
+    if (!state) return;
+    state.innerHTML = '';
+    state.hidden = false;
+    const text = document.createElement('span');
+    text.textContent = message;
+    state.appendChild(text);
+    if (withRetry) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline';
+        btn.textContent = 'Thử lại';
+        btn.addEventListener('click', () => loadOrgDetail(currentDetailOrgId));
+        state.appendChild(btn);
+    }
+}
+
+function fillDetailList(listId, items, emptyText) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    list.innerHTML = '';
+    if (!items.length) {
+        const li = document.createElement('li');
+        li.className = 'detail-list-empty';
+        li.textContent = emptyText;
+        list.appendChild(li);
+        return;
+    }
+    items.forEach(item => {
+        const li = document.createElement('li');
+        const code = document.createElement('span');
+        code.className = 'badge-code';
+        code.textContent = item.code;
+        const name = document.createElement('span');
+        name.className = 'detail-list-name';
+        name.textContent = item.name;
+        li.append(code, name, orgStatusBadge(item.status));
+        list.appendChild(li);
+    });
+}
+
+function renderOrgDetail(data) {
+    const content = document.getElementById('orgDetailContent');
+    const state = document.getElementById('orgDetailState');
+    if (!content) return;
+    const dash = v => (v == null || v === '' ? '—' : String(v));
+    const text = {
+        name: data.name,
+        code: data.code,
+        level: ORG_LEVEL_LABELS[data.level] || ('Cấp ' + data.level),
+        parentName: data.parentName == null ? 'Không có (đơn vị gốc)' : data.parentName,
+        sortOrder: String(data.sortOrder),
+        representativeName: dash(data.representativeName),
+        representativePhone: dash(data.representativePhone),
+        representativeEmail: dash(data.representativeEmail),
+        timestamps: formatOrgDateTime(data.createdAt) + ' / ' + formatOrgDateTime(data.updatedAt),
+        description: data.description == null || data.description === '' ? '(Chưa có mô tả)' : data.description
+    };
+    content.querySelectorAll('[data-detail]').forEach(el => {
+        const key = el.dataset.detail;
+        if (key === 'status') { el.innerHTML = ''; el.appendChild(orgStatusBadge(data.status)); }
+        else el.textContent = text[key] ?? '';
+    });
+    const title = document.getElementById('detailOrgTitle');
+    if (title) title.textContent = data.name;
+    fillDetailList('detailChildren', data.children, 'Không có đơn vị con');
+    // userGroups chỉ có ở bản Admin; route User không trả trường này
+    fillDetailList('detailUserGroups', data.userGroups || [], 'Chưa có nhóm người dùng nào');
+    if (state) state.hidden = true;
+    content.hidden = false;
+    setDetailManageButtons(data);
+}
+
+// Gọi GET .../:id mỗi lần mở hộp; chỉ hiển thị response của lần gọi sau cùng.
+function loadOrgDetail(id) {
+    const seq = ++orgDetailSeq;
+    setDetailState('Đang tải thông tin đơn vị...', false);
+    return orgCallApi(token => mockGetOrgDetail(token, String(id), {}))
+        .then(res => {
+            if (seq !== orgDetailSeq || currentDetailOrgId !== id) return;
+            orgDetail = res.data;
+            renderOrgDetail(res.data);
+        })
+        .catch(err => {
+            if (seq !== orgDetailSeq || currentDetailOrgId !== id) return;
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            if (err && err.statusCode === 404) {
+                closeOrgDetail();
+                if (window.showToast) window.showToast('Đơn vị tổ chức không còn tồn tại', 'warning');
+                loadTree();
+                return;
+            }
+            setDetailState((err && err.message) || 'Không tải được thông tin đơn vị. Vui lòng thử lại.', true);
+        });
+}
 
 function showOrgDetail(id) {
     const entry = orgIndex.get(id);
-    if (!entry) return;
-    const org = entry.node;
     currentDetailOrgId = id;
-    const set = (elId, text) => { const el = document.getElementById(elId); if (el) el.textContent = text; };
-    set('detailOrgTitle', org.name);
-    set('detailOrgName', org.name);
-    set('detailOrgCode', org.code);
-    set('detailParentOrg', entry.parent ? entry.parent.name : 'Không có (Đơn vị gốc - Root)');
-    set('detailSortOrder', String(org.sortOrder));
-    set('detailOrgDesc', orgDescriptions[id] || '(Chưa có mô tả)');
-    const addBtn = document.querySelector('#orgDetailModal [data-manage="add"]');
-    if (addBtn) addBtn.hidden = !canAddChild(org);
+    orgDetail = null;
+    const title = document.getElementById('detailOrgTitle');
+    if (title) title.textContent = entry ? entry.node.name : '';
     openModal('orgDetailModal');
+    loadOrgDetail(id);
+}
+
+function closeOrgDetail() {
+    closeModal('orgDetailModal');
+    currentDetailOrgId = null;
+    orgDetailSeq++; // bỏ response đang chờ
 }
 
 function editOrgFromDetail() {
-    closeModal('orgDetailModal');
-    if (currentDetailOrgId) openEditOrgModal(currentDetailOrgId);
+    const id = currentDetailOrgId;
+    closeOrgDetail();
+    if (id) openEditOrgModal(id);
 }
 
 function addOrgFromDetail() {
     const parentId = currentDetailOrgId;
-    closeModal('orgDetailModal');
+    closeOrgDetail();
     openCreateOrgModal(parentId);
 }
 
@@ -359,7 +557,8 @@ function populateOrgForm(id) {
     val('orgCode', org.code);
     val('parentOrg', org.parentId == null ? '' : String(org.parentId));
     val('sortOrder', String(org.sortOrder));
-    val('orgDesc', orgDescriptions[id] || '');
+    // O05: form sửa tải GET .../:id trước khi mở; tạm dùng chi tiết vừa xem nếu cùng id
+    val('orgDesc', orgDetail && orgDetail.id === id ? (orgDetail.description || '') : '');
 }
 
 function openDeleteOrgModal(id) {
