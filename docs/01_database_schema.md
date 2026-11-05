@@ -1166,7 +1166,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | `AUDIO` | `LISTEN_AUDIO`, `DOWNLOAD_AUDIO` |
 | `CDR` | `EXPORT_CDR`, `PURGE_CDR_PARTITION` (actor `SYSTEM`) |
 | `REPORT` | `EXPORT_REPORT` (`action_details.format`: `EXCEL`/`PDF`) |
-| `USER` / `ADMIN` | `CREATE`, `UPDATE` (kể cả tự sửa hồ sơ `PUT /profile`, `PUT /admin/profile` và tự đổi ảnh `POST .../avatar`, `action_details = { "changedFields": [...] }`; `PUT .../preferences` không ghi), `LOCK` (`action_details = { "revokedCount": n }`, số phiên bị thu hồi), `UNLOCK` (`action_details = NULL`), `DEACTIVATE`, `CHANGE_ROLE` (chỉ `USER`; `action_details = { "from": "<roleCode>", "to": "<roleCode>" }`) |
+| `USER` / `ADMIN` | `CREATE`, `UPDATE` (kể cả tự sửa hồ sơ `PUT /profile`, `PUT /admin/profile`, tự đổi ảnh `POST .../avatar` và sửa Admin khác `PUT /admin/admins/:id`, `action_details = { "changedFields": [...] }`, chỉ ghi khi có trường thực sự đổi; `PUT .../preferences` không ghi), `LOCK` (`action_details = { "revokedCount": n }`, số phiên bị thu hồi), `UNLOCK` (`action_details = NULL`), `DEACTIVATE`, `CHANGE_ROLE` (chỉ `USER`; `action_details = { "from": "<roleCode>", "to": "<roleCode>" }`) |
 | `USER_GROUP` | `CREATE`, `UPDATE`, `DEACTIVATE`, `TOGGLE_GROUP_RECORDING` (`allow_recording_access`) |
 | `PREFIX` | `UPDATE_PREFIX_GROUP`, `ALLOCATE_RANGE`, `UPDATE_RANGE`, `REVOKE_RANGE`, `UPDATE_NUMBER` |
 | `ORGANIZATION` | `CREATE`, `UPDATE`, `DELETE` |

@@ -568,6 +568,48 @@
         </div>
     </div>
 
+    <!-- Sửa quản trị viên – PUT /api/v1/admin/admins/:id (M04 mục 3.8 Frontend). Đúng 3 trường của body; tên đăng nhập
+         chỉ đọc (bất biến). Chỉ gửi trường khác giá trị ban đầu. Lỗi 400/409 hiện ở .field-error[data-error-for]. -->
+    <div id="adminEditModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="adminEditTitle">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="adminEditTitle">Sửa quản trị viên</h2>
+                <button type="button" class="close-btn" data-close-edit aria-label="Đóng">&times;</button>
+            </div>
+            <form id="adminEditForm" novalidate>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <span class="admins-edit-label" id="editAdminUsernameLabel">Tên đăng nhập</span>
+                        <p class="admins-edit-username" id="editAdminUsername" aria-labelledby="editAdminUsernameLabel"></p>
+                    </div>
+                    <div class="form-group">
+                        <label for="editAdminFullName">Họ và tên <span class="text-danger">*</span></label>
+                        <input type="text" id="editAdminFullName" name="fullName" class="form-control" maxlength="150" autocomplete="off">
+                        <small class="field-error" data-error-for="fullName" hidden></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="editAdminEmail">Email <span class="text-danger">*</span></label>
+                        <input type="email" id="editAdminEmail" name="email" class="form-control" maxlength="150" autocomplete="off">
+                        <small class="field-error" data-error-for="email" hidden></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="editAdminPhone">Số điện thoại</label>
+                        <input type="tel" id="editAdminPhone" name="phoneNumber" class="form-control" maxlength="30" autocomplete="off">
+                        <small class="field-error" data-error-for="phoneNumber" hidden></small>
+                    </div>
+                    <p class="admins-create-note text-muted">
+                        Đổi email thì tài khoản đăng nhập bằng email mới từ lần sau; các phiên đang có không bị đăng xuất.
+                        Tên đăng nhập không đổi được.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" data-close-edit>Hủy</button>
+                    <button type="submit" id="btnSubmitEditAdmin" class="btn btn-primary">Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Mật khẩu tạm (một lần) – data.temporaryPassword của 201. Không lưu store/localStorage/URL; đóng hộp thì xóa khỏi DOM. -->
     <div id="adminTempPasswordModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="adminTempPasswordTitle">
         <div class="modal-content modal-sm">

@@ -440,11 +440,80 @@ SELECT id, username_active, email_active FROM admins
 
 ### 3.8. Sửa thông tin Admin khác (`PUT /api/v1/admin/admins/:id`)
 
-- **Guard**: `AdminAuthGuard`, `Permission: admin:manage`.
-- **Body**: `{ "fullName"?: string, "email"?: string, "phoneNumber"?: string | null }`, ít nhất một trường. Có `username`, `status`, `roleCode`, `avatarUrl`, `password` hoặc trường khác thì trả `400` (trạng thái đổi qua mục 3.4, mật khẩu qua mục 3.6; không có API đổi vai trò Admin).
-- Chặn chính mình (`403 SELF_ACTION_FORBIDDEN`; tự sửa họ tên, điện thoại qua `PUT /admin/profile`, `docs/modules/09_admin_profile.md` mục 3.2). Tài khoản `INACTIVE` trả `409 ACCOUNT_INACTIVE`. `email` trùng tài khoản Admin chưa `INACTIVE` khác trả `409 ACCOUNT_DUPLICATE`.
-- Đổi `email` không thu hồi phiên (đăng nhập bằng `username` hoặc `email` mới). Ghi `audit_logs` `ADMIN / UPDATE`, `action_details = { "changedFields": ["email", …] }`.
-- **Response** `200`: `data` là phần tử của mục 3.2 sau khi sửa.
+- **Guard**: `AdminAuthGuard`, `PermissionsGuard` với `admin:manage` (chỉ vai trò `ROOT_ADMIN` có, mục 4.1). Token `PASSWORD_CHANGE_ONLY` trả `403 PASSWORD_CHANGE_REQUIRED`; thiếu quyền trả `403 FORBIDDEN_PERMISSION`.
+- **Request**: `:id` là `admins.id` như mục 3.7 (`^[1-9][0-9]{0,9}$` và ≤ 4294967295, sai thì `400` với `errors.id`). Không có query (gửi query param trả `400`). Body JSON, **cập nhật một phần**, ít nhất một trường:
+
+```json
+{ "email": "admin.npc.moi@npc.com.vn", "phoneNumber": "0243 888 999" }
+```
+
+| Trường | Kiểu | Bắt buộc | Ràng buộc (cột đích) |
+|---|---|---|---|
+| `fullName` | string | Không | Cắt khoảng trắng hai đầu; 1–150 ký tự sau khi cắt; `null` hoặc chuỗi rỗng trả `400` (`admins.full_name`) |
+| `email` | string | Không | Cắt khoảng trắng hai đầu; ≤ 150 ký tự, `^[^\s@]+@[^\s@]+\.[^\s@]+$` (`docs/02_api_contracts.md` mục 2); `null` hoặc chuỗi rỗng trả `400` (`admins.email`) |
+| `phoneNumber` | string \| null | Không | Quy tắc chung `docs/02_api_contracts.md` mục 2: `null`/rỗng sau khi cắt = xóa số (`NULL`), còn lại `^(?=.*[0-9])[0-9+\-.() ]{1,30}$` (`admins.phone_number`) |
+
+  Body rỗng `{}` trả `400` (`errors` có khóa `fullName`, `email`, `phoneNumber`, thông điệp "Cần gửi ít nhất một trường"). Sai kiểu, sai định dạng, quá độ dài hoặc có trường khác (`username`, `status`, `roleCode`, `avatarUrl`, `password`…) trả `400 VALIDATION_ERROR` với `errors` theo tên trường; không ghi `audit_logs`. `username` bất biến sau khi tạo; trạng thái đổi qua mục 3.4, mật khẩu qua mục 3.6, ảnh đại diện chỉ chủ tài khoản tự đổi (`docs/modules/09_admin_profile.md` mục 3.2.1); không có API đổi vai trò Admin.
+- **Xử lý** (một transaction, sau khi kiểm tra request; theo thứ tự, dừng ở lỗi đầu tiên):
+  1. Đọc `admins` theo khóa chính `id = sub`; không thấy dòng hoặc `status` khác `ACTIVE` trả `401 UNAUTHORIZED` (cùng quy tắc mục 3.1.1).
+  2. `:id` = `sub` trả `403 SELF_ACTION_FORBIDDEN` (tự sửa họ tên, điện thoại qua `PUT /admin/profile`, `docs/modules/09_admin_profile.md` mục 3.2; email của chính mình không đổi qua API).
+  3. `SELECT id, username, email, full_name, phone_number, status FROM admins WHERE id = :id FOR UPDATE` (khóa chính; khóa dòng `admins` đích trước mọi khóa khác như mục 3.4 bước 3). Không thấy trả `404 NOT_FOUND`.
+  4. Vai trò của tài khoản đích (`admin_roles` theo khóa chính `admin_id`, nối `roles`) là `ROOT_ADMIN` trả `403 ROOT_ADMIN_PROTECTED`; không ghi `audit_logs` (như mục 3.4, 3.7). Họ tên, điện thoại của Root Admin do chính họ sửa qua `PUT /admin/profile`; email của Root Admin chỉ đổi qua seed/CSDL.
+  5. `status` là `INACTIVE` trả `409 ACCOUNT_INACTIVE` (`docs/01_database_schema.md` mục 14). Tài khoản `LOCKED` vẫn sửa được, trạng thái giữ nguyên.
+  6. So từng trường đã gửi (sau chuẩn hóa) với giá trị hiện tại bằng so sánh **chính xác** (phân biệt hoa thường, để đổi được `Admin.NPC@…` thành `admin.npc@…`); `changedFields` = các trường khác giá trị, theo thứ tự `fullName`, `email`, `phoneNumber`. Rỗng: không `UPDATE`, không ghi `audit_logs`, sang bước 9 (thông điệp "Không có thay đổi nào").
+  7. `email` thuộc `changedFields`: kiểm tra trùng (kể cả chéo, `docs/02_api_contracts.md` mục 2) với các Admin chưa `INACTIVE` **khác** tài khoản đích bằng đọc khóa như mục 3.3 bước 2:
+
+```sql
+SELECT id FROM admins WHERE username_active = :email AND id <> :id FOR UPDATE;  -- uniq_admins_username
+SELECT id FROM admins WHERE email_active = :email AND id <> :id FOR UPDATE;     -- uniq_admins_email
+```
+
+     Có dòng thì `409 ACCOUNT_DUPLICATE` với `errors.email` (rollback, không ghi `audit_logs`). `username` của chính tài khoản đích trùng `email` mới vẫn hợp lệ. Deadlock `1213` chạy lại cả transaction tối đa 2 lần; `UPDATE` gặp `ER_DUP_ENTRY` trên `uniq_admins_email` thì cũng trả `409 ACCOUNT_DUPLICATE` (`errors.email`), không trả `500`.
+  8. `UPDATE admins` chỉ các cột trong `changedFields` (`updated_at` tự cập nhật); ghi `audit_logs` `ADMIN / UPDATE`: `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `admins.full_name` của người gọi, `resource_id` = `:id`, `ip_address`, `user_agent` của request, `action_details = { "changedFields": [...] }` (không ghi giá trị cũ/mới, như `docs/modules/09_admin_profile.md` mục 3.2).
+  9. Đọc lại bằng câu `SELECT` của mục 3.2 với `WHERE a.id = :id`, rồi commit.
+
+  Không thu hồi phiên, không gửi thông báo hay email: đổi `email` có hiệu lực ngay ở lần đăng nhập kế tiếp (đăng nhập bằng `username` hoặc `email` mới; `email` cũ không còn đăng nhập được), phiên đang có vẫn dùng tiếp. Header của tài khoản đích đọc `fullName` từ store của chính họ nên chỉ đổi ở lần `GET /admin/auth/me` kế tiếp (đăng nhập lại hoặc tải lại trang).
+- **Response** `200`: `data` = phần tử của mục 3.2 sau khi sửa (đúng 12 trường, cùng bảng nguồn trường).
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Cập nhật quản trị viên thành công",
+  "data": {
+    "id": 7,
+    "username": "admin.npc",
+    "email": "admin.npc.moi@npc.com.vn",
+    "fullName": "Nguyễn Văn Trực",
+    "phoneNumber": "0243 888 999",
+    "avatarUrl": null,
+    "status": "ACTIVE",
+    "roleCode": "SYSTEM_ADMIN",
+    "roleName": "Quản trị viên hệ thống",
+    "lastLoginAt": null,
+    "createdAt": "2026-09-20T14:00:00+07:00",
+    "updatedAt": "2026-11-05T16:00:00+07:00"
+  },
+  "timestamp": "2026-11-05T16:00:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | `:id` sai định dạng (`errors.id`); body sai (bảng trên); có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng User (guard); tài khoản người gọi không còn `ACTIVE` (bước 1) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Thiếu `admin:manage` (`SYSTEM_ADMIN`) |
+| `403` | `SELF_ACTION_FORBIDDEN` | `:id` là chính người gọi (bước 2) |
+| `403` | `ROOT_ADMIN_PROTECTED` | Tài khoản đích mang vai trò `ROOT_ADMIN` (bước 4) |
+| `404` | `NOT_FOUND` | Không có admin `:id` (bước 3) |
+| `409` | `ACCOUNT_INACTIVE` | Tài khoản đích đã `INACTIVE` (bước 5) |
+| `409` | `ACCOUNT_DUPLICATE` | `email` mới trùng `email` hoặc `username` của Admin chưa `INACTIVE` khác (bước 7), `errors.email` |
+
+- **Frontend** (mục 5.2): nút "Sửa" chỉ có ở dòng `status` `ACTIVE` hoặc `LOCKED`, `roleCode` khác `ROOT_ADMIN` và `id` khác `authAdmin.admin.id`. Bấm nút mở hộp `#adminEditModal` điền sẵn từ phần tử của danh sách: tên đăng nhập chỉ đọc (không phải ô nhập) và đúng 3 ô `fullName` (`maxlength="150"`, bắt buộc), `email` (`maxlength="150"`, bắt buộc), `phoneNumber` (`maxlength="30"`); dòng ghi chú: đổi email thì tài khoản đăng nhập bằng email mới từ lần sau, các phiên đang có không bị đăng xuất. Lưu: so giá trị đã cắt khoảng trắng với giá trị ban đầu, chỉ gửi các trường khác (`phoneNumber` rỗng gửi `null`); không có trường nào đổi thì toast thông tin "Không có thay đổi nào", đóng hộp, không gọi API. Gửi qua API client của cổng (`401` → refresh một lần rồi gửi lại); trong lúc gửi khóa các nút và không đóng hộp. `400`/`409 ACCOUNT_DUPLICATE`: hiện `errors[field]` dưới ô (khóa không có ô thì toast), giữ hộp mở. `200`: đóng hộp, toast thành công theo `message`, tải lại danh sách (giữ bộ lọc và trang; `fullName` đổi làm đổi thứ tự). `403`, `404`, `409 ACCOUNT_INACTIVE`: đóng hộp, toast cảnh báo theo `message`, tải lại danh sách; lỗi khác toast lỗi, giữ hộp mở. Mẫu: `mockUpdateAdmin`, `openEditAdmin`, `submitEditAdmin` trong `templates/admin/system-settings.js`.
+- Index phục vụ: khóa chính `admins`, `admin_roles` (bước 1, 3, 4, 9); `uniq_admins_username`, `uniq_admins_email` (bước 7, chặn trùng ở mức CSDL). Không cần index mới.
 
 ### 3.9. Ngừng hoạt động Admin (`DELETE /api/v1/admin/admins/:id`)
 
@@ -510,7 +579,7 @@ Service chặn khóa/mở khóa, đặt lại mật khẩu, thu hồi phiên, ng
 
 ### 5.2. Quản lý Quản trị viên trong Cài đặt hệ thống
 - Là mục `admins` (component `AdminAccountsSection.vue`) trong `SystemSettingsView.vue`, mở trực tiếp tại `/admin/settings?section=admins` (`docs/00_overview_and_architecture.md` mục 5.3.3, bảng "Chức năng đặt bên trong màn hình"). Không có route hay view riêng.
-- Template `system-settings.html` có khung mục `#section-admins` (dựng ở A14): bảng `.data-table` với cột họ tên/tên đăng nhập, email, vai trò, trạng thái, đăng nhập gần nhất và thao tác, dữ liệu mock đúng phần tử mục 3.2; thanh công cụ tìm kiếm `#adminsSearch` + lọc trạng thái `#adminsStatusFilter`, thanh phân trang `#adminsPagination` (A15, mục 3.2 Frontend); thao tác "Thu hồi phiên" (mục 3.7) với hộp xác nhận dùng chung `#confirmModal`; nút "Thêm quản trị viên" `#btnCreateAdmin` mở `#adminCreateModal`, thành công mở `#adminTempPasswordModal` (A16, mục 3.3 Frontend); nút "Khóa"/"Mở khóa" với `#confirmModal` (A17, mục 3.4 Frontend). Các thao tác còn lại dựng tiếp khi rà từng endpoint.
+- Template `system-settings.html` có khung mục `#section-admins` (dựng ở A14): bảng `.data-table` với cột họ tên/tên đăng nhập, email, vai trò, trạng thái, đăng nhập gần nhất và thao tác, dữ liệu mock đúng phần tử mục 3.2; thanh công cụ tìm kiếm `#adminsSearch` + lọc trạng thái `#adminsStatusFilter`, thanh phân trang `#adminsPagination` (A15, mục 3.2 Frontend); thao tác "Thu hồi phiên" (mục 3.7) với hộp xác nhận dùng chung `#confirmModal`; nút "Thêm quản trị viên" `#btnCreateAdmin` mở `#adminCreateModal`, thành công mở `#adminTempPasswordModal` (A16, mục 3.3 Frontend); nút "Khóa"/"Mở khóa" với `#confirmModal` (A17, mục 3.4 Frontend); nút "Sửa" mở `#adminEditModal` (A18, mục 3.8 Frontend). Các thao tác còn lại dựng tiếp khi rà từng endpoint.
 - Hiển thị danh sách các Admin, nhãn vai trò theo `roleCode` (`ROOT_ADMIN` nổi bật màu vàng gold); thao tác Thêm (hiển thị `temporaryPassword` một lần), Sửa, Khóa/Kích hoạt, Đặt lại mật khẩu, Thu hồi phiên, Ngừng hoạt động – theo các endpoint `/api/v1/admin/admins*`.
 - Ẩn toàn bộ mục (cả nút trên menu `.settings-sidebar`) nếu tài khoản đang đăng nhập không có `admin:manage` (`!authAdminStore.permissions.includes('admin:manage')`).
 
@@ -533,3 +602,5 @@ Service chặn khóa/mở khóa, đặt lại mật khẩu, thu hồi phiên, ng
 12. **TC-ADM-12**: Dữ liệu: Root Admin R1 (người gọi) `username = root.admin@evnict.vn`, `SYSTEM_ADMIN` `admin.npc` / `admin.npc@npc.com.vn` `ACTIVE`, `admin.old` / `admin.old@evnict.vn` `INACTIVE`. R1 gọi `POST /api/v1/admin/admins` với `{ "username": "  admin.hanoi ", "email": "admin.hanoi@evnhanoi.vn", "fullName": " Kỹ thuật viên Trực ban ", "phoneNumber": "" }`: `201`, header `Cache-Control: no-store`; `data` đúng 12 trường mục 3.2 (`username = "admin.hanoi"`, `fullName` đã cắt, `phoneNumber = null`, `status = ACTIVE`, `roleCode = SYSTEM_ADMIN`, `lastLoginAt = null`) và `temporaryPassword` 16 ký tự, có đủ chữ hoa, chữ thường, chữ số, ký tự đặc biệt, không có `I O l o i 0 1`. CSDL: một dòng `admins` (`must_change_password = 1`, `password_changed_at = NULL`, `created_by_admin_id` = R1, `password_hash` khớp `bcrypt.compare(temporaryPassword)`), một dòng `admin_roles` vai trò `SYSTEM_ADMIN`, một dòng `user_settings` (`ADMIN`, mặc định DDL), một dòng `audit_logs` `ADMIN / CREATE` (`resource_id` = id mới, `action_details = {"username":"admin.hanoi","email":"admin.hanoi@evnhanoi.vn","roleCode":"SYSTEM_ADMIN"}`, không chứa mật khẩu); log ứng dụng không chứa chuỗi mật khẩu. Đăng nhập bằng tài khoản mới: `mustChangePassword = true` (TC-ADM-06). `409 ACCOUNT_DUPLICATE`, không có dòng mới nào ở 4 bảng: `username = "ADMIN.NPC"` (`errors.username`); `email = "Admin.NPC@npc.com.vn"` (`errors.email`); `username = "admin.npc@npc.com.vn"` (trùng chéo email, `errors.username`); `email = "root.admin@evnict.vn"` (trùng `email` và chéo `username` của R1, `errors.email`); cả hai trùng: `errors` có cả hai khóa. `username = "admin.old"`, `email = "admin.old@evnict.vn"` (của tài khoản `INACTIVE`): `201`. Hai request tạo cùng `username` gửi đồng thời: một `201`, một `409` (không `500`). `400 VALIDATION_ERROR` (`errors` theo tên trường): thiếu `email`; `username` `ab`, `admin hanoi`, `quản.trị`, 101 ký tự; `email` `abc`, `a@b`, 151 ký tự; `fullName` `"   "`; `phoneNumber` `"abc"`; có `password`, `roleCode`, `status`; `?x=1`. `SYSTEM_ADMIN` gọi: `403 FORBIDDEN_PERMISSION`; token `PASSWORD_CHANGE_ONLY`: `403 PASSWORD_CHANGE_REQUIRED`. Giao diện: hộp Thêm chỉ có 4 ô; `409` hiện lỗi dưới ô, hộp không đóng; `201` mở hộp mật khẩu tạm có nút "Sao chép", đóng hộp thì mật khẩu không còn trong DOM và danh sách được tải lại có dòng mới.
 
 13. **TC-ADM-13**: Dữ liệu: Root Admin R1 (người gọi), Root Admin R2, `SYSTEM_ADMIN` B `ACTIVE` có 2 phiên còn hạn và 1 phiên đã hết hạn chưa thu hồi, C `LOCKED`, D `INACTIVE`. R1 gọi `PUT /api/v1/admin/admins/<B>/status` `{ "status": "LOCKED" }`: `200` `data = { "id": <B>, "status": "LOCKED" }`; `admins.status = LOCKED`, 2 phiên còn hạn có `revoked_reason = 'ACCOUNT_LOCKED'`, phiên hết hạn giữ nguyên; một dòng `audit_logs` `ADMIN / LOCK` (`resource_id` = id B, `action_details = {"revokedCount":2}`); Access Token còn hạn của B gọi `GET /api/v1/admin/auth/me` trả `401`, refresh trả `401` và xóa cookie, đăng nhập trả `403 ACCOUNT_LOCKED`. Gọi lại cùng body: `200`, không thêm dòng audit. Mở khóa B `{ "status": "ACTIVE" }`: `200`, một dòng `ADMIN / UNLOCK` (`action_details = NULL`), `failed_login_count`/`locked_until` không đổi, B đăng nhập lại được, phiên cũ vẫn bị thu hồi. Mở khóa C: `200`. D (cả hai giá trị): `409 ACCOUNT_INACTIVE`. `:id` là R1: `403 SELF_ACTION_FORBIDDEN`; là R2 (cả hai giá trị): `403 ROOT_ADMIN_PROTECTED`, không có dòng audit; id không tồn tại: `404 NOT_FOUND`. `400 VALIDATION_ERROR`: `:id` = `abc`, `0`, `4294967296` (`errors.id`); body `{}`, `{ "status": "INACTIVE" }`, `{ "status": "locked" }`, `{ "status": 1 }`, `{ "status": "LOCKED", "x": 1 }`; `?x=1`. `SYSTEM_ADMIN` gọi: `403 FORBIDDEN_PERMISSION`; token `PASSWORD_CHANGE_ONLY`: `403 PASSWORD_CHANGE_REQUIRED`. Giao diện: dòng R1, R2, D không có nút Khóa/Mở khóa; B có "Khóa", C có "Mở khóa"; xác nhận Khóa → toast thành công, danh sách tải lại và B hiện "Đã khóa"; "Hoạt động gần đây" của R1 có "Khóa quản trị viên", "Mở khóa quản trị viên".
+
+14. **TC-ADM-14**: Dữ liệu: Root Admin R1 (người gọi) `root.admin@evnict.vn`, Root Admin R2, `SYSTEM_ADMIN` B `admin.npc` / `admin.npc@npc.com.vn` `ACTIVE`, chưa có số điện thoại, có 1 phiên còn hạn, C `admin.cpc` / `admin.cpc@cpc.vn` `LOCKED`, D `admin.old` / `admin.old@evnict.vn` `INACTIVE`, E `admin.hanoi` / `admin.hanoi@evnhanoi.vn` `ACTIVE`. R1 gọi `PUT /api/v1/admin/admins/<B>` với `{ "email": "  admin.npc.moi@npc.com.vn ", "phoneNumber": "" }`: `200`, `data` đúng 12 trường mục 3.2 (`email` đã cắt, `phoneNumber = null`, `updatedAt` mới); một dòng `audit_logs` `ADMIN / UPDATE` (`resource_id` = id B, `action_details = {"changedFields":["email"]}`: `phoneNumber` rỗng = `NULL`, bằng giá trị hiện tại nên không tính); phiên của B vẫn còn hiệu lực; B đăng nhập bằng `admin.npc.moi@npc.com.vn` được, bằng `admin.npc@npc.com.vn` trả `401 INVALID_CREDENTIALS`. Gửi lại cùng body: `200` "Không có thay đổi nào", không thêm dòng audit, `updatedAt` không đổi. `{ "email": "Admin.Npc.Moi@npc.com.vn" }`: `200`, `changedFields = ["email"]` (chỉ đổi hoa/thường). Sửa `fullName` của C (`LOCKED`): `200`, `status` vẫn `LOCKED`. `409 ACCOUNT_DUPLICATE` có `errors.email`, không đổi dữ liệu, không audit: `email` = `admin.hanoi@evnhanoi.vn` (trùng email E), `ADMIN.HANOI@EVNHANOI.VN`, `root.admin@evnict.vn` (trùng `email` và chéo `username` của R1; `username` không có dạng email như `admin.hanoi` thì bị `400` định dạng trước khi xét trùng). `email` = `admin.old@evnict.vn` (của D `INACTIVE`): `200`. D: `409 ACCOUNT_INACTIVE`; `:id` là R1: `403 SELF_ACTION_FORBIDDEN`; R2: `403 ROOT_ADMIN_PROTECTED`, không có dòng audit; id không tồn tại: `404 NOT_FOUND`. `400 VALIDATION_ERROR`: `:id` = `abc`, `0`, `4294967296` (`errors.id`); body `{}`; `{ "fullName": "   " }`, `{ "fullName": null }`, `{ "email": "abc" }`, `{ "email": null }`, `email` 151 ký tự, `{ "phoneNumber": "abc" }`, `{ "username": "x.y" }`, `{ "status": "LOCKED" }`, `{ "roleCode": "ROOT_ADMIN" }`, `{ "avatarUrl": null }`; `?x=1`. `SYSTEM_ADMIN` gọi: `403 FORBIDDEN_PERMISSION`; token `PASSWORD_CHANGE_ONLY`: `403 PASSWORD_CHANGE_REQUIRED`. Hai request đổi `email` của B và E sang cùng một giá trị gửi đồng thời: một `200`, một `409` (không `500`). Giao diện: dòng R1, R2, D không có nút "Sửa"; hộp Sửa có tên đăng nhập chỉ đọc và đúng 3 ô; bấm Lưu khi không sửa gì thì không có request; `409` hiện lỗi dưới ô Email, hộp không đóng; `200` đóng hộp, danh sách tải lại hiện email mới; "Hoạt động gần đây" của R1 có "Cập nhật quản trị viên".

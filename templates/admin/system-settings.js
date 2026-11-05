@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
-    // 7. Mục "Quản trị viên" (AdminAccountsSection.vue) – docs/modules/04_auth_admin.md mục 3.2, 3.3, 3.4, 3.7, 5.2
+    // 7. Mục "Quản trị viên" (AdminAccountsSection.vue) – docs/modules/04_auth_admin.md mục 3.2, 3.3, 3.4, 3.7, 3.8, 5.2
     // Khung dựng ở A14. Vue: gọi qua API client của cổng Admin (401 → refresh một lần, mẫu window.adminSession.request).
     // ----------------------------------------------------
     const adminsSection = document.getElementById('section-admins');
@@ -580,6 +580,79 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Giả lập PUT /api/v1/admin/admins/:id (A18, M04 mục 3.8). Thứ tự kiểm tra như backend:
+    // 400 (:id, query, body cập nhật một phần ≥ 1 trường fullName|email|phoneNumber) → chính mình 403 SELF_ACTION_FORBIDDEN
+    // → không có 404 → ROOT_ADMIN 403 ROOT_ADMIN_PROTECTED (không audit) → INACTIVE 409 ACCOUNT_INACTIVE (LOCKED vẫn sửa)
+    // → changedFields (so chính xác, phân biệt hoa thường) rỗng: 200 không ghi → email đổi: trùng (kể cả chéo) với Admin
+    // chưa INACTIVE khác → 409 ACCOUNT_DUPLICATE (errors.email) → UPDATE + ADMIN / UPDATE { changedFields } → 200 phần tử GET.
+    const UPDATE_ADMIN_FIELDS = ['fullName', 'email', 'phoneNumber']; // cũng là thứ tự của changedFields
+    function mockUpdateAdmin(token, rawId, body, query) {
+        return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+            if (!token) return Promise.reject(unauthorized());
+            const errors = {};
+            Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+            const idText = String(rawId);
+            if (!/^[1-9][0-9]{0,9}$/.test(idText) || Number(idText) > 4294967295) errors.id = ['Mã quản trị viên không hợp lệ'];
+            const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+            Object.keys(b).forEach(k => { if (!UPDATE_ADMIN_FIELDS.includes(k)) errors[k] = ['Trường không được nhận']; });
+            const sent = UPDATE_ADMIN_FIELDS.filter(k => b[k] !== undefined);
+            if (!Object.keys(b).length) {
+                UPDATE_ADMIN_FIELDS.forEach(k => { errors[k] = ['Cần gửi ít nhất một trường']; });
+            }
+            const values = {};
+            sent.forEach(k => {
+                const v = b[k];
+                if (k === 'phoneNumber' && v === null) { values[k] = null; return; }
+                if (typeof v !== 'string') { errors[k] = [v === null ? 'Không được để trống' : 'Phải là chuỗi']; return; }
+                values[k] = v.trim();
+            });
+            if (values.fullName !== undefined && !errors.fullName && (!values.fullName || values.fullName.length > 150)) {
+                errors.fullName = ['Họ tên 1–150 ký tự'];
+            }
+            if (values.email !== undefined && !errors.email && (values.email.length > 150 || !EMAIL_RE.test(values.email))) {
+                errors.email = ['Email không hợp lệ (tối đa 150 ký tự)'];
+            }
+            if (values.phoneNumber === '') values.phoneNumber = null;
+            if (values.phoneNumber && !errors.phoneNumber && !PHONE_RE.test(values.phoneNumber)) {
+                errors.phoneNumber = ['Số điện thoại không hợp lệ'];
+            }
+            if (Object.keys(errors).length) return Promise.reject(validationError(errors));
+
+            const id = Number(idText);
+            const fail = (statusCode, errorCode, message, errs = null) => Promise.reject({
+                success: false, statusCode, errorCode, message, errors: errs, timestamp: now()
+            });
+            if (id === currentAdminId) return fail(403, 'SELF_ACTION_FORBIDDEN', 'Không thể sửa tài khoản của chính mình tại đây; dùng trang Hồ sơ cá nhân');
+            const target = MOCK_ADMINS.find(a => a.id === id); // backend: SELECT ... FOR UPDATE
+            if (!target) return fail(404, 'NOT_FOUND', 'Không tìm thấy quản trị viên');
+            if (target.roleCode === 'ROOT_ADMIN') return fail(403, 'ROOT_ADMIN_PROTECTED', 'Không thể thao tác trên tài khoản Quản trị viên tối cao');
+            if (target.status === 'INACTIVE') return fail(409, 'ACCOUNT_INACTIVE', 'Tài khoản đã ngừng hoạt động, không thể sửa');
+
+            const changedFields = UPDATE_ADMIN_FIELDS.filter(k => k in values && values[k] !== target[k]);
+            const ok = message => ({ success: true, statusCode: 200, message, data: Object.assign({}, target), timestamp: now() });
+            if (!changedFields.length) return ok('Không có thay đổi nào'); // không UPDATE, không audit
+
+            if (changedFields.includes('email')) {
+                const lc = v => v.toLocaleLowerCase('vi');
+                const e = lc(values.email);
+                const clash = MOCK_ADMINS.some(a => a.id !== id && a.status !== 'INACTIVE'
+                    && (lc(a.username) === e || lc(a.email) === e));
+                if (clash) {
+                    return fail(409, 'ACCOUNT_DUPLICATE', 'Email đã tồn tại',
+                        { email: ['Email đã được dùng (làm email hoặc tên đăng nhập) bởi quản trị viên khác'] });
+                }
+            }
+            const ts = now();
+            changedFields.forEach(k => { target[k] = values[k]; });
+            target.updatedAt = ts;
+            MOCK_AUDIT.push({
+                actorType: 'ADMIN', actorId: currentAdminId, action: 'UPDATE', resourceName: 'ADMIN',
+                resourceId: String(id), actionDetails: { changedFields }, createdAt: ts
+            });
+            return ok('Cập nhật quản trị viên thành công');
+        });
+    }
+
     // Định dạng ở frontend (API chỉ trả ISO 8601 và mã enum, R16-07)
     const dateTimeFmt = new Intl.DateTimeFormat('vi-VN', {
         timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -641,6 +714,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Nút "Khóa" (dòng ACTIVE) / "Mở khóa" (dòng LOCKED): không ROOT_ADMIN, không phải chính mình (M04 mục 3.4 Frontend)
     const canSetStatus = row => (row.status === 'ACTIVE' || row.status === 'LOCKED')
         && row.roleCode !== 'ROOT_ADMIN' && row.id !== currentAdminId;
+    // Nút "Sửa": cùng điều kiện với Khóa/Mở khóa (dòng ACTIVE/LOCKED, không ROOT_ADMIN, không phải mình; M04 mục 3.8 Frontend)
+    const canEdit = canSetStatus;
 
     // Dựng bằng textContent (không innerHTML): họ tên, email do người dùng nhập
     function renderAdmins(rows) {
@@ -685,6 +760,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const actions = document.createElement('td');
             actions.className = 'admins-actions-col';
+            if (canEdit(row)) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-outline btn-edit-admin';
+                btn.dataset.adminId = String(row.id);
+                btn.textContent = 'Sửa';
+                actions.appendChild(btn);
+            }
             if (canSetStatus(row)) {
                 const lock = row.status === 'ACTIVE';
                 const btn = document.createElement('button');
@@ -861,26 +944,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const tempValue = document.getElementById('tempPasswordValue');
     let createBusy = false;
 
-    function clearCreateErrors() {
-        createForm.querySelectorAll('[data-error-for]').forEach(slot => { slot.textContent = ''; slot.hidden = true; });
-        createForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    // Dùng chung cho hộp Thêm và hộp Sửa
+    function clearFormErrors(form) {
+        form.querySelectorAll('[data-error-for]').forEach(slot => { slot.textContent = ''; slot.hidden = true; });
+        form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
     }
     // Hiện errors[field] dưới ô; trả về thông điệp của khóa không có ô (hiện ở toast)
-    function showCreateErrors(errors) {
+    function showFormErrors(form, errors) {
         const rest = [];
         Object.keys(errors || {}).forEach(field => {
             const msg = [].concat(errors[field]).join(' ');
-            const slot = createForm.querySelector('[data-error-for="' + field + '"]');
+            const slot = form.querySelector('[data-error-for="' + field + '"]');
             if (!slot) { rest.push(msg); return; }
             slot.textContent = msg;
             slot.hidden = false;
-            const input = createForm.elements[field];
+            const input = form.elements[field];
             if (input) input.classList.add('is-invalid');
         });
-        const first = createForm.querySelector('.is-invalid');
+        const first = form.querySelector('.is-invalid');
         if (first) first.focus();
         return rest;
     }
+    const clearCreateErrors = () => clearFormErrors(createForm);
+    const showCreateErrors = errors => showFormErrors(createForm, errors);
     function setCreateBusy(busy) {
         createBusy = busy;
         createForm.querySelectorAll('button, input').forEach(el => { el.disabled = busy; });
@@ -974,7 +1060,91 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Sửa quản trị viên – PUT /api/v1/admin/admins/:id (A18, M04 mục 3.8 Frontend). Vue: AdminEditModal.vue.
+    // Điền sẵn từ phần tử của danh sách; chỉ gửi trường khác giá trị ban đầu, không đổi gì thì không gọi API.
+    const editModal = document.getElementById('adminEditModal');
+    const editForm = document.getElementById('adminEditForm');
+    const btnSubmitEdit = document.getElementById('btnSubmitEditAdmin');
+    let editBusy = false;
+    let editTarget = null; // phần tử GET đang sửa (giá trị ban đầu để so)
+
+    function setEditBusy(busy) {
+        editBusy = busy;
+        editForm.querySelectorAll('button, input').forEach(el => { el.disabled = busy; });
+        editModal.querySelectorAll('[data-close-edit]').forEach(el => { el.disabled = busy; });
+        btnSubmitEdit.textContent = busy ? 'Đang lưu...' : 'Lưu thay đổi';
+    }
+    function openEditAdmin(id) {
+        const row = adminRows.get(id);
+        if (!row) return;
+        editTarget = row;
+        clearFormErrors(editForm);
+        document.getElementById('editAdminUsername').textContent = row.username;
+        editForm.elements.fullName.value = row.fullName;
+        editForm.elements.email.value = row.email;
+        editForm.elements.phoneNumber.value = row.phoneNumber || '';
+        editModal.classList.add('show');
+        editForm.elements.fullName.focus();
+    }
+    function closeEditAdmin() {
+        if (editBusy) return; // đang gửi: không đóng
+        editModal.classList.remove('show');
+        editTarget = null;
+    }
+
+    function submitEditAdmin(e) {
+        e.preventDefault();
+        if (editBusy || !editTarget) return;
+        clearFormErrors(editForm);
+        const f = editForm.elements;
+        const phone = f.phoneNumber.value.trim();
+        const next = { fullName: f.fullName.value.trim(), email: f.email.value.trim(), phoneNumber: phone === '' ? null : phone };
+        // Chỉ gửi trường đã đổi (so chính xác như backend); backend tự cắt khoảng trắng và kiểm tra lại (02 mục 2)
+        const body = {};
+        UPDATE_ADMIN_FIELDS.forEach(k => { if (next[k] !== editTarget[k]) body[k] = next[k]; });
+        if (!Object.keys(body).length) {
+            notify('Không có thay đổi nào', 'info');
+            closeEditAdmin();
+            return;
+        }
+        const id = String(editTarget.id);
+        setEditBusy(true);
+        callApi(token => mockUpdateAdmin(token, id, body))
+            .then(res => {
+                setEditBusy(false);
+                closeEditAdmin();
+                notify(res.message, 'success');
+                loadAdmins(); // giữ bộ lọc và trang; fullName đổi làm đổi thứ tự
+            })
+            .catch(err => {
+                setEditBusy(false);
+                const status = err && err.statusCode;
+                if (status === 401) return; // request() đã chuyển về login
+                if (status === 400 || (status === 409 && err.errorCode === 'ACCOUNT_DUPLICATE')) {
+                    const rest = showFormErrors(editForm, err.errors);
+                    if (rest.length) notify(rest.join(' '), 'error');
+                    return;
+                }
+                if (status === 403 || status === 404 || status === 409) {
+                    closeEditAdmin(); // dữ liệu trên màn hình đã cũ
+                    notify(err.message || 'Không thể sửa tài khoản này', 'warning');
+                    loadAdmins();
+                    return;
+                }
+                notify((err && err.message) || 'Không lưu được thay đổi. Vui lòng thử lại.', 'error');
+            });
+    }
+
+    editForm.addEventListener('submit', submitEditAdmin);
+    editModal.querySelectorAll('[data-close-edit]').forEach(el => el.addEventListener('click', closeEditAdmin));
+    editModal.addEventListener('click', e => { if (e.target === editModal) closeEditAdmin(); });
+    window.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && editModal.classList.contains('show')) closeEditAdmin();
+    });
+
     adminsTableBody.addEventListener('click', e => {
+        const editBtn = e.target.closest('.btn-edit-admin');
+        if (editBtn) { openEditAdmin(editBtn.dataset.adminId); return; }
         const btn = e.target.closest('.btn-revoke-sessions');
         if (btn) { confirmRevokeAdminSessions(btn.dataset.adminId); return; }
         const statusBtn = e.target.closest('.btn-admin-status');
@@ -985,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Kiểm thử thủ công trên trang tĩnh (không có trong Vue)
     window.__adminsMock = {
         MOCK_ADMINS, MOCK_SESSIONS, MOCK_AUDIT, MOCK_USER_SETTINGS, mockGetAdmins, mockRevokeAdminSessions, mockCreateAdmin,
-        mockSetAdminStatus,
+        mockSetAdminStatus, mockUpdateAdmin,
         generateTempPassword, adminsQuery, loadAdmins
     };
 

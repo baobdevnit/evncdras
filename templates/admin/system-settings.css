@@ -403,13 +403,14 @@ html {
     white-space: nowrap;
 }
 
+.admins-table .btn-edit-admin,
 .admins-table .btn-revoke-sessions,
 .admins-table .btn-admin-status {
     padding: 6px 12px;
     font-size: 0.8125rem;
 }
 
-.admins-table .btn-admin-status + .btn-revoke-sessions {
+.admins-table .admins-actions-col .btn + .btn {
     margin-left: 6px;
 }
 
@@ -429,19 +430,41 @@ html {
 }
 
 /* Lỗi theo trường của 400/409 (cùng quy ước với profile.css) */
-#adminCreateModal .field-error {
+#adminCreateModal .field-error,
+#adminEditModal .field-error {
     display: block;
     margin-top: 6px;
     font-size: 0.85rem;
     color: var(--secondary);
 }
 
-#adminCreateModal .field-error[hidden] {
+#adminCreateModal .field-error[hidden],
+#adminEditModal .field-error[hidden] {
     display: none;
 }
 
-#adminCreateModal .form-control.is-invalid {
+#adminCreateModal .form-control.is-invalid,
+#adminEditModal .form-control.is-invalid {
     border-color: var(--secondary);
+}
+
+/* Sửa quản trị viên – PUT /admin/admins/:id (M04 mục 3.8 Frontend): tên đăng nhập chỉ đọc, không phải ô nhập */
+.admins-edit-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.admins-edit-username {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-hover);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 0.875rem;
+    word-break: break-all;
 }
 
 /* Hộp mật khẩu tạm (một lần) */
