@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
-    // 7. Mục "Quản trị viên" (AdminAccountsSection.vue) – docs/modules/04_auth_admin.md mục 3.2, 3.7, 5.2
+    // 7. Mục "Quản trị viên" (AdminAccountsSection.vue) – docs/modules/04_auth_admin.md mục 3.2, 3.3, 3.7, 5.2
     // Khung dựng ở A14. Vue: gọi qua API client của cổng Admin (401 → refresh một lần, mẫu window.adminSession.request).
     // ----------------------------------------------------
     const adminsSection = document.getElementById('section-admins');
@@ -438,6 +438,94 @@ document.addEventListener('DOMContentLoaded', () => {
                 success: true, statusCode: 200,
                 message: n > 0 ? 'Đã thu hồi phiên đăng nhập của quản trị viên' : 'Tài khoản không có phiên đăng nhập nào đang hoạt động',
                 data: { revokedCount: n }, timestamp: now()
+            };
+        });
+    }
+
+    // Giả lập POST /api/v1/admin/admins (A16, M04 mục 3.3; quy tắc username/email/phoneNumber 02 mục 2).
+    // 400 theo tên trường (thiếu, sai định dạng, quá độ dài, trường khác, có query); 409 ACCOUNT_DUPLICATE khi trùng
+    // username/email kể cả trùng chéo với Admin chưa INACTIVE (so không phân biệt hoa thường như collation);
+    // 201: data = phần tử GET (12 trường) + temporaryPassword. Backend thêm header Cache-Control: no-store.
+    const MOCK_USER_SETTINGS = []; // dòng user_settings (ADMIN) mà mock tạo cùng "transaction"
+    const CREATE_ADMIN_FIELDS = ['username', 'email', 'fullName', 'phoneNumber'];
+    const USERNAME_RE = /^[A-Za-z0-9._@-]{3,100}$/;
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const PHONE_RE = /^(?=.*[0-9])[0-9+\-.() ]{1,30}$/;
+
+    // Mật khẩu tạm 16 ký tự, bỏ ký tự dễ nhầm, đủ 4 nhóm (M04 mục 3.3). Backend: crypto.randomInt + bcrypt cost 10.
+    const PW_GROUPS = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghjkmnpqrstuvwxyz', '23456789', '!@#$%^&*-_=+?'];
+    function randomInt(max) {
+        const buf = new Uint32Array(1);
+        const limit = Math.floor(0x100000000 / max) * max; // bỏ phần dư để không lệch phân bố
+        do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+        return buf[0] % max;
+    }
+    function generateTempPassword() {
+        const all = PW_GROUPS.join('');
+        const chars = PW_GROUPS.map(g => g[randomInt(g.length)]);
+        while (chars.length < 16) chars.push(all[randomInt(all.length)]);
+        for (let i = chars.length - 1; i > 0; i--) { const j = randomInt(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+        return chars.join('');
+    }
+
+    function mockCreateAdmin(token, body, query) {
+        return new Promise(resolve => setTimeout(resolve, 500)).then(() => {
+            if (!token) return Promise.reject(unauthorized());
+            const errors = {};
+            Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+            const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+            Object.keys(b).forEach(k => { if (!CREATE_ADMIN_FIELDS.includes(k)) errors[k] = ['Trường không được nhận']; });
+            const str = (k, required) => {
+                const v = b[k];
+                if (v === undefined || v === null) { if (required) errors[k] = ['Bắt buộc nhập']; return null; }
+                if (typeof v !== 'string') { errors[k] = ['Phải là chuỗi']; return null; }
+                return v.trim();
+            };
+            const username = str('username', true);
+            if (username !== null && !USERNAME_RE.test(username)) {
+                errors.username = ['3–100 ký tự: chữ không dấu, chữ số, dấu . _ @ -'];
+            }
+            const email = str('email', true);
+            if (email !== null && (email.length > 150 || !EMAIL_RE.test(email))) errors.email = ['Email không hợp lệ (tối đa 150 ký tự)'];
+            const fullName = str('fullName', true);
+            if (fullName !== null && (!fullName || fullName.length > 150)) errors.fullName = ['Họ tên 1–150 ký tự'];
+            let phoneNumber = str('phoneNumber', false);
+            if (phoneNumber === '') phoneNumber = null;
+            if (phoneNumber !== null && !PHONE_RE.test(phoneNumber)) errors.phoneNumber = ['Số điện thoại không hợp lệ'];
+            if (Object.keys(errors).length) return Promise.reject(validationError(errors));
+
+            // Bước 2: trùng (kể cả chéo) trong các Admin chưa INACTIVE
+            const lc = v => v.toLocaleLowerCase('vi');
+            const live = MOCK_ADMINS.filter(a => a.status !== 'INACTIVE');
+            const taken = new Set();
+            live.forEach(a => { taken.add(lc(a.username)); taken.add(lc(a.email)); });
+            const dup = {};
+            if (taken.has(lc(username))) dup.username = ['Tên đăng nhập đã được dùng (làm tên đăng nhập hoặc email) bởi quản trị viên khác'];
+            if (taken.has(lc(email))) dup.email = ['Email đã được dùng (làm email hoặc tên đăng nhập) bởi quản trị viên khác'];
+            if (Object.keys(dup).length) {
+                return Promise.reject({
+                    success: false, statusCode: 409, errorCode: 'ACCOUNT_DUPLICATE',
+                    message: 'Tên đăng nhập hoặc email đã tồn tại', errors: dup, timestamp: now()
+                });
+            }
+
+            // Bước 3–7: admins, admin_roles (SYSTEM_ADMIN), user_settings, audit_logs, đọc lại phần tử GET
+            const temporaryPassword = generateTempPassword();
+            const id = Math.max(0, ...MOCK_ADMINS.map(a => a.id)) + 1;
+            const ts = now();
+            const row = {
+                id, username, email, fullName, phoneNumber, avatarUrl: null, status: 'ACTIVE',
+                roleCode: 'SYSTEM_ADMIN', roleName: 'Quản trị viên hệ thống', lastLoginAt: null, createdAt: ts, updatedAt: ts
+            };
+            MOCK_ADMINS.push(row);
+            MOCK_USER_SETTINGS.push({ userType: 'ADMIN', userId: id });
+            MOCK_AUDIT.push({
+                actorType: 'ADMIN', actorId: currentAdminId, action: 'CREATE', resourceName: 'ADMIN',
+                resourceId: String(id), actionDetails: { username, email, roleCode: 'SYSTEM_ADMIN' }, createdAt: ts
+            });
+            return {
+                success: true, statusCode: 201, message: 'Tạo quản trị viên thành công',
+                data: Object.assign({}, row, { temporaryPassword }), timestamp: ts
             };
         });
     }
@@ -660,6 +748,129 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Thêm quản trị viên – POST /api/v1/admin/admins (A16, M04 mục 3.3 Frontend).
+    // Vue: AdminCreateModal.vue + AdminTempPasswordModal.vue trong AdminAccountsSection.vue.
+    const btnCreateAdmin = document.getElementById('btnCreateAdmin');
+    const createModal = document.getElementById('adminCreateModal');
+    const createForm = document.getElementById('adminCreateForm');
+    const btnSubmitCreate = document.getElementById('btnSubmitCreateAdmin');
+    const tempModal = document.getElementById('adminTempPasswordModal');
+    const tempValue = document.getElementById('tempPasswordValue');
+    let createBusy = false;
+
+    function clearCreateErrors() {
+        createForm.querySelectorAll('[data-error-for]').forEach(slot => { slot.textContent = ''; slot.hidden = true; });
+        createForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    }
+    // Hiện errors[field] dưới ô; trả về thông điệp của khóa không có ô (hiện ở toast)
+    function showCreateErrors(errors) {
+        const rest = [];
+        Object.keys(errors || {}).forEach(field => {
+            const msg = [].concat(errors[field]).join(' ');
+            const slot = createForm.querySelector('[data-error-for="' + field + '"]');
+            if (!slot) { rest.push(msg); return; }
+            slot.textContent = msg;
+            slot.hidden = false;
+            const input = createForm.elements[field];
+            if (input) input.classList.add('is-invalid');
+        });
+        const first = createForm.querySelector('.is-invalid');
+        if (first) first.focus();
+        return rest;
+    }
+    function setCreateBusy(busy) {
+        createBusy = busy;
+        createForm.querySelectorAll('button, input').forEach(el => { el.disabled = busy; });
+        createModal.querySelectorAll('[data-close-create]').forEach(el => { el.disabled = busy; });
+        btnSubmitCreate.textContent = busy ? 'Đang tạo...' : 'Tạo tài khoản';
+    }
+    function openCreateAdmin() {
+        createForm.reset();
+        clearCreateErrors();
+        createModal.classList.add('show');
+        createForm.elements.username.focus();
+    }
+    function closeCreateAdmin() {
+        if (createBusy) return; // đang gửi: không đóng
+        createModal.classList.remove('show');
+    }
+
+    // Hộp mật khẩu tạm: chỉ giữ trong DOM khi đang mở, đóng thì xóa (không lưu store/localStorage/URL)
+    function showTempPassword(data) {
+        document.getElementById('tempPasswordFullName').textContent = data.fullName;
+        document.getElementById('tempPasswordUsername').textContent = data.username;
+        tempValue.textContent = data.temporaryPassword;
+        tempModal.classList.add('show');
+    }
+    function closeTempPassword() {
+        tempValue.textContent = '';
+        document.getElementById('tempPasswordFullName').textContent = '';
+        document.getElementById('tempPasswordUsername').textContent = '';
+        tempModal.classList.remove('show');
+    }
+
+    function submitCreateAdmin(e) {
+        e.preventDefault();
+        if (createBusy) return;
+        clearCreateErrors();
+        const f = createForm.elements;
+        const phone = f.phoneNumber.value.trim();
+        // Gửi đúng 4 trường; backend tự cắt khoảng trắng và kiểm tra lại (02 mục 2)
+        const body = {
+            username: f.username.value.trim(),
+            email: f.email.value.trim(),
+            fullName: f.fullName.value.trim(),
+            phoneNumber: phone === '' ? null : phone
+        };
+        setCreateBusy(true);
+        callApi(token => mockCreateAdmin(token, body))
+            .then(res => {
+                setCreateBusy(false);
+                closeCreateAdmin();
+                createForm.reset();
+                showTempPassword(res.data);
+                loadAdmins(); // giữ bộ lọc và trang hiện tại
+            })
+            .catch(err => {
+                setCreateBusy(false);
+                const status = err && err.statusCode;
+                if (status === 401) return; // request() đã chuyển về login
+                if (status === 400 || status === 409) {
+                    const rest = showCreateErrors(err.errors);
+                    if (rest.length) notify(rest.join(' '), 'error');
+                    return;
+                }
+                if (status === 403) { notify(err.message || 'Bạn không có quyền tạo quản trị viên', 'warning'); return; }
+                notify((err && err.message) || 'Không tạo được quản trị viên. Vui lòng thử lại.', 'error');
+            });
+    }
+
+    btnCreateAdmin.addEventListener('click', openCreateAdmin);
+    createForm.addEventListener('submit', submitCreateAdmin);
+    createModal.querySelectorAll('[data-close-create]').forEach(el => el.addEventListener('click', closeCreateAdmin));
+    createModal.addEventListener('click', e => { if (e.target === createModal) closeCreateAdmin(); });
+    tempModal.querySelectorAll('[data-close-temp]').forEach(el => el.addEventListener('click', closeTempPassword));
+    // Không đóng hộp mật khẩu khi bấm nền (tránh mất mật khẩu do bấm nhầm); Escape đóng hộp Thêm khi không bận
+    window.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && createModal.classList.contains('show')) closeCreateAdmin();
+    });
+    document.getElementById('btnCopyTempPassword').addEventListener('click', () => {
+        const text = tempValue.textContent;
+        if (!text) return;
+        const done = () => notify('Đã sao chép mật khẩu tạm', 'success');
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(done, () => notify('Không sao chép được, hãy chọn và sao chép thủ công', 'warning'));
+        } else {
+            // file:// hoặc http không bảo mật: chọn sẵn nội dung để người dùng tự sao chép
+            const range = document.createRange();
+            range.selectNodeContents(tempValue);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            notify('Đã chọn mật khẩu, nhấn Ctrl+C để sao chép', 'info');
+        }
+    });
+
     adminsTableBody.addEventListener('click', e => {
         const btn = e.target.closest('.btn-revoke-sessions');
         if (btn) confirmRevokeAdminSessions(btn.dataset.adminId);
@@ -667,7 +878,10 @@ document.addEventListener('DOMContentLoaded', () => {
     btnRetryAdmins.addEventListener('click', loadAdmins);
 
     // Kiểm thử thủ công trên trang tĩnh (không có trong Vue)
-    window.__adminsMock = { MOCK_ADMINS, MOCK_SESSIONS, MOCK_AUDIT, mockGetAdmins, mockRevokeAdminSessions, adminsQuery, loadAdmins };
+    window.__adminsMock = {
+        MOCK_ADMINS, MOCK_SESSIONS, MOCK_AUDIT, MOCK_USER_SETTINGS, mockGetAdmins, mockRevokeAdminSessions, mockCreateAdmin,
+        generateTempPassword, adminsQuery, loadAdmins
+    };
 
     loadAdmins();
 });

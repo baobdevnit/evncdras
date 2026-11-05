@@ -407,3 +407,82 @@ html {
     padding: 6px 12px;
     font-size: 0.8125rem;
 }
+
+/* Thêm quản trị viên – POST /admin/admins (M04 mục 3.3 Frontend) */
+.admins-create-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 0.875rem;
+}
+
+.admins-create-note {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+/* Lỗi theo trường của 400/409 (cùng quy ước với profile.css) */
+#adminCreateModal .field-error {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--secondary);
+}
+
+#adminCreateModal .field-error[hidden] {
+    display: none;
+}
+
+#adminCreateModal .form-control.is-invalid {
+    border-color: var(--secondary);
+}
+
+/* Hộp mật khẩu tạm (một lần) */
+.admins-temp-who {
+    margin: 0 0 1rem;
+}
+
+.admins-temp-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.admins-temp-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admins-temp-value {
+    flex: 1;
+    min-width: 0;
+    padding: 0.75rem;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background-color: var(--input-bg);
+    color: var(--text-main);
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+
+.admins-temp-warning {
+    margin: 1rem 0 0;
+    padding: 0.75rem;
+    border-left: 4px solid #f59e0b;
+    border-radius: 6px;
+    background: rgba(245, 158, 11, 0.1);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 576px) {
+    .admins-temp-box {
+        flex-wrap: wrap;
+    }
+}

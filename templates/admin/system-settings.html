@@ -462,11 +462,16 @@
 
                         <!-- Tab 4: Quản trị viên – AdminAccountsSection.vue (M04 mục 3.2, 3.7, 5.2).
                              Khung dựng ở A14: danh sách mock theo phần tử GET /admin/admins, thao tác "Thu hồi phiên".
-                             Tìm kiếm/lọc/phân trang (A15) và các thao tác khác (A16–A21) dựng tiếp. -->
+                             Tìm kiếm/lọc/phân trang (A15), Thêm (A16); các thao tác khác (A17–A21) dựng tiếp. -->
                         <div id="section-admins" class="settings-tab-pane" data-permission="admin:manage" hidden>
                             <div class="card">
                             <div class="card-header">
                                 <h3>Quản trị viên</h3>
+                                <!-- POST /api/v1/admin/admins (M04 mục 3.3): mở #adminCreateModal -->
+                                <button type="button" id="btnCreateAdmin" class="btn btn-primary admins-create-btn">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                    Thêm quản trị viên
+                                </button>
                             </div>
                             <div class="card-body">
                                 <!-- Bộ lọc GET /api/v1/admin/admins (M04 mục 3.2): search, status; không có sắp xếp -->
@@ -515,6 +520,76 @@
                 </div>
 
             </main>
+        </div>
+    </div>
+
+    <!-- Thêm quản trị viên – POST /api/v1/admin/admins (M04 mục 3.3 Frontend). Đúng 4 trường của body;
+         không có ô mật khẩu/vai trò. Lỗi 400/409 hiện ở .field-error[data-error-for]. -->
+    <div id="adminCreateModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="adminCreateTitle">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="adminCreateTitle">Thêm quản trị viên</h2>
+                <button type="button" class="close-btn" data-close-create aria-label="Đóng">&times;</button>
+            </div>
+            <form id="adminCreateForm" novalidate>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="createAdminUsername">Tên đăng nhập <span class="text-danger">*</span></label>
+                        <input type="text" id="createAdminUsername" name="username" class="form-control" maxlength="100"
+                               autocomplete="off" spellcheck="false" placeholder="vd. admin.hanoi">
+                        <small class="field-error" data-error-for="username" hidden></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="createAdminEmail">Email <span class="text-danger">*</span></label>
+                        <input type="email" id="createAdminEmail" name="email" class="form-control" maxlength="150"
+                               autocomplete="off" placeholder="vd. admin.hanoi@evnhanoi.vn">
+                        <small class="field-error" data-error-for="email" hidden></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="createAdminFullName">Họ và tên <span class="text-danger">*</span></label>
+                        <input type="text" id="createAdminFullName" name="fullName" class="form-control" maxlength="150" autocomplete="off">
+                        <small class="field-error" data-error-for="fullName" hidden></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="createAdminPhone">Số điện thoại</label>
+                        <input type="tel" id="createAdminPhone" name="phoneNumber" class="form-control" maxlength="30" autocomplete="off">
+                        <small class="field-error" data-error-for="phoneNumber" hidden></small>
+                    </div>
+                    <p class="admins-create-note text-muted">
+                        Tài khoản mới mang vai trò <strong>Quản trị viên hệ thống</strong>. Mật khẩu tạm do hệ thống sinh,
+                        hiển thị một lần sau khi tạo; người được cấp phải đổi ở lần đăng nhập đầu tiên.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" data-close-create>Hủy</button>
+                    <button type="submit" id="btnSubmitCreateAdmin" class="btn btn-primary">Tạo tài khoản</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Mật khẩu tạm (một lần) – data.temporaryPassword của 201. Không lưu store/localStorage/URL; đóng hộp thì xóa khỏi DOM. -->
+    <div id="adminTempPasswordModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="adminTempPasswordTitle">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2 id="adminTempPasswordTitle">Đã tạo quản trị viên</h2>
+                <button type="button" class="close-btn" data-close-temp aria-label="Đóng">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="admins-temp-who"><strong id="tempPasswordFullName"></strong> (<span id="tempPasswordUsername"></span>)</p>
+                <div class="admins-temp-label" id="tempPasswordLabel">Mật khẩu tạm</div>
+                <div class="admins-temp-box">
+                    <code id="tempPasswordValue" class="admins-temp-value" aria-labelledby="tempPasswordLabel"></code>
+                    <button type="button" id="btnCopyTempPassword" class="btn btn-outline">Sao chép</button>
+                </div>
+                <p class="admins-temp-warning">
+                    Mật khẩu chỉ hiển thị một lần và không xem lại được. Hãy chuyển cho người được cấp qua kênh an toàn;
+                    người đó phải đổi mật khẩu ở lần đăng nhập đầu tiên.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-close-temp>Tôi đã lưu mật khẩu</button>
+            </div>
         </div>
     </div>
 
