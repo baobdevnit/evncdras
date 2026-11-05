@@ -120,7 +120,7 @@ Danh mục các Key cấu hình chuẩn (3 phân nhóm: `ANALYSIS`, `REPORTING`,
 
 ### 3.4. Tra cứu nhật ký kiểm toán (`GET /api/v1/admin/audit-logs`)
 
-- **Guard**: `AdminAuthGuard`, `Permission: audit:view` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` → `403`; tài khoản không còn `ACTIVE` hoặc `must_change_password = 1` → `401 UNAUTHORIZED` (`docs/modules/04_auth_admin.md` mục 3.1.1). Thiếu `audit:view` → `403 FORBIDDEN`.
+- **Guard**: `AdminAuthGuard`, `Permission: audit:view` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` → `403`; tài khoản không còn `ACTIVE` hoặc `must_change_password = 1` → `401 UNAUTHORIZED` (`docs/modules/04_auth_admin.md` mục 3.1.1). Thiếu `audit:view` → `403 FORBIDDEN_PERMISSION`.
 - Chỉ đọc; không có API sửa, xóa hay xuất file `audit_logs` (`docs/01_database_schema.md` mục 13). Bản thân việc tra cứu **không** ghi `audit_logs`. Xem được mọi dòng của mọi tác nhân (Admin, User mọi nhóm, `SYSTEM`); không có bản User.
 - **Query** (mọi tham số theo quy ước `docs/02_api_contracts.md` mục 2.2: mỗi tham số một lần, tham số lạ hoặc `sort`/`order` → `400`; lỗi trả `400 VALIDATION_ERROR` với `errors.<tên tham số>`):
 
@@ -204,7 +204,7 @@ SELECT COUNT(*) FROM audit_logs WHERE /* như trên */;
 }
 ```
 
-- **Lỗi**: `400 VALIDATION_ERROR` (tham số theo bảng trên), `401 UNAUTHORIZED`, `403 FORBIDDEN` (thiếu `audit:view`, token `PASSWORD_CHANGE_ONLY`). Không có `404`/`409`.
+- **Lỗi**: `400 VALIDATION_ERROR` (tham số theo bảng trên), `401 UNAUTHORIZED`, `403 FORBIDDEN_PERMISSION` (thiếu `audit:view`), `403 PASSWORD_CHANGE_REQUIRED` (token `PASSWORD_CHANGE_ONLY`). Không có `404`/`409`.
 - `PASSWORD_RESET` ghi `resource_name = 'AUTH'`; muốn xem mọi việc làm lên một Admin thì lọc `resourceName=ADMIN&resourceId=<id>` (khóa, mở khóa, sửa, ngừng hoạt động) và `resourceName=AUTH&resourceId=<id>` (đặt lại mật khẩu, thu hồi phiên).
 
 ### 3.5. Tình trạng tiến trình nền (`GET /api/v1/admin/system/jobs`)

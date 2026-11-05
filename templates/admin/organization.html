@@ -246,7 +246,8 @@
                         <h1>Danh mục tổ chức</h1>
                         <p>Danh sách các đơn vị và phòng ban trực thuộc</p>
                     </div>
-                    <button class="btn btn-primary" onclick="openCreateOrgModal()">
+                    <!-- Chỉ hiện khi store có org:manage (M01 mục 5.1) -->
+                    <button class="btn btn-primary" data-permission="org:manage" hidden onclick="openCreateOrgModal()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                         Thêm mới
                     </button>
@@ -254,198 +255,21 @@
 
                 <div class="card org-card">
                     <div class="table-responsive" style="flex: 1; overflow-y: auto; min-height: 0;">
+                        <!-- Cây dựng từ GET /api/v1/admin/organizations/tree (M01 mục 3.1): mọi nút, không phân trang -->
                         <table class="tree-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Tên tổ chức</th>
-                                            <th>Mã đơn vị</th>
-                                            <th class="text-right">Hành động</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <!-- Root Level -->
-                                        <tr data-id="1" data-parent="0" class="level-0 expanded">
-                                        <td>
-                                            <span class="toggle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-                                            <span class="org-name fw-600">Tổng công ty 71</span>
-                                        </td>
-                                        <td>TC-71</td>
-                                        <td class="text-right">
-                                            <button class="action-btn view-btn" onclick="showOrgDetail(1)" title="Xem chi tiết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                                            <button class="action-btn add-btn" onclick="openCreateOrgModal(1)" title="Thêm tổ chức con"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                                            <button class="action-btn edit-btn" onclick="openEditOrgModal(1)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                        </td>
-                                    </tr>
-                                    <!-- Child Level 1 -->
-                                    <tr data-id="2" data-parent="1" class="level-1 expanded">
-                                        <td>
-                                            <span class="indent"></span>
-                                            <span class="toggle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-                                            <span class="org-name">Khối Công nghệ Thông tin</span>
-                                        </td>
-                                        <td>IT-01</td>
-                                        <td class="text-right">
-                                            <button class="action-btn view-btn" onclick="showOrgDetail(2)" title="Xem chi tiết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                                            <button class="action-btn add-btn" onclick="openCreateOrgModal(2)" title="Thêm tổ chức con"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                                            <button class="action-btn edit-btn" onclick="openEditOrgModal(2)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                            <button class="action-btn delete-btn" onclick="openModal('deleteModal')" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
-                                        </td>
-                                    </tr>
-                                    <!-- Child Level 2 -->
-                                    <tr data-id="3" data-parent="2" class="level-2">
-                                        <td>
-                                            <span class="indent"></span><span class="indent"></span>
-                                            <span class="toggle-icon empty"></span>
-                                            <span class="org-name">Phòng Phát triển Phần mềm</span>
-                                        </td>
-                                        <td>DEV-01</td>
-                                        <td class="text-right">
-                                            <button class="action-btn view-btn" onclick="showOrgDetail(3)" title="Xem chi tiết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                                            <button class="action-btn add-btn" onclick="openCreateOrgModal(3)" title="Thêm tổ chức con"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                                            <button class="action-btn edit-btn" onclick="openEditOrgModal(3)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                            <button class="action-btn delete-btn" onclick="openModal('deleteModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                                        </td>
-                                    </tr>
-                                    <!-- Child Level 2 -->
-                                    <tr data-id="4" data-parent="2" class="level-2">
-                                        <td>
-                                            <span class="indent"></span><span class="indent"></span>
-                                            <span class="toggle-icon empty"></span>
-                                            <span class="org-name">Phòng Vận hành (Ops)</span>
-                                        </td>
-                                        <td>OPS-01</td>
-                                        <td class="text-right">
-                                            <button class="action-btn view-btn" onclick="showOrgDetail(4)" title="Xem chi tiết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                                            <button class="action-btn add-btn" onclick="openCreateOrgModal(4)" title="Thêm tổ chức con"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                                            <button class="action-btn edit-btn" onclick="openEditOrgModal(4)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                            <button class="action-btn delete-btn" onclick="openModal('deleteModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                                        </td>
-                                    </tr>
-                                    <!-- Child Level 1 -->
-                                    <tr data-id="5" data-parent="1" class="level-1">
-                                        <td>
-                                            <span class="indent"></span>
-                                            <span class="toggle-icon empty"></span>
-                                            <span class="org-name">Khối Kinh doanh</span>
-                                        </td>
-                                        <td>KD-01</td>
-                                        <td class="text-right">
-                                            <button class="action-btn view-btn" onclick="showOrgDetail(5)" title="Xem chi tiết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                                            <button class="action-btn add-btn" onclick="openCreateOrgModal(5)" title="Thêm tổ chức con"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                                            <button class="action-btn edit-btn" onclick="openEditOrgModal(5)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                            <button class="action-btn delete-btn" onclick="openModal('deleteModal')" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                                        </td>
-                                    </tr>
-                                    <!-- DEMO ROWS START -->
-                                    <tr data-id="6" data-parent="1" class="level-1">
-                                        <td>
-                                            <span class="indent"></span>
-                                            <span class="toggle-icon empty"></span>
-                                            <span class="org-name">Phòng Kế toán - Tài chính</span>
-                                        </td>
-                                        <td>KT-01</td>
-                                        <td class="text-right">
-                                            <button class="action-btn view-btn" onclick="showOrgDetail(6)" title="Xem chi tiết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                                            <button class="action-btn add-btn" onclick="openCreateOrgModal(6)" title="Thêm tổ chức con"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                                            <button class="action-btn edit-btn" onclick="openEditOrgModal(6)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                            <button class="action-btn delete-btn" onclick="openModal('deleteModal')" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                                        </td>
-                                    </tr>
-                                    <tr data-id="7" data-parent="1" class="level-1">
-                                        <td>
-                                            <span class="indent"></span>
-                                            <span class="toggle-icon empty"></span>
-                                            <span class="org-name">Phòng Nhân sự</span>
-                                        </td>
-                                        <td>NS-01</td>
-                                        <td class="text-right">
-                                            <button class="action-btn view-btn" onclick="showOrgDetail(7)" title="Xem chi tiết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                                            <button class="action-btn add-btn" onclick="openCreateOrgModal(7)" title="Thêm tổ chức con"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                                            <button class="action-btn edit-btn" onclick="openEditOrgModal(7)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                            <button class="action-btn delete-btn" onclick="openModal('deleteModal')" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                                        </td>
-                                    </tr>
-                                    <tr data-id="8" data-parent="1" class="level-1">
-                                        <td>
-                                            <span class="indent"></span>
-                                            <span class="toggle-icon empty"></span>
-                                            <span class="org-name">Phòng Marketing</span>
-                                        </td>
-                                        <td>MK-01</td>
-                                        <td class="text-right">
-                                            <button class="action-btn view-btn" onclick="showOrgDetail(8)" title="Xem chi tiết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                                            <button class="action-btn add-btn" onclick="openCreateOrgModal(8)" title="Thêm tổ chức con"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                                            <button class="action-btn edit-btn" onclick="openEditOrgModal(8)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                            <button class="action-btn delete-btn" onclick="openModal('deleteModal')" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                                        </td>
-                                    </tr>
-                                    <tr data-id="9" data-parent="1" class="level-1">
-                                        <td>
-                                            <span class="indent"></span>
-                                            <span class="toggle-icon empty"></span>
-                                            <span class="org-name">Phòng Chăm sóc Khách hàng</span>
-                                        </td>
-                                        <td>CS-01</td>
-                                        <td class="text-right">
-                                            <button class="action-btn view-btn" onclick="showOrgDetail(9)" title="Xem chi tiết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                                            <button class="action-btn add-btn" onclick="openCreateOrgModal(9)" title="Thêm tổ chức con"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                                            <button class="action-btn edit-btn" onclick="openEditOrgModal(9)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                            <button class="action-btn delete-btn" onclick="openModal('deleteModal')" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                                        </td>
-                                    </tr>
-                                    <tr data-id="10" data-parent="1" class="level-1">
-                                        <td>
-                                            <span class="indent"></span>
-                                            <span class="toggle-icon empty"></span>
-                                            <span class="org-name">Phòng Pháp chế</span>
-                                        </td>
-                                        <td>PC-01</td>
-                                        <td class="text-right">
-                                            <button class="action-btn view-btn" onclick="showOrgDetail(10)" title="Xem chi tiết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                                            <button class="action-btn add-btn" onclick="openCreateOrgModal(10)" title="Thêm tổ chức con"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                                            <button class="action-btn edit-btn" onclick="openEditOrgModal(10)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                            <button class="action-btn delete-btn" onclick="openModal('deleteModal')" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                                        </td>
-                                    </tr>
-                                    <tr data-id="11" data-parent="1" class="level-1">
-                                        <td>
-                                            <span class="indent"></span>
-                                            <span class="toggle-icon empty"></span>
-                                            <span class="org-name">Phòng Đầu tư</span>
-                                        </td>
-                                        <td>DT-01</td>
-                                        <td class="text-right">
-                                            <button class="action-btn view-btn" onclick="showOrgDetail(11)" title="Xem chi tiết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                                            <button class="action-btn add-btn" onclick="openCreateOrgModal(11)" title="Thêm tổ chức con"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                                            <button class="action-btn edit-btn" onclick="openEditOrgModal(11)" title="Sửa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                            <button class="action-btn delete-btn" onclick="openModal('deleteModal')" title="Xóa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                                        </td>
-                                    </tr>
-                                    <!-- DEMO ROWS END -->
-                                </tbody>
-                            </table>
-                            </div>
-                            <div class="pagination-container" style="border-radius: 0 0 12px 12px; border-bottom: none;">
-                                <div class="pagination-info" style="display: flex; align-items: center; gap: 8px;">
-                                    <span>Hiển thị</span>
-                                    <select class="form-control" style="width: auto; padding: 4px 28px 4px 8px; height: 32px; font-size: 0.875rem;">
-                                        <option value="5">5</option>
-                                        <option value="10" selected>10</option>
-                                        <option value="20">20</option>
-                                        <option value="50">50</option>
-                                        <option value="100">100</option>
-                                        <option value="500">500</option>
-                                    </select>
-                                    <span>bản ghi mỗi trang (Tổng: 25)</span>
-                                </div>
-                                <ul class="pagination">
-                                    <li class="page-item disabled"><a href="#" class="page-link">&laquo;</a></li>
-                                    <li class="page-item active"><a href="#" class="page-link">1</a></li>
-                                    <li class="page-item"><a href="#" class="page-link">2</a></li>
-                                    <li class="page-item"><a href="#" class="page-link">3</a></li>
-                                    <li class="page-item"><a href="#" class="page-link">&raquo;</a></li>
-                                </ul>
-                            </div>
+                            <thead>
+                                <tr>
+                                    <th>Tên tổ chức</th>
+                                    <th>Mã đơn vị</th>
+                                    <th>Trạng thái</th>
+                                    <th class="text-right">Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orgTreeBody">
+                                <tr class="tree-state"><td colspan="4">Đang tải cây tổ chức...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </main>
         </div>
@@ -473,17 +297,7 @@
                             <label for="parentOrg">Trực thuộc (Đơn vị cha)</label>
                             <select id="parentOrg" class="form-control">
                                 <option value="">-- Không có (Cấp cao nhất / Root) --</option>
-                                <option value="1">Tổng công ty 71</option>
-                                <option value="2">&nbsp;&nbsp;↳ Khối Công nghệ Thông tin</option>
-                                <option value="3">&nbsp;&nbsp;&nbsp;&nbsp;↳ Phòng Phát triển Phần mềm</option>
-                                <option value="4">&nbsp;&nbsp;&nbsp;&nbsp;↳ Phòng Vận hành (Ops)</option>
-                                <option value="5">&nbsp;&nbsp;↳ Khối Kinh doanh</option>
-                                <option value="6">&nbsp;&nbsp;↳ Phòng Kế toán - Tài chính</option>
-                                <option value="7">&nbsp;&nbsp;↳ Phòng Nhân sự</option>
-                                <option value="8">&nbsp;&nbsp;↳ Phòng Marketing</option>
-                                <option value="9">&nbsp;&nbsp;↳ Phòng Chăm sóc Khách hàng</option>
-                                <option value="10">&nbsp;&nbsp;↳ Phòng Pháp chế</option>
-                                <option value="11">&nbsp;&nbsp;↳ Phòng Đầu tư</option>
+                                <!-- Dựng từ cây đã tải: chỉ nút ACTIVE có level < 3 (M01 mục 3.1 Frontend) -->
                             </select>
                         </div>
                         <div class="form-group">
@@ -537,11 +351,11 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('orgDetailModal')">Đóng</button>
-                <button class="btn btn-outline" onclick="addOrgFromDetail()" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">
+                <button class="btn btn-outline" data-manage="add" hidden onclick="addOrgFromDetail()" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     Thêm tổ chức con
                 </button>
-                <button class="btn btn-primary" onclick="editOrgFromDetail()">
+                <button class="btn btn-primary" data-manage="edit" hidden onclick="editOrgFromDetail()">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                     Chỉnh sửa
                 </button>
@@ -560,7 +374,7 @@
                 <div class="icon-warning">
                     <svg viewBox="0 0 24 24" fill="none" stroke="#E31837" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                 </div>
-                <p>Bạn có chắc chắn muốn xóa tổ chức này không? Các đơn vị con (nếu có) cũng sẽ bị ảnh hưởng.</p>
+                <p>Bạn có chắc chắn muốn xóa tổ chức này không? Đơn vị bị xóa vĩnh viễn và không khôi phục được.</p>
             </div>
             <div class="modal-footer justify-center">
                 <button class="btn btn-outline" onclick="closeModal('deleteModal')">Hủy</button>

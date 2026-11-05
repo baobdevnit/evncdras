@@ -43,9 +43,33 @@ Bảng dữ liệu MariaDB chính: `organizations` (Đã định nghĩa trong `d
 
 ### 3.1. `GET /api/v1/organizations/tree`
 
-- **Mục đích**: Lấy danh sách cây tổ chức đầy đủ để render Tree Table hoặc Tree View.
-- **Header**: `Authorization: Bearer <token>`
-- **Response**:
+- **Mục đích**: trả **toàn bộ** cây tổ chức (mọi đơn vị, cả `ACTIVE` lẫn `INACTIVE`) trong một lần, không phân trang. Dùng cho: bảng cây của màn hình Danh mục tổ chức (`admin.organizations`, mục 5), ô chọn đơn vị cha trong `#orgModal`, và ô chọn/lọc đơn vị của màn hình Nhóm người dùng (`admin.user-groups`, `docs/modules/02_user_group.md` mục 5.1). Chi tiết một đơn vị (mô tả, người đại diện, thời gian) lấy qua mục 3.1.2.
+- **Hai route** (`docs/02_api_contracts.md` mục 1.1), chung service `OrganizationsService.getTree()` và DTO nút; bản Admin thêm đúng một trường `userGroupCount` (chủ dự án chốt ở O01):
+  - Bản Admin `GET /api/v1/admin/organizations/tree`: `AdminAuthGuard` → `PermissionsGuard` `org:view` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` `403 PASSWORD_CHANGE_REQUIRED`; tài khoản không còn `ACTIVE` hoặc token đầy đủ mà `must_change_password = 1` `401 UNAUTHORIZED` (`docs/modules/04_auth_admin.md` mục 3.1.1). Chế độ bảo trì không áp dụng cho cổng Admin.
+  - Bản User `GET /api/v1/organizations/tree`: `UserAuthGuard` → kiểm tra bảo trì (`503 MAINTENANCE`, không thuộc danh sách miễn `docs/02_api_contracts.md` mục 1.2) → `PermissionsGuard` `org:view` theo claim `roleCode` (seed: cả 3 vai trò User). Token `PASSWORD_CHANGE_ONLY` `403 PASSWORD_CHANGE_REQUIRED`; kiểm tra tài khoản ở mỗi request (`users` không còn `ACTIVE`, nhóm `INACTIVE` hoặc token đầy đủ mà `must_change_password = 1` → `401 UNAUTHORIZED`, `docs/modules/03_auth_user.md` mục 3.2). Cây tổ chức không phải dữ liệu của nhóm nên **không** cô lập theo nhóm: bản User trả cùng cây như bản Admin, chỉ thiếu `userGroupCount`. **Chưa màn hình nào của cổng Member gọi route này** (chủ dự án chốt giữ ở O01, như mục 3.1.1–3.1.2); khi thêm màn hình dùng nó phải ghi vào `docs/00_overview_and_architecture.md` mục 5.3.4.
+  - Thứ tự kiểm tra: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → bảo trì (`503`, chỉ bản User) → quyền (`403 FORBIDDEN_PERMISSION`) → query (`400`) → kiểm tra tài khoản (`401`).
+- **Request**: không có query, không có body. Gửi query param bất kỳ (kể cả `status`, `page`) trả `400 VALIDATION_ERROR` với `errors.<tên tham số>` (chủ dự án chốt ở O01: không lọc; lọc/tìm kiếm dùng mục 3.1.1).
+- **Xử lý** (chỉ đọc, không transaction, không ghi `audit_logs`):
+  1. Kiểm tra tài khoản theo khóa chính (`admins`, hoặc `users` + `user_groups` ở bản User).
+  2. Một câu đọc toàn bảng: `SELECT id, parent_id, code, name, level, sort_order, status FROM organizations ORDER BY level, sort_order, name, id`. Không đọc `description`, `representative_*`, `created_at`, `updated_at`.
+  3. Chỉ bản Admin: `SELECT organization_id, COUNT(*) FROM user_groups WHERE organization_id IS NOT NULL GROUP BY organization_id` (đếm **mọi** nhóm, kể cả `INACTIVE`, vì đều chặn xóa ở mục 3.4); đơn vị không có dòng thì `userGroupCount = 0`.
+  4. Dựng cây theo mục 4.1: nút có `parent_id IS NULL` là gốc; con nằm trong `children` của cha. Thứ tự anh em (cả các gốc) giữ theo câu `ORDER BY` ở bước 2, tức `sortOrder`, `name` (collation `utf8mb4_unicode_ci`), `id` tăng dần. `level` trả nguyên giá trị cột (backend luôn giữ `level = cha.level + 1`, mục 3.2–3.3), không tính lại khi đọc.
+  5. Không có đơn vị nào: `data = []`.
+- **Response** `200`: `data` là **mảng** các nút gốc (danh sách cố định không phân trang, không có khung `docs/02_api_contracts.md` mục 2.2). Mỗi nút đúng các trường sau (chủ dự án chốt ở O01):
+
+| Trường | Kiểu | Nguồn | Ghi chú |
+|---|---|---|---|
+| `id` | số | `organizations.id` | |
+| `parentId` | số \| `null` | `parent_id` | `null` ở nút gốc |
+| `code` | chuỗi ≤ 50 | `code` | |
+| `name` | chuỗi ≤ 255 | `name` | |
+| `level` | `0`–`3` | `level` | |
+| `sortOrder` | số | `sort_order` | |
+| `status` | `ACTIVE` \| `INACTIVE` | `status` | Đơn vị `INACTIVE` vẫn có trên cây, con của nó vẫn nằm dưới nó |
+| `userGroupCount` | số | bước 3 | **Chỉ bản Admin**; số nhóm gắn trực tiếp vào đơn vị (không cộng nhánh con) |
+| `children` | mảng nút | | Luôn có, `[]` ở nút lá |
+
+Không trả `description`, `representativeName`, `representativePhone`, `representativeEmail`, `createdAt`, `updatedAt` (lấy ở mục 3.1.2), không trả `childCount` (= `children.length`).
 
 ```json
 {
@@ -58,25 +82,52 @@ Bảng dữ liệu MariaDB chính: `organizations` (Đã định nghĩa trong `d
       "parentId": null,
       "code": "TC-71",
       "name": "Tổng công ty 71",
-      "representativeName": "Nguyễn Văn A",
       "level": 0,
+      "sortOrder": 1,
       "status": "ACTIVE",
+      "userGroupCount": 0,
       "children": [
         {
           "id": 2,
           "parentId": 1,
           "code": "IT-01",
           "name": "Khối Công nghệ Thông tin",
-          "representativeName": "Trần Thị B",
           "level": 1,
+          "sortOrder": 1,
           "status": "ACTIVE",
-          "children": []
-        }
+          "userGroupCount": 2,
+          "children": [
+            { "id": 3, "parentId": 2, "code": "DEV-01", "name": "Phòng Phát triển Phần mềm", "level": 2, "sortOrder": 1, "status": "ACTIVE", "userGroupCount": 0, "children": [] }
+          ]
+        },
+        { "id": 12, "parentId": 1, "code": "DA-01", "name": "Ban Quản lý dự án (cũ)", "level": 1, "sortOrder": 9, "status": "INACTIVE", "userGroupCount": 0, "children": [] }
       ]
     }
-  ]
+  ],
+  "timestamp": "2026-11-05T09:00:00+07:00"
 }
 ```
+
+Ví dụ trên là bản Admin; bản User giống hệt nhưng không có `userGroupCount` ở mọi nút.
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Có query param |
+| `401` | `UNAUTHORIZED` | Access Token thiếu, sai, hết hạn hoặc của cổng kia (guard); tài khoản không còn `ACTIVE`, nhóm `INACTIVE` (bản User) hoặc token đầy đủ mà `must_change_password = 1` |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `org:view` (seed hiện tại mọi vai trò đều có; chốt phòng vệ khi đổi `permission_roles`) |
+| `503` | `MAINTENANCE` | Chỉ bản User, chế độ bảo trì đang bật |
+
+Không có `404` (không có tham số đường dẫn), `409`.
+
+- **Frontend** (`OrganizationView`, mẫu `templates/admin/organization.js`: `mockGetOrgTree`, `loadTree`, `renderTree`):
+  - Gọi qua API client của cổng (`adminSession.request`, `401` → refresh một lần rồi gửi lại) khi vào màn hình và sau mỗi thao tác tạo/sửa/xóa thành công (tải lại cả cây, không sửa dòng tại chỗ). Trạng thái tải, lỗi (thông điệp + nút "Thử lại") và rỗng ("Chưa có đơn vị tổ chức nào") hiện trong thân bảng.
+  - Bảng cây hiện **mọi** nút, không phân trang (không có thanh phân trang, không có ô chọn số dòng). Mặc định mở cấp 0 và cấp 1, cấp sâu hơn thu gọn; nút có `children` mới có biểu tượng mở/đóng; thụt dòng theo `level`. Trạng thái mở/đóng giữ theo `id` khi tải lại cây.
+  - Cột: "Tên tổ chức", "Mã đơn vị", "Trạng thái" (`ACTIVE` → badge "Hoạt động", `INACTIVE` → badge "Ngừng hoạt động"), "Hành động". Nút "Xem chi tiết" luôn hiện; nút "Thêm mới" ở đầu trang, "Thêm tổ chức con", "Chỉnh sửa", "Xóa" chỉ hiện khi store có `org:manage` (`data-permission="org:manage"`). "Thêm tổ chức con" chỉ ở nút `ACTIVE` có `level < 3` (mục 3.2); "Xóa" chỉ ở nút có `children.length = 0` và `userGroupCount = 0` (mục 3.4; quy ước A14, backend vẫn kiểm tra và trả `409` nếu dữ liệu đã đổi).
+  - Ô chọn "Trực thuộc (Đơn vị cha)" của `#orgModal` dựng từ cây đã tải (duyệt theo thứ tự cây, thụt theo `level`), chỉ liệt kê nút `ACTIVE` có `level < 3`; khi sửa thì bỏ chính đơn vị và nhánh con của nó (mục 3.3).
+- Index phục vụ: khóa chính `admins`/`users`/`user_groups` (kiểm tra tài khoản); `organizations` đọc toàn bảng (vài chục tới vài trăm dòng, sắp trong bộ nhớ, không cần index riêng); `idx_ug_org` (`organization_id`) cho phép đếm ở bước 3 chỉ đọc index.
 
 ### 3.1.1. `GET /api/v1/organizations`
 
@@ -153,32 +204,51 @@ backend/src/
 
 ### 4.1. Thuật toán dựng cây (Recursive Tree Builder) trong `organizations.service.ts`
 
+Dùng cho mục 3.1 (`withUserGroupCount = true` ở controller Admin, `false` ở controller Member) và làm khung cho `GET /user-groups/tree` (`docs/modules/02_user_group.md` mục 3.1.1).
+
 ```typescript
-async getOrganizationTree(): Promise<OrganizationTreeDto[]> {
-  const allOrgs = await this.orgRepo.find({
-    order: { level: 'ASC', sortOrder: 'ASC' }
+async getTree(withUserGroupCount: boolean): Promise<OrganizationTreeNodeDto[]> {
+  // Mục 3.1 bước 2: chỉ các cột của nút, thứ tự anh em = level, sort_order, name, id
+  const rows = await this.orgRepo.find({
+    select: ['id', 'parentId', 'code', 'name', 'level', 'sortOrder', 'status'],
+    order: { level: 'ASC', sortOrder: 'ASC', name: 'ASC', id: 'ASC' },
   });
-  
-  const map = new Map<number, OrganizationTreeDto>();
-  const roots: OrganizationTreeDto[] = [];
 
-  for (const org of allOrgs) {
-    const node: OrganizationTreeDto = { ...org, children: [] };
-    map.set(org.id, node);
+  // Mục 3.1 bước 3 (chỉ bản Admin): đếm mọi nhóm, kể cả INACTIVE, qua idx_ug_org
+  const counts = new Map<number, number>();
+  if (withUserGroupCount) {
+    const raw = await this.userGroupRepo
+      .createQueryBuilder('ug')
+      .select('ug.organization_id', 'orgId')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('ug.organization_id IS NOT NULL')
+      .groupBy('ug.organization_id')
+      .getRawMany<{ orgId: number; cnt: string }>();
+    for (const r of raw) counts.set(Number(r.orgId), Number(r.cnt));
   }
 
-  for (const org of allOrgs) {
-    const node = map.get(org.id)!;
-    if (org.parentId && map.has(org.parentId)) {
-      map.get(org.parentId)!.children.push(node);
-    } else {
-      roots.push(node);
-    }
+  const map = new Map<number, OrganizationTreeNodeDto>();
+  for (const o of rows) {
+    map.set(o.id, {
+      id: o.id, parentId: o.parentId ?? null, code: o.code, name: o.name,
+      level: o.level, sortOrder: o.sortOrder, status: o.status,
+      ...(withUserGroupCount ? { userGroupCount: counts.get(o.id) ?? 0 } : {}),
+      children: [],
+    });
   }
 
+  const roots: OrganizationTreeNodeDto[] = [];
+  for (const o of rows) {               // giữ thứ tự đã sắp nên anh em đúng thứ tự
+    const node = map.get(o.id)!;
+    if (o.parentId == null) roots.push(node);
+    else map.get(o.parentId)?.children.push(node); // fk_org_parent bảo đảm cha tồn tại
+  }
   return roots;
 }
 ```
+
+- `parentId == null` (không dùng `!o.parentId`) để không phụ thuộc giá trị `0`. Cha luôn tồn tại nhờ `fk_org_parent` và không có chu trình nhờ kiểm tra ở mục 3.3; service không tự sửa dữ liệu lệch khi đọc.
+- Không cache: bảng nhỏ, đọc trực tiếp mỗi request để thao tác tạo/sửa/xóa hiện ngay.
 
 ---
 
@@ -189,14 +259,15 @@ Màn hình Danh mục tổ chức **chỉ có ở khu vực Admin** (route yêu 
 ### 5.1. Cấu trúc Component
 
 - Các nút Thêm / Thêm tổ chức con / Chỉnh sửa / Xóa chỉ hiện khi tài khoản có `org:manage`.
+- Bảng cây dựng từ `GET /api/v1/admin/organizations/tree` (mục 3.1, phần Frontend: tải/lỗi/rỗng, không phân trang, điều kiện hiện từng nút).
 - Tích hợp chính xác cấu trúc HTML từ `templates/admin/organization.html`:
   - Header trang: Tiêu đề "Danh mục tổ chức", nút "Thêm mới" mở modal `#orgModal`.
-  - Bảng `.tree-table`: Cột "Tên tổ chức", "Mã đơn vị", "Hành động" có nút đóng/mở từng cấp tổ chức.
-  - Cột Hành động trên mỗi dòng bao gồm 4 nút:
-    - **Xem chi tiết** (`.view-btn`): Mở `#orgDetailModal` hiển thị thông tin đầy đủ gồm Tên, Mã, Đơn vị cha, Thứ tự, Mô tả chi tiết.
-    - **Thêm tổ chức con** (`.add-btn`): Mở `#orgModal` với tiêu đề động và tự động chọn trước đơn vị cha tương ứng với dòng hiện tại.
+  - Bảng `.tree-table`: Cột "Tên tổ chức", "Mã đơn vị", "Trạng thái", "Hành động" có nút đóng/mở từng cấp tổ chức; thân bảng `#orgTreeBody` do JS vẽ.
+  - Cột Hành động trên mỗi dòng có tối đa 4 nút:
+    - **Xem chi tiết** (`.view-btn`): Mở `#orgDetailModal` hiển thị thông tin đầy đủ gồm Tên, Mã, Đơn vị cha, Thứ tự, Mô tả chi tiết (dữ liệu từ mục 3.1.2).
+    - **Thêm tổ chức con** (`.add-btn`): Mở `#orgModal` với tiêu đề động và tự động chọn trước đơn vị cha tương ứng với dòng hiện tại; chỉ ở nút `ACTIVE` có `level < 3`.
     - **Chỉnh sửa** (`.edit-btn`): Mở `#orgModal` để cập nhật thông tin đơn vị.
-    - **Xóa** (`.delete-btn`): Mở `#deleteModal` xác nhận xóa (áp dụng cho các đơn vị nhánh con).
+    - **Xóa** (`.delete-btn`): Mở `#deleteModal` xác nhận xóa; chỉ ở nút không có đơn vị con và `userGroupCount = 0`.
   - Hiển thị độ thụt dòng theo cấp bằng `<span class="indent"></span>` và icon đóng mở `<span class="toggle-icon">`.
   - Modal tạo/sửa tổ chức (`#orgModal`): Nhập tên tổ chức, mã đơn vị, đơn vị cha (Dropdown Select), thứ tự sắp xếp và mô tả tổ chức theo bố cục 2 cột cân đối.
   - Modal xem chi tiết (`#orgDetailModal`): Xem toàn bộ thông tin đơn vị, kèm nút hành động "Thêm tổ chức con" và "Chỉnh sửa".
@@ -212,6 +283,8 @@ Màn hình Danh mục tổ chức **chỉ có ở khu vực Admin** (route yêu 
 ## 6. Kịch bản kiểm thử (Test Plan for Agent)
 
 1. **TC-ORG-01**: Lấy danh sách cây tổ chức, kiểm tra các node con hiển thị đúng cấp cha (`parent_id`).
+   - **TC-ORG-01a** (`GET /api/v1/admin/organizations/tree`): dữ liệu có 2 gốc, một đơn vị `INACTIVE` cấp 1 có con, hai anh em cùng `sort_order` khác tên, một đơn vị có 2 nhóm (1 nhóm `INACTIVE`): `200`, `data` là mảng 2 gốc theo `sortOrder`, `name`, `id`; mỗi nút đúng 9 trường của mục 3.1 (không có `description`, `representativeName`); nút `INACTIVE` vẫn có, con nằm dưới nó; `userGroupCount = 2`; nút lá `children = []`; không thêm dòng `audit_logs`. Gửi `?status=ACTIVE` → `400 VALIDATION_ERROR` (`errors.status`). Bảng rỗng → `data = []`.
+   - **TC-ORG-01b** (`GET /api/v1/organizations/tree`, token User `REGULAR_USER`): cùng cây như TC-ORG-01a nhưng không nút nào có `userGroupCount`, không cô lập theo nhóm; bật `system_maintenance_mode` → `503 MAINTENANCE`; token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; nhóm của người gọi `INACTIVE` → `401 UNAUTHORIZED`; token Admin → `401`.
 2. **TC-ORG-02**: Tạo mới đơn vị con trực thuộc "Tổng công ty 71", xác nhận node mới xuất hiện trong Tree Table.
 3. **TC-ORG-03**: Thử xóa một đơn vị đang có đơn vị con, kiểm tra hệ thống chặn và trả thông báo lỗi hợp lý.
 4. **TC-ORG-04**: Đổi trạng thái từ `ACTIVE` sang `INACTIVE`, kiểm tra badge trạng thái cập nhật màu sắc tương ứng.
