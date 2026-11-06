@@ -1,0 +1,128 @@
+=== FULL SHEET 9 (NMD Ranges) ===
+R1 | B: DANH SÁCH CÁC NMĐ TRÊN TOÀN QUỐC
+R2 | A: Stt | B: Tên trạm | C: Điện áp | D: Miền | E: Tu so | F: Den so | G: Tong so
+R3 | A: 1 | B: TĐ Hòa Bình - 8x240MW | C: NMĐ >30MW (EVN) | D: MB | E: 189xx | G: 100
+R4 | A: 2 | B: NĐ Phả Lại 1 - 4x110MW | C: NMĐ >30MW | D: MB | E: 161xx | F: 165xx | G: 500
+R5 | A: 3 | B: NĐ Phả Lại 2 - 2x300MW | C: NMĐ >30MW | D: MB | E: 166xx | F: 169xx | G: 400
+R6 | A: 4 | B: NĐ Uông Bí 1 - 2x55MW | C: NMĐ >30MW (EVN) | D: MB | E: 140xx | F: 149xx | G: 1000
+R7 | A: 5 | B: NĐ Uông Bí 2 - 300+330MW | C: NMĐ >30MW (EVN) | D: MB
+R8 | A: 6 | B: TĐ Thác Bà - 3x30MW | C: NMĐ >30MW | D: MB | E: 170xx | F: 179xx | G: 1000
+R9 | A: 7 | B: NĐ Ninh Bình - 4x25MW | C: NMĐ >30MW | D: MB | E: 151xx | F: 154xx | G: 400
+R10 | A: 8 | B: NĐ than Sơn Động - 2x110MW | C: NMĐ >30MW | D: MB | E: 910xx | F: 911xx | G: 200
+R11 | A: 9 | B: TĐ Cửa Đạt - 2x48.5MW | C: NMĐ >30MW | D: MB | E: 920xx | G: 100
+R12 | A: 10 | B: NĐ Hải Phòng - 2x125+50MW | C: NMĐ >30MW | D: MB | E: 318xx | F: 319xx | G: 200
+R13 | A: 11 | B: NĐ Quảng Ninh - 2x300MW | C: NMĐ >30MW | D: MB | E: 337xx | G: 100
+R14 | A: 12 | B: Nomura - 9x6.2 MW | C: NMĐ >30MW | D: MB | E: 950xx | F: 951xx | G: 200
+R15 | A: 13 | B: Điêzel Cái Lân- 6x6MW | C: NMĐ >30MW | D: MB | E: 952xx | F: 953xx | G: 200
+R16 | A: 14 | B: NĐ Cẩm Phả - 2x125 | C: NMĐ >30MW | D: MB | E: 912xx | F: 913xx | G: 200
+R17 | A: 15 | B: TĐ MaLuTang-3x100MW | C: NMĐ >30MW | D: MB | E: 921xx | G: 100
+R18 | A: 16 | B: TĐ Tuyên Quang - 3x114MW | C: NMĐ >30MW (EVN) | D: MB | E: 274xx | F: 279xx | G: 600
+R19 | A: 17 | B: NĐ Na Dương - 2x55MW | C: NMĐ >30MW | D: MB | E: 914xx | F: 915xx | G: 200
+R20 | A: 18 | B: NĐ Cao Ngạn - 2x55MW | C: NMĐ >30MW | D: MB | E: 916xx | F: 917xx | G: 200
+R21 | A: 19 | B: TĐ Nậm Chiến 2 - 2x16MW | C: NMĐ >30MW | D: MB | E: 922xx | G: 100
+R22 | A: 20 | B: TĐ Sơn La | C: NMĐ >30MW (EVN) | D: MB | E: 224xx | G: 100
+R23 | A: 21 | B: TĐ Thái An-82MW | C: NMĐ >30MW | D: MB | E: 923xx | G: 100
+R24 | A: 22 | B: TĐ Sử Pán | C: NMĐ >30MW | D: MB | E: 924xx | G: 100
+R25 | A: 23 | B: TĐ Hương Sơn | C: NMĐ >30MW | D: MB | E: 925xx | G: 100
+R26 | A: 24 | B: TĐ Nậm Khóa 3 | C: NMĐ >30MW | D: MB | E: 926xx | G: 100
+R27 | A: 25 | B: TĐ Bản Vẽ 2x160MW | C: NMĐ >30MW (EVN) | D: MB | E: 927xx | G: 100
+R28 | A: 26 | B: Nậm Khóa A20.16 -2x9MW ??? | C: NMĐ <30MW | D: MB | E: 9700x | F: 9704x | G: 50
+R29 | A: 27 | B: Mường Kim A12.5 -3x4,5MW | C: NMĐ <30MW | D: MB | E: 9705x | F: 9709x | G: 50
+R30 | A: 28 | B: Nậm Pia A17.10 -2x7.5 | C: NMĐ <30MW | D: MB | E: 9710x | F: 9714x | G: 50
+R31 | A: 29 | B: Chiềng Công A17.16   2x2+1.25 | C: NMĐ <30MW | D: MB | E: 9715x | F: 9719x | G: 50
+R32 | A: 30 | B: Nậm Chim A17.12   2x1 +0.5MW | C: NMĐ <30MW | D: MB | E: 9720x | F: 9724x | G: 50
+R33 | A: 31 | B: Cụm TĐ Quế Phong 66MW (Bản Cốc 3x6MW, Sao Va 1x3MW, Nhạn Hạc 45MW) | C: NMĐ >30MW | D: MB | E: 930xx | G: 100
+R34 | A: 32 | B: Nậm Ngần A22.5 - 2x6.75MW | C: NMĐ <30MW | D: MB | E: 9725x | F: 9729x | G: 50
+R35 | A: 33 | B: Na Hang | C: NMĐ <30MW | D: MB | E: 9730x | F: 9734x | G: 50
+R36 | A: 34 | B: Sông Chừng | C: NMĐ <30MW | D: MB | E: 9735x | F: 9739x | G: 50
+R37 | A: 35 | B: Ngòi Xan | C: NMĐ <30MW | D: MB | E: 9740x | F: 9744x | G: 50
+R38 | A: 36 | B: Nâm Công | C: NMĐ <30MW | D: MB | E: 9745x | F: 9749x | G: 50
+R39 | A: 37 | B: Nậm Soi | C: NMĐ <30MW | D: MB | E: 9750x | F: 9754x | G: 50
+R40 | A: 38 | B: Nậm Chiến 1 (200MW) | C: NMĐ >30MW | D: MB | E: 931xx | G: 100
+R41 | A: 39 | B: Bản Cốc 3x6MW (quế phong) | C: NMĐ <30MW | D: MB | E: 3450x | F: 3454x | G: 50
+R42 | A: 40 | B: Chiêm Hóa (48MW) | C: NMĐ >30MW | D: MB | E: 932xx | G: 100
+R43 | A: 41 | B: Văn Chấn (57MW) | C: NMĐ >30MW | D: MB | E: 933xx | G: 100
+R44 | A: 42 | B: Tà Thàng (60MW) | C: NMĐ >30MW | D: MB | E: 934xx | G: 100
+R45 | A: 43 | B: Nho Quế 3 (110MW) | C: NMĐ >30MW | D: MB | E: 935xx | G: 100
+R46 | A: 44 | B: Bá Thước 2 (80MW) | C: NMĐ >30MW | D: MB | E: 936xx | G: 100
+R47 | A: 45 | B: Ngòi Phát (72MW) | C: NMĐ >30MW | D: MB | E: 937xx | G: 100
+R48 | A: 46 | B: TĐ Quảng Trị (64MW) | C: NMĐ >30MW (EVN) | D: MT | E: 545xx | F: 546xx | G: 200
+R49 | A: 47 | B: TĐ Bình Điền (48MW) | C: NMĐ >30MW | D: MT | E: 928xx | G: 100
+R50 | A: 48 | B: TĐ Sông Côn 2 (60MW) | C: NMĐ >30MW | D: MT | E: 929xx | G: 100
+R51 | A: 49 | B: TĐ A Vương (210MW) | C: NMĐ >30MW | D: MT | E: 938xx | G: 100
+R52 | A: 50 | B: TĐ Za Hưng (30MW) | C: NMĐ >30MW | D: MT | E: 939xx | G: 100
+R53 | A: 51 | B: TĐ Vĩnh Sơn (60MW) | C: NMĐ >30MW | D: MT | E: 565xx | G: 100
+R54 | A: 52 | B: TĐ Sông Hinh (60MW) | C: NMĐ >30MW | D: MT | E: 574xx | F: 575xx | G: 200
+R55 | A: 53 | B: TĐ Sông Ba Hạ (220MW) | C: NMĐ >30MW | D: MT | E: 570xx | G: 100
+R56 | A: 54 | B: TĐ Plei Krông (100MW) | C: NMĐ >30MW (EVN) | D: MT | E: 607xx | G: 100
+R57 | A: 55 | B: TĐ Ialy (720MW) | C: NMĐ >30MW (EVN) | D: MT | E: 594xx | F: 596xx | G: 300
+R58 | A: 56 | B: TĐ Sesan 3 (260MW) | C: NMĐ >30MW (EVN) | D: MT | E: 605xx | G: 100
+R59 | A: 57 | B: TĐ Sê San 3A (108MW) | C: NMĐ >30MW | D: MT | E: 606xx | G: 100
+R60 | A: 58 | B: TĐ Sê San 4 (360MW) | C: NMĐ >30MW (EVN) | D: MT | E: 6080x | F: 6084x | G: 50
+R61 | A: 59 | B: TĐ Buôn Kuốp (280MW) | C: NMĐ >30MW (EVN) | D: MT | E: 5050x | F: 5054x | G: 50
+R62 | A: 60 | B: TĐ Buôn Tua Srah (86MW) | C: NMĐ >30MW (EVN) | D: MT | E: 5010x | F: 5014x | G: 50
+R63 | A: 61 | B: TĐ Srêpok 3 (220MW) | C: NMĐ >30MW (EVN) | D: MT | E: 506xx | G: 100
+R64 | A: 62 | B: TĐ Srêpok 4 (80MW) | C: NMĐ >30MW | D: MT | E: 938xx | G: 100
+R65 | A: 63 | B: TĐ Krông H'Năng (64MW) | C: NMĐ >30MW | D: MT | E: 939xx | G: 100
+R66 | A: 64 | B: TĐ Hương Điền (81MW) | C: NMĐ >30MW | D: MT | E: 940xx | G: 100
+R67 | A: 65 | B: TĐ Sông Tranh 2 (190MW) | C: NMĐ >30MW (EVN) | D: MT | E: 437xx | G: 100
+R68 | A: 66 | B: TĐ An Khê-Knak (160+13MW) | C: NMĐ >30MW (EVN) | D: MT | E: 5695x | F: 5699x | G: 50
+R69 | A: 67 | B: TĐ Sê San 4A (63MW) | C: NMĐ >30MW | D: MT | E: 941xx | G: 100
+R70 | A: 68 | B: TĐ Đồng Nai 3 (180MW) | C: NMĐ >30MW (EVN) | D: MT | E: 5080x | F: 5084x | G: 50
+R71 | A: 69 | B: TĐ Đăkrti'h (144MW) | C: NMĐ >30MW | D: MT | E: 5905x | F: 5909x | G: 50
+R72 | A: 70 | B: Đắk Srông (18MW) | C: NMĐ <30MW | D: MT | E: 9755x | F: 9759x | G: 50
+R73 | A: 71 | B: Đắk Srông 2 (24MW) | C: NMĐ <30MW | D: MT | E: 9760x | F: 9764x | G: 50
+R74 | A: 72 | B: Đắk Srông 2A (18MW) | C: NMĐ <30MW | D: MT | E: 9765x | F: 9769x | G: 50
+R75 | A: 73 | B: H'Mun (16.2MW) | C: NMĐ <30MW | D: MT | E: 9770x | F: 9774x | G: 50
+R76 | A: 74 | B: Đắk Psi 4 (30MW) | C: NMĐ <30MW | D: MT | E: 9775x | F: 9779x | G: 50
+R77 | A: 75 | B: Đăk Ne (8.1MW) | C: NMĐ <30MW | D: MT | E: 9780x | F: 9784x | G: 50
+R78 | A: 76 | B: Đăk Đoa (14MW) | C: NMĐ <30MW | D: MT | E: 9785x | F: 9789x | G: 50
+R79 | A: 77 | B: XeKaMan 3 (250MW) - từ LÀO đưa về TBA Thạch Mỹ tỉnh Quảng Nam | C: NMĐ >30MW | D: MT | E: 969xx | G: 100
+R80 | A: 78 | B: Sông Giang 2 (37MW) | C: NMĐ >30MW | D: MT | E: 968xx | G: 100
+R81 | A: 79 | B: Đắk Mi 208MW (4A: 148MW, 4B: 42MW, 4C: 2x9MW) | C: NMĐ >30MW | D: MT | E: 967xx | G: 100
+R82 | A: 80 | B: NM Thượng Kon Tum (220MW) | C: NMĐ >30MW | D: MT | E: 949xx | G: 100
+R83 | A: 81 | B: Bà Rịa | C: NMĐ >30MW | D: MN | E: 645xx 646xx 649xx | G: 300
+R84 | A: 82 | B: Bắc Bình | C: NMĐ >30MW | D: MN | E: 627xx | G: 100
+R85 | A: 83 | B: Cà Mau 1 | C: NMĐ >30MW | D: MN | E: 942xx | G: 100
+R86 | A: 84 | B: Cà Mau 2 | C: NMĐ >30MW | D: MN | E: 943xx | G: 100
+R87 | A: 85 | B: Cần Đơn | C: NMĐ >30MW | D: MN | E: 944xx | G: 100
+R88 | A: 86 | B: Cần Thơ | C: NMĐ >30MW (EVN) | D: MN | E: 715xx | G: 100
+R89 | A: 87 | B: Đa Dâng 2 | C: NMĐ >30MW | D: MN | E: 945xx | G: 100
+R90 | A: 88 | B: Đa Mi | C: NMĐ >30MW (EVN) | D: MN | E: 63700 | F: 63799 | G: 100
+R91 | A: 89 | B: Đa Nhim | C: NMĐ >30MW (EVN) | D: MN | E: 682xx | F: 683xx | G: 200
+R92 | A: 90 | B: Đại Ninh | C: NMĐ >30MW (EVN) | D: MN | E: 622xx | G: 100
+R93 | A: 91 | B: Formosa | C: NMĐ >30MW | D: MN
+R94 | A: 92 | B: Hàm Thuận | C: NMĐ >30MW (EVN) | D: MN | E: 635xx | G: 100
+R95 | A: 93 | B: Hiệp Phước | C: NMĐ >30MW | D: MN | E: 946xx | G: 100
+R96 | A: 94 | B: Nhơn Trạch 1 | C: NMĐ >30MW | D: MN | E: 947xx | G: 100
+R97 | A: 95 | B: TBKHH Nhơn Trạch 2 | C: NMĐ >30MW | D: MN | E: 948xx | G: 100
+R98 | A: 96 | B: Ô Môn I | C: NMĐ >30MW (EVN) | D: MN | E: 717xx | F: 718xx | G: 200
+R99 | A: 97 | B: Phú Mỹ 1 | C: NMĐ >30MW (EVN) | D: MN | E: 644xx | G: 100
+R100 | A: 98 | B: Phú Mỹ 2.1 & 2.1 MR | C: NMĐ >30MW (EVN) | D: MN | E: 954xx | G: 100
+R101 | A: 99 | B: Phú Mỹ 2.2 (2GT + 1ST) | C: NMĐ >30MW | D: MN | E: 955xx | G: 100
+R102 | A: 100 | B: Phú Mỹ 3 (2GT + 1ST) | C: NMĐ >30MW | D: MN | E: 956xx | G: 100
+R103 | A: 101 | B: Phú Mỹ 4 | C: NMĐ >30MW (EVN) | D: MN | E: 957xx | G: 100
+R104 | A: 102 | B: Srok Phu Miêng | C: NMĐ >30MW | D: MN | E: 958xx | G: 100
+R105 | A: 103 | B: Thác Mơ | C: NMĐ >30MW | D: MN | E: 138xx | F: 139xx | G: 200
+R106 | A: 104 | B: Thủ Đức | C: NMĐ >30MW (EVN) | D: MN | E: 836xx | F: 839xx | G: 400
+R107 | A: 105 | B: Trị An | C: NMĐ >30MW (EVN) | D: MN | E: 611xx | F: 615xx | G: 500
+R108 | A: 106 | B: NĐ Vĩnh Tân - 4400MW | C: NMĐ >30MW (EVN) | E: 62650 | F: 62849 | G: 200
+R109 | A: 107 | B: Bảo Lộc (2 x 12.25MW) | C: NMĐ <30MW | D: MN | E: 9790x | F: 9794x | G: 50
+R110 | A: 108 | B: Đăk Glun | C: NMĐ <30MW | D: MN | E: 9795x | F: 9799x | G: 50
+R111 | A: 109 | B: VE DAN (68MW) | C: NMĐ >30MW | E: 9590x | F: 9594x | G: 50
+R112 | A: 110 | B: ĐamBri (75MW) | C: NMĐ >30MW | E: 9595x | F: 9599x | G: 50
+R113 | A: 111 | B: Nhiệt điện duyên hải | E: 965xx | F: 966xx | G: 200
+R114 | A: 112 | B: Nhiệt điện Nghi Sơn | E: 964xx | G: 100
+R115 | A: 113 | B: Thủy điện Khe Bố | E: 9630x | F: 9634x | G: 50
+R116 | A: 114 | B: Thủy điện Sông Pha | E: 9635x | F: 9639x | G: 50
+R117 | A: 115 | B: Thủy điện A Lưới | E: 5470x | F: 5474x | G: 50
+R118 | A: 116 | B: Nhiệt điện mông dương | E: 3395x | F: 3399x | G: 50
+R119 | A: 117 | B: Nhiệt điện thái bình | E: 367xx | G: 100
+R120 | A: 118 | B: Nhiệt điện Mạo khê | E: 3390x | F: 3394x | G: 50
+R121 | A: 119 | B: NMĐ Huội Quảng | E: 2260x | F: 2264x | G: 50
+R122 | A: 120 | B: NMĐ Bản Chát | E: 2265x | F: 2269x | G: 50
+R123 | A: 121 | B: NMĐ Nậm Má | E: 2300x | F: 2304x | G: 50
+R124 | A: 122 | B: Thủy điện Sông Bung | E: 962xx | G: 100
+R125 | A: 123 | B: Thủy điện Trung sơn | E: 3680x | F: 3684x | G: 50
+R126 | B: NMĐ Duyên Hải 3 | E: 747xx | F: 748xx | G: 200
+R127 | B: NMĐ Duyên Hải 1 | E: 745xx | F: 746xx | G: 200

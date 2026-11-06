@@ -1,0 +1,100 @@
+=== FULL SHEET 11 (220kV Substation Ranges) ===
+R1 | A: Stt | B: Tên trạm | C: Điện áp | D: Miền | E: Tu so | F: Den So | G: Tong so
+R2 | A: 1 | B: HÀ ĐÔNG 220 KV | C: 220kV | D: MB | E: 343xx | G: 100
+R3 | A: 2 | B: CHÈM 220 KV | C: 220kV | D: MB | E: 491xx | G: 100
+R4 | A: 3 | B: HƯNG ĐÔNG 220 KV | C: 220kV | D: MB | E: 384xx | G: 100
+R5 | A: 4 | B: BA CHÈ 220 KV | C: 220kV | D: MB | E: 374xx | G: 100
+R6 | A: 5 | B: NINH BÌNH 220 KV | C: 220kV | D: MB | E: 2810X | F: 2814X | G: 50
+R7 | A: 6 | B: THÁI NGUYÊN 220 KV | C: 220kV | D: MB | E: 2815X | F: 2819X | G: 50
+R8 | A: 7 | B: HOÀNH BỒ 220 KV | C: 220kV | D: MB | E: 2820X | F: 2824X | G: 50
+R9 | A: 8 | B: THÁI BÌNH 220 KV | C: 220kV | D: MB | E: 364xx | G: 100
+R10 | A: 9 | B: NGHI SƠN 220 KV | C: 220kV | D: MB | E: 2825X | F: 2829X | G: 50
+R11 | A: 10 | B: VIỆT TRÌ 220 KV | C: 220kV | D: MB | E: 2830X | F: 2834X | G: 50
+R12 | A: 11 | B: NAM ĐỊNH 220 KV | C: 220kV | D: MB | E: 2835X | F: 2839X | G: 50
+R13 | A: 12 | B: MAI ĐỘNG 220 KV | C: 220kV | D: MB | E: 493xx | G: 100
+R14 | A: 13 | B: PHỐ NỐI 220 KV | C: 220kV | D: MB | E: 2840X | F: 2844X | G: 50
+R15 | A: 14 | B: TRÀNG BẠCH 220 KV | C: 220kV | D: MB | E: 315xx | G: 100
+R16 | A: 15 | B: BẮC GIANG 220 KV | C: 220kV | D: MB | E: 244xx | F: 245xx | G: 200
+R17 | A: 16 | B: VẬT CÁCH 220 KV | C: 220kV | D: MB | E: 316xx | G: 100
+R18 | A: 17 | B: ĐỒNG HOÀ 220 KV | C: 220kV | D: MB | E: 317xx | G: 100
+R19 | A: 18 | B: SÓC SƠN 220 KV | C: 220kV | D: MB | E: 490xx | G: 100
+R20 | A: 19 | B: XUÂN MAI 220 KV | C: 220kV | D: MB | E: 188xx | G: 100
+R21 | A: 20 | B: BẮC NINH 220 KV | C: 220kV | D: MB | E: 246xx | G: 100
+R22 | A: 21 | B: YÊN BÁI 220 KV | C: 220kV | D: MB | E: 294xx | G: 100
+R23 | A: 22 | B: ĐÌNH VŨ 220 KV | C: 220kV | D: MB | E: 2845X | F: 2849X | G: 50
+R24 | A: 23 | B: VĨNH YÊN 220 KV | C: 220kV | D: MB | E: 2160x | F: 2161x | G: 20
+R25 | A: 24 | B: LÀO CAI 220KV | C: 220kV | D: MB | E: 3040x | F: 3044x | G: 50
+R26 | A: 25 | B: HÀ GIANG 220KV | C: 220kV | D: MB | E: 2040x | F: 2044x | G: 50
+R27 | A: 26 | B: THUẬN HOÀ | C: 220kV | D: MB | E: 2855X | F: 2859X | G: 50
+R28 | A: 27 | B: MÃ QUAN - CHINA | C: 220kV | D: MB | E: 2860X | F: 2864X | G: 50
+R29 | A: 28 | B: HẢI DƯƠNG | C: 220kV | D: MB | E: 3250x | F: 3254x | G: 50
+R30 | A: 29 | B: PHỦ LÝ | C: 220kV | D: MB | E: 3550x | F: 3554x | G: 50
+R31 | A: 30 | B: CAO BẰNG | C: 220kV | D: MB | E: 2865X | F: 2869X | G: 50
+R32 | A: 31 | B: VÂN TRÌ | C: 220kV | D: MB | E: 2870X | F: 2874X | G: 50
+R33 | A: 32 | B: TÂN KIỀU 220KV - CHINA | C: 220kV | D: MB | E: 2875X | F: 2879X | G: 50
+R34 | A: 33 | B: ĐỒNG HỚI 220KV | C: 220kV | D: MT | E: 2880x | F: 2884x | G: 50
+R35 | A: 34 | B: Đông Hà 220kV | C: 220kV | E: 2885x | F: 2889x | G: 50
+R36 | A: 35 | B: HUẾ 220KV | C: 220kV | D: MT | E: 2890x | F: 2894x | G: 50
+R37 | A: 36 | B: HOÀ KHÁNH | C: 220kV | D: MT | E: 2895x | F: 2899x | G: 50
+R38 | A: 37 | B: TAM KỲ 220KV | C: 220kV | D: MT | E: 5550x | F: 5554x | G: 50
+R39 | A: 38 | B: QUY NHƠN 220KV | C: 220kV | D: MT | E: 2900x | F: 2904x | G: 50
+R40 | A: 39 | B: TUY HÒA 220kV | C: 220kV | D: MT | E: 579xx | G: 100
+R41 | A: 40 | B: NHA TRANG 220KV | C: 220kV | D: MT | E: 2905x | F: 2909x | G: 50
+R42 | A: 41 | B: KRONG BUK | C: 220kV | D: MT | E: 2600x | F: 2604x | G: 50
+R43 | A: 42 | B: QUẢNG NGÃI 220kV | C: 220kV | D: MT | E: 5555x | F: 5559x | G: 50
+R44 | A: 43 | B: DUNG QUẤT 220kV | C: 220kV | D: MT | E: 2605x | F: 2609x | G: 50
+R45 | A: 44 | B: BẠC LIÊU | C: 220kV | D: MN | E: 2640x | F: 2644x | G: 50
+R46 | A: 45 | B: BẢO LỘC | C: 220kV | D: MN | E: 2645x | F: 2649x | G: 50
+R47 | A: 46 | B: BÀ RỊA | C: 220kV | D: MN | E: 2650x | F: 2654x | G: 50
+R48 | A: 47 | B: BẾN TRE | C: 220kV | D: MN | E: 7540x | F: 7541x | G: 20
+R49 | A: 48 | B: BÌNH CHÁNH | C: 220kV | D: MN | E: 8760x | F: 8764x | G: 50
+R50 | A: 49 | B: BÌNH HÒA | C: 220kV | D: MN | E: 6540X | F: 6541X | G: 20
+R51 | A: 50 | B: BÌNH LONG | C: 220kV | D: MN | E: 2350x | F: 2354x | G: 50
+R52 | A: 51 | B: CÀ MAU | C: 220kV | D: MN | E: 2355x | F: 2359x | G: 50
+R53 | A: 52 | B: CAI LẬY | C: 220kV | D: MN | E: 2950x | F: 2954x | G: 50
+R54 | A: 53 | B: CAO LẢNH | C: 220kV | D: MN | E: 2955x | F: 2959x | G: 50
+R55 | A: 54 | B: CÁT LÁI | C: 220kV | D: MN | E: 2960x | F: 2964x | G: 50
+R56 | A: 55 | B: CHÂU ĐỐC | C: 220kV | D: MN | E: 2965x | F: 2969x | G: 50
+R57 | A: 56 | B: HÓC MÔN | C: 220kV | D: MN | E: 2970x | F: 2974x | G: 50
+R58 | A: 57 | B: KIÊN BÌNH | C: 220kV | D: MN | E: 7770X | F: 7771X | G: 20
+R59 | A: 58 | B: LONG AN | C: 220kV | D: MN | E: 724xx | G: 100
+R60 | A: 59 | B: LONG BÌNH | C: 220kV | D: MN | E: 2975x | F: 2979x | G: 50
+R61 | A: 60 | B: LONG THÀNH | C: 220kV | D: MN | E: 2980x | F: 2984x | G: 50
+R62 | A: 61 | B: MỸ PHƯỚC | C: 220kV | D: MN | E: 2985x | F: 2989x | G: 50
+R63 | A: 62 | B: MỸ THO | C: 220kV | D: MN | E: 2990x | F: 2994x | G: 50
+R64 | A: 63 | B: NHÀ BÈ | C: 220kV | D: MN | E: 2995x | F: 2999x | G: 50
+R65 | A: 64 | B: NHƠN TRẠCH 3 | C: 220kV | D: MN | E: 2660x | F: 2664x | G: 50
+R66 | A: 65 | B: PHAN THIẾT | C: 220kV | D: MN | E: 6280X | F: 6284X | G: 50
+R67 | A: 66 | B: PHÚ LÂM | C: 220kV | D: MN | E: 2665x | F: 2669x | G: 50
+R68 | A: 67 | B: RẠCH GIÁ | C: 220kV | D: MN | E: 2670x | F: 2674x | G: 50
+R69 | A: 68 | B: SÓC TRĂNG | C: 220kV | D: MN | E: 6940X | F: 6944X | G: 50
+R70 | A: 69 | B: SÔNG PHA | C: 220kV | D: MN | E: 2675x | F: 2679x | G: 50
+R71 | A: 70 | B: TAO ĐÀN | C: 220kV | D: MN | E: 2680x | F: 2684x | G: 50
+R72 | A: 71 | B: THỐT NỐT 220 | C: 220kV | D: MN | E: 719xx | G: 100
+R73 | A: 72 | B: THỦ ĐỨC | C: 220kV | D: MN | E: 837xx | G: 100
+R74 | A: 73 | B: TRÀ NÓC | C: 220kV | D: MN | E: 2685x | F: 2689x | G: 50
+R75 | A: 74 | B: TRẢNG BÀNG | C: 220kV | D: MN | E: 6640X | F: 6644X | G: 50
+R76 | A: 75 | B: VĨNH LỘC | C: 220kV | D: MN | E: 2695x | F: 2699x | G: 50
+R77 | A: 76 | B: TRÀ VINH | C: 220kV | D: MN | E: 2800x | F: 2804x | G: 50
+R78 | A: 77 | B: THUẬN AN | C: 220kV | D: MN | E: 6570x | F: 6574x | G: 50
+R79 | A: 78 | B: VĨNH LONG 2 | C: 220kV | D: MN | E: 2805x | F: 2809x | G: 50
+R80 | A: 79 | B: SƠN LA | C: 220kV | D: MB | E: 2205x | F: 2209x | G: 50
+R81 | A: 80 | B: THẠNH MỸ | C: 220kV | D: MT | E: 5105x | F: 5109x | G: 50
+R82 | A: 81 | B: CAO LÃNH | C: 220kV | D: MT | E: 6740x | F: 6745x | G: 60
+R83 | A: 82 | B: BẮC KAN | C: 220kV | D: MB | E: 2850X | F: 2854X | G: 50
+R84 | A: 83 | B: BẢO THẮNG | C: 220kV | D: MB | E: 2045X | F: 2049X | G: 50
+R85 | A: 84 | B: THAN UYÊN | C: 220kV | D: MB | E: 2050X | F: 2054X | G: 50
+R86 | A: 85 | B: ĐÔ LƯƠNG | C: 220kV | D: MB | E: 3850X | F: 3852X | G: 30
+R87 | A: 86 | B: THÁP CHÀM | C: 220kV | D: MT | E: 6840X | F: 6842X | G: 30
+R88 | A: 87 | B: DỐC SỎI | C: 220kV | D: MT | E: 2690x | F: 2694x | G: 50
+R89 | A: 88 | B: Uyên Hưng | C: 220kV | D: MN | E: 6550x | F: 6554x | G: 50
+R90 | A: 89 | B: Đông Anh | C: 220kV | D: MB | E: 2270x | F: 2274x | G: 50
+R91 | B: Trực Ninh | C: 220kV | D: MB | E: 3555x | F: 3559x | G: 50
+R92 | B: Tây Hồ | C: 220kV | D: MB | E: 2275x | F: 2279x | G: 50
+R93 | B: Đức Hòa | C: 220kV | D: MN | E: 7250x | F: 7252x | G: 30
+R94 | B: Mỏ Cày | C: 220kV | D: MN | E: 75420 | F: 75439 | G: 20
+R95 | B: Tân Thành | C: 220kV | D: MN | E: 64350 | F: 64359 | G: 10
+R96 | B: Mỹ Xuân | C: 220kV | D: MN | E: 64360 | F: 64379 | G: 20
+R97 | B: Vũng Tàu | C: 220kV | D: MN | E: 6438x | F: 6439x | G: 20
+R98 | B: Bàu Sen | C: 220kV | D: MN | E: 61930 | F: 61949 | G: 20
+R99 | B: Tây Ninh | C: 220kV | D: MN | E: 66450 | F: 66479 | G: 30

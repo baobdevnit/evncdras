@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "templates",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "templates"],
+      "port": 8765
+    },
+    {
+      "name": "templates-u12",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8771", "--directory", "templates"],
+      "port": 8771
+    }
+  ]
+}

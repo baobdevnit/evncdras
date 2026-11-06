@@ -1,0 +1,1242 @@
+[
+  {
+    "name": "admin/cdr-history.html",
+    "title": "Tra cứu Lịch sử Cuộc gọi - EVN CDR AS",
+    "dom": 522,
+    "rows": 4,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 416
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 416
+      }
+    ],
+    "loadMs": 281,
+    "unlabeled": 7,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/change-password.html",
+    "title": "Đổi mật khẩu - EVN CDR AS",
+    "dom": 363,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 64
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 64
+      }
+    ],
+    "loadMs": 40,
+    "unlabeled": 0,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/dashboard.html",
+    "title": "Bảng điều khiển - EVN CDR AS",
+    "dom": 493,
+    "rows": 5,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 92
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 92
+      }
+    ],
+    "loadMs": 70,
+    "unlabeled": 2,
+    "errors": [
+      "Chart is not defined"
+    ],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://cdn.jsdelivr.net/npm/chart.js",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/data-permissions.html",
+    "title": "Ma trận Phân quyền theo Màn hình & Chức năng - EVN CDR AS",
+    "dom": 4114,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 132
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 132
+      }
+    ],
+    "loadMs": 148,
+    "unlabeled": 4,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/login.html",
+    "title": "Đăng nhập Quản trị viên - EVN CDR AS",
+    "dom": 86,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 148
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 148
+      }
+    ],
+    "loadMs": 57,
+    "unlabeled": 0,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/notifications.html",
+    "title": "Thông báo - EVN CDR AS",
+    "dom": 329,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 44
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 44
+      }
+    ],
+    "loadMs": 24,
+    "unlabeled": 0,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/organization.html",
+    "title": "Danh mục tổ chức - EVN CDR AS",
+    "dom": 400,
+    "rows": 1,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 92
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 92
+      }
+    ],
+    "loadMs": 29,
+    "unlabeled": 0,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/permissions.html",
+    "title": "Quản lý Quyền hạn Hệ thống - EVN CDR AS",
+    "dom": 1005,
+    "rows": 16,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 96
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 96
+      }
+    ],
+    "loadMs": 56,
+    "unlabeled": 3,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/prefix-history.html",
+    "title": "Lịch sử cấp phát dải số - EVN CDR AS",
+    "dom": 453,
+    "rows": 8,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 40
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 40
+      }
+    ],
+    "loadMs": 61,
+    "unlabeled": 4,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/prefix-management.html",
+    "title": "Quản lý cấp phát đầu số tổng đài - EVN CDR AS",
+    "dom": 2113,
+    "rows": 23,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 60
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 60
+      }
+    ],
+    "loadMs": 64,
+    "unlabeled": 18,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/profile.html",
+    "title": "Hồ sơ của tôi - EVN CDR AS",
+    "dom": 366,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 84
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 84
+      }
+    ],
+    "loadMs": 80,
+    "unlabeled": 1,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/qos-debug.html",
+    "title": "Phân tích Chất lượng (QoS) & Gỡ lỗi - EVN CDR AS",
+    "dom": 880,
+    "rows": 18,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 64
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 64
+      }
+    ],
+    "loadMs": 45,
+    "unlabeled": 10,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/reports.html",
+    "title": "Báo cáo & Thống kê - EVN CDR AS",
+    "dom": 506,
+    "rows": 7,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 68
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 68
+      }
+    ],
+    "loadMs": 49,
+    "unlabeled": 1,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://cdn.jsdelivr.net/npm/chart.js",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/roles.html",
+    "title": "Quản lý Vai trò - EVN CDR AS",
+    "dom": 359,
+    "rows": 5,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 48
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 48
+      }
+    ],
+    "loadMs": 38,
+    "unlabeled": 3,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/system-settings.html",
+    "title": "Cài đặt hệ thống - EVN CDR AS",
+    "dom": 640,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 88
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 88
+      }
+    ],
+    "loadMs": 72,
+    "unlabeled": 3,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/user-settings.html",
+    "title": "Cài đặt tài khoản - EVN CDR AS",
+    "dom": 437,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 108
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 108
+      }
+    ],
+    "loadMs": 32,
+    "unlabeled": 0,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff&size=120",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/users.html",
+    "title": "Quản lý người dùng - EVN CDR AS",
+    "dom": 1237,
+    "rows": 30,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 72
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 72
+      }
+    ],
+    "loadMs": 64,
+    "unlabeled": 11,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tran+B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Le+C&background=10b981&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Pham+D&background=FFD100&color=000",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Bui+X&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tran+Thu&background=64748b&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Bui+P&background=8b5cf6&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Hoang+Tuan&background=0284c7&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Do+T&background=f59e0b&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Vu+S&background=ec4899&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Dang+Q&background=10b981&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Pham+C&background=E31837&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Le+F&background=FFD100&color=000",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Pham+Huong&background=f59e0b&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Dang+Huy&background=6366f1&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Vo+Q&background=f59e0b&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Bui+L&background=8b5cf6&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Ly+V&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Duong+V&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Huynh+K&background=ec4899&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Nguyen+Nam&background=64748b&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Ho+T&background=FFD100&color=000",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Do+E&background=f59e0b&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Le+C&background=8b5cf6&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Do+H&background=E31837&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Vu+Tri&background=dc2626&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Vu+Q&background=f59e0b&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Vo+Y&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Dang+F&background=E31837&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Pham+C&background=10b981&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Vu+H&background=ec4899&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "admin/user_group.html",
+    "title": "Quản lý Nhóm người dùng - EVN CDR AS",
+    "dom": 488,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 52
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 52
+      }
+    ],
+    "loadMs": 42,
+    "unlabeled": 7,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Admin+User&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Qu%E1%BA%A3n%20tr%E1%BB%8B%20vi%C3%AAn%20T%E1%BB%91i%20cao%20EVNICT&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/cdr-history.html",
+    "title": "Tra cứu Lịch sử Cuộc gọi - EVN CDR AS",
+    "dom": 459,
+    "rows": 4,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 44
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 44
+      }
+    ],
+    "loadMs": 51,
+    "unlabeled": 6,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/change-password.html",
+    "title": "Đổi mật khẩu - EVN CDR AS",
+    "dom": 314,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 44
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 44
+      }
+    ],
+    "loadMs": 48,
+    "unlabeled": 0,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/dashboard.html",
+    "title": "Bảng điều khiển Đơn vị - EVN CDR AS",
+    "dom": 442,
+    "rows": 5,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 92
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 92
+      }
+    ],
+    "loadMs": 50,
+    "unlabeled": 2,
+    "errors": [
+      "Chart is not defined"
+    ],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://cdn.jsdelivr.net/npm/chart.js",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/group-admin.html",
+    "title": "Quản trị Nhóm & Thành viên - EVN CDR AS",
+    "dom": 815,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 72
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 72
+      }
+    ],
+    "loadMs": 44,
+    "unlabeled": 17,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tran+B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Le+C&background=10b981&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Pham+D&background=FFD100&color=000",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Minh+Tri&background=0284c7&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Do+Mai&background=ec4899&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tuan+Anh&background=64748b&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/group-members.html",
+    "title": "Danh bạ & Thành viên Nhóm - EVN CDR AS",
+    "dom": 516,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 40
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 40
+      }
+    ],
+    "loadMs": 33,
+    "unlabeled": 1,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tran+B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Le+C&background=10b981&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Pham+D&background=FFD100&color=000",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Minh+Tri&background=0284c7&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Do+Mai&background=ec4899&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tuan+Anh&background=64748b&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/login.html",
+    "title": "Đăng nhập - EVN CDR AS",
+    "dom": 77,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 76
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 76
+      }
+    ],
+    "loadMs": 40,
+    "unlabeled": 0,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/notifications.html",
+    "title": "Thông báo - EVN CDR AS",
+    "dom": 279,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 40
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 40
+      }
+    ],
+    "loadMs": 27,
+    "unlabeled": 0,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/org-prefix.html",
+    "title": "Dãi đầu số cấp phát đơn vị - EVN CDR AS",
+    "dom": 327,
+    "rows": 2,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 112
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 112
+      }
+    ],
+    "loadMs": 50,
+    "unlabeled": 1,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/profile.html",
+    "title": "Hồ sơ của tôi - EVN CDR AS",
+    "dom": 321,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 40
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 40
+      }
+    ],
+    "loadMs": 27,
+    "unlabeled": 1,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/qos-debug.html",
+    "title": "Phân tích Chất lượng (QoS) & Gỡ lỗi - EVN CDR AS",
+    "dom": 830,
+    "rows": 18,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 44
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 44
+      }
+    ],
+    "loadMs": 38,
+    "unlabeled": 10,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/reports.html",
+    "title": "Báo cáo & Thống kê - EVN CDR AS",
+    "dom": 391,
+    "rows": 2,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 40
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 40
+      }
+    ],
+    "loadMs": 34,
+    "unlabeled": 1,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://cdn.jsdelivr.net/npm/chart.js",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  },
+  {
+    "name": "member/user-settings.html",
+    "title": "Cài đặt tài khoản - EVN CDR AS",
+    "dom": 300,
+    "rows": 0,
+    "overflow": false,
+    "paint": [
+      {
+        "name": "first-paint",
+        "ms": 76
+      },
+      {
+        "name": "first-contentful-paint",
+        "ms": 76
+      }
+    ],
+    "loadMs": 32,
+    "unlabeled": 0,
+    "errors": [],
+    "failed": [
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=EVNICT+DaNang&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      },
+      {
+        "url": "https://ui-avatars.com/api/?name=Tr%E1%BA%A7n%20Th%E1%BB%8B%20B&background=0033A0&color=fff&size=120",
+        "error": "net::ERR_NETWORK_ACCESS_DENIED"
+      }
+    ]
+  }
+]

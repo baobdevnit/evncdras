@@ -1,0 +1,207 @@
+{
+  "conditions": "Windows Chrome headless 156, 1440x900, localhost, no CPU/network throttling, same browser context, Chart.js fulfilled from downloaded copy; Google fonts and avatars blocked; sample 1.1s after load; LCP/CLS are short-window observations, not field CWV",
+  "samples": [
+    {
+      "name": "admin/dashboard.html",
+      "run": 1,
+      "loadMs": 171.2000000178814,
+      "fcp": 188,
+      "dom": 501,
+      "longTasks": [
+        107
+      ],
+      "lcp": 188,
+      "cls": 0.000014098936899862824,
+      "errors": []
+    },
+    {
+      "name": "admin/dashboard.html",
+      "run": 2,
+      "loadMs": 55.70000001788139,
+      "fcp": 76,
+      "dom": 501,
+      "longTasks": [],
+      "lcp": 76,
+      "cls": 0.000014098936899862824,
+      "errors": []
+    },
+    {
+      "name": "admin/dashboard.html",
+      "run": 3,
+      "loadMs": 53.30000001192093,
+      "fcp": 60,
+      "dom": 501,
+      "longTasks": [],
+      "lcp": 60,
+      "cls": 0.000014098936899862824,
+      "errors": []
+    },
+    {
+      "name": "member/dashboard.html",
+      "run": 1,
+      "loadMs": 100.59999999403954,
+      "fcp": 112,
+      "dom": 450,
+      "longTasks": [],
+      "lcp": 112,
+      "cls": 0.0007395073114926269,
+      "errors": []
+    },
+    {
+      "name": "member/dashboard.html",
+      "run": 2,
+      "loadMs": 96.69999998807907,
+      "fcp": 100,
+      "dom": 450,
+      "longTasks": [],
+      "lcp": 100,
+      "cls": 0.0007395073114926269,
+      "errors": []
+    },
+    {
+      "name": "member/dashboard.html",
+      "run": 3,
+      "loadMs": 57.70000001788139,
+      "fcp": 52,
+      "dom": 450,
+      "longTasks": [],
+      "lcp": 52,
+      "cls": 0.0007395073114926269,
+      "errors": []
+    },
+    {
+      "name": "admin/qos-debug.html",
+      "run": 1,
+      "loadMs": 58.900000005960464,
+      "fcp": 64,
+      "dom": 888,
+      "longTasks": [],
+      "lcp": 64,
+      "cls": 0.08361547543456362,
+      "errors": []
+    },
+    {
+      "name": "admin/qos-debug.html",
+      "run": 2,
+      "loadMs": 41.599999994039536,
+      "fcp": 60,
+      "dom": 888,
+      "longTasks": [],
+      "lcp": 60,
+      "cls": 0,
+      "errors": []
+    },
+    {
+      "name": "admin/qos-debug.html",
+      "run": 3,
+      "loadMs": 60.30000001192093,
+      "fcp": 56,
+      "dom": 888,
+      "longTasks": [],
+      "lcp": 56,
+      "cls": 0.000014098936899862824,
+      "errors": []
+    },
+    {
+      "name": "admin/reports.html",
+      "run": 1,
+      "loadMs": 75.5,
+      "fcp": 88,
+      "dom": 529,
+      "longTasks": [],
+      "lcp": 88,
+      "cls": 0.000014098936899862824,
+      "errors": []
+    },
+    {
+      "name": "admin/reports.html",
+      "run": 2,
+      "loadMs": 51.5,
+      "fcp": 72,
+      "dom": 529,
+      "longTasks": [],
+      "lcp": 72,
+      "cls": 0.000014098936899862824,
+      "errors": []
+    },
+    {
+      "name": "admin/reports.html",
+      "run": 3,
+      "loadMs": 53.30000001192093,
+      "fcp": 64,
+      "dom": 529,
+      "longTasks": [],
+      "lcp": 64,
+      "cls": 0.000014098936899862824,
+      "errors": []
+    },
+    {
+      "name": "admin/data-permissions.html",
+      "run": 1,
+      "loadMs": 127,
+      "fcp": 176,
+      "dom": 4122,
+      "longTasks": [
+        86
+      ],
+      "lcp": 176,
+      "cls": 0,
+      "errors": []
+    },
+    {
+      "name": "admin/data-permissions.html",
+      "run": 2,
+      "loadMs": 96.40000000596046,
+      "fcp": 116,
+      "dom": 4122,
+      "longTasks": [],
+      "lcp": 116,
+      "cls": 0,
+      "errors": []
+    },
+    {
+      "name": "admin/data-permissions.html",
+      "run": 3,
+      "loadMs": 89,
+      "fcp": 108,
+      "dom": 4122,
+      "longTasks": [],
+      "lcp": 108,
+      "cls": 0,
+      "errors": []
+    },
+    {
+      "name": "member/group-admin.html",
+      "run": 1,
+      "loadMs": 68.90000000596046,
+      "fcp": 88,
+      "dom": 868,
+      "longTasks": [],
+      "lcp": 1024,
+      "cls": 0.019152524594907405,
+      "errors": []
+    },
+    {
+      "name": "member/group-admin.html",
+      "run": 2,
+      "loadMs": 41.80000001192093,
+      "fcp": 60,
+      "dom": 868,
+      "longTasks": [],
+      "lcp": 976,
+      "cls": 0.019152524594907405,
+      "errors": []
+    },
+    {
+      "name": "member/group-admin.html",
+      "run": 3,
+      "loadMs": 40.900000005960464,
+      "fcp": 60,
+      "dom": 868,
+      "longTasks": [],
+      "lcp": 976,
+      "cls": 0.019152524594907405,
+      "errors": []
+    }
+  ]
+}

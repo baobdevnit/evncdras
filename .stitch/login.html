@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - EVN CDR AS</title>
+    <meta name="description" content="Trang đăng nhập hệ thống">
+    <style>
+:root {
+    --primary: #0033A0;
+    --primary-light: #1a55cc;
+    --primary-dark: #002277;
+    --secondary: #E31837;
+    --secondary-light: #ff3b5c;
+    --accent: #FFD100;
+
+    --bg-color: #f4f7f6;
+    --surface: #ffffff;
+    --text-main: #1a1f36;
+    --text-muted: #697386;
+    --border: #e3e8ee;
+
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+    --input-bg: #fafafa;
+}
+
+[data-theme="dark"] {
+    --primary: #58a6ff;
+    --primary-light: #79c0ff;
+    --primary-dark: #002277;
+    --bg-color: #0d1117;
+    --surface: #161b22;
+    --text-main: #c9d1d9;
+    --text-muted: #8b949e;
+    --border: #30363d;
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+
+    --input-bg: #0d1117;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body.login-page {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    display: flex;
+}
+
+body.login-page #app {
+    width: 100%;
+    display: flex;
+    min-height: 100vh;
+}
+
+.container {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+    background: var(--surface);
+    border-radius: 0;
+    overflow: hidden;
+    box-shadow: none;
+}
+
+/* Left Panel - Clean Template Style (No Floating Card) */
+.left-panel {
+    flex: 1;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    padding: 4rem 5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.brand-section {
+    position: relative;
+    z-index: 10;
+    max-width: 480px;
+}
+
+.brand-logo-wrapper {
+    display: inline-block;
+    margin-bottom: 2.5rem;
+}
+
+.brand-logo {
+    width: 150px;
+    height: 150px;
+    object-fit: contain;
+    display: block;
+    filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.25)) drop-shadow(0 0 16px rgba(255, 255, 255, 0.2));
+}
+
+.welcome-text h1 {
+    font-size: 3.25rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: #ffffff;
+}
+
+.welcome-text .subtitle {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.92);
+    line-height: 1.5;
+}
+
+/* Decorative background circles from template */
+.decorations {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.circle {
+    position: absolute;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+.circle-1 {
+    width: 600px;
+    height: 600px;
+    top: -200px;
+    right: -100px;
+}
+
+.circle-2 {
+    width: 400px;
+    height: 400px;
+    bottom: -150px;
+    left: -150px;
+}
+
+.circle-3 {
+    width: 250px;
+    height: 250px;
+    bottom: 20%;
+    right: 10%;
+    background: linear-gradient(135deg, rgba(227, 24, 55, 0.25) 0%, rgba(227, 24, 55, 0) 100%);
+}
+
+/* Right Panel - Compact Height */
+.right-panel {
+    flex: 1;
+    min-height: 100vh;
+    padding: 1.5rem 3.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface);
+    overflow-y: auto;
+    position: relative;
+}
+
+.right-panel-header {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    z-index: 10;
+}
+
+.theme-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 30px;
+    padding: 0.35rem 0.85rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.theme-toggle-btn:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.theme-toggle-btn svg,
+.theme-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.theme-toggle-btn .theme-text,
+.theme-toggle-btn .menu-text {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: inherit;
+}
+
+.login-wrapper {
+    max-width: 400px;
+    width: 100%;
+    margin: auto 0;
+    padding: 0.5rem 0;
+}
+
+.login-header {
+    margin-bottom: 1.25rem;
+    text-align: left;
+}
+
+.login-header h2 {
+    font-size: 1.85rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 0.25rem;
+    letter-spacing: -0.01em;
+}
+
+.demo-account-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--input-bg);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 0.45rem 0.75rem;
+    margin-bottom: 0.85rem;
+    font-size: 0.775rem;
+}
+
+.demo-text {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--text-muted);
+}
+
+.demo-label {
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.demo-credentials {
+    font-family: monospace;
+    background: rgba(0, 51, 160, 0.08);
+    color: var(--primary);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+
+.demo-fill-btn {
+    background: transparent;
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.demo-fill-btn:hover {
+    background: var(--primary);
+    color: white;
+}
+
+[data-theme="dark"] .demo-credentials {
+    background: rgba(88, 166, 255, 0.12);
+    color: var(--primary);
+}
+
+[data-theme="dark"] .demo-fill-btn {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+[data-theme="dark"] .demo-fill-btn:hover {
+    background: var(--primary);
+    color: #0d1117;
+}
+
+.login-error-message {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background-color: rgba(227, 24, 55, 0.06);
+    border: 1px solid rgba(227, 24, 55, 0.22);
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 0.85rem;
+    color: var(--secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    width: 100%;
+}
+
+.error-icon {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.input-group label {
+    font-size: 0.825rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-icon {
+    position: absolute;
+    left: 0.85rem;
+    width: 18px;
+    height: 18px;
+    color: var(--text-muted);
+    pointer-events: none;
+    transition: color 0.25s ease;
+}
+
+.input-container input {
+    width: 100%;
+    padding: 0.7rem 2.4rem 0.7rem 2.65rem;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    color: var(--text-main);
+    transition: all 0.25s ease;
+    background: var(--input-bg);
+}
+
+.input-container input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: var(--surface);
+    box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.12);
+}
+
+[data-theme="dark"] .input-container input:focus {
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.18);
+}
+
+.toggle-password {
+    position: absolute;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 0.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: color 0.2s ease;
+}
+
+.toggle-password:hover {
+    color: var(--primary);
+}
+
+.eye-icon {
+    width: 18px;
+    height: 18px;
+}
+
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.15rem;
+    margin-bottom: 0.25rem;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    font-size: 0.825rem;
+    color: var(--text-muted);
+    user-select: none;
+}
+
+.remember-me input {
+    display: none;
+}
+
+.checkmark {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    display: inline-block;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.remember-me input:checked~.checkmark {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+
+.remember-me input:checked~.checkmark::after {
+    content: "";
+    position: absolute;
+    left: 4.5px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.forgot-link {
+    font-size: 0.825rem;
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+.forgot-link:hover {
+    color: var(--primary-light);
+    text-decoration: underline;
+}
+
+[data-theme="dark"] .forgot-link:hover {
+    color: #a5d6ff;
+}
+
+.submit-btn {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 51, 160, 0.2);
+    margin-top: 0.25rem;
+}
+
+.submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 51, 160, 0.3);
+}
+
+.submit-btn:active {
+    transform: translateY(0);
+}
+
+.btn-icon {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.3s ease;
+}
+
+.submit-btn:hover .btn-icon {
+    transform: translateX(4px);
+}
+
+.form-footer {
+    margin-top: 1.25rem;
+    text-align: center;
+    font-size: 0.825rem;
+    color: var(--text-muted);
+}
+
+.form-footer a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.form-footer a:hover {
+    text-decoration: underline;
+}
+
+[data-theme="dark"] .form-footer a:hover {
+    color: #a5d6ff;
+}
+
+[data-theme="dark"] .submit-btn {
+    background: linear-gradient(135deg, #1f6feb 0%, #1a55cc 100%);
+    box-shadow: 0 4px 12px rgba(31, 111, 235, 0.3);
+}
+
+[data-theme="dark"] .submit-btn:hover {
+    background: linear-gradient(135deg, #388bfd 0%, #1f6feb 100%);
+    box-shadow: 0 6px 16px rgba(31, 111, 235, 0.45);
+}
+
+/* Login Footer Styles */
+.login-footer {
+    width: 100%;
+    max-width: 400px;
+    padding-top: 0.75rem;
+    padding-bottom: 0.25rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 0.725rem;
+    opacity: 0.85;
+}
+
+.login-footer .footer-version {
+    font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 992px) {
+    .container {
+        flex-direction: column;
+        min-height: 100vh;
+        height: auto;
+    }
+
+    /* Left Panel: Compact Top Header with Mini Logo on Mobile */
+    .left-panel {
+        padding: 0.9rem 1.25rem;
+        min-height: auto;
+        flex: initial;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .brand-section {
+        max-width: 100%;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+    }
+
+    .brand-logo-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0;
+    }
+
+    .brand-logo {
+        width: 34px;
+        height: 34px;
+        object-fit: contain;
+        filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
+    }
+
+    .welcome-text h1 {
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin: 0;
+        line-height: 1.2;
+        color: #ffffff;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+    }
+
+    .welcome-text h1 br {
+        display: none;
+    }
+
+    .welcome-text .subtitle {
+        display: none;
+    }
+
+    .decorations {
+        display: none;
+    }
+
+    /* Right Panel on Mobile */
+    .right-panel {
+        flex: 1;
+        min-height: auto;
+        padding: 2rem 1.5rem 1.5rem 1.5rem;
+        justify-content: space-between;
+    }
+
+    .right-panel-header {
+        margin-bottom: 1rem;
+    }
+
+    .login-wrapper {
+        margin: 1rem 0 2rem 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .left-panel {
+        padding: 0.8rem 1rem;
+    }
+
+    .brand-logo {
+        width: 28px;
+        height: 28px;
+    }
+
+    .welcome-text h1 {
+        font-size: 1rem;
+    }
+
+    .right-panel {
+        padding: 1.25rem 1rem 1rem 1rem;
+    }
+
+    .login-footer {
+        flex-direction: column;
+        gap: 0.4rem;
+        text-align: center;
+    }
+}
+
+</style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+</head>
+
+<body class="login-page">
+    <div class="container">
+        <div class="left-panel">
+            <div class="brand-section">
+                <div class="brand-logo-wrapper">
+                    <img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhLS0gR2VuZXJhdG9yOiBBZG9iZSBJbGx1c3RyYXRvciAxNi4wLjAsIFNWRyBFeHBvcnQgUGx1Zy1JbiAuIFNWRyBWZXJzaW9uOiA2LjAwIEJ1aWxkIDApICAtLT4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4Ig0KCSB3aWR0aD0iNjEycHgiIGhlaWdodD0iNjEycHgiIHZpZXdCb3g9IjAgMCA2MTIgNjEyIiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCA2MTIgNjEyIiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxnPg0KCTxkZWZzPg0KCQk8cmVjdCBpZD0iU1ZHSURfMV8iIHdpZHRoPSI2MTIiIGhlaWdodD0iNjEyIi8+DQoJPC9kZWZzPg0KCTxjbGlwUGF0aCBpZD0iU1ZHSURfMl8iPg0KCQk8dXNlIHhsaW5rOmhyZWY9IiNTVkdJRF8xXyIgIG92ZXJmbG93PSJ2aXNpYmxlIi8+DQoJPC9jbGlwUGF0aD4NCgk8cGF0aCBjbGlwLXBhdGg9InVybCgjU1ZHSURfMl8pIiBmaWxsPSIjMTc0RjlBIiBkPSJNMjc4LjAzNCw5LjgxOGM0MS44NC0zLjk0LDg0LjU0MSwwLjk2LDEyNC4zLDE0LjYzDQoJCWM0NC45MSwxNS4zLDg1Ljk0MSw0MS42OCwxMTguNjkxLDc1Ljk5YzI0LjAzOSwyNS4xNCw0My42NDgsNTQuNTIsNTcuNTg5LDg2LjRjMzAuOTYsNzAuMiwzMy4wMSwxNTIuNDg5LDUuNzUsMjI0LjE5OQ0KCQljLTIxLjc3MSw1OC02Mi4yOSwxMDguNjktMTEzLjkyLDE0Mi45Yy0zMC4wNywyMC4wMi02My44MywzNC40NzEtOTkuMDkxLDQyLjM2Yy00NS4zLDEwLjE1OS05Mi45NzksOS41Ny0xMzgtMS43NjENCgkJYy01OS4xLTE0LjY4OS0xMTMuMTktNDguMzMtMTUyLjgyLTk0LjUyOWMtMjIuNjctMjYuMzExLTQwLjctNTYuNjItNTIuOTQtODkuMTNjLTE0Ljk5LTM5LjY2LTIxLjE3LTgyLjU1MS0xOC4zNS0xMjQuODQNCgkJYzMuMzYtNTIuMjYsMjAuOTctMTAzLjUsNTAuNDMtMTQ2Ljc5YzMyLjU4LTQ4LjIyLDc5LjU5LTg2LjU1LDEzMy40Ny0xMDguNTdDMjIwLjIwNCwxOS41NTgsMjQ4LjkxNCwxMi40OTgsMjc4LjAzNCw5LjgxOA0KCQkgTTI3OC4wMDQsMjMuODQ4Yy01My43LDUuMTQtMTA1LjcsMjYuMjQtMTQ3Ljg4LDU5Ljg1Yy00NS4xMywzNS43LTc5LjAxLDg1LjQyLTk1LjQ0LDE0MC41OGMtMTQuMTMsNDcuMDQtMTUuNjksOTcuNzUtNC42NTksMTQ1LjYNCgkJYzExLjkzOSw1Mi4xNywzOS4yMDksMTAwLjY0OSw3Ny4zOTksMTM4LjEwOWMyNS4xNDEsMjQuNzQsNTQuOTEsNDQuNzgsODcuMzYsNTguNjMxYzM4LjU1LDE2LjUyLDgwLjg0LDI0LjE1OSwxMjIuNzQyLDIyLjQwOQ0KCQljMzguNzA5LTEuNTIsNzcuMDc4LTExLjEzLDExMS45MDgtMjguMTE5YzUyLjM5MS0yNS4zOTEsOTYuNS02Ny40LDEyNC40OS0xMTguNDUxYzE5LjA1LTM0LjUzOSwzMC43LTczLjExOSwzMy45Ny0xMTIuNDMNCgkJYzMuNDgtNDAuODk5LTEuOTItODIuNTYtMTYtMTIxLjE0Yy0xMS44MS0zMi41Mi0yOS42ODktNjIuODEtNTIuMzk5LTg4LjkyYy0zMC4yNC0zNC44Ni02OS4wOS02Mi4yMi0xMTIuMTktNzguNzQNCgkJQzM2Ni4zNDQsMjUuNDE4LDMyMS42NzQsMTkuNTY4LDI3OC4wMDQsMjMuODQ4Ii8+DQoJPHBhdGggY2xpcC1wYXRoPSJ1cmwoI1NWR0lEXzJfKSIgZmlsbD0iIzE3NEY5QSIgZD0iTTMwNi4wMjUsMjUuMjE4YzEwLjA1OSw0MS4zMywxOC40NTksODMuMDQsMjcuNTg5LDEyNC41OA0KCQljNy42MiwzNS4zNSwxNS4yOSw3MC42OCwyMi45NywxMDZjNDguNjUsMTAuMjUsOTcuMTkxLDIwLjk5LDE0NS44MywzMS4yOWMyOC4wMiw1Ljk1LDU1Ljk3LDEyLjIsODMuNzgsMTkuMDcNCgkJYy00My42OSwxMC4zOTEtODcuNjksMTkuNDgtMTMxLjU4LDI5LjAyMWMtMzIuNjcsNi45NzktNjUuMywxNC4xNDktOTcuOTIsMjEuMzljLTkuNTYxLDQxLjY1LTE4LjcxLDgzLjM5LTI3LjMwMSwxMjUuMjQNCgkJYy03LjMxOSwzNC45NzktMTUuMjM5LDY5LjgzLTIzLjg0LDEwNC41MmMtMTYuNi03Ni42LTMzLjE0LTE1My4yMS00OS43Mi0yMjkuODE5Yy03Ni4zNy0xNi43OC0xNTIuNzUtMzMuNTQtMjI5LjEyLTUwLjMwMQ0KCQljMTguMzMtNC44MTksMzYuOTEtOC42OCw1NS40LTEyLjgxOWM1Ny45OS0xMi44LDExNi4wNi0yNS4xOCwxNzQuMTQtMzcuNThDMjcyLjg2NCwxNzguOTQ3LDI4OS40MjQsMTAyLjA3OCwzMDYuMDI1LDI1LjIxOA0KCQkgTTI3Mi4wMDQsMjcxLjcwOGMtNDMuODYsMTEuMTItODcuNzQsMjIuMTktMTMxLjYyLDMzLjIzYy0xLjE5LDAuMzEtMi4zMywwLjc1LTMuNDYsMS4yMWM0NS4wNiwxMS41Myw5MC4xNywyMi44NiwxMzUuMjUsMzQuMzENCgkJYzExLjE5LDQ1LjE5LDIyLjMzLDkwLjQsMzMuNTMsMTM1LjU4YzExLjY0LTQ1LjE0OSwyMy4xNy05MC4zMywzNC44OC0xMzUuNDZjNDIuNjQtMTAuNDc5LDg1LjI0LTIxLjE0LDEyNy44Ny0zMS42NTkNCgkJYzIuMTctMC41NCw0LjQ2LTAuODcsNi40MS0yLjA1MWMtNDQuNjItMTEuODUtODkuMzItMjMuNDUtMTMzLjk3MS0zNS4yYy0xMS41NzktNDUuMTYtMjMuMTgtOTAuMzItMzQuNzYtMTM1LjQ4DQoJCUMyOTQuNTk0LDE4MS4zMTcsMjgzLjM4NCwyMjYuNTM4LDI3Mi4wMDQsMjcxLjcwOCIvPg0KCTxwYXRoIGNsaXAtcGF0aD0idXJsKCNTVkdJRF8yXykiIGZpbGw9IiNFQzFDMjQiIGQ9Ik0yNzIuMDA0LDI3MS43MDhjMTEuMzgtNDUuMTcsMjIuNTktOTAuMzksMzQuMTMtMTM1LjUyDQoJCWMxMS41OCw0NS4xNiwyMy4xODEsOTAuMzIsMzQuNzU5LDEzNS40OGM0NC42NTEsMTEuNzUsODkuMzUyLDIzLjM1LDEzMy45NzIsMzUuMmMtMS45NSwxLjE4MS00LjI0LDEuNTExLTYuNDEsMi4wNTENCgkJYy00Mi42MywxMC41Mi04NS4yMywyMS4xOC0xMjcuODcsMzEuNjU5Yy0xMS43MSw0NS4xMy0yMy4yNCw5MC4zMTEtMzQuODgsMTM1LjQ2Yy0xMS4yLTQ1LjE4LTIyLjM0LTkwLjM5LTMzLjUzLTEzNS41OA0KCQljLTQ1LjA4LTExLjQ0OS05MC4xOS0yMi43NzktMTM1LjI1LTM0LjMxYzEuMTMtMC40NiwyLjI3LTAuOSwzLjQ2LTEuMjFDMTg0LjI2NCwyOTMuODk3LDIyOC4xNDMsMjgyLjgyOCwyNzIuMDA0LDI3MS43MDgNCgkJIE0zMDYuMTY0LDIzNi4wMzhjLTUuNjUsMTcuNjYtMTEuMjksMzUuMzMtMTYuOTEsNTIuOTljLTE3LjM4LDUuNjQtMzQuOCwxMS4xMi01Mi4xOSwxNi43MmMxNy4xNyw2LjExLDM0LjM3LDEyLjEzLDUxLjUzLDE4LjI4DQoJCWM1LjkzLDE3LjA3LDExLjc5OSwzNC4xNSwxNy44Myw1MS4xOWM1Ljg4LTE3LjAzLDExLjUxLTM0LjE1LDE3LjI3MS01MS4yMjFjMTcuMDEtNS45MiwzNC4wMjktMTEuODEsNTEuMDYtMTcuNjg5DQoJCWMtMS43NC0xLjQtNC0xLjc4LTYuMDUtMi40OGMtMTUuMTQtNC44Ny0zMC4yNi05LjgtNDUuNC0xNC42OEMzMTcuNTY0LDI3MS40NTgsMzExLjkyNCwyNTMuNzI4LDMwNi4xNjQsMjM2LjAzOCIvPg0KCTxwYXRoIGNsaXAtcGF0aD0idXJsKCNTVkdJRF8yXykiIGZpbGw9IiNGRUYyMDAiIGQ9Ik0zMDYuMTY0LDIzNi4wMzhjNS43NiwxNy42OSwxMS40LDM1LjQyLDE3LjE0LDUzLjExDQoJCWMxNS4xNDEsNC44OCwzMC4yNjEsOS44MSw0NS40LDE0LjY4YzIuMDUsMC43LDQuMzEsMS4wOCw2LjA1LDIuNDhjLTE3LjAzLDUuODgtMzQuMDUsMTEuNzctNTEuMDYsMTcuNjg5DQoJCWMtNS43NjEsMTcuMDctMTEuMzkxLDM0LjE5LTE3LjI3MSw1MS4yMjFjLTYuMDMxLTE3LjA0LTExLjktMzQuMTItMTcuODMtNTEuMTljLTE3LjE2LTYuMTQ5LTM0LjM2LTEyLjE3LTUxLjUzLTE4LjI4DQoJCWMxNy4zOS01LjYsMzQuODEtMTEuMDgsNTIuMTktMTYuNzJDMjk0Ljg3NCwyNzEuMzY4LDMwMC41MTQsMjUzLjY5OCwzMDYuMTY0LDIzNi4wMzgiLz4NCjwvZz4NCjwvc3ZnPg0K" alt="EVN Logo" class="brand-logo">
+                </div>
+                <div class="welcome-text">
+                    <h1>EVN CDR <br>Analysis System</h1>
+                    <p class="subtitle">Phân tích nhật ký cuộc gọi</p>
+                </div>
+            </div>
+
+            <div class="decorations">
+                <div class="circle circle-1"></div>
+                <div class="circle circle-2"></div>
+                <div class="circle circle-3"></div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="right-panel-header">
+                <button id="themeToggle" class="theme-toggle-btn" type="button" aria-label="Đổi giao diện">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="theme-icon">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <span class="theme-text">Giao diện tối</span>
+                </button>
+            </div>
+
+            <div class="login-wrapper">
+                <div class="login-header">
+                    <h2>Đăng nhập</h2>
+                    <p>Nhập thông tin tài khoản để truy cập hệ thống</p>
+                </div>
+
+                <!-- Demo Account Info Box -->
+                <div class="demo-account-box">
+                    <div class="demo-text">
+                        <span class="demo-label">Tài khoản mặc định:</span>
+                        <code class="demo-credentials">cdr.evnit@evn.com.vn / 1234567890</code>
+                    </div>
+                    <button type="button" id="fillDemoBtn" class="demo-fill-btn">Tự điền</button>
+                </div>
+
+                <!-- Error alerts -->
+                <div id="loginError" class="login-error-message" style="display: none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="error-icon">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span id="errorMessage">Thông tin đăng nhập không chính xác</span>
+                </div>
+
+                <form id="loginForm" class="login-form">
+                    <div class="input-group">
+                        <label for="email">Tên đăng nhập</label>
+                        <div class="input-container">
+                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            <input type="email" id="email" placeholder="Ví dụ: cdr.evnit@evn.com.vn" required
+                                autocomplete="email" value="cdr.evnit@evn.com.vn">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="password">Mật khẩu</label>
+                        <div class="input-container">
+                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            <input type="password" id="password" placeholder="Nhập mật khẩu" required
+                                autocomplete="current-password" value="1234567890">
+                            <button type="button" id="togglePassword" class="toggle-password" aria-label="Hiện/Ẩn mật khẩu">
+                                <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-options">
+                        <label class="remember-me">
+                            <input type="checkbox" id="remember">
+                            <span class="checkmark"></span>
+                            <span>Ghi nhớ đăng nhập</span>
+                        </label>
+                        <a href="dashboard.html" class="forgot-link">Quên mật khẩu?</a>
+                    </div>
+
+                    <button type="submit" class="submit-btn">
+                        <span>Đăng nhập</span>
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </button>
+                </form>
+
+                <div class="form-footer">
+                    <p>Chưa có tài khoản? <a href="dashboard.html">Liên hệ quản trị viên</a></p>
+                    <p style="margin-top: 0.5rem;"><a href="login_admin.html">Dành cho Quản trị viên hệ thống &rarr;</a></p>
+                </div>
+            </div>
+
+            <!-- Copyright Footer -->
+            <div class="login-footer">
+                <span>&copy; 2026 EVN CDR AS. Bảo lưu mọi quyền.</span>
+                <span class="footer-version">v1.0.0</span>
+            </div>
+        </div>
+    </div>
+    
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Theme toggle
+    const themeToggleBtn = document.getElementById('themeToggle');
+    if (themeToggleBtn) {
+        const themeText = themeToggleBtn.querySelector('.theme-text');
+        themeToggleBtn.addEventListener('click', () => {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                document.documentElement.removeAttribute('data-theme');
+                if (themeText) themeText.textContent = 'Giao diện tối';
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                if (themeText) themeText.textContent = 'Giao diện sáng';
+            }
+        });
+    }
+
+    // Toggle password
+    const togglePasswordBtn = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('password');
+    if (togglePasswordBtn && passwordInput) {
+        togglePasswordBtn.addEventListener('click', () => {
+            const isPw = passwordInput.getAttribute('type') === 'password';
+            passwordInput.setAttribute('type', isPw ? 'text' : 'password');
+        });
+    }
+
+    // Demo fill
+    const fillDemoBtn = document.getElementById('fillDemoBtn');
+    const emailInput = document.getElementById('email');
+    if (fillDemoBtn && emailInput && passwordInput) {
+        fillDemoBtn.addEventListener('click', () => {
+            emailInput.value = 'cdr.evnit@evn.com.vn';
+            passwordInput.value = '1234567890';
+        });
+    }
+});
+</script>
+
+</body>
+
+</html>

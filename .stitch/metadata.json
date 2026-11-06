@@ -1,0 +1,44 @@
+{
+  "projectId": "28368742094139923",
+  "projectResourceName": "projects/28368742094139923",
+  "title": "EVN CDR AS - Design System",
+  "assetId": "11530770390409236538",
+  "assetResourceName": "assets/11530770390409236538",
+  "createdAt": "2026-10-19T02:52:17.099354Z",
+  "updatedAt": "2026-10-19T03:03:45.000000Z",
+  "designSystem": {
+    "displayName": "EVN CDR AS Design System",
+    "theme": {
+      "colorMode": "LIGHT",
+      "font": "INTER",
+      "roundness": "ROUND_EIGHT",
+      "customColor": "#0033a0",
+      "headlineFont": "INTER",
+      "bodyFont": "INTER",
+      "labelFont": "INTER",
+      "colorVariant": "FIDELITY",
+      "overridePrimaryColor": "#0033a0",
+      "overrideSecondaryColor": "#e31837",
+      "overrideTertiaryColor": "#ffd100",
+      "overrideNeutralColor": "#f4f7fa"
+    }
+  },
+  "screens": [
+    {
+      "screenId": "14805592797521297304",
+      "screenResourceName": "projects/28368742094139923/screens/14805592797521297304",
+      "title": "EVN CDR AS - Đăng nhập Cổng Người dùng (User Login)",
+      "route": "/login",
+      "sourcePath": "templates/login.html",
+      "syncedAt": "2026-10-19T03:03:45Z"
+    },
+    {
+      "screenId": "10283856125108007911",
+      "screenResourceName": "projects/28368742094139923/screens/10283856125108007911",
+      "title": "EVN CDR AS - Đăng nhập Cổng Quản trị (Admin Login)",
+      "route": "/login_admin",
+      "sourcePath": "templates/login_admin.html",
+      "syncedAt": "2026-10-19T03:03:45Z"
+    }
+  ]
+}

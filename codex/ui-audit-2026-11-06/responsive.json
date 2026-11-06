@@ -1,0 +1,1604 @@
+[
+  {
+    "name": "admin/cdr-history.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": [
+      "TABLE.data-table"
+    ]
+  },
+  {
+    "name": "admin/change-password.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/dashboard.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": [
+      "TABLE.dashboard-table"
+    ]
+  },
+  {
+    "name": "admin/data-permissions.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/login.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": null,
+    "wide": []
+  },
+  {
+    "name": "admin/notifications.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/organization.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/permissions.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/prefix-history.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/prefix-management.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/profile.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/qos-debug.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": [
+      "TABLE.data-table"
+    ]
+  },
+  {
+    "name": "admin/reports.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": [
+      "TABLE.data-table"
+    ]
+  },
+  {
+    "name": "admin/roles.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/system-settings.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/user-settings.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/users.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/user_group.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": [
+      "TABLE.data-table"
+    ]
+  },
+  {
+    "name": "member/cdr-history.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": [
+      "TABLE.data-table"
+    ]
+  },
+  {
+    "name": "member/change-password.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "member/dashboard.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": [
+      "TABLE.dashboard-table"
+    ]
+  },
+  {
+    "name": "member/group-admin.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "member/group-members.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "member/login.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": null,
+    "wide": []
+  },
+  {
+    "name": "member/notifications.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "member/org-prefix.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "member/profile.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "member/qos-debug.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": [
+      "TABLE.data-table"
+    ]
+  },
+  {
+    "name": "member/reports.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": [
+      "TABLE.data-table"
+    ]
+  },
+  {
+    "name": "member/user-settings.html",
+    "width": 390,
+    "height": 844,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false,
+    "main": {
+      "width": 390,
+      "x": 0
+    },
+    "wide": []
+  },
+  {
+    "name": "admin/cdr-history.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/change-password.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/dashboard.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/data-permissions.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/login.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/notifications.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/organization.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/permissions.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/prefix-history.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/prefix-management.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/profile.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/qos-debug.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/reports.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/roles.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/system-settings.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/user-settings.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/users.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/user_group.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/cdr-history.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/change-password.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/dashboard.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/group-admin.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/group-members.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/login.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/notifications.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/org-prefix.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/profile.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/qos-debug.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/reports.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/user-settings.html",
+    "width": 390,
+    "height": 844,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/cdr-history.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/change-password.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/dashboard.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/data-permissions.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/login.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/notifications.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/organization.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/permissions.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/prefix-history.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/prefix-management.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/profile.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/qos-debug.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/reports.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/roles.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/system-settings.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/user-settings.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/users.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/user_group.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/cdr-history.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/change-password.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/dashboard.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/group-admin.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/group-members.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/login.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/notifications.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/org-prefix.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/profile.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/qos-debug.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/reports.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/user-settings.html",
+    "width": 768,
+    "height": 1024,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/cdr-history.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/change-password.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/dashboard.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/data-permissions.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/login.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/notifications.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/organization.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/permissions.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/prefix-history.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/prefix-management.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/profile.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/qos-debug.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/reports.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/roles.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/system-settings.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/user-settings.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/users.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/user_group.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/cdr-history.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/change-password.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/dashboard.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/group-admin.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/group-members.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/login.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/notifications.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/org-prefix.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/profile.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/qos-debug.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/reports.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/user-settings.html",
+    "width": 768,
+    "height": 1024,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/cdr-history.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/change-password.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/dashboard.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/data-permissions.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/login.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/notifications.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/organization.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/permissions.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/prefix-history.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/prefix-management.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/profile.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/qos-debug.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/reports.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/roles.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/system-settings.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/user-settings.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/users.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/user_group.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/cdr-history.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/change-password.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/dashboard.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/group-admin.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/group-members.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/login.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/notifications.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/org-prefix.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/profile.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/qos-debug.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/reports.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "member/user-settings.html",
+    "width": 1440,
+    "height": 900,
+    "dark": false,
+    "theme": "light",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/cdr-history.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/change-password.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/dashboard.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/data-permissions.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/login.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/notifications.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/organization.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/permissions.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/prefix-history.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/prefix-management.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/profile.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/qos-debug.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/reports.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/roles.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/system-settings.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/user-settings.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/users.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "admin/user_group.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/cdr-history.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/change-password.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/dashboard.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/group-admin.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/group-members.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/login.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/notifications.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/org-prefix.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/profile.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/qos-debug.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/reports.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  },
+  {
+    "name": "member/user-settings.html",
+    "width": 1440,
+    "height": 900,
+    "dark": true,
+    "theme": "dark",
+    "docOverflow": false
+  }
+]

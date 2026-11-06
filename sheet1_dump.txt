@@ -1,0 +1,102 @@
+=== FULL SHEET 1 MATRIX PARSE ===
+R4 : B=1 | C=2 | D=3 | E=4 | F=5 | G=6 | H=7 | I=8 | J=9 | K=0
+R5 : A=1
+R6 : B=0 xx : | C=0 xx : | D=0 xx: | E=0 xx: | F=0 xx: | G=0 xx: | H=0 xx: | I=0 xx: | J=0 xx : | K=0 xx :
+R7 : B=1 xx : | C=1 xx : | D=1 xx :  BQL NMĐ Ialy | E=1 xx :NMĐ Uông Bí | F=1 xx: NMĐ Ninh Bình | G=1 xx : NMĐ Phả Lại | H=1 xx :NMĐ Thác Bà | I=1 xx : ĐL Hoà Bình | J=1 xx : | K=1 xx :
+R8 : B=2 xx : | C=2 xx : | D=2 xx :  BQL NMĐ Ialy | E=2 xx :NMĐ Uông Bí | F=2 xx: NMĐ Ninh Bình | G=2 xx : NMĐ Phả Lại | H=2 xx :NMĐ Thác Bà | I=2 xx : ĐL Hoà Bình | J=2 xx : | K=2 xx :
+R9 : B=3 xx : | C=3 xx : | D=3 xx :  BQL NMĐ Ialy | E=3 xx :NMĐ Uông Bí | F=3 xx: NMĐ Ninh Bình | G=3 xx : NMĐ Phả Lại | H=3 xx :NMĐ Thác Bà | I=3 xx :NMĐ Hoà Bình | J=3 xx : | K=3 xx :
+R10 : B=4 xx : | C=4 xx : | D=4 xx :  BQL NMĐ Ialy | E=4 xx :NMĐ Uông Bí | F=4 xx: NMĐ Ninh Bình | G=4 xx : NMĐ Phả Lại | H=4 xx : | I=4 xx :NMĐ Hoà Bình | J=4 xx : | K=4 xx :
+R11 : B=5 xx : | C=5 xx : | D=5 xx :  BQL NMĐ Ialy | E=5 xx: NMĐ Uông Bí MR | F=5 xx: | G=5 xx : NMĐ Phả Lại | H=5 xx : | I=5 xx :NMĐ Hoà Bình | J=5 xx : | K=5 xx :
+R12 : B=6 xx : | C=6 xx : | D=6 xx :  BQL NMĐ Ialy | E=6 xx: NMĐ Uông Bí MR | F=6 (00-34): TBA Nho Quan | G=6 xx: NMĐ Phả Lại 2 | H=6 xx : | I=6 xx :NMĐ Hoà Bình | J=6 xx : | K=6 xx :
+R13 : B=7 xx : | C=7 xx : | D=7 xx : | E=7 xx: NMĐ Uông Bí MR | F=7 xx : | G=7 xx: NMĐ Phả Lại 2 | H=7 xx : | I=7 xx :NMĐ Hoà Bình | J=7 xx : | K=7 xx :
+R14 : B=8 xx : | C=8 xx : | D=8 xx : NMĐ Thác mơ | E=8 xx: NMĐ Uông Bí MR | F=8 xx : | G=8 xx: NMĐ Phả Lại 2 | H=8 xx : | I=8 xx: Trạm Xuân Mai | J=8 xx : | K=8 xx :
+R15 : B=9 xx : | C=9 xx : | D=9 xx : NMĐ Thác mơ | E=9 xx: NMĐ Uông Bí MR | F=9 xx : | G=9 xx: NMĐ Phả Lại 2 | H=9 xx : | I=9 xx: | J=9 xx : | K=9 xx :
+R16 : A=` | B=VĨNH PHÚC | C=SƠN LA | D=ĐIỆN BIÊN | E=BẮC GIANG | F=LẠNG SƠN | G=CAO BẰNG | H=TUYÊN QUANG | I=THÁI NGUYÊN | J=YÊN BÁI | K=LÀO CAI
+R17 : B=0 (00-19): 500 Việt Trì; | C=0 (00-49) 500kV Son La 0 (50-99) 220kV Son La | D=0 xx: | E=0 (00-49) 500kV Hiệp Hòa; 0 (50-69): 220 Bắc Ninh2 | F=0 xx : | G=0 xx : | H=0 xx : | I=0 xx : | J=0 xx : | K=0 xx :
+R18 : B=1 xx : | C=1 xx : | D=1 xx : | E=1 xx : | F=1 xx : | G=1 (00-19): 220kV Cao Bằng 1 (20-39): 220kV Bảo Lâm | H=1 xx : | I=1 xx : | J=1 xx : | K=1 (00-09): 220kV Bảo Thắng, Lào Cai
+R19 : B=2 xx : | C=2 (00-49): 220kv Đông Anh 2 (50-99):  220kv Tây Hồ | D=2 (50-99): Bản Chát | E=2 xx : | F=2 xx : | G=2 xx : | H=2 xx : | I=2 xx : | J=2 xx : | K=2 xx :
+R20 : B=3 xx : | C=3 xx : | D=3 (00-09) : 220kV Than Uyên; 3 (10-99): NMTĐ Lai Châu | E=3 xx : | F=3 xx : | G=3 xx : | H=3 xx : | I=3 xx : | J=3 xx : | K=3 xx :
+R21 : B=4 xx : | C=4 xx: NMĐ Sơn La | D=4 (00-99): NMTĐ Huội Quảng | E=4 xx: 220kV Bắc Giang | F=4 xx : | G=4 xx : | H=4 xx: TĐ Tuyên Quang | I=4 (00-29): 220kV Bắc Kạn | J=4 xx : | K=4 xx :
+R22 : B=5 xx : | C=5 xx : ĐL Sơn La (chưa dùng) | D=5 xx : | E=4 xx: 220kV Bắc Giang | F=5 xx : | G=5 xx : | H=5 xx: Nhà ĐH TĐ Tuyên Quang | I=5 xx : | J=5 xx : | K=5 xx :
+R23 : B=6 (00-19): TBA 220kV Vinh Yen | C=6 xx : | D=6 xx : | E=6 xx: Bắc Ninh | F=6 xx : | G=6 xx : | H=6 xx: Nhà ĐH TĐ Tuyên Quang | I=6 xx : | J=6 xx : | K=6 xx :
+R24 : B=7 xx : | C=7 (00-49) : 220kv Đông Anh | D=7 xx : | E=7 xx : | F=7 xx : | G=7 (00-49) : 220kV Rạch Giá, Kiên Giang | H=7 xx : | I=7 xx : | J=7 xx : | K=7 xx :
+R25 : B=8 xx : | C=8 xx : | D=8 xx : | E=8 xx : | F=8 xx : | G=8 xx : | H=8 (00-09): 220 Tuyên Quang | I=8 xx : | J=8 xx : | K=8 xx :
+R26 : B=9 xx: | C=9 xx : | D=9 xx : | E=9 xx : | F=9 xx : | G=9 xx : | H=9 xx : | I=9 xx : | J=9 xx : | K=9 xx :
+R27 : A=3 | B=HẢI PHÒNG | C=HẢI DƯƠNG- HƯNG YÊN | D=QUẢNG NINH | E=HÀ TÂY | F=NAM ĐỊNH | G=THÁI BÌNH | H=THANH HÓA | I=NGHỆ AN | J=HÀ TĨNH | K=NINH  BÌNH
+R28 : B=0 xx : | C=0 xx : | D=0 xx : | E=0 xx : | F=0 xx : | G=0 xx : | H=0 xx : | I=0 xx : | J=0 xx : | K=0 xx :
+R29 : B=1 xx : | C=1 xx : | D=1 xx : | E=1 xx : | F=1 xx : | G=1 xx : | H=1 xx : | I=1 xx : | J=1 xx : | K=1 xx :
+R30 : B=2 xx : | C=2 xx : | D=2 xx : | E=2 xx : | F=2 xx : | G=2 xx : | H=2 xx : | I=2 xx : | J=2 xx : | K=2 xx :
+R31 : B=3 xx : | C=3 xx : | D=3 xx : | E=3 xx: Trạm Ba La | F=3 xx : 220kv Trực Ninh | G=3 xx : | H=3 xx : | I=3 xx : | J=3 xx : | K=3 xx :
+R32 : B=4 xx : | C=4 xx: Trạm Phố Nối | D=4 xx : | E=4 (00-34): TBA Thường Tín | F=4 xx:  ĐL Hà Nam | G=4 xx: Trạm Thái Bình | H=4: Trạm Ba Chè | I=4 xx: Trạm Hưng Đông | J=4 xx : | K=4 (00-49):220kV Lao Cai
+R33 : B=5 xx: Trạm Đồng Hoà | C=5 (00-49): 220kV Hải Dương 5 (50-59): 220kV Hải Dương 2 5 (60-69): 220kV Kim Động 5 (70-99): 500kV Phố Nối | D=5 xx: Trạm Quảng Ninh | E=5 (00-39): NMĐ Bản Cốc 5 (40-99): 110kV Truông Bành; | F=5 (00-49): 220kV Phủ Lý | G=5 xx : | H=5 (00-09): 220 Bỉm Sơn; 5 (10-39): Cty TĐ Trung Sơn; 5 (40-59): NMĐ Trung Sơn; 6 (00-49): Ban A Nhiệt điện 2 và NMĐ Nghi Sơn; | I=50-52: 220kV Đô Lương | J=5 xx : | K=5 xx :
+R34 : B=6 xx: Trạm Vật Cách | C=6 xx: | D=6 xx: NĐ Mông Dương 1 | E=6 xx : | F=6 xx : | G=6 xx : | H=6 xx : | I=6 (00-49): Cty TĐ Bản Vẽ 6 (50-99): Ban A Thủy điện 2 | J=6 xx : | K=6 xx :
+R35 : B=7 (00-49): NMĐ Hải Phòng | C=7 xx: | D=7 xx: NĐ Mông Dương 1 | E=7 xx : | F=7 xx : | G=7 xx : | H=7 xx : | I=7 xx : | J=7 xx : | K=7 xx :
+R36 : B=8 xx : | C=8 xx: | D=8: 500kV Q.Ninh | E=8 xx : | F=8 xx : | G=8 xx : | H=8 xx : | I=8 xx : | J=8 xx : | K=8 xx :
+R37 : B=9 xx : | C=9 xx: | D=9(0-4): NMĐ Mạo Khê | E=9 xx : | F=9 xx : | G=9 xx: | H=9 xx: | I=9 xx: | J=9 xx : | K=9 xx :
+R38 : A=4 | B=CỬA BẮC THÁP B | G=CỬA BẮC A | J=SÓC SƠN
+R39 : B=0 xx :MX1 11 CB (Tháp B) | C=0 xx : EVNICT, A2, Tư vấn 2, Tư vấn 3 | D=0 xx: | E=0 xx: CTKSTKĐ1 | F=0 xx: 500kV Hoà Bình | G=0 xx :MX1 11 CB (Tháp A) | H=0 (10-59): Ks Điện Lực | I=0 xx : Flexicom HN | J=0 xx: ĐL Sóc Sơn | K=0x (02-20): Cấp cho NPT theo VB số 5928/PTC1-CNTT (VB EVNICT số 1526/EVNICT-KT ngày 21/11/2017
+R40 : B=1 xx :MX1 11 CB (Tháp B) | C=1 xx : EVNICT, A2, Tư vấn 2, Tư vấn 3 | D=1 xx: | E=1: XN XLĐ Hà Nội | F=1 xx: 500kV Hoà Bình | G=1 xx :MX1 11 CB (Tháp A) | H=1 xx: | I=1 xx : Flexicom HN | J=1 (00-19): Trạm Chèm, | K=1 xx :
+R41 : B=2 xx :MX1 11 CB (Tháp B) | C=2 xx : EVNICT, A2, Tư vấn 2, Tư vấn 3 | D=2 xx: | E=2 xx: Cty TTĐ 1 | F=2 xx: 500kV Hà Tĩnh | G=2 xx :MX1 11 CB (Tháp A) | H=2 xx: | I=2 xx : Flexicom HN | J=2 (00-09) 220kV Thành Công 2 (10-19): 220 Sơn Tây 2 (20-39): Trạm Đông Anh | K=2 xx :
+R42 : B=3 xx :MX1 11 CB (Tháp B) | C=3 xx: Hicom chi nhánh | D=3 xx: | E=3 xx: Cty TTĐ 1 | F=3 xx: 500kV Hà Tĩnh | G=3 xx :MX1 11 CB (Tháp A) | H=3 xx: | I=3 xx : Flexicom HN | J=3 xx: Trạm Mai Động | K=3 xx :
+R43 : B=4 xx :MX1 11 CB (Tháp B) | C=4 xx: A2 | D=4 xx: Cty TTĐ 2 (NEC mới) | E=4 xx: Cty TTĐ 1 | F=4 xx: 500kV Đà Nẵng | G=4 xx :MX1 11 CB (Tháp A) | H=4 (00-49) : Bộ Công Nghiệp. | I=4 xx : Flexicom HN | J=4 xx: Cty XLĐ 1 | K=4 xx :
+R44 : B=5 xx :MX1 11 CB (Tháp B) | C=5 xx : A2 | D=5 xx: Đội sửa chữa TTĐ2 | E=5: Trường Nghĩa Đô | F=5 xx: 500kV Đà Nẵng | G=5 xx :MX1 11 CB (Tháp A) | H=5 (00-19) : Bộ Công Nghiệp. | I=5 xx: | J=5 xx: Cty XLĐ 4 | K=5 xx :
+R45 : B=6 xx :MX1 11 CB (Tháp B) | C=6 xx: RLDC 199B | D=6: Cty TTĐ ĐàNẵng | E=6 xx: | F=6 xx: 500kV Pleiku | G=6 xx :MX1 11 CB (Tháp A) | H=6 xx: | I=6 (50-99) :19 NgôVăn Sở | J=6 xx : TT TNĐ | K=6 xx :
+R46 : B=7 xx :MX1 11 CB (Tháp B) | C=7 xx: RLDC 199A | D=7 (20-49): TTĐ 2; 7 (50-99): Ban A TĐ 3 QN | E=7 xx: | F=7 (00-19): 500kV Pleiku 2 | G=7 xx :MX1 11 CB (Tháp A) | H=7 xx: | I=7 xx : Flexicom HN | J=7 xx : | K=7 xx :
+R47 : B=8 xx :MX1 11 CB (Tháp B) | C=8 xx : | D=8 xx: Ban A TĐ 3 | E=8 xx: | F=8 xx: 500kV Phú.lâm | G=8 xx :MX1 11 CB (Tháp A) | H=8 xx: Ban A miền Bắc | I=8 xx : Flexicom HN | J=8 xx: Cty Mua bán điện | K=8 xx :
+R48 : B=9 xx :MX1 11 CB (Tháp B) | C=9 xx : | D=9 xx: | E=9 xx: CTKSTKĐ1 | F=9 xx: 500kV Phú.lâm | G=9 xx :MX1 11 CB (Tháp A) | H=9 xx: | I=9 xx : Flexicom HN | J=9 xx: Cty Mua bán điện (EPTC) | K=9 xx :
+R49 : A=5 | B=ĐÀ NẴNG | C=QUẢNG BÌNH | D=QUẢNG TRỊ | E=HUẾ | F=QUẢNG NGÃI | G=BÌNH ĐỊNH | H=PHÚ YÊN | I=KHÁNH HÒA | J=GIA LAI | K=ĐẮK LAK, ĐẮK NÔNG
+R50 : B=0 (00-49): 500kV Thạnh Mỹ 0 (50-99): 220kV Thạnh Mỹ | C=0 (00-19): Nhà điều hành TĐ Sông Bung 4,  0 (20-69): TĐ A Vương 0 (70-79): 220kV Ba Đồn | D=1 xx : | E=0 (00-19): NMĐ Sông Bung 2 | F=0 xx : | G=0 xx : | H=0 (00-49): NMĐ Sông Ba Hạ 0(50-99): Cty Sông Ba Hạ | I=0 xx : | J=0 xx : | K=0 xx: TTĐ Đăclak
+R51 : B=1 xx: Ban A miền Trung | C=1 (00-19): A Sông Bung 4 1 (20-59): Cty TĐ Sông Tranh; 1 (60-99): Ban A Thủy điện 3; | D=2 xx : | E=2 xx : | F=1 xx : | G=1 xx: ĐL Bình Định | H=1 xx : | I=1 xx : | J=1 xx : | K=1 (00-49:) ĐL Đak Nông 1 (50-99): 500kV ĐakNông
+R52 : B=2 xx :Điện lực 3 (EVNCPC) | C=2 (00-19): TĐ Sông Bung | D=3 xx : | E=3 xx : | F=2 xx : | G=2 (00-19): ĐL Bình Định | H=2 xx : | I=2 xx : | J=2 xx : | K=2 xx: Ban QLTĐ5
+R53 : B=3 xx :Điện lực 3 (EVNCPC) | C=3 (00-19): Ban A Sông Bung 2 | D=4 xx : | E=4 xx : | F=3 xx : | G=3 xx : | H=3 xx : | I=3 xx: Cty TTĐ 3 | J=3 (00-49) : TTĐ Pleiku 3 (50-99): NMĐ Kanak | K=3 xx: Điện lực ĐakLak
+R54 : B=4 xx :Điện lực 3 (EVNCPC) | C=4 xx: Đồng Hới (dự án SCADA) | D=5 xx : | E=4: DCC Huế (Dự án SCADA) | F=4: Quảng Ngãi (dự án SCADA) | G=4 xx: Quy Nhơn (dự án SCADA) | H=4 xx: NMĐ SôngHinh | I=4 xx: Cty TTĐ 3 | J=4 xx: NMĐ Ialy | K=4 xx: Kronbuk (dự án SCADA)
+R55 : B=5 xx :Điện lực 3 (EVNCPC) | C=5 xx:: EVNLand (Ban QLDA Điện nông thôn miền Trung | D=5 xx: VT2 | E=5(00-49): NMĐ Quảng Trị | F=5(0-4): 220kV Tam Kỳ 5(5-9): 220kV Quảng Ngãi | G=5 xx: NMĐ Vĩnh Sơn | H=5 xx: NMĐ SôngHinh | I=5 xx: Cty TTĐ 3 | J=5 xx: NMĐ Ialy | K=5 xx: NMĐ Buôn Kuốp
+R56 : B=6 xx :Điện lực 3 (EVNCPC) | C=6 xx:: EVNLand (Ban QLDA Điện nông thôn miền Trung | D=6 xx: VT2 | E=6(00-49): Cty TĐ Quảng Trị | F=6 xx : | G=6 xx: VP NMĐ Vĩnh Sơn | H=6 xx: Tuy Hoà (dự án SCADA) | I=6 xx: TTĐ Cam Ranh | J=6 xx: NMĐ Ialy | K=6 xx: NMĐ Buôn Tua Shar
+R57 : B=7 xx: RLDC3 (Dự án SCADA) | C=7 xx:: EVNLand (Ban QLDA Điện nông thôn miền Trung | D=7 xx: VT2 | E=7(0-4); NMĐ A Lưới | F=7 xx : | G=7 xx: Vĩnh Sơn (dự án SCADA) | H=7 xx: Ban A S.Hinh (Tuy Hoà) | I=7 xx: Nha Trang (dự án SCADA) (E29) | J=7 xx: VP NMĐ Ialy | K=7 xx: Nhà ĐH Buôn Tua Shar
+R58 : B=8 xx: RLDC3 (Dự án SCADA) | C=8 xx:: EVNLand (Ban QLDA Điện nông thôn miền Trung | D=8 xx: VT2 | E=8 xx: | F=8 xx : | G=8 xx: Trạm Quy Nhơn | H=8 xx: TuyHoà 2 (E22) | I=8 (3-5): Ninh Hoà 8 (6-9): Nha Trang-Đa Nhim | J=8 xx: VP NMĐ Ialy | K=80-84: NMĐ Dong Nai 3
+R59 : B=9 (00-59): Cty LĐCT miền Trung | C=9 xx:: EVNLand (Ban QLDA Điện nông thôn miền Trung | D=9 xx: VT2 | E=9 xx: | F=9 xx : | G=90-94: ATĐ 7 9 (50-99): NMĐ An Khê | H=9 xx: 220kV Tuy Hòa | I=9 (0-4): Cty TVĐ4 | J=9 xx: KTT Biển Hồ | K=9 xx: NMĐ Dong Nai 4
+R60 : A=6 | B=ĐỒNG NAI | C=BÌNH THUẬN | D=LÂM ĐỒNG | E=BÀ RỊA-VŨNG TÀU | F=BÌNH DƯƠNG | G=TÂY NINH | H=ĐỒNG THÁP | I=NINH THUẬN | J=SÓC TRĂNG ? | K=KON TUM
+R61 : B=0 xx : | C=0 xx: | D=0 (00-49): NMĐ Đồng Nai4  0 (50-99): Cty TĐ Đồng Nai | E=0 xx: GENCO3 | F=0: Trung tâm sửa chữa dịch vụ | G=0 xx: | H=0 xx: | I=0 xx: | J=0 xx: | K=0 xx:
+R62 : B=1 xx: NMĐ Trị An | C=1 (00-99): Dự phòng NMĐ Đại Ninh | D=1 xx: | E=1 - GENCO 3: 1 (00-19): Long Thành - 108 1 (20-49): Phòng Rơle | F=1 xx: | G=1 xx: | H=1 xx: | I=1 xx: | J=1 xx: | K=1 xx:
+R63 : B=2 xx: NMĐ Trị An | C=2 xx: Cty TĐ Đại Ninh (Lâm Đồng) + NMĐ Đại Ninh (Bình Thuận) | D=2 xx: | E=2 xx : | F=2 xx: | G=2 xx: | H=2 xx: | I=2 xx: NMĐ Đa Nhim | J=40-44: 220kV Sóc Trăng | K=2 xx:
+R64 : B=3 xx: NMĐ Trị An | C=3 xx: | D=3 xx: | E=3 (00-49): 500KV Phú Mỹ 3 (50-59): 220kV KCN Phú Mỹ 2 (Tân Thành) 3 (60-79): 220kV Mỹ Xuân 3 (80-99): 220kV Vũng Tàu theo CV số 9904/SPMB-KT (hungpq tra loi VB) | F=3 xx: | G=3 xx: | H=3 xx: | I=3 xx: NMĐ Đa Nhim | J=3 xx: | K=3 xx:
+R65 : B=4 xx: NMĐ Trị An | C=4 xx: Rơle Phú Mỹ 1 | D=4 (00-99): 500kV Di Linh | E=4 xx : NMĐ Phú Mỹ | F=4 (00-19) : 220kV Bình Hoà; 4 (60-99): TBA 500kV Tân Định | G=4(00-49): 220kV Tràng Bảng; 4(50-79): 220kV Tây Ninh | H=40-45: TBA Cao Lãnh | I=4 (00-09): 220 Tháp Chàm | J=4 xx: | K=4 (10-29):110kV Kon Tum.
+R66 : B=5 xx: NMĐ Trị An | C=5 xx: Rơle Phú Mỹ 1 | D=5 xx: NMĐ Hàm Thuận | E=5 xx :: NMĐ Bà Rịa VT | F=5 (00-49): 220kV Uyên Hưng | G=5 xx : | H=5 xx : | I=5 (00-49): QLDA Điện hạt nhân Ninh Thuận | J=5 xx: | K=5 xx : Sêsan 3
+R67 : B=6: ScadaA2-TA 102 | C=6 (0-4): 500kV Vĩnh Tân 6 (5-9): NĐVĩnh Tân2 | D=6 xx: VP NMĐ ĐN-HT-ĐM | E=6 xx : NMĐ Bà Rịa VT | F=6 xx: KCN Phú Mỹ 2 | G=6 xx : | H=6 xx : | I=6 xx : | J=6 xx: | K=6 xx : Sêsan 3
+R68 : B=7 xx: Long Thành | C=7:NĐVĩnh Tân2  (cũ :NM Bắc Bình) | D=7 xx:NMĐ Đa My | E=7 xx : | F=7 (00-19): 220kV Thuận An | G=7 xx : | H=7 xx : | I=7 xx : | J=7 xx: | K=7 xx: TĐ Pleikrông
+R69 : B=8 xx: Long Thành | C=8(0-4): NĐ Vĩnh Tân 2 8(5-9): NĐ Vĩnh Tân 4 | D=8 (00-19): Trạm 110kV Bảo Lộc (mới) 8 (60-99) :VP NMĐ ĐN-HT-ĐM | E=8 xx : | F=8 xx : | G=8 xx : | H=8 xx : | I=8 xx : | J=8 xx: | K=8 (00-49): NMĐ SêSan 4 8 (50-99): Sesan 3A
+R70 : B=9 (0-2): TBA 500kV Sông Mây 9 (30-49):  220kV TP Nhơn Trạch | C=9 xx : | D=9 (00-19): Trạm 110kV Bảo Lộc cũ 9 (30-89): VP NMĐ ĐN-HT-ĐM | E=900-999: NMĐ Bà Rịa VT | F=9 xx : | G=9 xx : | H=9 xx : | I=9 xx : | J=9 xx : | K=9 (00-29): 220kV KonTum
+R71 : A=7 | B=CẦN THƠ - HG | C=LONG AN | D=TIỀN GIANG | E=TRÀ VINH | F=BẾN TRE | G=AN GIANG | H=KIÊN GIANG | I=BẠC LIÊU | J=SÓC TRĂNG | K=VĨNH LONG
+R72 : B=0 xx : | C=0 xx: | D=0 xx : | E=0 xx : | F=0 xx : | G=0 xx : | H=0 xx : | I=0 xx : | J=0 xx : | K=0 xx :
+R73 : B=1 (00-99) : VP GENCO2 mới | C=1 xx: | D=1 xx : | E=1 xx : | F=1 xx : | G=1 xx : | H=1 xx : | I=1(00-39): 220/110 Bạc Liêu | J=1 xx : | K=1 xx :
+R74 : B=2 (00-49): VP GENCO2 mới | C=2 xx: | D=2 xx : | E=2 xx : | F=2 xx : | G=2 xx : | H=2 xx : | I=1 xx : | J=2 xx : | K=2 xx :
+R75 : B=3 xx : | C=3 xx: | D=3 xx : | E=3 xx : | F=3 xx : | G=3: Cai Lậy – 114 | H=3 xx : | I=2 xx : | J=3 xx : | K=3 xx :
+R76 : B=4 xx: | C=4 xx: 220kV Long An | D=4: ScadaA2 -TG 114 | E=1-3: ĐL Trà Vinh | F=4 (00-19): 220kV Bến Tre 4 (20-39): 220kV Mỏ Cày | G=4: Châu Đốc | H=4: Rạch Giá | I=3 xx : | J=4 xx : | K=4 (00-49): 220 Vĩnh Long
+R77 : B=5 (00-49): NMĐ Cần Thơ 5 (50-99): NMĐ Cần Thơ | C=5 (00-29): 220kV Đức Hòa | E=4 (00-09): 220kV Trà Vinh | F=5 xx : | G=5 xx : | H=5 xx : | I=4 xx : | J=5 xx : | K=5 xx :
+R78 : B=6 xx: ScadaA2-TN 115 | C=6 xx : | D=6: Cai Lậy | E=4 (10-29): 500kV Duyên Hải | F=6 xx : | G=6 xx : | H=6: Rạch Giá - 151 | I=5 xx : | J=6 xx : | K=6 xx :
+R79 : B=7 xx : NMĐ Ô Môn | C=7 xx : | D=7: (00-19): 500 Mỹ Tho | E=500-699: NĐ Duyên Hải 1 | F=7 xx : | G=7 xx : | H=70-71: 220kV Kiên Lương | I=6 xx : | J=7 xx : | K=7 xx :
+R80 : B=8 xx: NMĐ Ô Môn | C=8 xx : | D=8 xx : | E=700-899: NĐ Duyên Hải 3 | F=8 xx : | G=8 xx : | H=8 xx : | I=7 xx : | J=8 xx : | K=8 xx :
+R81 : B=9: 220kV Thốt Nốt | C=9 xx : | D=9 xx : | F=9 xx : | G=9 xx : | H=9 xx : | I=8 xx : | J=9 xx : | K=9 xx :
+R82 : A=8
+R83 : B=0 xx: EVNHCM | C=0 xx: EVNHCM | D=0 xx: | F=0 xx : | G=0 xx : | H=0 xx : | I=0 xx: EVNHCM | J=0 xx : | K=0 xx :
+R84 : B=1 xx: EVNHCM | C=1 xx: EVNHCM | D=1 xx: Cty TTĐ 4 | E=1 xx: C-K RLDC - 199B | F=1 xx :GENCO3 | G=1 xx : | H=1 xx: Cát Lái - 119 | I=1 xx: EVNHCM | J=1 xx : | K=1 xx :
+R85 : B=2 xx: EVNHCM | C=2 xx: EVNHCM | D=2 xx: Cty TTĐ 4 | E=2 xx: RLDC2 - 199A | F=2 xx : | G=2 xx : | H=2 xx: Nhà Bè - 113 | I=2 xx: EVNHCM | J=2 xx : | K=2 xx :
+R86 : B=3 xx: EVNHCM | C=3 xx: EVNHCM | D=3 xx: Cty TTĐ 4 | E=3 xx: ScadaA2  999 | F=3 xx : | G=3 xx : | H=3 xx: Phú Lâm - 112 | I=3 xx: EVNHCM | J=3 xx : | K=3 xx :
+R87 : B=4 xx: EVNHCM | C=4 xx: EVNHCM | D=4 (0-3): 500kV Cầu Bông | E=4 xx: ScadaA2 -TD 109 | F=4 xx: Ban A miền Nam | G=4 xx : | H=4 xx: Long Bình – 111 | I=4 xx: EVNHCM | J=4 xx : | K=4 xx :
+R88 : B=5 xx: EVNHCM | C=5 xx: EVNHCM | D=5 (00-49): Ban A Thủy điện 6 5 (50-99): Ban A Nhiệt điện 3 | E=5 xx: ScadaA2 - LB 111 | F=5 xx : | G=5 xx : | H=5 (50-99): 500kV Nhà Bè 5(0-4): 500kV Phú Mỹ | I=5 xx: EVNHCM | J=5 xx : | K=5 xx :
+R89 : B=6 xx: EVNHCM | C=6 xx: EVNHCM | D=6 xx: NMĐ Thủ Đức | E=6 xx: ScadaA2 -HM 110 | F=6 xx : | G=6 xx : | H=6 (00-49): 220kV Nam Saigon | I=6 xx: EVNHCM | J=6 xx : | K=6 xx :
+R90 : B=7 xx: EVNHCM | C=7 xx: EVNHCM | D=7 xx: NMĐ Thủ Đức | E=7 xx: NMĐ Thủ Đức | F=7 xx : | G=7 xx : | H=7 xx : | I=7 xx: EVNHCM | J=7 xx : | K=7 xx :
+R91 : B=8 xx: EVNHCM | C=8 xx: EVNHCM | D=8 xx: NMĐ Thủ Đức | E=8 xx: NMĐ Thủ Đức | F=8 xx : | G=8 xx : | H=8 xx : | I=8 xx: EVNHCM | J=8 xx : | K=8 xx :
+R92 : B=9 xx: EVNHCM | C=9 xx : EVNHCM | D=9 xx :NMĐ Thủ Đức | E=9 xx :NMĐ Thủ Đức | F=9 xx :NMĐ Thủ Đức | G=9 xx :NMĐ Thủ Đức | H=9 xx : | I=9 xx: EVNHCM | J=900-923 : 500 Phú Lâm #2 | K=9 xx :
+R93 : A=9
+R94 : B=EVNNPC | C=EVNSPC | D=EVNCPC | E=EVNHCMC | F=0 xx : EVNGENCO1 | G=0 xx : EVNNPT+PTC1 | H=0 xx : PTC3 | I=DP NSMO, EVN, HTPT | J=DP NSMO, EVN, HTPT | K=EVNHANOI
+R95 : F=1 xx : EVNGENCO1 | G=1 xx : EVNNPT+PTC1 | H=1 xx : PTC3
+R96 : F=2 xx : EVNGENCO1 | G=2 xx : EVNNPT+PTC1 | H=2 xx : PTC3
+R97 : F=3 xx : EVNGENCO2 | G=3 xx : EVNNPT+PTC1 | H=3 xx : PTC4
+R98 : F=4 xx : EVNGENCO2 | G=4 xx : EVNNPT+PTC1 | H=4 xx : PTC4
+R99 : F=5 xx : EVNGENCO2 | G=5 xx : EVNNPT+PTC1 | H=5 xx : PTC4
+R100 : F=6 xx : EVNGENCO3 | G=6 xx : EVNNPT+PTC1 | H=6 xx : PTC4
+R101 : F=7 xx : EVNGENCO3 | G=7 xx : EVNNPT+PTC1 | H=7 xx : PTC4
+R102 : F=8 xx : EVNGENCO3 | G=8 xx : PTC2 | H=8 xx : PTC4
+R103 : F=9 xx : DP GENCO | G=9 xx : PTC2 | H=9 xx : PTC4
+R104 : A=0 | B=PTT | G=PTT | H=PTT | J=PTT | K=Liên tỉnh - Di động - Quốc tế

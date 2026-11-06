@@ -1,0 +1,13 @@
+{
+  "reportBytes": 44610,
+  "findings": 22,
+  "inventoryRows": 30,
+  "responsive": 180,
+  "allThemesMatch": true,
+  "localLinks": [
+    {
+      "link": "ui-audit-2026-11-06/",
+      "exists": true
+    }
+  ]
+}

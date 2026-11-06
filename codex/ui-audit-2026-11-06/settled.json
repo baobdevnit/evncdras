@@ -1,0 +1,182 @@
+[
+  {
+    "name": "admin/cdr-history.html",
+    "errors": [],
+    "rows": 4,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/change-password.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/dashboard.html",
+    "errors": [],
+    "rows": 5,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/data-permissions.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/login.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/notifications.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/organization.html",
+    "errors": [],
+    "rows": 14,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/permissions.html",
+    "errors": [],
+    "rows": 16,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/prefix-history.html",
+    "errors": [],
+    "rows": 8,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/prefix-management.html",
+    "errors": [],
+    "rows": 23,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/profile.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/qos-debug.html",
+    "errors": [],
+    "rows": 18,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/reports.html",
+    "errors": [],
+    "rows": 7,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/roles.html",
+    "errors": [],
+    "rows": 5,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/system-settings.html",
+    "errors": [],
+    "rows": 30,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/user-settings.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/users.html",
+    "errors": [],
+    "rows": 30,
+    "loadingTexts": 0
+  },
+  {
+    "name": "admin/user_group.html",
+    "errors": [],
+    "rows": 6,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/cdr-history.html",
+    "errors": [],
+    "rows": 4,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/change-password.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/dashboard.html",
+    "errors": [],
+    "rows": 5,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/group-admin.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/group-members.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/login.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/notifications.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/org-prefix.html",
+    "errors": [],
+    "rows": 2,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/profile.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/qos-debug.html",
+    "errors": [],
+    "rows": 18,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/reports.html",
+    "errors": [],
+    "rows": 2,
+    "loadingTexts": 0
+  },
+  {
+    "name": "member/user-settings.html",
+    "errors": [],
+    "rows": 0,
+    "loadingTexts": 0
+  }
+]

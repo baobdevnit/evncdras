@@ -1,0 +1,182 @@
+[
+  {
+    "name": "admin/cdr-history.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/change-password.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/dashboard.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/data-permissions.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/login.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/notifications.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/organization.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/permissions.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/prefix-history.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/prefix-management.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/profile.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/qos-debug.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/reports.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/roles.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/system-settings.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/user-settings.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/users.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "admin/user_group.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/cdr-history.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/change-password.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/dashboard.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/group-admin.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/group-members.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/login.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/notifications.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/org-prefix.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/profile.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/qos-debug.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/reports.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  },
+  {
+    "name": "member/user-settings.html",
+    "scrollWidth": 1440,
+    "innerWidth": 1440,
+    "overflow": false
+  }
+]

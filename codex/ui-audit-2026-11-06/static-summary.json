@@ -1,0 +1,23 @@
+{
+  "files": 99,
+  "bytes": 2933164,
+  "refs": 711,
+  "broken": [],
+  "identical": [
+    "cdr-history.css",
+    "dashboard.css",
+    "notifications.css",
+    "notifications.js",
+    "prefix-management.css",
+    "qos-debug.css",
+    "qos-debug.js",
+    "reports.css",
+    "style.css",
+    "users.css"
+  ],
+  "transitions": 140,
+  "reduceFiles": [
+    "admin/profile.css",
+    "member/profile.css"
+  ]
+}

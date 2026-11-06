@@ -1,0 +1,57 @@
+=== FULL SHEET 2 (DAU SO VHMN) ===
+R1 | A: BẢNG ĐÁNH SỐ THUÊ BAO TRÊN MẠNG VIỄN THÔNG DÙNG RIÊNG EVN KHU VỰC MIỀN NAM
+R2 | A: STT | B: Tổng Đài | C: Hướng trung kế | D: Kiểu kết nối | E: Loại trung kế | F: Đầu số | H: Tổng Số
+R3 | D: Kết nối trực tiếp | F: Từ số | G: Đến số
+R4 | A: 1 | B: Phú Lâm #1 | C: Thuê bao tại Phú Lâm #1 | F: 458xx | G: 459xx | H: 200
+R5 | A: 2 | C: A2 10000 | D: x (HIT70770 207.5) | E: PRI30 (SH0SL4) | F: 420xx | G: 422xx | H: 300
+R6 | A: 3 | C: NMĐ Bà Rịa 10002 | D: x (HIT7070 204.52) | E: 30T (SH1SL6) | F: 645xx | G: 646xx | H: 200
+R7 | F: 64900 | G: 64999 | H: 100
+R8 | A: 4 | C: 500kV Sông Mây 10010 | D: x (FOX515 2.6, 3.4) | E: 4WE&M (SH0SL10Port3,4) | F: 61900 | G: 61929 | H: 30
+R9 | A: 5 | C: 220kV Uyên Hưng | E: 4WE&M | F: 65500 | G: 65549 | H: 50
+R10 | A: 6 | C: 500kV Tân Định 10014 | D: x (FOX515 2.2, 2.3) | E: 4WE&M (SH0SL10Port1,2) | F: 65460 | G: 65499 | H: 40
+R11 | A: 7 | C: GENCO2 10008 | D: x (HIT7070 204.34) | E: PRI2DT (SH2SL4) | F: 71100 | G: 71199 | H: 100
+R12 | F: 71200 | G: 71249 | H: 30
+R13 | A: 8 | C: 220KV Long An 10012 | D: x (DXC5000 5.2, 5.1) | E: 4WE&M (SH0SL11Port3,4) | F: 72400 | G: 72499 | H: 100
+R14 | A: 9 | C: NMĐ Hàm Thuận 10011 | D: x (HIT7070 207.10) | E: 30T (SH0SL3) | F: 63500 | G: 63599 | H: 100
+R15 | A: 10 | C: CTY ĐHĐ | E: E1 | F: 63600 | G: 63699 | H: 100
+R16 | F: 6386x | G: 6389x | H: 40
+R17 | F: 6393x | G: 6398x | H: 60
+R18 | A: 11 | C: NMĐ Đa Mi | E: E1 | F: 63700 | G: 63799 | H: 100
+R19 | A: 12 | C: NMĐ Đa Nhim | E: E1 | F: 682xx | G: 683xx | H: 200
+R20 | A: 13 | C: Pleiku 10001 | D: x (HIT7070 204.12) | E: PRI30 (SH2SL3) | F: 456xx | G: 457xx | H: 200
+R21 | A: 14 | C: Phú Lâm#2 10004 | D: x (kết nối trực tiếp) | E: PRI30 (SH2SL9) | F: 89900 | G: 89999 | H: 100
+R22 | A: 15 | C: Các đầu số routing qua A2 (10000) | F: 5, 14, 16, 18, 22, 23 ,33 , 34, 35, 37, 40, 43, 44, 46, 48, 81, 82, 88, 317, 420--429, 450--455, 611--615, 627, 643, 681, 684, 710, 713--716--717--718, 719, 734, 745 746, 747, 748,  770--779, 836--839, 851, 876, 1120, 1121, 1123, 6193, 6194, 6265-6269, 6280--6284, 6570, 6571, 7370, 7371, 7441 7442 , 7542, 7543 11224--11227, 11322, 11324-11326, 11328, 11329, 11900--11905
+R23 | A: 16 | C: Các đầu số routing qua Pleiku (10001) | F: 49, 131, 132, 138, 139, 456, 457, 601, 604,  605, 606, 608, 6090--6092, 6260--6264; 634 (Di Linh)
+R24 | A: 17 | C: Các đầu số routing qua PLM#2 (10004) | F: 89, 634, 640, 641, 644,  647,  648, 664, 725, 834
+R25 | A: 18 | B: Phú Lâm#2 | C: Thuê bao tại Phú Lâm #2 | F: 89900 | G: 89999 | H: 100
+R26 | A: 20 | C: A2 10000 | D: x (HIT7070 207.1) | E: PRI2DT (SH0SL4) | F: 420xx | G: 422xx | H: 300
+R27 | A: 21 | C: Tây Ninh 10006 | D: x (FOX515 2.5) | E: 4WE&M (SH0SL14Port1) | F: 66450 | G: 66479 | H: 30
+R28 | A: 22 | C: Phú Lâm#1 10010 | D: x (kết nối trực tiếp) | E: PRI 30 (SH2SL4) | F: 458xx | G: 459xx | H: 200
+R29 | A: 23 | C: Cty TTĐ4 10011 | D: x (HIT7035 E1#7 ) | E: PRI2DT (SH2SL7) | F: 831xx | G: 833xx | H: 300
+R30 | A: 24 | C: NMĐ Đại Ninh 10002 | D: x (HIT7070 204.22) | E: 30T (SH0SL11) | F: 62200 | G: 62299 | H: 100
+R31 | A: 25 | C: VP CTY Đại Ninh | E: E1 | F: 62200 | G: 62249 | H: 50
+R32 | A: 26 | C: NMĐ Thác Mơ 10001 | D: x (HIT7080 24.31) | E: PRI2DT (SH0SL3) | F: 138xx | G: 139xx | H: 200
+R33 | A: 27 | C: NMĐ Phú Mỹ 10008 | D: x (HIT7080 24.30) | E: 30T (SH1SL12) | F: 644xx | H: 100
+R34 | A: 28 | C: 500kV Cầu Bông 10009 | D: x (HIT7070 204.20) | E: PRI2DT (SH1SL7) | F: 8340x | G: 8343x | H: 40
+R35 | A: 29 | C: 220kV Đức Hòa | E: 4WE&M | F: 72500 | G: 72529 | H: 30
+R36 | A: 30 | C: Các đầu số routing qua A2 (10000) | F: 2, 5, 9, 14--18, 33--35, 37, 40, 44, 46, 49, 60, 77, 81, 82, 88, 132, 317, 420--429, 434--437, 450--455, 611--615, 616, 620,  627, 684, 685, 710 715, 716, 734, 737, 780, 836--839, 851, 870--872, 876, 6193--6194, 6265--6269, 6280--6284, 6380, 6381, 6384, 6385, 6570, 6571
+R37 | A: 31 | C: Các đầu số routing qua PLM#1 (10010) | F: 130, 131, 456, 457, 458, 459, 621 622, 635--637, 642, 645, 646, 649, 655, 682, 683, 711, 717, 718, 724, 831--833, 6190--6192, 6260--6264, 6386--6389 6393--6398 6546--6549 7120--7124, 634 (Di Linh)
+R38 | A: 32 | B: A2 | C: Thuê bao tại A2 | F: 420xx | G: 422xx | H: 300
+R39 | F: 93xxx: EVNCPC 94xxx: EVNHCMC 950xx: GENCO1 968-969xx: PTC2
+R40 | A: 33 | C: Phú Lâm#1 | D: x | E: E1/ISDN (PRI) | F: 458xx | G: 459xx | H: 200
+R41 | A: 34 | C: Cửa Bắc | D: x | E: E1/ISDN (PRI) | F: 46xxx | H: 1000
+R42 | A: 35 | C: Đà Nẵng | D: x | E: E1/ISDN (PRI) | F: 454xx | G: 455xx | H: 200
+R43 | A: 36 | C: EVNSPC | D: x | E: E1/ISDN (PRI) -  Network | F: 92xxx | H: 1000
+R44 | A: 37 | C: NMĐ Thủ Đức | D: x | E: 4WE&M | F: 836xx | G: 839xx | H: 400
+R45 | A: 38 | C: EVNHCMC | D: x | E: E1/ISDN (PRI) | F: 81,82,88xxx | H: 3000
+R46 | A: 39 | C: Phú Lâm#2 | D: x | E: E1/ISDN (PRI) | F: 89900 | G: 89999 | H: 100
+R47 | A: 40 | C: 500kV Mỹ Tho | D: x | E: E1/ISDN (PRI) -  Network | F: 73700 | G: 73719 | H: 20
+R48 | A: 41 | C: NMĐ Duyên Hải 3 | D: x | E: E1/ISDN (PRI) -  Network | F: 747xx | G: 748xx | H: 200
+R49 | A: 42 | C: 500kV Duyên Hải | D: x | E: E1/ISDN (PRI) -  Network | F: 74410 | G: 74429 | H: 20
+R50 | A: 43 | C: NMĐ Trị An | D: x (HIT7070 213.20) | E: E1/ISDN (PRI) -  Network | F: 611xx | G: 615xx | H: 500
+R51 | A: 44 | C: NMĐ Ô Môn | D: x | E: E1/ISDN (PRI) -  Network | F: 717xx | G: 718xx | H: 200
+R52 | A: 45 | C: Các đầu số routing ra Đà Nẵng | F: 435xx | G: 437xx | H: 300
+R53 | F: 46 --> 60; 131; 132; 434 --> 437; 454 --> 457; 684; 685
+R54 | A: 46 | C: Các đầu số routing về Cửa Bắc | F: 14; 15; 16; 17; 18; 22; 23; 33; 34; 35; 37 40->44; 46; 450 --> 453,851
+R55 | A: 47 | C: Các đầu số routing qua Phú Lâm #1 | F: 621; 622; 642; 645; 646;649; 654; 655; 724; 737; 831; 832; 833; 6190 --> 6192; 6260 --> 6264; 7120 --> 7124; 634 (Di Linh)
+R56 | A: 48 | C: Các đầu số routing qua Phú Lâm #2 | F: 634; 635; 636; 637; 639; 682; 683; 745 --> 748; 899; 6382; 6383 --> 6389; 6435; 6438; 6439; 6645 --> 6647; 7441; 7442; 7542; 7543
