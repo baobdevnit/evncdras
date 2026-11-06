@@ -4,8 +4,9 @@
 // Hộp chi tiết dùng GET /api/v1/admin/user-groups/:id (G03, mock mockGetUserGroupDetail trên MOCK_UG_ROWS).
 // Tạo nhóm dùng POST /api/v1/admin/user-groups (G05, mock mockCreateUserGroup, thêm dòng vào MOCK_UG_ROWS).
 // Sửa nhóm dùng PUT /api/v1/admin/user-groups/:id (G06, mock mockUpdateUserGroup trên MOCK_UG_ROWS).
-// Mảng userGroupsData là dữ liệu CŨ chỉ còn phục vụ các hộp quản trị viên / ngừng hoạt động / thành viên
-// (chưa rà: G07, N01, N07); không phải dạng response của API.
+// Ngừng hoạt động nhóm dùng DELETE /api/v1/admin/user-groups/:id (G07, mock mockDeactivateUserGroup trên MOCK_UG_ROWS).
+// Mảng userGroupsData là dữ liệu CŨ chỉ còn phục vụ các hộp quản trị viên / thành viên
+// (chưa rà: N01, N07); không phải dạng response của API.
 // Màn hình chỉ có danh sách phẳng: không có tab/chế độ xem cây nhóm (API GET /user-groups/tree đã bỏ ở G02).
 
 let userGroupsData = [
@@ -199,8 +200,8 @@ let currentManagingGroupId = null;
  * Vue: UserGroupView.vue + useUserGroupStore (fetchUserGroups, query, pagination).
  * Kiểm tay mock: ?listError=1 (lỗi tải một lần, "Thử lại" thành công), ?listEmpty=1 (chưa có nhóm),
  * ?orgTreeError=1 (ô lọc đơn vị chỉ còn "Tất cả"/"Nhóm độc lập"), ?noManage=1 (thiếu user_group:manage).
- * Hộp chi tiết: mục "Chi tiết nhóm" bên dưới (G03); hộp sửa: mục "Sửa nhóm" (G06). Các hộp quản trị viên/ngừng
- * hoạt động vẫn dùng mảng cũ userGroupsData cho tới khi rà G07, N07.
+ * Hộp chi tiết: mục "Chi tiết nhóm" bên dưới (G03); hộp sửa: mục "Sửa nhóm" (G06); hộp ngừng hoạt động: mục
+ * "Ngừng hoạt động nhóm" (G07). Hộp quản trị viên/thành viên vẫn dùng mảng cũ userGroupsData cho tới khi rà N01, N07.
  * ========================================================================== */
 const UG_QS = new URLSearchParams(window.location.search);
 function ugNow() { return new Date().toISOString().replace('Z', '+07:00'); }
@@ -469,6 +470,7 @@ function setupEventListeners() {
             if (e.target.id === 'groupDetailModal') { closeGroupDetail(); return; }
             if (e.target.id === 'groupTempPasswordModal') return; // chỉ đóng bằng nút
             if (e.target.id === 'userGroupModal') { closeGroupForm(); return; }
+            if (e.target.id === 'deleteGroupModal') { closeDeactivateModal(); return; } // đang gửi thì không đóng
             e.target.classList.remove('show');
             document.body.style.overflow = '';
         }
@@ -479,6 +481,7 @@ function setupEventListeners() {
             if (ugDetailId) closeGroupDetail();
             document.querySelectorAll('.modal.show').forEach(m => {
                 if (m.id === 'groupTempPasswordModal' || (m.id === 'userGroupModal' && ugFormBusy)) return;
+                if (m.id === 'deleteGroupModal') { closeDeactivateModal(); return; } // đang gửi thì không đóng
                 m.classList.remove('show');
             });
             document.body.style.overflow = '';
@@ -643,7 +646,7 @@ function renderUserGroupsTable(data) {
         const writeButtons = manage && active ? `
                 <button class="action-btn" onclick="openManageAdminsModal(${group.id})" title="Quản trị viên nhóm">${UG_ICONS.admins}</button>
                 <button class="action-btn edit-btn" onclick="openEditGroupModal(${group.id}, '${ugEsc(group.code)}')" title="Sửa nhóm">${UG_ICONS.edit}</button>
-                <button class="action-btn delete-btn" onclick="openDeleteGroupModal(${group.id})" title="Ngừng hoạt động nhóm">${UG_ICONS.remove}</button>` : '';
+                <button class="action-btn delete-btn" onclick="openDeleteGroupModal(${group.id}, '${ugEsc(group.code)}')" title="Ngừng hoạt động nhóm">${UG_ICONS.remove}</button>` : '';
         return `
             <tr>
                 <td>
@@ -823,7 +826,7 @@ function groupActionFromDetail(action) {
     if (!id) return;
     if (action === 'edit') openEditGroupModal(id, code);
     else if (action === 'admins') openManageAdminsModal(id);
-    else if (action === 'delete') openDeleteGroupModal(id);
+    else if (action === 'delete') openDeleteGroupModal(id, code);
 }
 
 // Vẽ thân hộp từ data của GET .../:id (15 trường). Không dùng trường không có trong response.
@@ -897,13 +900,14 @@ function renderGroupDetail(data) {
  * mã UMO-TBA-500 (nhóm INACTIVE) → 409 CODE_DUPLICATE, tran.b / tran.b@71portal.vn → 409 ACCOUNT_DUPLICATE,
  * old.user@evn.com.vn (tài khoản INACTIVE) dùng lại được.
  * ========================================================================== */
-// Bảng users giả lập cho kiểm tra trùng (username_active / email_active: chỉ tài khoản chưa INACTIVE)
+// Bảng users giả lập cho kiểm tra trùng (username_active / email_active: chỉ tài khoản chưa INACTIVE);
+// groupId = user_group_id: ngừng hoạt động nhóm (G07) chuyển các dòng của nhóm sang INACTIVE nên tên được dùng lại.
 const MOCK_UG_USERS = [
-    { id: 10, username: 'tran.b', email: 'tran.b@71portal.vn', status: 'ACTIVE' },
-    { id: 11, username: 'le.c', email: 'le.c@71portal.vn', status: 'LOCKED' },
-    { id: 18, username: 'tuan.hv', email: 'tuan.hv@71portal.vn', status: 'ACTIVE' },
-    { id: 33, username: 'loc.tv', email: 'loc.tv@evn.com.vn', status: 'LOCKED' },
-    { id: 55, username: 'old.user', email: 'old.user@evn.com.vn', status: 'INACTIVE' }
+    { id: 10, groupId: 1, username: 'tran.b', email: 'tran.b@71portal.vn', status: 'ACTIVE' },
+    { id: 11, groupId: 1, username: 'le.c', email: 'le.c@71portal.vn', status: 'LOCKED' },
+    { id: 18, groupId: 2, username: 'tuan.hv', email: 'tuan.hv@71portal.vn', status: 'ACTIVE' },
+    { id: 33, groupId: 4, username: 'loc.tv', email: 'loc.tv@evn.com.vn', status: 'LOCKED' },
+    { id: 55, groupId: 6, username: 'old.user', email: 'old.user@evn.com.vn', status: 'INACTIVE' }
 ];
 const UG_CREATE_KEYS = ['code', 'name', 'description', 'organizationId', 'allowRecordingAccess', 'initialAdmin'];
 const UG_IA_KEYS = ['username', 'email', 'fullName', 'phoneNumber', 'jobTitle'];
@@ -1011,7 +1015,8 @@ function mockCreateUserGroup(token, body, query) {
 
         const now = ugNow();
         const userId = ugNextIds.user++;
-        MOCK_UG_USERS.push({ id: userId, username: ia.username, email: ia.email, status: 'ACTIVE' });
+        const groupId = ugNextIds.group;
+        MOCK_UG_USERS.push({ id: userId, groupId, username: ia.username, email: ia.email, status: 'ACTIVE' });
         const admin = { id: userId, fullName: ia.fullName, email: ia.email, phoneNumber: ia.phoneNumber, avatarUrl: null };
         const row = {
             id: ugNextIds.group++, code: b.code, name: b.name, status: 'ACTIVE', allowRecordingAccess: b.allowRecordingAccess,
@@ -1667,59 +1672,223 @@ function openViewMembersModal(groupId) {
     openModal('groupMembersModal');
 }
 
-// Delete Group Modal with Safeguard
-let deletingGroupId = null;
+/* ==========================================================================
+ * Ngừng hoạt động nhóm: DELETE /api/v1/admin/user-groups/:id?revokeRanges=true|false (G07, M02 mục 3.4)
+ * Vue: hộp xác nhận của UserGroupView.vue + useUserGroupStore.deactivateUserGroup(id, revokeRanges).
+ * Hộp tải GET .../:id mỗi lần mở (mockGetUserGroupDetail) để có số thành viên / dải mới; nút xác nhận chỉ bật khi gõ
+ * đúng mã nhóm; khi gửi khóa hộp (nút đóng, nền, Esc không đóng); 200/403/404/409 đóng hộp + tải lại danh sách.
+ * Kiểm tay mock: ?deactLoadError=1 (lỗi tải hộp một lần), ?deactError=1 (lỗi mạng khi gửi một lần),
+ * ?deactInactive=<id> (nhóm vừa bị ngừng hoạt động ở tab khác → 409 GROUP_INACTIVE), ?detailMissing=<id> (→ 404).
+ * ========================================================================== */
+// Số phiên còn hiệu lực (auth_sessions actor_type = USER) của thành viên từng nhóm, giả lập cho revokedSessionCount
+const MOCK_UG_ACTIVE_SESSIONS = { 1: 37, 2: 20, 3: 51, 4: 6, 5: 1 };
+let ugDeactLoadFailOnce = UG_QS.get('deactLoadError') === '1';
+let ugDeactFailOnce = UG_QS.get('deactError') === '1';
+let ugDeactSeq = 0;
+let ugDeactId = null;    // nhóm đang mở trong hộp
+let ugDeactData = null;  // data của GET .../:id lần mở sau cùng
+let ugDeactBusy = false;
 
-function openDeleteGroupModal(groupId) {
-    deletingGroupId = groupId;
-    const group = userGroupsData.find(g => g.id === groupId);
-    if (!group) return;
+// Giả lập DELETE /api/v1/admin/user-groups/:id. query: object tham số (giá trị mảng = tham số lặp lại); body: object.
+// Thứ tự: 401 → 400 (:id, query, body) → 404 → 409 GROUP_INACTIVE → xử lý (M02 mục 3.4 bước 2–8).
+function mockDeactivateUserGroup(token, idParam, query, body) {
+    return new Promise(resolve => setTimeout(resolve, 500)).then(() => {
+        if (!token) return Promise.reject(ugUnauthorized());
+        const idStr = String(idParam);
+        const errors = {};
+        if (!/^[1-9][0-9]{0,9}$/.test(idStr) || Number(idStr) > 4294967295) errors.id = ['Mã nhóm không hợp lệ'];
+        Object.keys(query || {}).forEach(k => {
+            if (k !== 'revokeRanges') errors[k] = ['Tham số không được nhận'];
+            else if (query[k] !== 'true' && query[k] !== 'false') errors.revokeRanges = ['Chỉ nhận true hoặc false'];
+        });
+        if (body && Object.keys(body).length) errors.body = ['API không nhận body'];
+        if (Object.keys(errors).length) return Promise.reject(ugValidationError(errors));
+        if (ugDeactFailOnce) {
+            ugDeactFailOnce = false;
+            return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
+        }
+        const g = MOCK_UG_ROWS.find(row => row.id === Number(idStr));
+        if (!g || UG_QS.get('detailMissing') === idStr) {
+            return Promise.reject({ success: false, statusCode: 404, errorCode: 'NOT_FOUND',
+                message: 'Không tìm thấy nhóm người dùng', errors: null, timestamp: ugNow() });
+        }
+        if (UG_QS.get('deactInactive') === idStr && g.status === 'ACTIVE') ugApplyDeactivate(g, false);
+        if (g.status === 'INACTIVE') return Promise.reject({ success: false, statusCode: 409, errorCode: 'GROUP_INACTIVE',
+            message: 'Nhóm người dùng đã ngừng hoạt động', errors: null, timestamp: ugNow() });
+        const data = ugApplyDeactivate(g, (query || {}).revokeRanges === 'true');
+        return { success: true, statusCode: 200, message: 'Đã ngừng hoạt động nhóm người dùng', data, timestamp: ugNow() };
+    });
+}
 
-    document.getElementById('deleteGroupName').innerText = `${group.name} (${group.code})`;
-    const warningBox = document.getElementById('deleteSafeguardWarning');
-    const confirmBtn = document.getElementById('confirmDeleteBtn');
+// Đổi dữ liệu giả lập như transaction của backend: thành viên → INACTIVE (giải phóng username/email), phiên thu hồi,
+// representative = null, status = INACTIVE; revokeRanges thì dải về kho. Trả data của response 200.
+function ugApplyDeactivate(g, revokeRanges) {
+    const m = g.userCount;
+    const s = MOCK_UG_ACTIVE_SESSIONS[g.id] || 0;
+    const r = revokeRanges ? g.ranges.length : 0;
+    MOCK_UG_USERS.forEach(u => { if (u.groupId === g.id && u.status !== 'INACTIVE') u.status = 'INACTIVE'; });
+    MOCK_UG_ACTIVE_SESSIONS[g.id] = 0;
+    g.status = 'INACTIVE';
+    g.userCount = 0;
+    g.representative = null;
+    g.admins = [];
+    if (revokeRanges) g.ranges = [];
+    g.updatedAt = ugNow();
+    return { id: g.id, status: 'INACTIVE', deactivatedUserCount: m, revokedSessionCount: s, revokedRangeCount: r };
+}
 
-    // Kiểm tra quy tắc xóa: nếu còn thành viên (userCount > 0), chặn xóa!
-    if (group.userCount > 0) {
-        warningBox.style.display = 'flex';
-        warningBox.innerHTML = `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-            <div>
-                <strong>Không thể xóa nhóm này!</strong>
-                <p style="margin: 2px 0 0 0; font-size: 0.78rem;">Nhóm đang có ${group.userCount} người dùng thành viên trực thuộc (Vi phạm BR-UG-01). Do người dùng gắn cố định và không thể chuyển nhóm, vui lòng xóa hết tài khoản thành viên hoặc chuyển trạng thái nhóm sang Tạm ngưng.</p>
-            </div>
-        `;
-        confirmBtn.disabled = true;
-        confirmBtn.style.opacity = '0.4';
-        confirmBtn.style.cursor = 'not-allowed';
-    } else {
-        warningBox.style.display = 'none';
-        confirmBtn.disabled = false;
-        confirmBtn.style.opacity = '1';
-        confirmBtn.style.cursor = 'pointer';
-    }
-
+// Nút "Ngừng hoạt động" ở dòng danh sách / trong hộp chi tiết: tiêu đề lấy mã từ dòng đã bấm, thân hộp tải từ API.
+function openDeleteGroupModal(groupId, code) {
+    ugDeactId = groupId;
+    ugDeactData = null;
+    setDeactivateBusy(false);
+    document.getElementById('deactGroupCode').textContent = code || '';
+    document.getElementById('deactConfirmInput').value = '';
+    document.getElementById('deactRevokeRanges').checked = false;
     openModal('deleteGroupModal');
+    loadGroupDeactivate(groupId);
+}
+
+function closeDeactivateModal() {
+    if (ugDeactBusy) return; // đang gửi: không đóng
+    closeModal('deleteGroupModal');
+    ugDeactId = null;
+    ugDeactData = null;
+    ugDeactSeq++; // bỏ response đang chờ
+}
+
+function setDeactivateState(message, isError) {
+    const box = document.getElementById('deactState');
+    const retry = document.getElementById('btnRetryDeact');
+    box.hidden = !message;
+    box.classList.toggle('is-error', !!isError);
+    document.getElementById('deactStateMessage').textContent = message || '';
+    retry.hidden = !isError;
+    retry.onclick = () => { if (ugDeactId) loadGroupDeactivate(ugDeactId); };
+    if (message) document.getElementById('deactContent').hidden = true;
+    updateDeactivateConfirm();
+}
+
+function loadGroupDeactivate(id) {
+    const seq = ++ugDeactSeq;
+    ugDeactData = null;
+    setDeactivateState('Đang tải thông tin nhóm...', false);
+    return ugCallApi(token => {
+        if (ugDeactLoadFailOnce) {
+            ugDeactLoadFailOnce = false;
+            return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
+        }
+        return mockGetUserGroupDetail(token, String(id), {});
+    })
+        .then(res => {
+            if (seq !== ugDeactSeq || ugDeactId !== id) return;
+            if (res.data.status !== 'ACTIVE') { // vừa bị ngừng hoạt động ở nơi khác
+                closeDeactivateModal();
+                showToast('Nhóm đã ngừng hoạt động', 'warning');
+                loadUserGroups();
+                return;
+            }
+            ugDeactData = res.data;
+            renderDeactivate(res.data);
+            setDeactivateState(null);
+            document.getElementById('deactContent').hidden = false;
+            document.getElementById('deactConfirmInput').focus();
+        })
+        .catch(err => {
+            if (seq !== ugDeactSeq || ugDeactId !== id) return;
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            if (err && err.statusCode === 404) {
+                closeDeactivateModal();
+                showToast('Nhóm người dùng không còn tồn tại', 'warning');
+                loadUserGroups();
+                return;
+            }
+            setDeactivateState((err && err.message) || 'Không tải được thông tin nhóm. Vui lòng thử lại.', true);
+        });
+}
+
+// Vẽ thân hộp từ data của GET .../:id: hậu quả theo userCount / admins, ô thu hồi dải theo ranges.
+function renderDeactivate(data) {
+    const set = (key, text) => document.querySelectorAll(`#deleteGroupModal [data-deact="${key}"]`)
+        .forEach(el => { el.textContent = text; });
+    set('name', `${data.name} (${data.code})`);
+    set('code', data.code);
+    set('userCount', data.userCount.toLocaleString('vi-VN'));
+    set('adminCount', data.admins.length.toLocaleString('vi-VN'));
+    const ppg = data.phonePrefixGroup;
+    const hasRanges = ppg.ranges.length > 0;
+    const checkbox = document.getElementById('deactRevokeRanges');
+    checkbox.checked = false;
+    checkbox.disabled = !hasRanges;
+    checkbox.closest('label').classList.toggle('is-disabled', !hasRanges);
+    document.getElementById('deactRangesText').textContent = hasRanges
+        ? `${ppg.ranges.length} dải, ${ppg.totalNumbers.toLocaleString('vi-VN')} số của nhóm đầu số ${ppg.code} về kho tự do (số khóa/dự phòng giữ trạng thái).`
+        : 'Nhóm chưa được cấp dải số.';
+    updateDeactivateConfirm();
+}
+
+// Nút xác nhận chỉ bật khi đã tải dữ liệu, không đang gửi và ô xác nhận (cắt khoảng trắng) bằng đúng mã nhóm.
+function updateDeactivateConfirm() {
+    const input = document.getElementById('deactConfirmInput');
+    const btn = document.getElementById('confirmDeleteBtn');
+    const checkbox = document.getElementById('deactRevokeRanges');
+    const hint = document.getElementById('deactKeepRangesHint');
+    const hasRanges = !!(ugDeactData && ugDeactData.phonePrefixGroup.ranges.length);
+    if (hint) hint.hidden = !hasRanges || checkbox.checked;
+    if (btn) btn.disabled = ugDeactBusy || !ugDeactData || input.value.trim() !== ugDeactData.code;
+}
+
+function setDeactivateBusy(busy) {
+    ugDeactBusy = busy;
+    const hasRanges = !!(ugDeactData && ugDeactData.phonePrefixGroup.ranges.length);
+    document.getElementById('deactConfirmInput').disabled = busy;
+    document.getElementById('deactRevokeRanges').disabled = busy || !hasRanges;
+    document.getElementById('deactCancelBtn').disabled = busy;
+    document.getElementById('deactCloseBtn').disabled = busy;
+    document.getElementById('confirmDeleteBtn').textContent = busy ? 'Đang xử lý...' : 'Ngừng hoạt động nhóm';
+    updateDeactivateConfirm();
 }
 
 function confirmDeleteGroup() {
-    if (!deletingGroupId) return;
-
-    const group = userGroupsData.find(g => g.id === deletingGroupId);
-    if (!group || group.userCount > 0) {
-        showToast('Không thể xóa nhóm khi còn thành viên!', 'error');
-        return;
-    }
-
-    // Xóa nhóm và giải phóng liên kết 1-1 nhóm đầu số
-    const ppgCode = group.phonePrefixGroup.code;
-    userGroupsData = userGroupsData.filter(g => g.id !== deletingGroupId);
-
-    closeModal('deleteGroupModal');
-    showToast(`Đã xóa nhóm thành công. Nhóm đầu số ${ppgCode} đã được giải phóng về trạng thái sẵn sàng.`, 'success');
-
-    loadUserGroups();
+    const data = ugDeactData;
+    if (!data || ugDeactBusy) return;
+    if (document.getElementById('deactConfirmInput').value.trim() !== data.code) return;
+    const revokeRanges = document.getElementById('deactRevokeRanges').checked;
+    setDeactivateBusy(true);
+    ugCallApi(token => mockDeactivateUserGroup(token, String(data.id), { revokeRanges: String(revokeRanges) }, null))
+        .then(res => {
+            setDeactivateBusy(false);
+            closeDeactivateModal();
+            const d = res.data;
+            showToast(ugEsc(`Đã ngừng hoạt động nhóm ${data.code}: ${d.deactivatedUserCount} thành viên`
+                + (revokeRanges ? `, ${d.revokedRangeCount} dải số đã thu hồi` : '')), 'success');
+            loadUserGroups(); // giữ bộ lọc và trang; trang rỗng thì loadUserGroups lùi về trang cuối
+        })
+        .catch(err => {
+            setDeactivateBusy(false);
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            const status = err && err.statusCode;
+            if (status === 403 || status === 404 || status === 409) {
+                closeDeactivateModal();
+                showToast(ugEsc((err && err.message) || 'Không ngừng hoạt động được nhóm'), 'warning');
+                loadUserGroups();
+                return;
+            }
+            showToast(ugEsc((err && err.message) || 'Không ngừng hoạt động được nhóm. Vui lòng thử lại.'), 'error');
+        });
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('deactConfirmInput');
+    if (input) {
+        input.addEventListener('input', updateDeactivateConfirm);
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); if (!document.getElementById('confirmDeleteBtn').disabled) confirmDeleteGroup(); }
+        });
+    }
+    const checkbox = document.getElementById('deactRevokeRanges');
+    if (checkbox) checkbox.addEventListener('change', updateDeactivateConfirm);
+});
 
 // Toast notification
 function showToast(message, type = 'success') {

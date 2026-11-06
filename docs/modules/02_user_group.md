@@ -140,7 +140,7 @@ erDiagram
    - Bổ nhiệm Quản trị viên nhóm (`Promote to Admin`).
    - Hạ quyền Quản trị viên (Chặn nếu chỉ còn 1 Quản trị viên duy nhất).
 4. **Ràng buộc an toàn khi xóa**:
-   - "Xóa" nhóm là **ngừng hoạt động** (`status = INACTIVE`, xóa mềm). Hộp xác nhận hiển thị số thành viên chưa `INACTIVE` sẽ bị ngừng hoạt động cùng nhóm; xem API 3.4 và `docs/01_database_schema.md` mục 14.
+   - "Xóa" nhóm là **ngừng hoạt động** (`status = INACTIVE`, xóa mềm, không hoàn tác). Hộp xác nhận tải `GET .../:id` mỗi lần mở để hiển thị số thành viên chưa `INACTIVE` sẽ bị ngừng hoạt động cùng nhóm và số dải đang có; nút xác nhận chỉ bật khi gõ đúng mã nhóm; xem API 3.4 và `docs/01_database_schema.md` mục 14.
    - Hộp xác nhận có ô chọn "Thu hồi toàn bộ dải số" (mặc định **không** chọn). Chọn thì dải số của nhóm được thu hồi về kho; không chọn thì dải vẫn thuộc nhóm `INACTIVE` (thu hồi sau từng dải). Liên kết với Nhóm đầu số **luôn được giữ nguyên** (nhóm đầu số có thể rỗng) để báo cáo lịch sử vẫn đúng.
 
 ---
@@ -669,16 +669,80 @@ Không có `CODE_DUPLICATE` (không nhận `code`), không có `LAST_GROUP_ADMIN
 
 ### 3.4. `DELETE /api/v1/admin/user-groups/:id`
 
-- **Mục đích**: Ngừng hoạt động nhóm người dùng (**xóa mềm**, chính sách tại `docs/01_database_schema.md` mục 14).
-- **Quy tắc kiểm tra**:
-  - Nhóm đã `INACTIVE`: `409 GROUP_INACTIVE`.
-  - Không chặn theo số thành viên. Giao diện lấy số thành viên chưa `INACTIVE` (`SELECT COUNT(*) FROM users WHERE user_group_id = :id AND status <> 'INACTIVE'`) để hiển thị trong hộp xác nhận.
-- **Khi thành công** (một transaction):
-  - Mọi `users` của nhóm có `status <> 'INACTIVE'` chuyển sang `INACTIVE`, kể cả Quản trị viên nhóm cuối cùng (ngoại lệ duy nhất của quy tắc "tối thiểu 1 Quản trị viên nhóm", vì nhóm cũng ngừng hoạt động). Thu hồi mọi phiên còn hiệu lực của họ (`auth_sessions.revoked_reason = 'ACCOUNT_LOCKED'`). Ghi `audit_logs` `DEACTIVATE` (`resource_name = USER`) cho từng tài khoản, `action_details.reason = "GROUP_DEACTIVATED"`.
-  - `user_groups.representative_user_id = NULL`, `user_groups.status = 'INACTIVE'`.
-  - Chỉ khi `revokeRanges=true` (query, mặc định `false`): thu hồi toàn bộ dải số của nhóm đầu số liên kết theo quy tắc thu hồi (`docs/01_database_schema.md` mục 8), ghi `prefix_allocation_history` (`action_type = 'REVOKE'`, `decision_number = NULL`, `note` nêu lý do ngừng hoạt động nhóm, `docs/01_database_schema.md` mục 8 điểm 5), `phone_number_range_history` và tăng `cache_version`. Không thu hồi thì các số vẫn thuộc nhóm, CDR mới của chúng vẫn gán cho nhóm `INACTIVE`; Admin thu hồi sau bằng `DELETE /api/v1/admin/prefixes/:id`.
-  - **Giữ nguyên** `phone_prefix_group_id`, CDR và stats của nhóm để báo cáo lịch sử vẫn đúng. Muốn dùng dải số cho nhóm khác thì thu hồi dải rồi cấp phát cho nhóm đó.
-  - Ghi `audit_logs`.
+- **Mục đích**: ngừng hoạt động một nhóm người dùng (**xóa mềm**, `docs/01_database_schema.md` mục 14) cùng mọi thành viên chưa `INACTIVE` và phiên của họ; tùy chọn thu hồi luôn toàn bộ dải số của nhóm về kho. Không hoàn tác: `INACTIVE` là trạng thái cuối của nhóm và tài khoản, mã nhóm không dùng lại được. Gọi từ hộp `#deleteGroupModal` (nút "Ngừng hoạt động" ở dòng danh sách hoặc trong `#groupDetailModal`, mục 5.1). Chỉ có bản Admin.
+- **Guard**: như mục 3.2: `AdminAuthGuard` → `PermissionsGuard` `user_group:manage` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` `403 PASSWORD_CHANGE_REQUIRED`; tài khoản người gọi không còn `ACTIVE` hoặc token đầy đủ mà `must_change_password = 1` `401 UNAUTHORIZED`. Không bị chế độ bảo trì chặn.
+- **Thứ tự kiểm tra**: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → quyền (`403 FORBIDDEN_PERMISSION`) → `:id`, query, body (`400`) → kiểm tra tài khoản người gọi (`401`) → khóa và tìm nhóm (`404`) → nhóm `INACTIVE` (`409 GROUP_INACTIVE`, gọi lại lần hai cũng nhận mã này). Không chặn theo số thành viên (kể cả Quản trị viên nhóm cuối cùng, ngoại lệ duy nhất của BR-UG-02) hay số dải. Lỗi không ghi `audit_logs`.
+- **Request**: `:id` là `user_groups.id` (`^[1-9][0-9]{0,9}$` và ≤ 4294967295, sai thì `400` với `errors.id`). Không có body (body có trường → `400`, `errors.body`).
+
+| Query | Kiểu | Quy tắc |
+|---|---|---|
+| `revokeRanges` | `true` \| `false` | Tùy chọn, mặc định `false`. Đúng chuỗi `true`/`false` (chữ thường); giá trị khác, rỗng hoặc lặp lại → `400` (`errors.revokeRanges`). `true`: thu hồi toàn bộ dải số của nhóm đầu số liên kết trong cùng transaction (bước 6) |
+
+  Tham số khác → `400` với `errors.<tên tham số>`.
+- **Xử lý** (một transaction; theo thứ tự, dừng ở lỗi đầu tiên, lỗi thì `ROLLBACK`; deadlock `1213` thì chạy lại cả transaction tối đa 2 lần). Các dòng `audit_logs` cùng `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `admins.full_name` của người gọi, `ip_address`, `user_agent` của request:
+  1. Kiểm tra `:id`, query, body (`400`, gom mọi lỗi), rồi kiểm tra tài khoản người gọi theo khóa chính `admins` (`401`).
+  2. `BEGIN`; câu đầu tiên khóa dòng nhóm (thứ tự khóa nhóm trước, `docs/01_database_schema.md` mục 14), chạy tuần tự với `PUT` nhóm (mục 3.3), đổi vai trò/trạng thái/ngừng hoạt động/tạo thành viên và cấp/sửa/thu hồi dải số của nhóm:
+
+```sql
+SELECT id, code, status, phone_prefix_group_id FROM user_groups WHERE id = :id FOR UPDATE;
+```
+
+     Không có dòng → `404 NOT_FOUND`; `status = 'INACTIVE'` → `409 GROUP_INACTIVE`.
+  3. Khóa thành viên chưa `INACTIVE` (qua `idx_users_group`) rồi chuyển sang `INACTIVE`; `U` = danh sách id, `m` = số phần tử (có thể `0` nếu dữ liệu lệch):
+
+```sql
+SELECT id FROM users WHERE user_group_id = :id AND status <> 'INACTIVE' ORDER BY id FOR UPDATE;
+UPDATE users SET status = 'INACTIVE' WHERE user_group_id = :id AND status <> 'INACTIVE';
+```
+
+     Như ngừng hoạt động từng người (`docs/modules/03_auth_user.md` mục 3.9): cột ảo `username_active`/`email_active` thành `NULL` nên `username`/`email` dùng lại được ngay; không đổi `password_hash`, `must_change_password`, `failed_login_count`, `locked_until`; giữ dòng `user_roles`, `user_settings`.
+  4. Thu hồi mọi phiên còn hiệu lực của `U` (như `docs/modules/04_auth_admin.md` mục 3.9 bước 7; `ACCOUNT_LOCKED` dùng chung cho khóa và ngừng hoạt động), đếm theo từng người: `SELECT id, actor_id FROM auth_sessions WHERE actor_type = 'USER' AND actor_id IN (:U) AND revoked_at IS NULL AND expires_at > NOW() FOR UPDATE` (qua `idx_session_actor`; `U` dài thì chia lô 1 000 id), rồi `UPDATE auth_sessions SET revoked_at = NOW(), revoked_reason = 'ACCOUNT_LOCKED' WHERE id IN (...)`. `n(u)` = số phiên của người `u`, `s` = tổng.
+  5. `UPDATE user_groups SET status = 'INACTIVE', representative_user_id = NULL WHERE id = :id` (`updated_at` do CSDL gán). Giữ `phone_prefix_group_id`, `organization_id`, `allow_recording_access`, CDR và `stats_*` để báo cáo lịch sử vẫn đúng.
+  6. Chỉ khi `revokeRanges=true`: khóa các dải của nhóm đầu số `SELECT id, prefix, range_from, range_to, total_numbers FROM phone_prefix_ranges WHERE prefix_group_id = :phone_prefix_group_id ORDER BY range_from, id FOR UPDATE` (qua `idx_ppr_group`; `r` = số dải, có thể `0`). Mỗi dải thu hồi theo `docs/modules/11_core_business_phone_numbers.md` mục 3.2 và `docs/01_database_schema.md` mục 8, với `note` = `Thu hồi do ngừng hoạt động nhóm <code>`, `decision_number = NULL`, `performed_by_admin_id = sub`, `performed_by_name` = `admins.full_name`:
+     - `INSERT INTO phone_number_range_history (...) SELECT ... FROM phone_numbers WHERE range_id = :rangeId` (trước câu `UPDATE` dưới để còn chọn được số theo `range_id`; qua `idx_pn_range`): mỗi số một dòng `REVOKE_FROM_RANGE`, `range_id` = `previous_range_id` = `:rangeId`, `new_range_id = NULL`, `prefix_group_id`, `user_group_id` = `previous_user_group_id` = `:id`, `new_user_group_id = NULL`.
+     - `UPDATE phone_numbers SET range_id = NULL, status = IF(status = 'ALLOCATED', 'FREE', status), allocated_at = NULL WHERE range_id = :rangeId`, rồi `DELETE FROM phone_prefix_ranges WHERE id = :rangeId`.
+     - Một dòng `prefix_allocation_history` `REVOKE` (`prefix_group_id`, `user_group_id = :id`, `range_id`, `range_from`/`range_to`, `range_text` `từ -> đến`, `numbers_count = total_numbers`, `ALLOCATED` → `FREE`, `cdr_ownership_note = NULL`; mục 8 điểm 5).
+     - Một dòng `audit_logs` `PREFIX / REVOKE_RANGE`: `resource_id` = id dải, `action_details = { "rangeFrom", "rangeTo", "numbersCount", "reason": "GROUP_DEACTIVATED" }`.
+
+     `revokeRanges=false`: không đụng dải; `r = 0`. Các số vẫn thuộc nhóm, CDR mới của chúng vẫn gán cho nhóm `INACTIVE`; Admin thu hồi sau bằng `DELETE /api/v1/admin/prefixes/:id`.
+  7. Ghi `audit_logs` (chủ dự án chốt ở G07): mỗi người trong `U` một dòng `USER / DEACTIVATE`, `resource_id` = id người đó, `action_details = { "revokedCount": n(u), "reason": "GROUP_DEACTIVATED" }` (một câu `INSERT` nhiều dòng); rồi một dòng `USER_GROUP / DEACTIVATE`, `resource_id` = `:id`, `action_details = { "revokeRanges": true|false, "deactivatedUserCount": m, "revokedSessionCount": s, "revokedRangeCount": r }`.
+  8. `r > 0`: `UPDATE cdr_enrichment_state SET cache_version = cache_version + 1 WHERE id = 1` là **câu ghi cuối cùng** trước commit (`docs/00_overview_and_architecture.md` mục 5.1). `COMMIT`.
+
+  **Hiệu ứng** (không có bước riêng): Access Token còn hạn của thành viên bị từ chối ở request kế tiếp (kiểm tra tài khoản mỗi request, `401 UNAUTHORIZED`, `docs/modules/03_auth_user.md` mục 3.2), `refresh` trả `401` và xóa cookie; đăng nhập bằng `username`/`email` cũ trả `401 INVALID_CREDENTIALS` (`LOGIN_FAILED` `UNKNOWN_USER`). Không gửi thông báo, không có sự kiện Socket.IO; thành viên không còn nhận thông báo mới (người nhận chỉ gồm tài khoản `ACTIVE`). Nhóm `INACTIVE` không nhận cấp phát hay sửa dải, không sửa được (mục 3.3), vẫn có ở danh sách (mục 3.1, lọc `status`) và báo cáo lịch sử; nếu không thu hồi dải, nhóm vẫn có dòng `stats_*` mới và cảnh báo QoS cấp nhóm chỉ gửi Admin (`docs/01_database_schema.md` mục 14). Không thu hồi dải thì không tăng `cache_version` (quyền sở hữu số không đổi).
+- **Response** `200`: `data = { id, status, deactivatedUserCount, revokedSessionCount, revokedRangeCount }` (chủ dự án chốt ở G07; `status` luôn `INACTIVE`, các số đếm là `m`, `s`, `r`).
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đã ngừng hoạt động nhóm người dùng",
+  "data": { "id": 3, "status": "INACTIVE", "deactivatedUserCount": 68, "revokedSessionCount": 51, "revokedRangeCount": 2 },
+  "timestamp": "2026-11-06T15:00:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | `:id` sai định dạng (`errors.id`); `revokeRanges` khác `true`/`false`, rỗng hoặc lặp lại (`errors.revokeRanges`); tham số khác (`errors.<tên>`); body có trường (`errors.body`) |
+| `401` | `UNAUTHORIZED` | Như mục 3.1 (bản Admin) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `user_group:manage` |
+| `404` | `NOT_FOUND` | Không có nhóm `:id` |
+| `409` | `GROUP_INACTIVE` | Nhóm đã `INACTIVE` (kể cả gọi lại lần hai); `errors = null` |
+
+Không có `LAST_GROUP_ADMIN` (ngừng hoạt động cả nhóm là ngoại lệ của BR-UG-02).
+
+- **Frontend** (`#deleteGroupModal`; mẫu `templates/admin/user_group.js`: `mockDeactivateUserGroup`, `openDeleteGroupModal`, `loadGroupDeactivate`, `updateDeactivateConfirm`, `confirmDeleteGroup`):
+  - Nút "Ngừng hoạt động" (`delete-btn` ở dòng, `#detailDeleteGroupBtn` trong hộp chi tiết) chỉ có khi store có `user_group:manage` và nhóm `ACTIVE` (như nút Sửa). Bấm từ hộp chi tiết thì đóng hộp chi tiết trước.
+  - Mở hộp với tiêu đề "Ngừng hoạt động nhóm – <mã từ dòng đã bấm>", thân hộp hiện "Đang tải..." rồi gọi `GET /api/v1/admin/user-groups/:id` (mục 3.1.2) **mỗi lần mở** để có số liệu mới (chỉ nhận response của lần mở sau cùng). Lỗi tải: thông điệp + "Thử lại" trong hộp, nút xác nhận khóa. `404`: đóng hộp, toast cảnh báo "Nhóm người dùng không còn tồn tại", tải lại danh sách. Response `status = INACTIVE`: đóng hộp, toast cảnh báo "Nhóm đã ngừng hoạt động", tải lại danh sách.
+  - Nội dung (loại nguy hiểm như `ConfirmModal`, `docs/03_ui_design.md` mục 6.6): tên + mã nhóm; hậu quả lấy từ response: `userCount` thành viên (gồm `admins.length` Quản trị viên nhóm) chuyển sang ngừng hoạt động và bị đăng xuất khỏi mọi thiết bị; **không hoàn tác** (không kích hoạt lại nhóm hay tài khoản), mã nhóm không dùng lại được; tên đăng nhập/email của thành viên được giải phóng; CDR, thống kê, nhật ký giữ nguyên.
+  - Ô chọn "Thu hồi toàn bộ dải số về kho" (mặc định **không** chọn) kèm số dải và tổng số (`phonePrefixGroup.ranges.length`, `totalNumbers`); nhóm chưa có dải thì ô bị khóa với nhãn "Nhóm chưa được cấp dải số". Không chọn: gợi ý "Dải số vẫn thuộc nhóm đã ngừng hoạt động; CDR mới của các số vẫn gán cho nhóm. Thu hồi sau ở màn hình Quản lý đầu số".
+  - Ô "Gõ mã nhóm để xác nhận" (chủ dự án chốt ở G07): nút "Ngừng hoạt động nhóm" (`btn-danger`) chỉ bật khi giá trị đã cắt khoảng trắng **bằng đúng** `code` (phân biệt hoa thường). Không điền sẵn mã.
+  - Xác nhận: gọi `DELETE /api/v1/admin/user-groups/:id?revokeRanges=true|false` (luôn gửi giá trị tường minh) qua API client của cổng. Khi gửi: khóa ô nhập, ô chọn và hai nút ("Đang xử lý..."), nút đóng, bấm nền và `Esc` không đóng hộp.
+  - Kết quả: `200` đóng hộp, toast thành công "Đã ngừng hoạt động nhóm <mã>: <deactivatedUserCount> thành viên, <revokedRangeCount> dải số đã thu hồi" (bỏ phần dải khi không chọn thu hồi), **tải lại** danh sách (giữ bộ lọc và trang; trang rỗng thì lùi về trang cuối, mục 3.1). `403`, `404`, `409` đóng hộp, toast cảnh báo theo `message`, tải lại danh sách. Lỗi khác: toast lỗi, mở khóa hộp, giữ lựa chọn để gửi lại.
+- **Index phục vụ**: khóa chính `admins` (bước 1), khóa chính `user_groups` (bước 2, 5), `idx_users_group` (bước 3), `idx_session_actor` + khóa chính `auth_sessions` (bước 4), `idx_ppr_group`, `idx_pn_range`, khóa chính `phone_prefix_ranges` (bước 6), khóa chính `cdr_enrichment_state` (bước 8). Không thêm index.
 
 ---
 
@@ -902,6 +966,7 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
 - **Modal Thiết lập mới / Chỉnh sửa (`#userGroupModal`)**:
   - Chế độ tạo (`POST /api/v1/admin/user-groups`): ô, kiểm tra trước khi gửi, khóa khi gửi, lỗi dưới ô và hộp mật khẩu tạm `#groupTempPasswordModal` theo mục 3.2 "Frontend". Ô đơn vị: "Không gắn đơn vị (nhóm độc lập)" hoặc đơn vị `ACTIVE` của cây tổ chức. Khối "Quản trị viên nhóm đầu tiên" (tên đăng nhập, email, họ tên, số điện thoại, chức danh) chỉ có ở chế độ tạo. Không có ô trạng thái hay ô chọn nhóm đầu số ở cả hai chế độ.
   - Chế độ sửa (`PUT /api/v1/admin/user-groups/:id`): tải `GET .../:id` mỗi lần mở, mã nhóm chỉ đọc, thêm ô Người đại diện (Quản trị viên nhóm `ACTIVE` hoặc "Không có người đại diện"), chỉ gửi trường đã đổi; theo mục 3.3 "Frontend".
+- **Hộp ngừng hoạt động (`#deleteGroupModal`)** (`DELETE /api/v1/admin/user-groups/:id`): tải `GET .../:id` mỗi lần mở, nêu số thành viên/Quản trị viên nhóm bị ngừng hoạt động và hậu quả không hoàn tác, ô chọn "Thu hồi toàn bộ dải số về kho" (mặc định không chọn), ô gõ mã nhóm để bật nút xác nhận; theo mục 3.4 "Frontend".
 
 ### 5.2. Khu vực Admin – Pinia Store (`useUserGroupStore`)
 
@@ -911,7 +976,7 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
   - `createUserGroup(payload)`: gọi `POST /admin/user-groups` (mục 3.2) rồi `fetchUserGroups()`; trả `data` cho view để mở hộp mật khẩu tạm, **không** giữ `initialAdmin.temporaryPassword` trong state.
   - `updateUserGroup(id, payload)`: gọi `PUT /admin/user-groups/:id` (mục 3.3) với chỉ các trường đã đổi, rồi `fetchUserGroups()`; dữ liệu form sửa tải bằng `GET /admin/user-groups/:id` mỗi lần mở (không giữ trong state).
   - `changeMemberRole(userId, roleCode)`: Gọi `PUT /users/:id/role`; bắt lỗi `409` khi vi phạm tối thiểu 1 admin hoặc nhóm chưa mở Tầng 1.
-  - `deleteUserGroup(id)`: Ngừng hoạt động nhóm (xóa mềm) kèm toàn bộ thành viên chưa `INACTIVE`; gọi sau khi người dùng xác nhận số thành viên bị ảnh hưởng.
+  - `deactivateUserGroup(id, revokeRanges)`: gọi `DELETE /admin/user-groups/:id?revokeRanges=true|false` (mục 3.4) sau khi người dùng gõ đúng mã nhóm, rồi `fetchUserGroups()`; trả `data` (`deactivatedUserCount`, `revokedSessionCount`, `revokedRangeCount`) cho view để báo kết quả. Số liệu của hộp xác nhận tải bằng `GET /admin/user-groups/:id` mỗi lần mở (không giữ trong state).
 
 ### 5.3. Khu vực Member – `GroupAdminView.vue` (Quản trị nhóm)
 
@@ -963,6 +1028,10 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
    - Nhóm có 1 Quản trị viên nhóm và 2 thành viên `ACTIVE`, gọi API DELETE không có `revokeRanges` -> Xác nhận nhóm có `status = 'INACTIVE'`, `representative_user_id = NULL`, cả 3 tài khoản có `status = 'INACTIVE'` và mọi phiên của họ bị thu hồi (`ACCOUNT_LOCKED`), dải số của nhóm vẫn còn (`range_id` không đổi), CDR và `stats_*` của nhóm vẫn còn nguyên. Sau đó `DELETE /api/v1/admin/prefixes/:id` trên dải của nhóm `INACTIVE` -> thành công.
    - Lặp lại với nhóm khác, gọi `DELETE ...?revokeRanges=true` -> mọi số trong dải của nhóm có `range_id = NULL` (số `ALLOCATED` về `FREE`, số `LOCKED` giữ nguyên), nhóm đầu số còn liên kết nhưng rỗng.
    - Gọi lại API DELETE trên nhóm đã `INACTIVE` -> `409 GROUP_INACTIVE`.
+   - `?revokeRanges=1`, `?revokeRanges=TRUE`, `?revokeRanges=`, `?revokeRanges=true&revokeRanges=false`, `?force=true`, body `{ "x": 1 }`, `/admin/user-groups/abc` -> `400 VALIDATION_ERROR`; `/admin/user-groups/999` -> `404 NOT_FOUND`; `SYSTEM_ADMIN` -> `200`, vai trò thiếu `user_group:manage` -> `403 FORBIDDEN_PERMISSION`.
+   - Response `200` `data = { id, status: "INACTIVE", deactivatedUserCount: 3, revokedSessionCount, revokedRangeCount: 0 }`; `audit_logs` có 3 dòng `USER / DEACTIVATE` `{ revokedCount, reason: "GROUP_DEACTIVATED" }` và một dòng `USER_GROUP / DEACTIVATE` `{ revokeRanges: false, deactivatedUserCount: 3, revokedSessionCount, revokedRangeCount: 0 }`; `cache_version` không đổi. Với `revokeRanges=true` trên nhóm có 2 dải: thêm 2 dòng `PREFIX / REVOKE_RANGE` (`resource_id` = id dải, `reason: "GROUP_DEACTIVATED"`), 2 dòng `prefix_allocation_history` `REVOKE` (`decision_number = NULL`, `note` nêu mã nhóm), mỗi số một dòng `phone_number_range_history` `REVOKE_FROM_RANGE`, `cache_version` tăng 1; `revokeRanges=true` trên nhóm chưa có dải -> `revokedRangeCount: 0`, `cache_version` không đổi.
+   - Sau khi ngừng hoạt động: Access Token còn hạn của một thành viên gọi `GET /api/v1/profile` -> `401`; `POST /api/v1/auth/login` bằng `username` cũ -> `401 INVALID_CREDENTIALS`; `POST /admin/user-groups` tạo nhóm mới với Quản trị viên nhóm dùng lại `username`/`email` cũ -> `201`, dùng lại mã nhóm cũ -> `409 CODE_DUPLICATE`.
+   - `DELETE` nhóm và `PUT /users/:id/role` (hoặc `POST /admin/prefixes` cho nhóm) gửi đồng thời -> chạy tuần tự theo khóa dòng nhóm; nếu `DELETE` chạy trước thì thao tác kia trả `409`/`401` theo đặc tả của nó, không còn tài khoản `ACTIVE` hay dải mới trong nhóm `INACTIVE`.
    - Trước khi ngừng hoạt động nhóm, gọi `DELETE /api/v1/users/:id` với Quản trị viên nhóm duy nhất -> `409` (quy tắc tối thiểu 1 Quản trị viên nhóm vẫn áp dụng khi nhóm còn `ACTIVE`).
 9. **TC-UG-08 (Sửa nhóm, mục 3.3)**: nhóm A `ACTIVE` gắn đơn vị 2, Quản trị viên nhóm P (đại diện, `ACTIVE`), Q (`ACTIVE`), R (`LOCKED`), thành viên thường S; nhóm B khác có Quản trị viên T; nhóm D `INACTIVE`.
    - `{}`, `?x=1`, `{ "code": "X" }`, `{ "status": "INACTIVE" }`, `{ "phonePrefixGroupId": 1 }`, `{ "name": null }`, `{ "name": "ab" }`, `{ "allowRecordingAccess": null }`, `{ "organizationId": "3" }`, `/admin/user-groups/abc` → `400`; `/admin/user-groups/999` → `404 NOT_FOUND`; D với body hợp lệ (kể cả không đổi gì) → `409 GROUP_INACTIVE`.

@@ -905,3 +905,68 @@ a.group-name:hover {
         flex-wrap: wrap;
     }
 }
+
+/* Hộp ngừng hoạt động nhóm (#deleteGroupModal, G07 – M02 mục 3.4): hậu quả, ô thu hồi dải, ô gõ mã xác nhận */
+.ug-deact-target {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.ug-deact-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.ug-deact-warning {
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--secondary);
+    border-left-width: 4px;
+    border-radius: 8px;
+    background: var(--bg-hover);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.ug-deact-warning > strong {
+    color: var(--secondary);
+}
+
+.ug-deact-warning ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+}
+
+.ug-deact-ranges.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.ug-deact-hint {
+    display: block;
+    margin: 6px 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.ug-deact-hint[hidden],
+#deactContent[hidden] {
+    display: none;
+}
+
+.ug-deact-confirm {
+    margin: 16px 0 0;
+}
+
+.ug-deact-confirm label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+}
+
+#deleteGroupModal .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

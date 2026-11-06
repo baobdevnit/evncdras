@@ -602,56 +602,51 @@
         </div>
     </div>
 
-    <!-- Modal 4: Xác nhận xóa nhóm (Safeguard check: Chặn xóa nếu còn thành viên) -->
+    <!-- Modal 4: Ngừng hoạt động nhóm – DELETE /api/v1/admin/user-groups/:id?revokeRanges=true|false (M02 mục 3.4).
+         Thân hộp tải GET /api/v1/admin/user-groups/:id mỗi lần mở (số thành viên, Quản trị viên nhóm, dải số);
+         nút xác nhận chỉ bật khi gõ đúng mã nhóm; khi gửi: khóa hộp, nút đóng/nền/Esc không đóng. -->
     <div id="deleteGroupModal" class="modal">
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
-                <h2>Xác nhận xóa Nhóm người dùng</h2>
-                <button class="close-btn" onclick="closeModal('deleteGroupModal')">&times;</button>
+                <h2>Ngừng hoạt động nhóm – <span id="deactGroupCode" class="badge-code"></span></h2>
+                <button type="button" class="close-btn" id="deactCloseBtn" onclick="closeDeactivateModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="modal-2col-grid" style="align-items: start; margin-bottom: 12px;">
-                    <!-- Cột 1: Thông tin nhóm cần xóa -->
-                    <div
-                        style="background: var(--bg-hover, #f8fafc); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
-                        <span class="detail-label"
-                            style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Đối
-                            tượng xóa:</span>
-                        <strong id="deleteGroupName" class="text-main"
-                            style="font-size: 0.95rem; display: block; margin-bottom: 6px;"></strong>
-                        <div id="deleteSafeguardWarning" class="badge-safeguard-warning"
-                            style="display: none; margin-bottom: 0;">
-                            <!-- Populated dynamically if userCount > 0 -->
-                        </div>
+                <div id="deactState" class="ug-detail-state" hidden>
+                    <span id="deactStateMessage"></span>
+                    <button type="button" class="btn btn-outline btn-sm" id="btnRetryDeact" hidden>Thử lại</button>
+                </div>
+                <div id="deactContent" hidden>
+                    <div class="ug-deact-target">
+                        <span class="ug-deact-label">Nhóm sẽ ngừng hoạt động</span>
+                        <strong data-deact="name"></strong>
                     </div>
-
-                    <!-- Cột 2: Cảnh báo & Tác động hệ thống -->
-                    <div
-                        style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; padding: 12px 14px;">
-                        <strong
-                            style="color: #dc2626; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                style="width: 16px; height: 16px;">
-                                <path
-                                    d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
-                                </path>
-                                <line x1="12" y1="9" x2="12" y2="13"></line>
-                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                            </svg>
-                            Tác động hệ thống:
-                        </strong>
-                        <p class="text-muted" style="font-size: 0.8rem; margin: 0; line-height: 1.5;">
-                            Khi nhóm được xóa thành công, liên kết 1-1 với nhóm đầu số điện thoại PABX sẽ được giải
-                            phóng ngay lập tức để cấp phát lại.
-                        </p>
+                    <div class="ug-deact-warning" role="alert">
+                        <strong>Thao tác không hoàn tác được</strong>
+                        <ul>
+                            <li><span data-deact="userCount"></span> thành viên chưa ngừng hoạt động (gồm <span data-deact="adminCount"></span> Quản trị viên nhóm) chuyển sang <strong>Ngừng hoạt động</strong> và bị đăng xuất khỏi mọi thiết bị.</li>
+                            <li>Không kích hoạt lại được nhóm hay tài khoản; mã nhóm không dùng lại được cho nhóm mới.</li>
+                            <li>Tên đăng nhập và email của thành viên được giải phóng để tạo tài khoản mới.</li>
+                            <li>CDR, thống kê và nhật ký của nhóm được giữ nguyên.</li>
+                        </ul>
+                    </div>
+                    <label class="recording-permission-label ug-deact-ranges">
+                        <input type="checkbox" id="deactRevokeRanges">
+                        <span class="recording-label-text">
+                            <strong>Thu hồi toàn bộ dải số về kho</strong>
+                            <small id="deactRangesText"></small>
+                        </span>
+                    </label>
+                    <small class="form-hint ug-deact-hint" id="deactKeepRangesHint">Dải số vẫn thuộc nhóm đã ngừng hoạt động; CDR mới của các số vẫn gán cho nhóm. Thu hồi sau ở màn hình Quản lý đầu số.</small>
+                    <div class="form-group ug-deact-confirm">
+                        <label for="deactConfirmInput">Gõ mã nhóm <strong data-deact="code"></strong> để xác nhận</label>
+                        <input type="text" id="deactConfirmInput" class="form-control" autocomplete="off" spellcheck="false">
                     </div>
                 </div>
 
-                <div class="modal-footer"
-                    style="padding: 14px 0 0 0; margin-top: 14px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px;">
-                    <button class="btn btn-outline" onclick="closeModal('deleteGroupModal')">Hủy</button>
-                    <button id="confirmDeleteBtn" class="btn btn-danger" onclick="confirmDeleteGroup()">Đồng ý xóa
-                        nhóm</button>
+                <div class="modal-footer ug-detail-footer">
+                    <button type="button" class="btn btn-outline" id="deactCancelBtn" onclick="closeDeactivateModal()">Hủy</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn" disabled onclick="confirmDeleteGroup()">Ngừng hoạt động nhóm</button>
                 </div>
             </div>
         </div>
