@@ -591,213 +591,86 @@
         </div>
     </div>
 
-    <!-- Modal 5: Chi tiết Nhóm người dùng (Bao gồm Nhóm đầu số viễn thông 1-1 & Quản trị viên nhóm) -->
+    <!-- Modal 5: Chi tiết Nhóm người dùng. Thân hộp do user_group.js vẽ từ GET /api/v1/admin/user-groups/:id
+         (M02 mục 3.1.2), gọi mỗi lần mở: tải / lỗi + "Thử lại" / dữ liệu. -->
     <div id="groupDetailModal" class="modal">
         <div class="modal-content" style="max-width: 840px;">
             <div class="modal-header">
                 <h2>Chi tiết Nhóm người dùng - <span id="detailGroupCode" class="badge-code"></span></h2>
-                <button class="close-btn" onclick="closeModal('groupDetailModal')">&times;</button>
+                <button class="close-btn" onclick="closeGroupDetail()">&times;</button>
             </div>
-            <div class="modal-body">
-                <!-- Thông tin cơ bản: 2 cột qua detail-grid -->
-                <div class="detail-grid" style="margin-bottom: 16px;">
-                    <div class="detail-item">
-                        <span class="detail-label">Tên nhóm</span>
-                        <span class="detail-value fw-600" id="detailGroupName"></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Trạng thái hoạt động</span>
-                        <div class="detail-value" id="detailGroupStatus"></div>
-                    </div>
-                    <div class="detail-item col-span-2">
-                        <span class="detail-label">Vị trí tham chiếu Cây tổ chức</span>
-                        <div class="detail-value" id="detailGroupOrg"></div>
-                    </div>
-                    <div class="detail-item col-span-2">
-                        <span class="detail-label">Mô tả / Ghi chú nghiệp vụ</span>
-                        <div class="detail-value detail-desc" id="detailGroupDesc"></div>
-                    </div>
-                    <div class="detail-item col-span-2">
-                        <span class="detail-label">Quyền Ghi âm thoại IP (Chốt chặn Tầng 1 - BR-UG-05)</span>
-                        <div class="detail-value" id="detailGroupRecording"></div>
-                    </div>
+            <div class="modal-body ug-detail-body">
+                <div id="groupDetailState" class="ug-detail-state" hidden>
+                    <span id="groupDetailMessage"></span>
+                    <button type="button" class="btn btn-outline btn-sm" id="btnRetryGroupDetail" hidden>Thử lại</button>
                 </div>
-
-                <!-- 2 Cột: Cột trái (Đầu số 1-1) & Cột phải (Quản trị viên nhóm) -->
-                <div class="modal-2col-grid">
-                    <!-- 1. Nhóm đầu số viễn thông (Ràng buộc 1 - 1) -->
-                    <div
-                        style="background: var(--bg-hover, #f8fafc); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between;">
-                        <div>
-                            <div class="d-flex-between" style="margin-bottom: 10px; align-items: center;">
-                                <span class="fw-600"
-                                    style="font-size: 0.9rem; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                        style="width: 16px; height: 16px; color: var(--primary);">
-                                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                                    </svg>
-                                    Đầu số PABX (1 - 1)
-                                </span>
-                                <span class="prefix-badge-binding" style="font-size: 0.72rem;">
-                                    Ràng buộc 1-1
-                                </span>
-                            </div>
-                            <div id="detailGroupPrefixCard">
-                                <!-- Populated dynamically via JS -->
-                            </div>
+                <div id="groupDetailContent" hidden>
+                    <div class="detail-grid" style="margin-bottom: 16px;">
+                        <div class="detail-item">
+                            <span class="detail-label">Tên nhóm</span>
+                            <span class="detail-value fw-600" data-detail="name"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Trạng thái</span>
+                            <div class="detail-value" data-detail="status"></div>
+                        </div>
+                        <div class="detail-item col-span-2">
+                            <span class="detail-label">Đơn vị trên Cây tổ chức</span>
+                            <div class="detail-value" data-detail="organization"></div>
+                        </div>
+                        <div class="detail-item col-span-2">
+                            <span class="detail-label">Mô tả</span>
+                            <div class="detail-value detail-desc" data-detail="description"></div>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Quyền ghi âm của nhóm (Tầng 1)</span>
+                            <div class="detail-value" data-detail="recording"></div>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Thành viên (chưa ngừng hoạt động)</span>
+                            <span class="detail-value fw-600" data-detail="userCount"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Ngày thiết lập</span>
+                            <span class="detail-value" data-detail="createdAt"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Cập nhật lần cuối</span>
+                            <span class="detail-value" data-detail="updatedAt"></span>
                         </div>
                     </div>
 
-                    <!-- 2. Quản trị viên nhóm (≥ 1 Quản trị viên) -->
-                    <div
-                        style="background: var(--bg-hover, #f8fafc); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between;">
-                        <div>
-                            <div class="d-flex-between" style="margin-bottom: 10px; align-items: center;">
-                                <span class="fw-600"
-                                    style="font-size: 0.9rem; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                        style="width: 16px; height: 16px; color: var(--primary);">
-                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                                    </svg>
-                                    Quản trị viên nhóm
-                                </span>
-                                <span id="detailAdminCountBadge" class="badge-count"></span>
+                    <div class="modal-2col-grid">
+                        <!-- Nhóm đầu số (liên kết 1 - 1) và từng dải số -->
+                        <div class="ug-detail-panel">
+                            <div class="d-flex-between ug-detail-panel-head">
+                                <span class="fw-600 ug-detail-panel-title">Nhóm đầu số (1 - 1)</span>
+                                <span class="badge-count" data-detail="totalNumbers"></span>
                             </div>
-                            <div id="detailGroupAdminsList"
-                                style="display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto;">
-                                <!-- Populated dynamically via JS -->
+                            <div class="ug-detail-ppg">
+                                <span class="group-code" data-detail="ppgCode"></span>
+                                <span class="ug-detail-ppg-name" data-detail="ppgName"></span>
                             </div>
+                            <div id="detailGroupRanges"></div>
+                        </div>
+
+                        <!-- Quản trị viên nhóm đang hoạt động -->
+                        <div class="ug-detail-panel">
+                            <div class="d-flex-between ug-detail-panel-head">
+                                <span class="fw-600 ug-detail-panel-title">Quản trị viên nhóm</span>
+                                <span class="badge-count" data-detail="adminTotal"></span>
+                            </div>
+                            <div id="detailGroupAdminsList" class="ug-detail-admins"></div>
                         </div>
                     </div>
                 </div>
 
-                <div class="modal-footer"
-                    style="padding: 14px 0 0 0; margin-top: 14px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px;">
-                    <button type="button" class="btn btn-outline" onclick="closeModal('groupDetailModal')">Đóng</button>
-                    <button type="button" class="btn btn-outline" id="detailToggleStatusBtn">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-                            stroke-width="2">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="10" y1="15" x2="10" y2="9"></line>
-                            <line x1="14" y1="15" x2="14" y2="9"></line>
-                        </svg>
-                        <span id="detailToggleStatusBtnText">Tạm ngưng nhóm</span>
-                    </button>
-                    <button type="button" class="btn btn-outline" id="detailManageAdminsBtn"
-                        style="color: var(--primary); border-color: rgba(0, 51, 160, 0.3);">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-                            stroke-width="2">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                        </svg>
-                        Phân quyền QTV
-                    </button>
-                    <button type="button" class="btn btn-primary" id="detailEditGroupBtn">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-                            stroke-width="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                        </svg>
-                        Chỉnh sửa nhóm
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal 6: Tạm ngưng / Kích hoạt Nhóm người dùng (Bố cục 2 cột) -->
-    <div id="toggleStatusModal" class="modal">
-        <div class="modal-content" style="max-width: 760px;">
-            <div class="modal-header">
-                <h2 id="toggleStatusModalTitle" style="display: flex; align-items: center; gap: 8px;">
-                    <!-- Tiêu đề và icon được gán động qua JS -->
-                </h2>
-                <button class="close-btn" onclick="closeModal('toggleStatusModal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="toggleStatusGroupId">
-
-                <div class="modal-2col-grid" style="margin-bottom: 14px; align-items: start;">
-                    <!-- Cột 1: Thông tin đối tượng & Quy mô tác động -->
-                    <div
-                        style="background: var(--bg-hover, #f8fafc); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
-                        <span class="detail-label"
-                            style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-bottom: 4px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Đối
-                            tượng áp dụng:</span>
-                        <div style="margin-bottom: 8px;">
-                            <strong id="statusModalGroupName" class="text-main"
-                                style="font-size: 0.95rem; display: block; line-height: 1.35;"></strong>
-                            <span id="statusModalGroupCode" class="group-code" style="margin-top: 4px;"></span>
-                        </div>
-
-                        <div
-                            style="border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem;">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="text-muted">Trạng thái hiện tại:</span>
-                                <span id="statusModalCurrentBadge"></span>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="text-muted">Đơn vị Cây tổ chức:</span>
-                                <span id="statusModalOrgName" class="fw-600 text-main"
-                                    style="text-align: right; max-width: 170px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"></span>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="text-muted">Thành viên trực thuộc:</span>
-                                <span id="statusModalMemberCount" class="fw-600 text-main"></span>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="text-muted">Đầu số PABX (1-1):</span>
-                                <span id="statusModalPrefixGroup" class="fw-600" style="color: var(--primary);"></span>
-                            </div>
-                        </div>
-
-                        <!-- Ghi chú bảo toàn CDR -->
-                        <div
-                            style="margin-top: 12px; padding: 8px 10px; background: rgba(0, 51, 160, 0.05); border: 1px solid rgba(0, 51, 160, 0.15); border-radius: 6px; font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
-                            <div
-                                style="font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                                </svg>
-                                Bảo toàn dữ liệu cuộc gọi & CDR
-                            </div>
-                            Lịch sử cuộc gọi và dữ liệu CDR phát sinh trước đó của nhóm luôn được bảo lưu nguyên vẹn
-                            100%.
-                        </div>
-                    </div>
-
-                    <!-- Cột 2: Cảnh báo tác động nghiệp vụ & Lý do / Căn cứ -->
-                    <div style="display: flex; flex-direction: column; gap: 12px;">
-                        <!-- Hộp cảnh báo tác động động theo hành động -->
-                        <div id="statusModalImpactBox">
-                            <!-- JS inject nội dung tác động Tạm ngưng vs Kích hoạt -->
-                        </div>
-
-                        <!-- Căn cứ quyết định / Lý do -->
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label id="toggleStatusReasonLabel" class="fw-600"
-                                style="font-size: 0.85rem; display: block; margin-bottom: 4px;">
-                                Lý do thay đổi trạng thái <span class="text-danger">*</span>
-                            </label>
-                            <textarea id="toggleStatusReasonInput" class="form-control" rows="3"
-                                placeholder="Nhập lý do hoặc số văn bản / quyết định phê duyệt..."
-                                style="font-size: 0.82rem; resize: vertical;"></textarea>
-                            <span class="form-help-text"
-                                style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; display: block;">
-                                Căn cứ này sẽ được ghi nhận vào Nhật ký kiểm toán hệ thống (Audit Log).
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="modal-footer"
-                    style="padding: 12px 0 0 0; margin-top: 12px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px;">
-                    <button type="button" class="btn btn-outline" onclick="closeModal('toggleStatusModal')">Hủy
-                        bỏ</button>
-                    <button type="button" id="confirmToggleStatusBtn" class="btn" onclick="confirmToggleStatus()">
-                        <!-- JS inject: Xác nhận tạm ngưng / Xác nhận kích hoạt -->
-                    </button>
+                <div class="modal-footer ug-detail-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeGroupDetail()">Đóng</button>
+                    <!-- Nút ghi: chỉ khi store có user_group:manage và nhóm ACTIVE; ẩn khi đang tải/lỗi -->
+                    <button type="button" class="btn btn-outline ug-detail-danger" id="detailDeleteGroupBtn" hidden onclick="groupActionFromDetail('delete')">Ngừng hoạt động</button>
+                    <button type="button" class="btn btn-outline" id="detailManageAdminsBtn" hidden onclick="groupActionFromDetail('admins')">Quản trị viên nhóm</button>
+                    <button type="button" class="btn btn-primary" id="detailEditGroupBtn" hidden onclick="groupActionFromDetail('edit')">Sửa nhóm</button>
                 </div>
             </div>
         </div>

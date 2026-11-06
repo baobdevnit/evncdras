@@ -4,133 +4,9 @@
 // 1. Dữ liệu Mô phỏng (Mock Data theo chuẩn Module 02 & Module 03)
 // ==========================================================================
 
-const GROUPS_DATA = [
-    {
-        id: 1,
-        code: "UMO-IT-01",
-        name: "Khối Công nghệ Thông tin - Nhóm Vận hành",
-        description: "Quản trị vận hành hạ tầng máy chủ, hệ thống mạng và giám sát tổng đài CDR toàn hệ thống EVN",
-        organizationId: 2,
-        organizationName: "Khối Công nghệ Thông tin",
-        hierarchyPath: ["Tập đoàn Điện lực Việt Nam", "Tổng công ty 71", "Khối CNTT"],
-        phonePrefixGroup: {
-            id: 101,
-            code: "PG-IT-01",
-            name: "Nhóm dải số Khối CNTT (Trụ sở chính)",
-            prefixes: ["42xxx", "46xxx"],
-            ranges: [
-                { from: "42000", to: "42499", count: 500, note: "Hạ tầng máy chủ & NOC" },
-                { from: "42500", to: "42999", count: 500, note: "Vận hành mạng Viễn thông" },
-                { from: "46000", to: "46999", count: 1000, note: "Cơ quan EVN Tháp A" }
-            ],
-            totalNumbers: 2000
-        },
-        representativeUserId: 10,
-        representative: {
-            id: 10,
-            fullName: "Trần Thị B",
-            email: "tran.b@71portal.vn",
-            avatarUrl: "https://ui-avatars.com/api/?name=Tran+B&background=0033A0&color=fff"
-        },
-        allowRecordingAccess: true,
-        recordingAccessEnabled: true,
-        status: "ACTIVE",
-        createdAt: "2026-03-15"
-    },
-    {
-        id: 2,
-        code: "UMO-IT-02",
-        name: "Khối Công nghệ Thông tin - Nhóm Phần mềm",
-        description: "Phát triển và bảo trì phần mềm EVN CDR AS, tích hợp PABX và quản trị lưu lượng cuộc gọi",
-        organizationId: 2,
-        organizationName: "Khối Công nghệ Thông tin",
-        hierarchyPath: ["Tập đoàn Điện lực Việt Nam", "Tổng công ty 71", "Khối CNTT"],
-        phonePrefixGroup: {
-            id: 102,
-            code: "PG-IT-02",
-            name: "Nhóm dải số TT Phần mềm EVNICT",
-            prefixes: ["43xxx"],
-            ranges: [
-                { from: "43000", to: "43499", count: 500, note: "Khối Phát triển Phần mềm" },
-                { from: "43500", to: "43999", count: 500, note: "Khối Triển khai & Kiểm thử" }
-            ],
-            totalNumbers: 1000
-        },
-        representativeUserId: 18,
-        representative: {
-            id: 18,
-            fullName: "Hoàng Văn Tuấn",
-            email: "tuan.hv@71portal.vn",
-            avatarUrl: "https://ui-avatars.com/api/?name=Hoang+Tuan&background=0284c7&color=fff"
-        },
-        allowRecordingAccess: false,
-        recordingAccessEnabled: false,
-        status: "ACTIVE",
-        createdAt: "2026-04-02"
-    },
-    {
-        id: 3,
-        code: "UMO-KD-01",
-        name: "Khối Kinh doanh & Dịch vụ Khách hàng",
-        description: "Tiếp nhận cuộc gọi phản ánh điện lực, quản lý chất lượng CSKH Call Center",
-        organizationId: 3,
-        organizationName: "Khối Kinh doanh",
-        hierarchyPath: ["Tập đoàn Điện lực Việt Nam", "Tổng công ty 71", "Khối Kinh doanh"],
-        phonePrefixGroup: {
-            id: 103,
-            code: "PG-KD-01",
-            name: "Nhóm dải số Call Center CSKH",
-            prefixes: ["48xxx", "49xxx"],
-            ranges: [
-                { from: "48000", to: "48999", count: 1000, note: "Tổng đài viên CSKH 1900" },
-                { from: "49000", to: "49999", count: 1000, note: "Dịch vụ Điện & Hợp đồng" }
-            ],
-            totalNumbers: 2000
-        },
-        representativeUserId: 22,
-        representative: {
-            id: 22,
-            fullName: "Phạm Thu Hương",
-            email: "huong.pt@71portal.vn",
-            avatarUrl: "https://ui-avatars.com/api/?name=Pham+Huong&background=f59e0b&color=fff"
-        },
-        allowRecordingAccess: true,
-        recordingAccessEnabled: true,
-        status: "ACTIVE",
-        createdAt: "2026-04-18"
-    },
-    {
-        id: 4,
-        code: "UMO-AUDIT-GLOBAL",
-        name: "Tổ Giám sát Kiểm toán Độc lập",
-        description: "Nhóm thanh tra kỹ thuật và kiểm toán độc lập cấp Tập đoàn (Nhóm độc lập)",
-        organizationId: null,
-        organizationName: null,
-        hierarchyPath: [],
-        phonePrefixGroup: {
-            id: 104,
-            code: "PG-AUDIT-01",
-            name: "Nhóm dải số Ban Kiểm toán",
-            prefixes: ["20xxx"],
-            ranges: [
-                { from: "20000", to: "20499", count: 500, note: "Ban Kiểm toán nội bộ" },
-                { from: "20500", to: "20999", count: 500, note: "Thanh tra Giám sát Kỹ thuật" }
-            ],
-            totalNumbers: 1000
-        },
-        representativeUserId: 31,
-        representative: {
-            id: 31,
-            fullName: "Nguyễn Hải Nam",
-            email: "nam.nh@evn.com.vn",
-            avatarUrl: "https://ui-avatars.com/api/?name=Nguyen+Nam&background=64748b&color=fff"
-        },
-        allowRecordingAccess: false,
-        recordingAccessEnabled: false,
-        status: "ACTIVE",
-        createdAt: "2026-05-10"
-    }
-];
+// Thông tin nhóm (thẻ tóm tắt, người đại diện) không còn mock ở đây: lấy từ GET /api/v1/user-groups/:id
+// (G03) trong group-summary.js (window.memberGroupSummary). MEMBERS_DATA bên dưới là dữ liệu CŨ của danh sách
+// thành viên, chưa rà (N01 GET /users).
 
 let MEMBERS_DATA = [
     // Group 1: UMO-IT-01 (Nhóm Vận hành - 2 Admin: 10 & 15)
@@ -349,7 +225,7 @@ let MEMBERS_DATA = [
 // ==========================================================================
 
 let appState = {
-    currentGroupId: 1,
+    currentGroupId: window.memberSession ? window.memberSession.getAccount().userGroup.id : 1, // nhóm của người gọi, không đổi
     viewMode: 'grid',       // 'grid' hoặc 'table'
     searchKeyword: '',
     filterRole: 'all',      // 'all', 'admin', 'member'
@@ -364,28 +240,10 @@ let appState = {
 // ==========================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    initGroupSelector();
     initEventListeners();
     renderCurrentGroup();
+    window.addEventListener('member-group-summary', () => renderMembersContent());
 });
-
-function initGroupSelector() {
-    const groupSelect = document.getElementById('switchGroupSelect');
-    if (!groupSelect) return;
-
-    groupSelect.innerHTML = GROUPS_DATA.map(g => `
-        <option value="${g.id}" ${g.id === appState.currentGroupId ? 'selected' : ''}>
-            ${g.code} - ${g.name}
-        </option>
-    `).join('');
-
-    groupSelect.addEventListener('change', (e) => {
-        appState.currentGroupId = parseInt(e.target.value, 10);
-        appState.currentPage = 1;
-        renderCurrentGroup();
-        showToast(`Đã chuyển sang quản lý nhóm: ${getCurrentGroup().code}`, 'info');
-    });
-}
 
 function initEventListeners() {
     // 1. Chuyển đổi chế độ xem (Grid Card vs Table)
@@ -464,8 +322,18 @@ function setViewMode(mode) {
     renderMembersContent();
 }
 
+// Nhóm của người gọi cho phần danh sách thành viên: tên + cờ Tầng 1 từ store (authUser.user.userGroup, /auth/me),
+// mã + người đại diện từ data của GET /user-groups/:id (rỗng/null khi thẻ tóm tắt chưa tải xong).
 function getCurrentGroup() {
-    return GROUPS_DATA.find(g => g.id === appState.currentGroupId) || GROUPS_DATA[0];
+    const data = window.memberGroupSummary ? window.memberGroupSummary.getData() : null;
+    const ug = window.memberSession ? window.memberSession.getAccount().userGroup : null;
+    return {
+        id: appState.currentGroupId,
+        code: data ? data.code : '',
+        name: data ? data.name : (ug ? ug.name : ''),
+        allowRecordingAccess: ug ? ug.allowRecordingAccess : true,
+        representativeUserId: data && data.representative ? data.representative.id : null
+    };
 }
 
 function getGroupMembers() {
@@ -477,142 +345,15 @@ function getGroupMembers() {
 // ==========================================================================
 
 function renderCurrentGroup() {
-    const group = getCurrentGroup();
+    // Thẻ tóm tắt nhóm (tiêu đề, đơn vị, dải số, Quản trị viên, số thành viên) do group-summary.js vẽ từ G03.
     const members = getGroupMembers();
-    const admins = members.filter(m => m.isGroupAdmin);
     const activeMembers = members.filter(m => m.status === 'ACTIVE');
     const lockedMembers = members.filter(m => m.status === 'LOCKED');
 
-    // Title & Codes
-    const titleEl = document.getElementById('heroGroupTitle');
-    const codeBadge = document.getElementById('heroGroupCode');
-    const descEl = document.getElementById('heroGroupDesc');
-
-    if (titleEl) titleEl.innerText = group.name;
-    if (codeBadge) codeBadge.innerText = group.code;
-    if (descEl) descEl.innerText = group.description;
-
-    // Breadcrumb / Hierarchy
-    const breadcrumbEl = document.getElementById('groupHierarchyBreadcrumb');
-    if (breadcrumbEl) {
-        if (group.organizationId && group.hierarchyPath && group.hierarchyPath.length > 0) {
-            breadcrumbEl.innerHTML = group.hierarchyPath.map((p, idx) => `
-                <span class="hierarchy-step">${p}</span>
-                ${idx < group.hierarchyPath.length - 1 ? '<span class="hierarchy-sep">›</span>' : ''}
-            `).join('');
-        } else {
-            breadcrumbEl.innerHTML = `<span class="standalone-group-pill">Nhóm độc lập (Không gắn đơn vị tổ chức)</span>`;
-        }
-    }
-
-    // Dải số điện thoại EVN liên kết (Gồm nhiều dải from - to)
-    const prefixEl = document.getElementById('heroPrefixBinding');
-    if (prefixEl) {
-        const pGroup = group.phonePrefixGroup;
-        const ranges = pGroup.ranges || [];
-
-        if (ranges.length > 0) {
-            prefixEl.innerHTML = `
-                <div class="prefix-ranges-box">
-                    <div class="prefix-ranges-header">
-                        <span class="prefix-group-badge">${pGroup.code}</span>
-                        <span class="prefix-total-nums">Tổng ${pGroup.totalNumbers.toLocaleString()} số</span>
-                    </div>
-                    <div class="prefix-ranges-list">
-                        ${ranges.map(r => `
-                            <div class="prefix-range-item" title="Dải số: ${r.from} - ${r.to} (${r.count ? r.count.toLocaleString() : (parseInt(r.to, 10) - parseInt(r.from, 10) + 1).toLocaleString()} số)${r.note ? ` • ${r.note}` : ''}">
-                                <span class="range-text">
-                                    <span class="range-val">${r.from}</span>
-                                    <span class="range-sep">-</span>
-                                    <span class="range-val">${r.to}</span>
-                                </span>
-                                <span class="range-pill">${r.count ? r.count.toLocaleString() : (parseInt(r.to, 10) - parseInt(r.from, 10) + 1).toLocaleString()} số</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        } else {
-            prefixEl.innerHTML = `
-                <span class="fw-600">${pGroup.code}</span>
-                <span class="text-muted" style="font-size: 0.775rem;">(${pGroup.prefixes.join(', ')} • ${pGroup.totalNumbers.toLocaleString()} số)</span>
-            `;
-        }
-    }
-
-    // Quản trị viên nhóm (Định dạng đủ danh sách nhưng chỉ trình thông tin vắn tắt: tên, có hoặc không có số điện thoại tùy theo người dùng có nhập không)
-    const adminListEl = document.getElementById('heroAdminList') || document.getElementById('heroAdminChips');
-    if (adminListEl) {
-        if (admins.length > 0) {
-            // Sắp xếp: Người đại diện lên đầu tiên, sau đó theo thứ tự tên
-            const sortedAdmins = [...admins].sort((a, b) => {
-                if (a.id === group.representativeUserId) return -1;
-                if (b.id === group.representativeUserId) return 1;
-                return a.fullName.localeCompare(b.fullName);
-            });
-
-            adminListEl.innerHTML = `
-                <div class="group-admin-cards-list">
-                    ${sortedAdmins.map(a => {
-                const isRep = a.id === group.representativeUserId;
-                const phoneParts = [];
-                if (a.phoneNumber && a.phoneNumber.trim()) {
-                    const rawPhone = a.phoneNumber.replace(/[^0-9]/g, '');
-                    phoneParts.push(`<a href="tel:${rawPhone}" onclick="event.stopPropagation()" class="admin-brief-phone-link" title="Điện thoại">${a.phoneNumber}</a>`);
-                }
-                const hasPhone = phoneParts.length > 0;
-
-                return `
-                            <div class="group-admin-card-item ${isRep ? 'representative' : ''}" onclick="openViewMemberModal(${a.id})" title="Nhấp để xem chi tiết ${a.fullName}">
-                                <div class="admin-brief-header">
-                                    <div class="admin-brief-name-box">
-                                        <strong class="admin-brief-name">${a.fullName}</strong>
-                                        ${isRep ? `<span class="badge-admin-rep-mini" title="Người đại diện nhóm">★ Đại diện</span>` : ''}
-                                    </div>
-                                </div>
-                                ${hasPhone ? `
-                                    <div class="admin-brief-phone-row">
-                                        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
-                                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                                        </svg>
-                                        <span class="admin-brief-phones">
-                                            ${phoneParts.join('<span class="phone-sep">•</span>')}
-                                        </span>
-                                    </div>
-                                ` : ''}
-                            </div>
-                        `;
-            }).join('')}
-                </div>
-            `;
-        } else {
-            adminListEl.innerHTML = `<span class="text-muted" style="font-size: 0.8125rem;">Chưa có quản trị viên</span>`;
-        }
-    }
-
-    // Representative (Fallback nếu còn element heroRepresentative)
-    const repEl = document.getElementById('heroRepresentative');
-    if (repEl) {
-        const rep = group.representative || (admins[0] || null);
-        if (rep) {
-            repEl.innerHTML = `
-                <img src="${rep.avatarUrl || 'https://ui-avatars.com/api/?name=Admin'}" style="width: 22px; height: 22px; border-radius: 50%;">
-                <span>${rep.fullName}</span>
-                <span class="text-muted" style="font-size: 0.75rem;">(${rep.email})</span>
-            `;
-        } else {
-            repEl.innerText = 'Chưa chỉ định';
-        }
-    }
-
     // KPI Badges in Summary Grid
-    const countTotal = document.getElementById('kpiTotalMembers');
-    const countAdmins = document.getElementById('kpiTotalAdmins');
     const countActive = document.getElementById('kpiActiveMembers');
     const countLocked = document.getElementById('kpiLockedMembers');
 
-    if (countTotal) countTotal.innerText = members.length;
-    if (countAdmins) countAdmins.innerText = admins.length;
     if (countActive) countActive.innerText = activeMembers.length;
     if (countLocked) countLocked.innerText = lockedMembers.length;
 
@@ -727,7 +468,7 @@ function renderCardGrid(members) {
                 ? `<span class="badge-group-role admin">★ Quản trị viên</span>`
                 : `<span class="badge-group-role member">Thành viên</span>`
             }
-                                ${(getCurrentGroup().allowRecordingAccess ?? getCurrentGroup().recordingAccessEnabled) && (m.isGroupAdmin || m.canAccessRecording)
+                                ${getCurrentGroup().allowRecordingAccess && (m.isGroupAdmin || m.canAccessRecording)
                 ? `<span class="badge-recording" title="Được cấp quyền nghe & tải ghi âm thoại (BR-UG-05)"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg> Ghi âm</span>`
                 : ''
             }
@@ -810,7 +551,7 @@ function renderTableView(members) {
                 ? `<span class="badge-group-role admin">★ Quản trị nhóm</span>`
                 : `<span class="badge-group-role member">Thành viên</span>`
             }
-                        ${(getCurrentGroup().allowRecordingAccess ?? getCurrentGroup().recordingAccessEnabled) && (m.isGroupAdmin || m.canAccessRecording)
+                        ${getCurrentGroup().allowRecordingAccess && (m.isGroupAdmin || m.canAccessRecording)
                 ? `<span class="badge-recording" title="Được cấp quyền nghe & tải ghi âm thoại (BR-UG-05)"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg> Ghi âm</span>`
                 : ''
             }

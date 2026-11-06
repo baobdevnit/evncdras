@@ -1,8 +1,9 @@
 // templates/admin/user_group.js – màn hình Nhóm người dùng (admin.user-groups, M02 mục 5.1)
 //
 // Danh sách nhóm dùng GET /api/v1/admin/user-groups (G01, mock mockGetUserGroups bên dưới mảng này).
-// Mảng userGroupsData là dữ liệu CŨ chỉ còn phục vụ các hộp chi tiết / sửa / quản trị viên / ngừng hoạt động
-// (chưa rà: G03, G05–G07); không phải dạng response của API danh sách.
+// Hộp chi tiết dùng GET /api/v1/admin/user-groups/:id (G03, mock mockGetUserGroupDetail trên MOCK_UG_ROWS).
+// Mảng userGroupsData là dữ liệu CŨ chỉ còn phục vụ các hộp sửa / quản trị viên / ngừng hoạt động
+// (chưa rà: G05–G07); không phải dạng response của API.
 // Màn hình chỉ có danh sách phẳng: không có tab/chế độ xem cây nhóm (API GET /user-groups/tree đã bỏ ở G02).
 
 let userGroupsData = [
@@ -209,8 +210,8 @@ let currentManagingGroupId = null;
  * Vue: UserGroupView.vue + useUserGroupStore (fetchUserGroups, query, pagination).
  * Kiểm tay mock: ?listError=1 (lỗi tải một lần, "Thử lại" thành công), ?listEmpty=1 (chưa có nhóm),
  * ?orgTreeError=1 (ô lọc đơn vị chỉ còn "Tất cả"/"Nhóm độc lập"), ?noManage=1 (thiếu user_group:manage).
- * Các hộp chi tiết/sửa/quản trị viên/ngừng hoạt động bên dưới vẫn dùng mảng cũ userGroupsData
- * cho tới khi rà G03, G05–G07.
+ * Hộp chi tiết: mục "Chi tiết nhóm" bên dưới (G03). Các hộp sửa/quản trị viên/ngừng hoạt động vẫn dùng
+ * mảng cũ userGroupsData cho tới khi rà G05–G07.
  * ========================================================================== */
 const UG_QS = new URLSearchParams(window.location.search);
 function ugNow() { return new Date().toISOString().replace('Z', '+07:00'); }
@@ -225,33 +226,67 @@ const MOCK_UG_ORGS = [
     { id: 5, parentId: 1, code: 'DL-TX', name: 'Điện lực Thanh Xuân', level: 1, sortOrder: 3, status: 'INACTIVE' }
 ];
 
-// Dòng user_groups đã JOIN như câu SQL bước 3 (số đếm, người đại diện) + dải số (bước 4: prefix, total_numbers).
-// Nhóm INACTIVE: userCount = adminCount = 0, representative = null (M02 mục 3.4).
+// Dòng user_groups đã JOIN như câu SQL M02 mục 3.1 bước 3 / mục 3.1.2 bước 2 (số đếm, người đại diện, nhóm đầu số),
+// kèm dải số (phone_prefix_ranges, bước 4) và Quản trị viên nhóm ACTIVE (mục 3.1.2 bước 5, người đại diện đứng đầu).
+// adminCount của danh sách = admins.length. Nhóm INACTIVE: userCount = 0, representative = null, admins = [] (M02 mục 3.4).
 const MOCK_UG_ROWS = [
     { id: 1, code: 'UMO-IT-01', name: 'Khối Công nghệ Thông tin - Nhóm Vận hành', status: 'ACTIVE', allowRecordingAccess: true,
-      organizationId: 2, ppg: { id: 10, code: 'PG-UMO-IT-01' }, ranges: [{ prefix: '46', total: 1000 }, { prefix: '42', total: 1000 }],
-      userCount: 45, adminCount: 2, representative: { id: 10, fullName: 'Trần Thị B', email: 'tran.b@71portal.vn', avatarUrl: null },
-      createdAt: '2026-03-15T08:30:00+07:00' },
+      description: 'Quản trị vận hành hạ tầng máy chủ, hệ thống mạng và giám sát tổng đài',
+      organizationId: 2, ppg: { id: 10, code: 'PG-UMO-IT-01', name: 'Nhóm đầu số Khối Công nghệ Thông tin - Nhóm Vận hành' },
+      ranges: [
+          { id: 23, prefix: '46', rangeFrom: '46000', rangeTo: '46999', totalNumbers: 1000, note: 'Cơ quan EVN Tháp A' },
+          { id: 21, prefix: '42', rangeFrom: '42000', rangeTo: '42499', totalNumbers: 500, note: 'Hạ tầng máy chủ & NOC' },
+          { id: 22, prefix: '42', rangeFrom: '42500', rangeTo: '42999', totalNumbers: 500, note: null }
+      ],
+      userCount: 45, representative: { id: 10, fullName: 'Trần Thị B', email: 'tran.b@71portal.vn', avatarUrl: null },
+      admins: [
+          { id: 10, fullName: 'Trần Thị B', email: 'tran.b@71portal.vn', phoneNumber: '0905123456', avatarUrl: null },
+          { id: 11, fullName: 'Lê Văn C', email: 'le.c@71portal.vn', phoneNumber: null, avatarUrl: null }
+      ],
+      createdAt: '2026-03-15T08:30:00+07:00', updatedAt: '2026-10-02T16:20:00+07:00' },
     { id: 2, code: 'UMO-IT-02', name: 'Khối Công nghệ Thông tin - Nhóm Phần mềm', status: 'ACTIVE', allowRecordingAccess: false,
-      organizationId: 4, ppg: { id: 11, code: 'PG-UMO-IT-02' }, ranges: [{ prefix: '43', total: 500 }, { prefix: '43', total: 300 }],
-      userCount: 32, adminCount: 1, representative: { id: 18, fullName: 'Hoàng Văn Tuấn', email: 'tuan.hv@71portal.vn', avatarUrl: null },
-      createdAt: '2026-04-02T10:00:00+07:00' },
+      description: null,
+      organizationId: 4, ppg: { id: 11, code: 'PG-UMO-IT-02', name: 'Nhóm đầu số Khối Công nghệ Thông tin - Nhóm Phần mềm' },
+      ranges: [
+          { id: 31, prefix: '43', rangeFrom: '43000', rangeTo: '43499', totalNumbers: 500, note: 'Phát triển phần mềm' },
+          { id: 32, prefix: '43', rangeFrom: '43500', rangeTo: '43799', totalNumbers: 300, note: 'Triển khai & kiểm thử' }
+      ],
+      userCount: 32, representative: { id: 18, fullName: 'Hoàng Văn Tuấn', email: 'tuan.hv@71portal.vn', avatarUrl: null },
+      admins: [{ id: 18, fullName: 'Hoàng Văn Tuấn', email: 'tuan.hv@71portal.vn', phoneNumber: '0912 345 678', avatarUrl: null }],
+      createdAt: '2026-04-02T10:00:00+07:00', updatedAt: '2026-04-02T10:00:00+07:00' },
     { id: 3, code: 'UMO-KD-01', name: 'Khối Kinh doanh & Dịch vụ Khách hàng', status: 'ACTIVE', allowRecordingAccess: true,
-      organizationId: 3, ppg: { id: 12, code: 'PG-UMO-KD-01' }, ranges: [{ prefix: '48', total: 1000 }, { prefix: '49', total: 1000 }],
-      userCount: 68, adminCount: 2, representative: { id: 22, fullName: 'Phạm Thu Hương', email: 'huong.pt@71portal.vn', avatarUrl: null },
-      createdAt: '2026-04-18T09:15:00+07:00' },
+      description: 'Tiếp nhận cuộc gọi phản ánh điện lực, quản lý chất lượng chăm sóc khách hàng',
+      organizationId: 3, ppg: { id: 12, code: 'PG-UMO-KD-01', name: 'Nhóm đầu số Call Center CSKH' },
+      ranges: [
+          { id: 41, prefix: '48', rangeFrom: '48000', rangeTo: '48999', totalNumbers: 1000, note: 'Tổng đài viên CSKH' },
+          { id: 42, prefix: '49', rangeFrom: '49000', rangeTo: '49999', totalNumbers: 1000, note: 'Dịch vụ điện & hợp đồng' }
+      ],
+      userCount: 68, representative: { id: 22, fullName: 'Phạm Thu Hương', email: 'huong.pt@71portal.vn', avatarUrl: null },
+      admins: [
+          { id: 22, fullName: 'Phạm Thu Hương', email: 'huong.pt@71portal.vn', phoneNumber: '0983 111 222', avatarUrl: null },
+          { id: 25, fullName: 'Đỗ Minh Khang', email: 'khang.dm@71portal.vn', phoneNumber: null, avatarUrl: null }
+      ],
+      createdAt: '2026-04-18T09:15:00+07:00', updatedAt: '2026-09-11T11:05:00+07:00' },
     { id: 4, code: 'UMO-AUDIT-GLOBAL', name: 'Tổ Giám sát Kiểm toán Độc lập', status: 'ACTIVE', allowRecordingAccess: false,
-      organizationId: null, ppg: { id: 13, code: 'PG-UMO-AUDIT-GLOBAL' }, ranges: [{ prefix: '20', total: 1000 }],
-      userCount: 12, adminCount: 1, representative: { id: 31, fullName: 'Nguyễn Hải Nam', email: 'nam.nh@evn.com.vn', avatarUrl: null },
-      createdAt: '2026-05-10T14:00:00+07:00' },
+      description: 'Nhóm thanh tra kỹ thuật và kiểm toán độc lập cấp Tập đoàn',
+      organizationId: null, ppg: { id: 13, code: 'PG-UMO-AUDIT-GLOBAL', name: 'Nhóm đầu số Tổ Giám sát Kiểm toán Độc lập' },
+      ranges: [{ id: 51, prefix: '20', rangeFrom: '20000', rangeTo: '20999', totalNumbers: 1000, note: 'Ban Kiểm toán nội bộ' }],
+      userCount: 12, representative: { id: 31, fullName: 'Nguyễn Hải Nam', email: 'nam.nh@evn.com.vn', avatarUrl: null },
+      admins: [{ id: 31, fullName: 'Nguyễn Hải Nam', email: 'nam.nh@evn.com.vn', phoneNumber: '0904 555 666', avatarUrl: null }],
+      createdAt: '2026-05-10T14:00:00+07:00', updatedAt: '2026-05-10T14:00:00+07:00' },
     { id: 5, code: 'UMO-EXPERT-SEC', name: 'Tổ Chuyên gia SOC An toàn Thông tin', status: 'ACTIVE', allowRecordingAccess: false,
-      organizationId: null, ppg: { id: 14, code: 'PG-UMO-EXPERT-SEC' }, ranges: [],
-      userCount: 1, adminCount: 1, representative: null,
-      createdAt: '2026-06-01T08:00:00+07:00' },
+      description: null,
+      organizationId: null, ppg: { id: 14, code: 'PG-UMO-EXPERT-SEC', name: 'Nhóm đầu số Tổ Chuyên gia SOC An toàn Thông tin' },
+      ranges: [],
+      userCount: 1, representative: null,
+      admins: [{ id: 40, fullName: 'Vũ Quốc Bảo', email: 'bao.vq@71portal.vn', phoneNumber: null, avatarUrl: null }],
+      createdAt: '2026-06-01T08:00:00+07:00', updatedAt: '2026-06-01T08:00:00+07:00' },
     { id: 6, code: 'UMO-TBA-500', name: 'Nhóm Thử nghiệm Trạm Biến áp 500kV', status: 'INACTIVE', allowRecordingAccess: false,
-      organizationId: 4, ppg: { id: 15, code: 'PG-UMO-TBA-500' }, ranges: [],
-      userCount: 0, adminCount: 0, representative: null,
-      createdAt: '2026-07-20T14:05:00+07:00' }
+      description: 'Nhóm thử nghiệm đã kết thúc',
+      organizationId: 4, ppg: { id: 15, code: 'PG-UMO-TBA-500', name: 'Nhóm đầu số Nhóm Thử nghiệm Trạm Biến áp 500kV' },
+      ranges: [],
+      userCount: 0, representative: null, admins: [],
+      createdAt: '2026-07-20T14:05:00+07:00', updatedAt: '2026-10-30T09:40:00+07:00' }
 ];
 
 const UG_QUERY_KEYS = ['page', 'limit', 'search', 'status', 'organizationId', 'standalone'];
@@ -363,8 +398,8 @@ function mockGetUserGroups(token, query) {
                 organizationId: g.organizationId,
                 organizationName: g.organizationId === null ? null : path[path.length - 1],
                 hierarchyPath: path,
-                phonePrefixGroup: { id: g.ppg.id, code: g.ppg.code, prefixes, totalNumbers: g.ranges.reduce((s, r) => s + r.total, 0) },
-                userCount: g.userCount, adminCount: g.adminCount,
+                phonePrefixGroup: { id: g.ppg.id, code: g.ppg.code, prefixes, totalNumbers: g.ranges.reduce((s, r) => s + r.totalNumbers, 0) },
+                userCount: g.userCount, adminCount: g.admins.length,
                 representative: g.representative ? Object.assign({}, g.representative) : null,
                 createdAt: g.createdAt
             };
@@ -441,6 +476,7 @@ function setupEventListeners() {
     // Close modal on click outside backdrop or ESC key
     window.addEventListener('click', function (e) {
         if (e.target.classList && e.target.classList.contains('modal')) {
+            if (e.target.id === 'groupDetailModal') { closeGroupDetail(); return; }
             e.target.classList.remove('show');
             document.body.style.overflow = '';
         }
@@ -448,6 +484,7 @@ function setupEventListeners() {
 
     window.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
+            if (ugDetailId) closeGroupDetail();
             document.querySelectorAll('.modal.show').forEach(m => {
                 m.classList.remove('show');
             });
@@ -623,7 +660,7 @@ function renderUserGroupsTable(data) {
                             <span class="badge-status ${active ? 'active' : 'inactive'}">${active ? 'Hoạt động' : 'Ngừng hoạt động'}</span>
                             ${group.allowRecordingAccess ? `<span class="badge-recording" title="Đã cấp quyền ghi âm cho nhóm (Tầng 1)">${UG_ICONS.rec} Ghi âm</span>` : ''}
                         </div>
-                        <a href="#" class="group-name" onclick="event.preventDefault(); openGroupDetailModal(${group.id})" title="Xem chi tiết nhóm">${ugEsc(group.name)}</a>
+                        <a href="#" class="group-name" onclick="event.preventDefault(); openGroupDetailModal(${group.id}, '${ugEsc(group.code)}')" title="Xem chi tiết nhóm">${ugEsc(group.name)}</a>
                     </div>
                 </td>
                 <td>${orgContent}</td>
@@ -633,7 +670,7 @@ function renderUserGroupsTable(data) {
                 <td class="ug-date">${ugFormatDate(group.createdAt)}</td>
                 <td class="text-right" style="white-space: nowrap;">
                     <div class="action-btn-group">
-                        <button class="action-btn view-btn" onclick="openGroupDetailModal(${group.id})" title="Xem chi tiết nhóm">${UG_ICONS.view}</button>${writeButtons}
+                        <button class="action-btn view-btn" onclick="openGroupDetailModal(${group.id}, '${ugEsc(group.code)}')" title="Xem chi tiết nhóm">${UG_ICONS.view}</button>${writeButtons}
                     </div>
                 </td>
             </tr>`;
@@ -657,150 +694,203 @@ function closeModal(modalId) {
     }
 }
 
-function openGroupDetailModal(groupId) {
-    const group = userGroupsData.find(g => g.id === groupId);
-    if (!group) return;
+/* ==========================================================================
+ * Chi tiết nhóm: GET /api/v1/admin/user-groups/:id (G03, M02 mục 3.1.2)
+ * Vue: hộp chi tiết của UserGroupView.vue. Gọi API mỗi lần mở hộp (không dùng dữ liệu dòng danh sách),
+ * chỉ hiển thị response của lần mở sau cùng; 404 → đóng hộp + toast cảnh báo + tải lại danh sách.
+ * Kiểm tay mock: ?detailError=1 (lỗi tải một lần, "Thử lại" thành công), ?detailMissing=<id> (nhóm vừa mất → 404).
+ * ========================================================================== */
+let ugDetailFailOnce = UG_QS.get('detailError') === '1';
+let ugDetailSeq = 0;
+let ugDetailId = null;   // nhóm đang mở trong hộp
+let ugDetailData = null; // data của response sau cùng (nút thao tác tính theo đây)
 
-    // Set code, name, status, org, desc
+// Giả lập GET /api/v1/admin/user-groups/:id. Token thiếu → 401; :id sai định dạng hoặc có query → 400;
+// không có nhóm → 404 NOT_FOUND. data đúng 15 trường (không có adminCount), ranges sắp rangeFrom, id.
+function mockGetUserGroupDetail(token, idParam, query) {
+    return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+        if (!token) return Promise.reject(ugUnauthorized());
+        const errors = {};
+        const idStr = String(idParam);
+        if (!/^[1-9][0-9]{0,9}$/.test(idStr) || Number(idStr) > 4294967295) errors.id = ['Mã nhóm không hợp lệ'];
+        Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+        if (Object.keys(errors).length) return Promise.reject(ugValidationError(errors));
+        if (ugDetailFailOnce) {
+            ugDetailFailOnce = false;
+            return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
+        }
+        const g = MOCK_UG_ROWS.find(row => row.id === Number(idStr));
+        if (!g || UG_QS.get('detailMissing') === idStr) {
+            return Promise.reject({ success: false, statusCode: 404, errorCode: 'NOT_FOUND',
+                message: 'Không tìm thấy nhóm người dùng', errors: null, timestamp: ugNow() });
+        }
+        const path = ugHierarchyPath(g.organizationId);
+        const ranges = g.ranges.slice()
+            .sort((a, b) => (a.rangeFrom < b.rangeFrom ? -1 : a.rangeFrom > b.rangeFrom ? 1 : a.id - b.id))
+            .map(r => Object.assign({}, r));
+        return {
+            success: true, statusCode: 200, message: 'Lấy chi tiết nhóm người dùng thành công',
+            data: {
+                id: g.id, code: g.code, name: g.name, description: g.description, status: g.status,
+                allowRecordingAccess: g.allowRecordingAccess,
+                organizationId: g.organizationId,
+                organizationName: g.organizationId === null ? null : path[path.length - 1],
+                hierarchyPath: path,
+                phonePrefixGroup: {
+                    id: g.ppg.id, code: g.ppg.code, name: g.ppg.name,
+                    prefixes: [...new Set(ranges.map(r => r.prefix))].sort(),
+                    totalNumbers: ranges.reduce((s, r) => s + r.totalNumbers, 0),
+                    ranges
+                },
+                userCount: g.userCount,
+                representative: g.representative ? Object.assign({}, g.representative) : null,
+                admins: g.admins.map(a => Object.assign({}, a)),
+                createdAt: g.createdAt, updatedAt: g.updatedAt
+            },
+            timestamp: ugNow()
+        };
+    });
+}
+
+function ugFormatDateTime(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso || '');
+    return m ? m[3] + '/' + m[2] + '/' + m[1] + ' ' + m[4] + ':' + m[5] : '';
+}
+
+// Bấm tên nhóm / nút "Xem chi tiết" trên dòng: tiêu đề lấy mã từ dòng đã bấm, thân hộp tải từ API.
+function openGroupDetailModal(groupId, code) {
+    ugDetailId = groupId;
+    ugDetailData = null;
     const codeEl = document.getElementById('detailGroupCode');
-    const nameEl = document.getElementById('detailGroupName');
-    const statusEl = document.getElementById('detailGroupStatus');
-    const orgEl = document.getElementById('detailGroupOrg');
-    const descEl = document.getElementById('detailGroupDesc');
-
-    if (codeEl) codeEl.innerText = group.code;
-    if (nameEl) nameEl.innerText = group.name;
-    if (statusEl) {
-        statusEl.innerHTML = group.status === 'ACTIVE'
-            ? `<span class="badge-status active">Hoạt động</span>`
-            : `<span class="badge-status inactive">Tạm dừng</span>`;
-    }
-
-    if (orgEl) {
-        if (group.organizationId) {
-            orgEl.innerHTML = `
-                <div class="org-hierarchy-cell">
-                    <span class="fw-600">${group.organizationName}</span>
-                    <div class="hierarchy-breadcrumb" style="margin-top: 4px;">
-                        ${group.hierarchyPath.map((item, index) => {
-                            const isLast = index === group.hierarchyPath.length - 1;
-                            return `<span class="${isLast ? 'current' : 'root'}">${item}</span>${!isLast ? '<span class="arrow">&gt;</span>' : ''}`;
-                        }).join('')}
-                    </div>
-                </div>
-            `;
-        } else {
-            orgEl.innerHTML = `
-                <span class="badge-standalone">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 13px; height: 13px;"><rect x="4" y="4" width="16" height="16" rx="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line></svg>
-                    Nhóm độc lập (Toàn hệ thống - Không gắn đơn vị)
-                </span>
-            `;
-        }
-    }
-
-    if (descEl) descEl.innerText = group.description || 'Chưa có ghi chú / mô tả phạm vi chức năng.';
-
-    // Quyền ghi âm thoại IP (Chốt chặn Tầng 1 - BR-UG-05)
-    const recEl = document.getElementById('detailGroupRecording');
-    if (recEl) {
-        recEl.innerHTML = group.allowRecordingAccess
-            ? `<span class="badge-recording" style="font-size: 0.8125rem; padding: 4px 10px;">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
-                Đã kích hoạt quyền Ghi âm (Chốt chặn Tầng 1 mở)
-               </span>`
-            : `<span style="font-size: 0.8125rem; color: var(--text-muted); font-style: italic;">Chưa cấp phép</span>`;
-    }
-
-    // 1. Nhóm đầu số viễn thông (Ràng buộc 1 - 1)
-    const prefixCardEl = document.getElementById('detailGroupPrefixCard');
-    if (prefixCardEl) {
-        const ppg = group.phonePrefixGroup;
-        prefixCardEl.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-                    <div>
-                        <span class="fw-600" style="color: var(--primary); font-size: 0.95rem;">${ppg.code}</span>
-                        <span style="margin: 0 6px; color: var(--border);">|</span>
-                        <strong style="color: var(--text-main); font-size: 0.9rem;">${ppg.name}</strong>
-                    </div>
-                    <span class="text-muted" style="font-size: 0.8rem; font-weight: 500;">Quy mô: <strong>${ppg.totalNumbers.toLocaleString()}</strong> số máy</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                    <span class="text-muted" style="font-size: 0.8rem;">Các dải số liên kết:</span>
-                    ${ppg.prefixes.map(p => `<span class="prefix-sub-tag" style="font-size: 0.78rem; padding: 2px 8px;">${p}</span>`).join('')}
-                </div>
-                <div class="badge-1to1-note" style="margin-top: 4px; padding: 8px 12px; font-size: 0.78rem; background: var(--surface);">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 15px; height: 15px; flex-shrink: 0;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                    <span>Toàn bộ lưu lượng thoại, luồng dữ liệu CDR và phân bổ thuê bao của nhóm được ràng buộc độc quyền 1-1 với nhóm đầu số này.</span>
-                </div>
-            </div>
-        `;
-    }
-
-    // 2. Quản trị viên nhóm (Group Admins)
-    const adminCountEl = document.getElementById('detailAdminCountBadge');
-    if (adminCountEl) adminCountEl.innerText = `${group.admins.length} Quản trị viên`;
-
-    const adminsListEl = document.getElementById('detailGroupAdminsList');
-    if (adminsListEl) {
-        adminsListEl.innerHTML = group.admins.map(admin => `
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <img src="${admin.avatarUrl}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
-                    <div>
-                        <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-main);">${admin.fullName}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">${admin.email}</div>
-                    </div>
-                </div>
-                ${admin.isRep ? `<span class="rep-badge" style="font-size: 0.72rem; padding: 2px 8px; background: rgba(0, 51, 160, 0.1); color: var(--primary); border-radius: 4px; font-weight: 600;">Đại diện chính</span>` : `<span class="text-muted" style="font-size: 0.75rem;">Đồng quản trị</span>`}
-            </div>
-        `).join('');
-    }
-
-    // Modal action buttons
-    const editBtn = document.getElementById('detailEditGroupBtn');
-    if (editBtn) {
-        editBtn.onclick = function() {
-            closeModal('groupDetailModal');
-            openEditGroupModal(group.id);
-        };
-    }
-
-    const manageAdminsBtn = document.getElementById('detailManageAdminsBtn');
-    if (manageAdminsBtn) {
-        manageAdminsBtn.onclick = function() {
-            closeModal('groupDetailModal');
-            openManageAdminsModal(group.id);
-        };
-    }
-
-    const toggleStatusBtn = document.getElementById('detailToggleStatusBtn');
-    if (toggleStatusBtn) {
-        if (group.status === 'ACTIVE') {
-            toggleStatusBtn.className = 'btn btn-outline';
-            toggleStatusBtn.style.color = '#d97706';
-            toggleStatusBtn.style.borderColor = 'rgba(217, 119, 6, 0.35)';
-            toggleStatusBtn.innerHTML = `
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="10" y1="15" x2="10" y2="9"></line><line x1="14" y1="15" x2="14" y2="9"></line></svg>
-                <span>Tạm ngưng nhóm</span>
-            `;
-        } else {
-            toggleStatusBtn.className = 'btn btn-outline';
-            toggleStatusBtn.style.color = '#059669';
-            toggleStatusBtn.style.borderColor = 'rgba(16, 185, 129, 0.35)';
-            toggleStatusBtn.innerHTML = `
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                <span>Kích hoạt nhóm</span>
-            `;
-        }
-        toggleStatusBtn.onclick = function() {
-            closeModal('groupDetailModal');
-            openToggleStatusModal(group.id);
-        };
-    }
-
+    if (codeEl) codeEl.textContent = code || '';
     openModal('groupDetailModal');
+    loadGroupDetail(groupId);
+}
+
+function closeGroupDetail() {
+    closeModal('groupDetailModal');
+    ugDetailId = null;
+    ugDetailData = null;
+    ugDetailSeq++; // bỏ response đang chờ
+}
+
+function setGroupDetailState(message, isError) {
+    const box = document.getElementById('groupDetailState');
+    const content = document.getElementById('groupDetailContent');
+    const msg = document.getElementById('groupDetailMessage');
+    const retry = document.getElementById('btnRetryGroupDetail');
+    if (box) { box.hidden = !message; box.classList.toggle('is-error', !!isError); }
+    if (msg) msg.textContent = message || '';
+    if (retry) {
+        retry.hidden = !isError;
+        retry.onclick = () => { if (ugDetailId) loadGroupDetail(ugDetailId); };
+    }
+    if (content && message) content.hidden = true;
+    if (message) updateGroupDetailActions(null);
+}
+
+function loadGroupDetail(id) {
+    const seq = ++ugDetailSeq;
+    setGroupDetailState('Đang tải chi tiết nhóm người dùng...', false);
+    return ugCallApi(token => mockGetUserGroupDetail(token, String(id), {}))
+        .then(res => {
+            if (seq !== ugDetailSeq || ugDetailId !== id) return;
+            ugDetailData = res.data;
+            renderGroupDetail(res.data);
+            setGroupDetailState(null);
+        })
+        .catch(err => {
+            if (seq !== ugDetailSeq || ugDetailId !== id) return;
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            if (err && err.statusCode === 404) {
+                closeGroupDetail();
+                showToast('Nhóm người dùng không còn tồn tại', 'warning');
+                loadUserGroups();
+                return;
+            }
+            setGroupDetailState((err && err.message) || 'Không tải được chi tiết nhóm. Vui lòng thử lại.', true);
+        });
+}
+
+// Nút ghi chỉ khi có user_group:manage và nhóm ACTIVE (nhóm INACTIVE là trạng thái cuối); ẩn khi đang tải/lỗi.
+function updateGroupDetailActions(data) {
+    const show = !!(data && data.status === 'ACTIVE' && canManageUserGroups());
+    ['detailEditGroupBtn', 'detailManageAdminsBtn', 'detailDeleteGroupBtn'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.hidden = !show;
+    });
+}
+
+function groupActionFromDetail(action) {
+    const id = ugDetailId;
+    closeGroupDetail();
+    if (!id) return;
+    if (action === 'edit') openEditGroupModal(id);
+    else if (action === 'admins') openManageAdminsModal(id);
+    else if (action === 'delete') openDeleteGroupModal(id);
+}
+
+// Vẽ thân hộp từ data của GET .../:id (15 trường). Không dùng trường không có trong response.
+function renderGroupDetail(data) {
+    const content = document.getElementById('groupDetailContent');
+    if (!content) return;
+    const set = (key, html) => { const el = content.querySelector('[data-detail="' + key + '"]'); if (el) el.innerHTML = html; };
+    const codeEl = document.getElementById('detailGroupCode');
+    if (codeEl) codeEl.textContent = data.code;
+    const active = data.status === 'ACTIVE';
+    set('name', ugEsc(data.name));
+    set('status', `<span class="badge-status ${active ? 'active' : 'inactive'}">${active ? 'Hoạt động' : 'Ngừng hoạt động'}</span>`);
+    set('organization', data.hierarchyPath.length
+        ? `<div class="ug-org-cell">${UG_ICONS.org}<div>
+               <span class="ug-org-name">${ugEsc(data.organizationName)}</span>
+               ${data.hierarchyPath.length > 1 ? `<span class="ug-org-path">${data.hierarchyPath.slice(0, -1).map(ugEsc).join(' › ')}</span>` : ''}
+           </div></div>`
+        : `<span class="badge-standalone">Nhóm độc lập</span>`);
+    set('description', data.description === null ? '<span class="text-muted">Chưa có mô tả</span>' : ugEsc(data.description));
+    set('recording', data.allowRecordingAccess
+        ? `<span class="badge-recording">${UG_ICONS.rec} Đã cấp quyền nghe/tải ghi âm</span>`
+        : `<span class="text-muted">Chưa cấp quyền</span>`);
+    set('userCount', String(data.userCount));
+    set('createdAt', ugEsc(ugFormatDateTime(data.createdAt)));
+    set('updatedAt', ugEsc(ugFormatDateTime(data.updatedAt)));
+
+    const ppg = data.phonePrefixGroup;
+    set('ppgCode', ugEsc(ppg.code));
+    set('ppgName', ugEsc(ppg.name));
+    set('totalNumbers', ppg.totalNumbers.toLocaleString('vi-VN') + ' số');
+    const rangesEl = document.getElementById('detailGroupRanges');
+    if (rangesEl) {
+        rangesEl.innerHTML = ppg.ranges.length
+            ? `<table class="ug-detail-ranges">
+                   <thead><tr><th>Dải số</th><th class="text-right">Số lượng</th><th>Ghi chú</th></tr></thead>
+                   <tbody>${ppg.ranges.map(r => `
+                       <tr>
+                           <td class="ug-range-text">${ugEsc(r.rangeFrom)} – ${ugEsc(r.rangeTo)}</td>
+                           <td class="text-right">${r.totalNumbers.toLocaleString('vi-VN')}</td>
+                           <td>${r.note === null ? '<span class="text-muted">—</span>' : ugEsc(r.note)}</td>
+                       </tr>`).join('')}</tbody>
+               </table>`
+            : `<p class="text-muted ug-detail-empty">Chưa cấp dải số</p>`;
+    }
+
+    set('adminTotal', data.admins.length + ' đang hoạt động');
+    const repId = data.representative ? data.representative.id : null;
+    const adminsEl = document.getElementById('detailGroupAdminsList');
+    if (adminsEl) {
+        adminsEl.innerHTML = data.admins.length
+            ? data.admins.map(a => `
+                <div class="ug-detail-admin">
+                    ${a.avatarUrl ? `<img class="ug-rep-avatar" src="${ugEsc(a.avatarUrl)}" alt="">` : `<span class="ug-rep-avatar">${ugEsc(ugInitials(a.fullName))}</span>`}
+                    <div class="ug-detail-admin-info">
+                        <span class="ug-rep-name">${ugEsc(a.fullName)}</span>
+                        <span class="ug-rep-email">${ugEsc(a.email)}${a.phoneNumber ? ' · ' + ugEsc(a.phoneNumber) : ''}</span>
+                    </div>
+                    ${a.id === repId ? '<span class="ug-detail-rep-badge">Đại diện</span>' : ''}
+                </div>`).join('')
+            : `<p class="text-muted ug-detail-empty">Không có Quản trị viên đang hoạt động</p>`;
+    }
+    content.hidden = false;
+    updateGroupDetailActions(data);
 }
 
 function openCreateGroupModal() {
@@ -1174,148 +1264,6 @@ function confirmDeleteGroup() {
 
     closeModal('deleteGroupModal');
     showToast(`Đã xóa nhóm thành công. Nhóm đầu số ${ppgCode} đã được giải phóng về trạng thái sẵn sàng.`, 'success');
-
-    loadUserGroups();
-}
-
-// Toggle Status Modal (Tạm ngưng / Kích hoạt Nhóm người dùng)
-let targetStatusGroupId = null;
-
-function openToggleStatusModal(groupId) {
-    targetStatusGroupId = groupId;
-    const group = userGroupsData.find(g => g.id === groupId);
-    if (!group) return;
-
-    const isCurrentlyActive = group.status === 'ACTIVE';
-
-    // Populate Column 1: Thông tin nhóm
-    const nameEl = document.getElementById('statusModalGroupName');
-    const codeEl = document.getElementById('statusModalGroupCode');
-    const badgeEl = document.getElementById('statusModalCurrentBadge');
-    const orgEl = document.getElementById('statusModalOrgName');
-    const memberEl = document.getElementById('statusModalMemberCount');
-    const prefixEl = document.getElementById('statusModalPrefixGroup');
-
-    if (nameEl) nameEl.innerText = group.name;
-    if (codeEl) codeEl.innerText = group.code;
-    if (badgeEl) {
-        badgeEl.innerHTML = isCurrentlyActive
-            ? `<span class="badge-status active">Đang hoạt động</span>`
-            : `<span class="badge-status inactive">Đang tạm dừng</span>`;
-    }
-    if (orgEl) orgEl.innerText = group.organizationName || 'Nhóm độc lập toàn HT';
-    if (memberEl) memberEl.innerText = `${group.userCount} người dùng`;
-    if (prefixEl) prefixEl.innerText = `${group.phonePrefixGroup.code} (${group.phonePrefixGroup.prefixes.join(', ')})`;
-
-    // Populate Column 2: Tiêu đề, Cảnh báo & Nút xác nhận
-    const titleEl = document.getElementById('toggleStatusModalTitle');
-    const impactEl = document.getElementById('statusModalImpactBox');
-    const reasonLabelEl = document.getElementById('toggleStatusReasonLabel');
-    const reasonInputEl = document.getElementById('toggleStatusReasonInput');
-    const confirmBtn = document.getElementById('confirmToggleStatusBtn');
-
-    if (reasonInputEl) reasonInputEl.value = '';
-
-    if (isCurrentlyActive) {
-        // TẠM NGƯNG
-        if (titleEl) {
-            titleEl.innerHTML = `
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#d97706" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="10" y1="15" x2="10" y2="9"></line><line x1="14" y1="15" x2="14" y2="9"></line></svg>
-                <span>Tạm ngưng hoạt động Nhóm người dùng</span>
-            `;
-        }
-        if (impactEl) {
-            impactEl.innerHTML = `
-                <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 12px 14px;">
-                    <strong style="color: #d97706; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                        Tác động khi Tạm ngưng nhóm:
-                    </strong>
-                    <ul style="margin: 0; padding-left: 18px; font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
-                        <li>Khóa tạm thời quyền truy cập và thao tác nghiệp vụ của <strong>${group.userCount} thành viên</strong>.</li>
-                        <li>Tạm dừng phát sinh cuộc gọi mới trên nhóm đầu số PABX <strong>${group.phonePrefixGroup.code}</strong>.</li>
-                        <li>Dữ liệu lịch sử và nhật ký CDR cũ vẫn được bảo lưu nguyên vẹn. Ràng buộc 1-1 không bị hủy.</li>
-                    </ul>
-                </div>
-            `;
-        }
-        if (reasonLabelEl) {
-            reasonLabelEl.innerHTML = `Lý do tạm ngưng hoạt động <span class="text-danger">*</span>`;
-        }
-        if (reasonInputEl) {
-            reasonInputEl.placeholder = 'VD: Quyết định số 48/QĐ-EVN tạm ngưng phục vụ bảo trì nâng cấp hệ thống...';
-        }
-        if (confirmBtn) {
-            confirmBtn.className = 'btn btn-warning';
-            confirmBtn.innerHTML = `
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><circle cx="12" cy="12" r="10"></circle><line x1="10" y1="15" x2="10" y2="9"></line><line x1="14" y1="15" x2="14" y2="9"></line></svg>
-                Xác nhận Tạm ngưng nhóm
-            `;
-        }
-    } else {
-        // KÍCH HOẠT LẠI
-        if (titleEl) {
-            titleEl.innerHTML = `
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Kích hoạt lại Nhóm người dùng</span>
-            `;
-        }
-        if (impactEl) {
-            impactEl.innerHTML = `
-                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 12px 14px;">
-                    <strong style="color: #059669; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                        Tác động khi Kích hoạt lại nhóm:
-                    </strong>
-                    <ul style="margin: 0; padding-left: 18px; font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
-                        <li>Khôi phục toàn bộ quyền truy cập và phân quyền của <strong>${group.userCount} thành viên</strong> và Quản trị viên.</li>
-                        <li>Mở lại lưu lượng thoại và tiếp tục ghi nhận dữ liệu CDR trên nhóm đầu số <strong>${group.phonePrefixGroup.code}</strong>.</li>
-                        <li>Nhóm sẵn sàng tiếp nhận thêm thành viên mới bình thường.</li>
-                    </ul>
-                </div>
-            `;
-        }
-        if (reasonLabelEl) {
-            reasonLabelEl.innerHTML = `Căn cứ / Ghi chú kích hoạt lại <span class="text-danger">*</span>`;
-        }
-        if (reasonInputEl) {
-            reasonInputEl.placeholder = 'VD: Hoàn tất công tác bảo trì kỹ thuật, kích hoạt lại theo thông báo số 18/TB-CNTT...';
-        }
-        if (confirmBtn) {
-            confirmBtn.className = 'btn btn-primary';
-            confirmBtn.innerHTML = `
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                Xác nhận Kích hoạt nhóm
-            `;
-        }
-    }
-
-    openModal('toggleStatusModal');
-}
-
-function confirmToggleStatus() {
-    if (!targetStatusGroupId) return;
-
-    const group = userGroupsData.find(g => g.id === targetStatusGroupId);
-    if (!group) return;
-
-    const reason = (document.getElementById('toggleStatusReasonInput')?.value || '').trim();
-    if (!reason) {
-        showToast('Vui lòng nhập lý do / căn cứ thay đổi trạng thái nhóm', 'error');
-        return;
-    }
-
-    const wasActive = group.status === 'ACTIVE';
-    group.status = wasActive ? 'INACTIVE' : 'ACTIVE';
-
-    closeModal('toggleStatusModal');
-
-    showToast(
-        group.status === 'ACTIVE'
-            ? `Đã kích hoạt lại nhóm "${group.name}" thành công`
-            : `Đã tạm ngưng hoạt động nhóm "${group.name}"`,
-        'success'
-    );
 
     loadUserGroups();
 }

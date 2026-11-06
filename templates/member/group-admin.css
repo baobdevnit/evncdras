@@ -1510,3 +1510,23 @@
     line-height: 1.35;
 }
 
+
+/* Thẻ tóm tắt nhóm (G03): trạng thái tải / lỗi + "Thử lại" do group-summary.js điều khiển */
+.group-summary-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 32px 16px;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.group-summary-state[hidden] {
+    display: none;
+}
+
+.group-summary-state.is-error {
+    color: var(--secondary);
+}

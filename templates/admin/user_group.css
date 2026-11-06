@@ -663,3 +663,137 @@ a.group-name:hover {
 
 
 
+
+/* Hộp chi tiết nhóm (#groupDetailModal, G03 – M02 mục 3.1.2): tải/lỗi, nhóm đầu số + dải số, Quản trị viên nhóm */
+.ug-detail-body {
+    max-height: calc(100vh - 160px);
+    overflow-y: auto;
+}
+
+.ug-detail-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 32px 16px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.ug-detail-state.is-error {
+    color: var(--secondary);
+}
+
+.ug-detail-panel {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    min-width: 0;
+}
+
+.ug-detail-panel-head {
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.ug-detail-panel-title {
+    font-size: 0.9rem;
+    color: var(--text-main);
+}
+
+.ug-detail-ppg {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.ug-detail-ppg-name {
+    font-size: 0.85rem;
+    color: var(--text-main);
+}
+
+.ug-detail-ranges {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.ug-detail-ranges th,
+.ug-detail-ranges td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+.ug-detail-ranges th {
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.ug-detail-ranges .text-right {
+    text-align: right;
+}
+
+.ug-range-text {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.ug-detail-admins {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.ug-detail-admin {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.ug-detail-admin-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.ug-detail-rep-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--primary-light);
+    color: var(--primary);
+    white-space: nowrap;
+}
+
+.ug-detail-empty {
+    margin: 0;
+    font-size: 0.82rem;
+}
+
+.ug-detail-footer {
+    padding: 14px 0 0;
+    margin-top: 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ug-detail-danger {
+    color: var(--secondary);
+    border-color: var(--secondary);
+}

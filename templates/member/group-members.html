@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="group-members.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="main.js"></script>
+    <script src="group-summary.js"></script>
     <script src="group-members.js"></script>
 </head>
 
@@ -221,6 +222,12 @@
                     <!-- Cột Trái: Group Summary Hero Card -->
                     <aside class="group-sidebar-col">
                         <div class="group-hero-card">
+                            <!-- Thẻ tóm tắt nhóm: GET /api/v1/user-groups/:id (G03, M02 mục 3.1.2), vẽ bởi group-summary.js -->
+                            <div id="groupSummaryState" class="group-summary-state" role="status">
+                                <span id="groupSummaryMessage">Đang tải thông tin nhóm...</span>
+                                <button type="button" class="btn btn-outline btn-sm" id="btnRetryGroupSummary" hidden>Thử lại</button>
+                            </div>
+                            <div id="groupSummaryContent" hidden>
                             <div class="group-hero-top">
                                 <div class="group-hero-brand">
                                     <div class="group-hero-icon">
@@ -233,17 +240,13 @@
                                     </div>
                                     <div class="group-hero-headings">
                                         <div class="group-hero-title-row">
-                                            <h2 class="group-hero-title" id="heroGroupTitle">Khối Công nghệ Thông tin -
-                                                Nhóm Vận hành</h2>
+                                            <h2 class="group-hero-title" id="heroGroupTitle"></h2>
                                             <div class="group-hero-badges-row">
-                                                <span class="badge-code" id="heroGroupCode">UMO-IT-01</span>
-                                                <span class="badge-status active">Hoạt động</span>
+                                                <span class="badge-code" id="heroGroupCode"></span>
+                                                <span class="badge-status active" title="Nhóm của bạn đang hoạt động">Hoạt động</span>
                                             </div>
                                         </div>
-                                        <p class="group-hero-desc" id="heroGroupDesc">
-                                            Quản trị hệ thống máy chủ, hạ tầng mạng và giám sát tổng đài CDR toàn hệ
-                                            thống EVN
-                                        </p>
+                                        <p class="group-hero-desc" id="heroGroupDesc"></p>
                                     </div>
                                 </div>
                             </div>
@@ -293,6 +296,8 @@
                                     <div class="group-admin-list" id="heroAdminList">
                                     </div>
                                 </div>
+                            </div>
+
                             </div>
 
                             <!-- KPI Summary Bar -->
