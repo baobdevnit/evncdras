@@ -6,6 +6,8 @@
 // trang này dùng data.admins (Quản trị viên nhóm ACTIVE) từ sự kiện `member-group-summary` cho cảnh báo hạ quyền/khóa.
 // Vue: store useGroupAdminStore (members, pagination, query { page, search, roleCode, status }, viewMode cục bộ), action fetchMembers.
 // Kiểm tay mock: ?maintenance=1 (503), ?account=locked (401), ?role=REGULAR_USER (403), ?usersError=1 (lỗi mạng một lần).
+// Hộp "Xem chi tiết" gọi GET /api/v1/users/:id mỗi lần mở (N02, M03 mục 3.3.1): ?detailError=1 (lỗi mạng một lần),
+// ?detailMissing=<id> (dòng đó trả 404), ?detailOtherGroup=<id> (dòng đó trả 403 FORBIDDEN_SCOPE_ACCESS).
 // Các hộp Thêm/Sửa/Đổi vai trò/Đặt lại mật khẩu/Khóa ở mục 6 vẫn là mock CŨ (N03–N09): sửa dòng "CSDL" rồi tải lại danh sách.
 
 // ==========================================================================
@@ -17,9 +19,9 @@ const MOCK_USER_ROWS = [
     { id: 10, userGroupId: 1, username: 'tran.b', email: 'tran.b@71portal.vn', fullName: 'Trần Thị B', jobTitle: 'Trưởng nhóm Kỹ thuật Vận hành', phoneNumber: '0912.345.678', avatarUrl: null, status: 'ACTIVE', roleCode: 'GROUP_ADMIN', lastLoginAt: '2026-11-05T08:12:40+07:00', createdAt: '2026-03-15T08:30:00+07:00' },
     { id: 15, userGroupId: 1, username: 'le.c', email: 'le.c@71portal.vn', fullName: 'Lê Văn C', jobTitle: 'Kỹ sư Quản trị Hệ thống Chính', phoneNumber: '0983.456.789', avatarUrl: null, status: 'ACTIVE', roleCode: 'GROUP_ADMIN', lastLoginAt: '2026-11-04T16:40:00+07:00', createdAt: '2026-03-16T09:00:00+07:00' },
     { id: 101, userGroupId: 1, username: 'pham.d', email: 'pham.d@71portal.vn', fullName: 'Phạm Văn D', jobTitle: 'Kỹ sư Vận hành Máy chủ & Storage', phoneNumber: '0977 112 233', avatarUrl: null, status: 'ACTIVE', roleCode: 'USER_RECORDING', lastLoginAt: '2026-11-01T07:55:00+07:00', createdAt: '2026-03-20T10:00:00+07:00' },
-    { id: 102, userGroupId: 1, username: 'tri.hm', email: 'tri.hm@71portal.vn', fullName: 'Hoàng Minh Trí', jobTitle: 'Chuyên viên Giám sát Mạng & Tổng đài', phoneNumber: '0904556677', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: null, createdAt: '2026-04-01T08:00:00+07:00' },
+    { id: 102, userGroupId: 1, username: 'tri.hm', email: 'tri.hm@71portal.vn', fullName: 'Hoàng Minh Trí', jobTitle: 'Chuyên viên Giám sát Mạng & Tổng đài', phoneNumber: '0904556677', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: null, createdAt: '2026-04-01T08:00:00+07:00', mustChangePassword: true, lockedUntil: '2099-01-01T08:15:00+07:00' },
     { id: 103, userGroupId: 1, username: 'mai.dt', email: 'mai.dt@71portal.vn', fullName: 'Đỗ Thị Mai', jobTitle: 'Kỹ sư Trực ca Vận hành 24/7', phoneNumber: '0936.889.900', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: '2026-10-30T22:10:00+07:00', createdAt: '2026-04-01T08:10:00+07:00' },
-    { id: 104, userGroupId: 1, username: 'anh.nt', email: 'anh.nt@71portal.vn', fullName: 'Nguyễn Tuấn Anh', jobTitle: null, phoneNumber: null, avatarUrl: null, status: 'LOCKED', roleCode: 'REGULAR_USER', lastLoginAt: null, createdAt: '2026-04-02T10:00:00+07:00' },
+    { id: 104, userGroupId: 1, username: 'anh.nt', email: 'anh.nt@71portal.vn', fullName: 'Nguyễn Tuấn Anh', jobTitle: null, phoneNumber: null, avatarUrl: null, status: 'LOCKED', roleCode: 'REGULAR_USER', lastLoginAt: null, createdAt: '2026-04-02T10:00:00+07:00', mustChangePassword: true, updatedAt: '2026-10-20T14:00:00+07:00' },
     { id: 105, userGroupId: 1, username: 'dang.vh', email: 'dang.vh@71portal.vn', fullName: 'Vũ Hải Đăng', jobTitle: null, phoneNumber: null, avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: '2026-11-02T08:00:00+07:00', createdAt: '2026-05-05T08:00:00+07:00' },
     { id: 106, userGroupId: 1, username: 'ha.bt', email: 'ha.bt@71portal.vn', fullName: 'Bùi Thanh Hà', jobTitle: 'Kỹ sư An toàn Thông tin', phoneNumber: '0983 556 778', avatarUrl: null, status: 'ACTIVE', roleCode: 'USER_RECORDING', lastLoginAt: '2026-11-05T09:30:00+07:00', createdAt: '2026-05-06T08:00:00+07:00' },
     { id: 107, userGroupId: 1, username: 'vinh.nq', email: 'vinh.nq@71portal.vn', fullName: 'Ngô Quang Vinh', jobTitle: 'Kỹ sư Mạng Truyền dẫn', phoneNumber: '0915.223.344', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: '2026-10-20T08:00:00+07:00', createdAt: '2026-06-01T08:00:00+07:00' },
@@ -37,6 +39,7 @@ const gaParams = new URLSearchParams(window.location.search);
 const GA_MOCK_MAINTENANCE = gaParams.get('maintenance') === '1';
 const GA_MOCK_ACCOUNT_LOCKED = gaParams.get('account') === 'locked';
 let gaMockNetworkError = gaParams.get('usersError') === '1';
+let gaMockDetailError = gaParams.get('detailError') === '1';
 
 const gaNow = () => new Date().toISOString().replace('Z', '+07:00');
 const gaFail = (statusCode, errorCode, message, errors) =>
@@ -119,6 +122,44 @@ function mockGetUsers(token, query) {
     });
 }
 
+// DTO GET /api/v1/users/:id: 14 trường của phần tử + mustChangePassword, lockedUntil, updatedAt = 17 trường (M03 mục 3.3.1).
+// Cột mock không ghi thì lấy mặc định: must_change_password = 0, locked_until = NULL, updated_at = created_at.
+function toUserDetail(row) {
+    const lockedUntil = row.lockedUntil && Date.parse(row.lockedUntil) > Date.now() ? row.lockedUntil : null; // locked_until > NOW()
+    return Object.assign(toUserListItem(row), {
+        mustChangePassword: !!row.mustChangePassword,
+        lockedUntil,
+        updatedAt: row.updatedAt || row.createdAt
+    });
+}
+
+// Giả lập GET /api/v1/users/:id (bản User). Thứ tự: guard (401) → bảo trì (503) → quyền user:view (403) → :id/query (400)
+// → kiểm tra tài khoản (401) → tìm người dùng (404) → phạm vi nhóm (403 FORBIDDEN_SCOPE_ACCESS). Không ghi audit; INACTIVE vẫn 200.
+function mockGetUserDetail(token, id, query) {
+    return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+        if (gaMockDetailError) { gaMockDetailError = false; return Promise.reject(new Error('Network Error')); }
+        if (!token) return gaFail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+        if (GA_MOCK_MAINTENANCE) return gaFail(503, 'MAINTENANCE', 'Hệ thống đang bảo trì, vui lòng quay lại sau');
+        const account = window.memberSession ? window.memberSession.getAccount() : null;
+        if (account && !(account.permissions || []).includes('user:view')) {
+            return gaFail(403, 'FORBIDDEN_PERMISSION', 'Bạn không có quyền thực hiện thao tác này');
+        }
+        const errors = {};
+        if (!(/^[1-9][0-9]{0,9}$/.test(String(id)) && Number(id) <= 4294967295)) errors.id = ['Mã người dùng phải là số nguyên dương'];
+        Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+        if (Object.keys(errors).length) return gaFail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', errors);
+        if (GA_MOCK_ACCOUNT_LOCKED) return gaFail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+
+        const scopeGroupId = account ? account.userGroup.id : 1; // = users.user_group_id đọc ở bước kiểm tra tài khoản
+        const row = MOCK_USER_ROWS.find(r => r.id === Number(id));
+        if (!row || gaParams.get('detailMissing') === String(id)) return gaFail(404, 'NOT_FOUND', 'Không tìm thấy tài nguyên');
+        if (row.userGroupId !== scopeGroupId || gaParams.get('detailOtherGroup') === String(id)) {
+            return gaFail(403, 'FORBIDDEN_SCOPE_ACCESS', 'Bạn không có quyền truy cập dữ liệu của nhóm khác');
+        }
+        return { success: true, statusCode: 200, message: 'Lấy chi tiết người dùng thành công', data: toUserDetail(row), timestamp: gaNow() };
+    });
+}
+
 // ==========================================================================
 // 2. Trạng thái màn hình
 // ==========================================================================
@@ -127,7 +168,9 @@ let appState = {
     viewMode: 'grid',       // 'grid' | 'table' – trạng thái giao diện cục bộ, không lưu
     query: { page: 1, search: '', roleCode: '', status: '' }, // '' = không lọc (status '' = "Đang sử dụng")
     seq: 0,                 // chỉ hiển thị response của request gửi sau cùng
-    items: [],              // data của trang đang hiển thị (hộp chi tiết đọc từ đây cho tới khi rà N02)
+    items: [],              // data của trang đang hiển thị (tiêu đề hộp chi tiết, các hộp mock cũ mục 6)
+    detailSeq: 0,           // chỉ hiển thị response của lần mở hộp chi tiết sau cùng
+    detailId: null,         // id đang mở trong hộp chi tiết
     summary: null,          // data của GET /user-groups/:id (sự kiện member-group-summary)
     pendingActionUserId: null
 };
@@ -188,6 +231,7 @@ function initEventListeners() {
     document.getElementById('btnViewGrid')?.addEventListener('click', () => setViewMode('grid'));
     document.getElementById('btnViewTable')?.addEventListener('click', () => setViewMode('table'));
     document.getElementById('btnRetryMembers')?.addEventListener('click', () => loadMembers());
+    document.getElementById('btnRetryViewMember')?.addEventListener('click', () => { if (appState.detailId) loadMemberDetail(appState.detailId); });
 
     // Tìm kiếm: 300 ms sau lần gõ cuối hoặc Enter; đổi điều kiện thì về trang 1.
     const searchInput = document.getElementById('memberSearchInput');
@@ -454,6 +498,7 @@ function openModal(modalId) {
 }
 
 function closeModal(modalId) {
+    if (modalId === 'viewMemberModal') { appState.detailId = null; appState.detailSeq++; } // bỏ response GET /:id đang chờ
     const el = document.getElementById(modalId);
     if (el) el.classList.remove('show');
 }
@@ -847,50 +892,102 @@ function confirmToggleStatus() {
     );
 }
 
-// Modal 6: Xem Chi Tiết Thành Viên
+// Modal 6: Xem chi tiết thành viên – GET /api/v1/users/:id mỗi lần mở (N02, M03 mục 3.3.1).
+// Tiêu đề từ dòng đã bấm; thân hộp tải/lỗi/503 + "Thử lại" riêng; chỉ hiển thị response của lần mở sau cùng;
+// 404/403 FORBIDDEN_SCOPE_ACCESS đóng hộp + toast cảnh báo + tải lại danh sách.
 function openViewMemberModal(userId) {
-    const member = findMember(userId);
-    if (!member) return;
+    const row = findMember(userId);
+    const title = document.getElementById('viewMemberTitleBar');
+    if (title) title.textContent = 'Chi tiết – ' + (row ? row.fullName : 'thành viên #' + userId);
+    appState.detailId = userId;
+    openModal('viewMemberModal');
+    loadMemberDetail(userId);
+}
 
-    const group = getCurrentGroup();
+// state: 'loading' | 'error' | 'ready'
+function setMemberDetailState(state, message) {
+    const box = document.getElementById('viewMemberState');
+    const msg = document.getElementById('viewMemberStateMessage');
+    const retry = document.getElementById('btnRetryViewMember');
+    const content = document.getElementById('viewMemberContent');
+    if (box) { box.hidden = state === 'ready'; box.classList.toggle('is-error', state === 'error'); }
+    if (msg && message) msg.textContent = message;
+    if (retry) retry.hidden = state !== 'error';
+    if (content) content.hidden = state !== 'ready';
+}
 
-    const viewAvatar = document.getElementById('viewMemberAvatar');
-    viewAvatar.src = member.avatarUrl || '';
-    viewAvatar.hidden = !member.avatarUrl;
-    document.getElementById('viewMemberFullName').innerText = member.fullName;
-    document.getElementById('viewMemberUsername').innerText = `@${member.username}`;
-
-    document.getElementById('viewMemberRoleBadge').innerHTML = GA_ROLE_BADGE[member.roleCode] || gaEsc(member.roleName);
-
-    document.getElementById('viewMemberStatusBadge').innerHTML = statusBadgeHtml(member);
-
-    document.getElementById('viewMemberGroupName').innerText = `${group.code} - ${group.name}`;
-    document.getElementById('viewMemberTitle').innerText = member.jobTitle || 'Chưa cập nhật';
-    document.getElementById('viewMemberPhone').innerText = member.phoneNumber || 'Chưa cập nhật';
-    document.getElementById('viewMemberEmail').innerText = member.email;
-
-    // Hiển thị quyền nghe & tải ghi âm thoại (BR-UG-05): Ẩn nếu nhóm chưa được cấp phép
-    const hasRecording = group.allowRecordingAccess ?? group.recordingAccessEnabled;
-    const recItem = document.getElementById('viewMemberRecordingAccessItem');
-    const recBadge = document.getElementById('viewMemberRecordingBadge');
-    if (recItem) {
-        if (hasRecording) {
-            recItem.style.display = 'block';
-            const hasAccess = member.roleCode === 'GROUP_ADMIN' || member.roleCode === 'USER_RECORDING';
-            if (recBadge) {
-                recBadge.innerHTML = hasAccess
-                    ? `<span class="badge-recording" style="font-size: 0.8125rem; padding: 4px 10px;">
-                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
-                        Được cấp quyền (${member.roleCode === 'GROUP_ADMIN' ? 'Mặc định theo vai trò Quản trị viên' : 'Vai trò Thành viên nghe ghi âm'})
-                       </span>`
-                    : `<span style="font-size: 0.8125rem; color: var(--text-muted);">Chưa được cấp quyền</span>`;
+function loadMemberDetail(userId) {
+    const seq = ++appState.detailSeq;
+    setMemberDetailState('loading', 'Đang tải thông tin thành viên...');
+    return gaCallApi(token => mockGetUserDetail(token, userId))
+        .then(res => {
+            if (seq !== appState.detailSeq || appState.detailId !== userId) return; // đã mở dòng khác hoặc đã đóng
+            renderMemberDetail(res.data);
+            setMemberDetailState('ready');
+        })
+        .catch(err => {
+            if (seq !== appState.detailSeq || appState.detailId !== userId) return;
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            if (err && (err.statusCode === 404 || (err.statusCode === 403 && err.errorCode === 'FORBIDDEN_SCOPE_ACCESS'))) {
+                closeModal('viewMemberModal');
+                showToast('Thành viên không còn trong nhóm. Danh sách đã được tải lại.', 'warning');
+                loadMembers();
+                return;
             }
-        } else {
-            recItem.style.display = 'none';
-        }
+            // 503: request() hiện biểu ngữ bảo trì; hộp vẫn hiện thông điệp + "Thử lại" riêng (U09).
+            setMemberDetailState('error', (err && err.statusCode && err.message) || 'Không tải được thông tin thành viên. Vui lòng thử lại.');
+        });
+}
+
+// HH:mm dd/MM/yyyy (khóa tạm thường chỉ vài phút nên giờ đứng trước).
+function gaFormatTime(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso || '');
+    return m ? m[4] + ':' + m[5] + ' ' + m[3] + '/' + m[2] + '/' + m[1] : '';
+}
+
+// Vẽ hộp từ data (17 trường). Quyền ghi âm: Tầng 1 của nhóm (store) + vai trò GROUP_ADMIN/USER_RECORDING (M10 mục 2.3).
+function renderMemberDetail(d) {
+    const text = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+    const avatar = document.getElementById('viewMemberAvatar');
+    const initials = document.getElementById('viewMemberInitials');
+    if (avatar) { avatar.hidden = !d.avatarUrl; if (d.avatarUrl) avatar.src = d.avatarUrl; else avatar.removeAttribute('src'); }
+    if (initials) { initials.hidden = !!d.avatarUrl; initials.textContent = gaInitials(d.fullName); }
+    text('viewMemberFullName', d.fullName);
+    text('viewMemberUsername', '@' + d.username);
+    document.getElementById('viewMemberRoleBadge').innerHTML = GA_ROLE_BADGE[d.roleCode] || gaEsc(d.roleName);
+    document.getElementById('viewMemberStatusBadge').innerHTML = statusBadgeHtml(d);
+    const rep = document.getElementById('viewMemberRepMark');
+    if (rep) rep.hidden = !d.isRepresentative;
+    text('viewMemberGroupName', d.userGroup.code + ' – ' + d.userGroup.name);
+    text('viewMemberTitle', d.jobTitle || 'Chưa cập nhật');
+    text('viewMemberPhone', d.phoneNumber || 'Chưa cập nhật');
+    text('viewMemberEmail', d.email);
+    text('viewMemberLastLogin', d.lastLoginAt ? gaFormatDate(d.lastLoginAt, true) : 'Chưa đăng nhập');
+    text('viewMemberCreatedAt', gaFormatDate(d.createdAt));
+    text('viewMemberUpdatedAt', gaFormatDate(d.updatedAt, true));
+
+    const alerts = [];
+    if (d.mustChangePassword) alerts.push('Chưa đổi mật khẩu tạm (lần đăng nhập kế tiếp bị buộc đổi)');
+    if (d.lockedUntil) alerts.push('Đang khóa tạm do sai mật khẩu đến ' + gaFormatTime(d.lockedUntil));
+    const sec = document.getElementById('viewMemberSecurity');
+    if (sec) {
+        sec.innerHTML = alerts.map(t => '<li>' + gaEsc(t) + '</li>').join('');
+        sec.hidden = !alerts.length;
     }
 
-    openModal('viewMemberModal');
+    const recItem = document.getElementById('viewMemberRecordingAccessItem');
+    const recBadge = document.getElementById('viewMemberRecordingBadge');
+    const groupAllows = getCurrentGroup().allowRecordingAccess; // Tầng 1, store authUser.user.userGroup
+    if (recItem) recItem.hidden = !groupAllows;
+    if (groupAllows && recBadge) {
+        const hasAccess = d.roleCode === 'GROUP_ADMIN' || d.roleCode === 'USER_RECORDING';
+        recBadge.innerHTML = hasAccess
+            ? `<span class="badge-recording" style="font-size: 0.8125rem; padding: 4px 10px;">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+                Được cấp quyền (${d.roleCode === 'GROUP_ADMIN' ? 'theo vai trò Quản trị viên nhóm' : 'vai trò Thành viên nghe ghi âm'})
+               </span>`
+            : '<span style="font-size: 0.8125rem; color: var(--text-muted);">Chưa được cấp quyền</span>';
+    }
 }
 
 // Toast Notification

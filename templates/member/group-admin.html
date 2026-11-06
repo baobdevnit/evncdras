@@ -780,49 +780,70 @@
         </div>
     </div>
 
-    <!-- Modal 6: Xem Chi Tiết Thành Viên -->
+    <!-- Modal 6: Xem Chi Tiết Thành Viên – GET /api/v1/users/:id mỗi lần mở (N02, M03 mục 3.3.1) -->
     <div class="modal" id="viewMemberModal">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h3>Chi tiết thành viên</h3>
+                    <h3 id="viewMemberTitleBar">Chi tiết thành viên</h3>
                     <button type="button" class="close-btn" onclick="closeModal('viewMemberModal')">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <div class="member-detail-profile">
-                        <img id="viewMemberAvatar" src="" class="member-detail-avatar" alt="Avatar">
-                        <div>
-                            <h4 id="viewMemberFullName" style="font-size: 1.1rem; margin-bottom: 2px;"></h4>
-                            <span id="viewMemberUsername"
-                                style="font-size: 0.8125rem; color: var(--text-muted); display: block; margin-bottom: 6px;"></span>
-                            <div style="display: flex; gap: 8px;">
-                                <div id="viewMemberRoleBadge"></div>
-                                <div id="viewMemberStatusBadge"></div>
+                    <div id="viewMemberState" class="member-list-state" role="status" hidden>
+                        <span id="viewMemberStateMessage">Đang tải thông tin thành viên...</span>
+                        <button type="button" class="btn btn-outline btn-sm" id="btnRetryViewMember" hidden>Thử lại</button>
+                    </div>
+                    <div id="viewMemberContent" hidden>
+                        <div class="member-detail-profile">
+                            <img id="viewMemberAvatar" src="" class="member-detail-avatar" alt="" hidden>
+                            <span id="viewMemberInitials" class="member-detail-avatar avatar-initials" aria-hidden="true"></span>
+                            <div>
+                                <h4 id="viewMemberFullName" style="font-size: 1.1rem; margin-bottom: 2px;"></h4>
+                                <span id="viewMemberUsername"
+                                    style="font-size: 0.8125rem; color: var(--text-muted); display: block; margin-bottom: 6px;"></span>
+                                <div class="member-detail-badges">
+                                    <div id="viewMemberRoleBadge"></div>
+                                    <div id="viewMemberStatusBadge"></div>
+                                    <span id="viewMemberRepMark" class="member-rep-mark" title="Người đại diện nhóm" hidden>★ Đại diện</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="member-detail-grid">
-                        <div class="group-meta-item">
-                            <span class="group-meta-label">Nhóm người dùng</span>
-                            <span class="group-meta-value" id="viewMemberGroupName"
-                                style="font-size: 0.8125rem;"></span>
-                        </div>
-                        <div class="group-meta-item">
-                            <span class="group-meta-label">Chức danh / Vị trí</span>
-                            <span class="group-meta-value" id="viewMemberTitle" style="font-size: 0.8125rem;"></span>
-                        </div>
-                        <div class="group-meta-item">
-                            <span class="group-meta-label">Điện thoại di động</span>
-                            <span class="group-meta-value" id="viewMemberPhone" style="font-size: 0.8125rem;"></span>
-                        </div>
-                        <div class="group-meta-item" style="grid-column: 1 / -1;">
-                            <span class="group-meta-label">Email</span>
-                            <span class="group-meta-value" id="viewMemberEmail" style="font-size: 0.8125rem;"></span>
-                        </div>
-                        <div class="group-meta-item" id="viewMemberRecordingAccessItem" style="grid-column: 1 / -1; display: none;">
-                            <span class="group-meta-label">Quyền nghe & tải ghi âm thoại</span>
-                            <div id="viewMemberRecordingBadge" style="margin-top: 4px;"></div>
+                        <ul id="viewMemberSecurity" class="member-detail-alerts" hidden></ul>
+
+                        <div class="member-detail-grid">
+                            <div class="group-meta-item">
+                                <span class="group-meta-label">Nhóm người dùng</span>
+                                <span class="group-meta-value" id="viewMemberGroupName" style="font-size: 0.8125rem;"></span>
+                            </div>
+                            <div class="group-meta-item">
+                                <span class="group-meta-label">Chức danh / Vị trí</span>
+                                <span class="group-meta-value" id="viewMemberTitle" style="font-size: 0.8125rem;"></span>
+                            </div>
+                            <div class="group-meta-item">
+                                <span class="group-meta-label">Điện thoại di động</span>
+                                <span class="group-meta-value" id="viewMemberPhone" style="font-size: 0.8125rem;"></span>
+                            </div>
+                            <div class="group-meta-item">
+                                <span class="group-meta-label">Email</span>
+                                <span class="group-meta-value" id="viewMemberEmail" style="font-size: 0.8125rem; word-break: break-all;"></span>
+                            </div>
+                            <div class="group-meta-item">
+                                <span class="group-meta-label">Đăng nhập lần cuối</span>
+                                <span class="group-meta-value" id="viewMemberLastLogin" style="font-size: 0.8125rem;"></span>
+                            </div>
+                            <div class="group-meta-item">
+                                <span class="group-meta-label">Ngày tham gia</span>
+                                <span class="group-meta-value" id="viewMemberCreatedAt" style="font-size: 0.8125rem;"></span>
+                            </div>
+                            <div class="group-meta-item">
+                                <span class="group-meta-label">Cập nhật lần cuối</span>
+                                <span class="group-meta-value" id="viewMemberUpdatedAt" style="font-size: 0.8125rem;"></span>
+                            </div>
+                            <div class="group-meta-item" id="viewMemberRecordingAccessItem" style="grid-column: 1 / -1;" hidden>
+                                <span class="group-meta-label">Quyền nghe & tải ghi âm thoại</span>
+                                <div id="viewMemberRecordingBadge" style="margin-top: 4px;"></div>
+                            </div>
                         </div>
                     </div>
                 </div>

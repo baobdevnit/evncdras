@@ -5,11 +5,14 @@
 // Vue: store useUserStore (users, pagination, query { page, search, status, roleCode, userGroupId }), action fetchUsers.
 // Kiểm tay mock: ?usersError=1 (lỗi mạng một lần ở bảng), ?groupsError=1 (lỗi mạng một lần ở danh mục nhóm),
 // ?noEdit=1 / ?noDelete=1 (store thiếu user:edit / user:delete).
-// Các hộp Thêm/Sửa/Ngừng hoạt động bên dưới vẫn là mock cũ, rà ở N03 (POST), N04 (PUT), N09 (DELETE).
+// Hộp sửa tải GET /api/v1/admin/users/:id mỗi lần mở (N02, M03 mục 3.3.1); kiểm tay: ?editLoadError=1 (lỗi mạng một lần),
+// ?editMissing=<id> (dòng đó trả 404), ?editInactive=<id> (dòng đó vừa bị ngừng hoạt động).
+// Phần lưu của hộp sửa, hộp Thêm, Ngừng hoạt động vẫn là mock cũ, rà ở N03 (POST), N04 (PUT), N09 (DELETE).
 
 const US_QS = new URLSearchParams(window.location.search);
 let usMockUsersError = US_QS.get('usersError') === '1';
 let usMockGroupsError = US_QS.get('groupsError') === '1';
+let usMockEditLoadError = US_QS.get('editLoadError') === '1';
 
 // ==========================================================================
 // 1. Giả lập backend
@@ -38,8 +41,8 @@ const MOCK_US_USERS = [
     { id: 10, userGroupId: 1, username: 'tran.b', email: 'tran.b@71portal.vn', fullName: 'Trần Thị B', jobTitle: 'Trưởng nhóm Kỹ thuật Vận hành', phoneNumber: '0912.345.678', avatarUrl: null, status: 'ACTIVE', roleCode: 'GROUP_ADMIN', lastLoginAt: '2026-11-05T08:12:40+07:00', createdAt: '2026-03-15T08:30:00+07:00' },
     { id: 15, userGroupId: 1, username: 'le.c', email: 'le.c@71portal.vn', fullName: 'Lê Văn C', jobTitle: 'Kỹ sư Quản trị Hệ thống', phoneNumber: null, avatarUrl: null, status: 'ACTIVE', roleCode: 'GROUP_ADMIN', lastLoginAt: '2026-11-04T16:40:00+07:00', createdAt: '2026-03-16T09:00:00+07:00' },
     { id: 101, userGroupId: 1, username: 'pham.d', email: 'pham.d@71portal.vn', fullName: 'Phạm Văn D', jobTitle: 'Kỹ sư Vận hành Máy chủ', phoneNumber: '0977 112 233', avatarUrl: null, status: 'ACTIVE', roleCode: 'USER_RECORDING', lastLoginAt: '2026-11-01T07:55:00+07:00', createdAt: '2026-03-20T10:00:00+07:00' },
-    { id: 102, userGroupId: 1, username: 'tri.hm', email: 'tri.hm@71portal.vn', fullName: 'Hoàng Minh Trí', jobTitle: 'Chuyên viên Giám sát Mạng', phoneNumber: '0904556677', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: null, createdAt: '2026-04-01T08:00:00+07:00' },
-    { id: 104, userGroupId: 1, username: 'anh.nt', email: 'anh.nt@71portal.vn', fullName: 'Nguyễn Tuấn Anh', jobTitle: null, phoneNumber: null, avatarUrl: null, status: 'LOCKED', roleCode: 'REGULAR_USER', lastLoginAt: null, createdAt: '2026-04-02T10:00:00+07:00' },
+    { id: 102, userGroupId: 1, username: 'tri.hm', email: 'tri.hm@71portal.vn', fullName: 'Hoàng Minh Trí', jobTitle: 'Chuyên viên Giám sát Mạng', phoneNumber: '0904556677', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: null, createdAt: '2026-04-01T08:00:00+07:00', mustChangePassword: true, lockedUntil: '2099-01-01T08:15:00+07:00' },
+    { id: 104, userGroupId: 1, username: 'anh.nt', email: 'anh.nt@71portal.vn', fullName: 'Nguyễn Tuấn Anh', jobTitle: null, phoneNumber: null, avatarUrl: null, status: 'LOCKED', roleCode: 'REGULAR_USER', lastLoginAt: null, createdAt: '2026-04-02T10:00:00+07:00', mustChangePassword: true, updatedAt: '2026-10-20T14:00:00+07:00' },
     { id: 110, userGroupId: 1, username: 'hong.ct', email: 'hong.ct@71portal.vn', fullName: 'Cao Thị Hồng', jobTitle: 'Kỹ sư Giám sát Chất lượng', phoneNumber: null, avatarUrl: null, status: 'INACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: '2026-06-30T17:00:00+07:00', createdAt: '2026-03-18T09:00:00+07:00' },
     { id: 201, userGroupId: 2, username: 'long.nh', email: 'long.nh@71portal.vn', fullName: 'Nguyễn Hải Long', jobTitle: 'Lập trình viên Backend', phoneNumber: '0972.123.456', avatarUrl: null, status: 'ACTIVE', roleCode: 'GROUP_ADMIN', lastLoginAt: '2026-11-05T13:20:00+07:00', createdAt: '2026-03-15T09:10:00+07:00' },
     { id: 202, userGroupId: 2, username: 'thu.pt', email: 'thu.pt@71portal.vn', fullName: 'Phan Thị Thu', jobTitle: 'Kỹ sư Kiểm thử', phoneNumber: null, avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: '2026-10-28T08:00:00+07:00', createdAt: '2026-05-10T08:00:00+07:00' },
@@ -68,6 +71,17 @@ function toUserListItem(row) {
         lastLoginAt: row.lastLoginAt,
         createdAt: row.createdAt
     };
+}
+
+// DTO GET /admin/users/:id: 14 trường của phần tử + mustChangePassword, lockedUntil, updatedAt = 17 trường (M03 mục 3.3.1).
+// Cột mock không ghi thì lấy mặc định: must_change_password = 0, locked_until = NULL, updated_at = created_at.
+function toUserDetail(row) {
+    const lockedUntil = row.lockedUntil && Date.parse(row.lockedUntil) > Date.now() ? row.lockedUntil : null; // locked_until > NOW()
+    return Object.assign(toUserListItem(row), {
+        mustChangePassword: !!row.mustChangePassword,
+        lockedUntil,
+        updatedAt: row.updatedAt || row.createdAt
+    });
 }
 
 // Kiểm tra query chung của danh sách (02 mục 2.2): tham số lạ/lặp lại, page, limit, search.
@@ -125,6 +139,23 @@ function mockGetUsers(token, query) {
     });
 }
 
+// Giả lập GET /api/v1/admin/users/:id. Thứ tự: guard (401) → quyền user:view → :id/query (400) → kiểm tra tài khoản
+// → tìm người dùng (404). Không bị bảo trì chặn; không ghi audit; tài khoản INACTIVE vẫn 200.
+function mockGetUserDetail(token, id, query) {
+    return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+        if (usMockEditLoadError) { usMockEditLoadError = false; return Promise.reject(new Error('Network Error')); }
+        if (!token) return usUnauthorized();
+        const errors = {};
+        if (!(/^[1-9][0-9]{0,9}$/.test(String(id)) && Number(id) <= 4294967295)) errors.id = ['Mã người dùng phải là số nguyên dương'];
+        Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+        if (Object.keys(errors).length) return usFail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', errors);
+        const row = MOCK_US_USERS.find(u => u.id === Number(id));
+        if (!row || US_QS.get('editMissing') === String(id)) return usFail(404, 'NOT_FOUND', 'Không tìm thấy tài nguyên');
+        if (US_QS.get('editInactive') === String(id)) row.status = 'INACTIVE'; // giả lập vừa bị ngừng hoạt động ở nơi khác
+        return { success: true, statusCode: 200, message: 'Lấy chi tiết người dùng thành công', data: toUserDetail(row), timestamp: usNow() };
+    });
+}
+
 // Giả lập GET /api/v1/admin/user-groups (G01) – chỉ phần danh mục cần: search trên code/name, sắp code, id.
 // Phần tử đúng cấu trúc G01 nhưng mock chỉ điền các trường màn hình này đọc (name, code, status, userCount, representative).
 function mockGetGroupOptions(token, query) {
@@ -158,7 +189,9 @@ function mockGetGroupOptions(token, query) {
 const usQuery = { page: 1, search: '', status: '', roleCode: '', userGroupId: '' }; // '' = không lọc
 let usSeq = 0;           // chỉ hiển thị response của request gửi sau cùng (bảng)
 let usGroupSeq = 0;      // như trên, cho danh mục nhóm
-let usRows = [];         // data của trang đang hiển thị (hộp sửa đọc từ đây cho tới khi rà N02/N04)
+let usRows = [];         // data của trang đang hiển thị (tiêu đề hộp sửa, hộp Ngừng hoạt động)
+let usEditSeq = 0;       // chỉ hiển thị response của lần mở hộp sửa sau cùng
+let usEditId = null;     // id đang mở trong hộp sửa (null = chế độ tạo)
 let usGroupOptions = []; // data của danh mục nhóm (tiêu đề bảng)
 const US_ROLE_LABELS = { GROUP_ADMIN: '★ Quản trị viên nhóm', USER_RECORDING: 'Thành viên nghe ghi âm', REGULAR_USER: 'Thành viên' };
 const US_ROLE_CLASS = { GROUP_ADMIN: 'admin', USER_RECORDING: 'recording', REGULAR_USER: 'member' };
@@ -237,6 +270,7 @@ function setupUsersEvents() {
     document.getElementById('filterStatusSelect')?.addEventListener('change', e => { usQuery.status = e.target.value; usQuery.page = 1; loadUsers(); });
     document.getElementById('btnRetryUsers')?.addEventListener('click', () => loadUsers());
     document.getElementById('btnRetryGroups')?.addEventListener('click', () => loadGroupSidebar(groupSearchValue));
+    document.getElementById('btnRetryUserEdit')?.addEventListener('click', () => { if (usEditId) loadUserEdit(usEditId); });
 
     // Chọn nhóm: gửi userGroupId ('' = Tất cả nhóm), về trang 1.
     document.getElementById('groupList')?.addEventListener('click', e => {
@@ -489,6 +523,7 @@ function openModal(modalId) {
 }
 
 function closeModal(modalId) {
+    if (modalId === 'userModal') { usEditId = null; usEditSeq++; } // bỏ response GET /:id đang chờ
     const modal = document.getElementById(modalId);
     if (modal) {
         modal.classList.remove('show');
@@ -496,28 +531,38 @@ function closeModal(modalId) {
     }
 }
 
-// Hộp sửa điền từ dòng đã tải (usRows); N04 sẽ đổi sang tải GET /admin/users/:id mỗi lần mở.
+// Đổi hộp #userModal giữa chế độ tạo và sửa: sửa thì username, email chỉ đọc; nhóm, vai trò hiện ô chữ chỉ đọc.
+function setUserModalMode(mode) {
+    const edit = mode === 'edit';
+    const byId = id => document.getElementById(id);
+    ['userUsernameInput', 'userEmailInput'].forEach(id => { const el = byId(id); if (el) el.readOnly = edit; });
+    ['userGroupSelect', 'userRoleSelect'].forEach(id => { const el = byId(id); if (el) { el.hidden = edit; el.disabled = edit; } });
+    ['userGroupText', 'userRoleText'].forEach(id => { const el = byId(id); if (el) el.hidden = !edit; });
+    const info = byId('userEditInfo');
+    if (info && !edit) info.hidden = true;
+}
+
+// state: 'loading' | 'error' | 'ready' – form ẩn khi đang tải/lỗi; nút Lưu chỉ bật khi đã có dữ liệu.
+function setUserEditState(state, message) {
+    const box = document.getElementById('userEditState');
+    const msg = document.getElementById('userEditStateMessage');
+    const retry = document.getElementById('btnRetryUserEdit');
+    const form = document.getElementById('userForm');
+    const save = document.querySelector('#userModal .btn-primary');
+    if (box) { box.hidden = state === 'ready'; box.classList.toggle('is-error', state === 'error'); }
+    if (msg && message) msg.textContent = message;
+    if (retry) retry.hidden = state !== 'error';
+    if (form) form.hidden = state !== 'ready';
+    if (save) save.disabled = state !== 'ready';
+}
+
+// Mở hộp sửa: tiêu đề từ dòng đã bấm, dữ liệu form từ GET /admin/users/:id (mỗi lần mở, không dùng dòng danh sách).
 function editUser(userId) {
-    const user = usRows.find(u => u.id === userId);
     const modal = document.getElementById('userModal');
-    if (!user || !modal) return;
-
+    if (!modal) return;
+    const row = usRows.find(u => u.id === userId);
     const modalTitle = modal.querySelector('.modal-header h2');
-    if (modalTitle) modalTitle.innerText = 'Chỉnh sửa Người dùng';
-
-    const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
-    set('userNameInput', user.fullName);
-    set('userEmailInput', user.email);
-    set('userUsernameInput', user.username);
-    set('userPhoneInput', user.phoneNumber || '');
-    set('userJobTitle', user.jobTitle || '');
-    set('userRoleSelect', user.roleCode === 'GROUP_ADMIN' ? 'admin' : 'member');
-    set('userStatusSelect', user.status);
-    const selectGroup = document.getElementById('userGroupSelect');
-    if (selectGroup) {
-        selectGroup.value = String(user.userGroup.id);
-        selectGroup.disabled = true; // BR-UG-01: nhóm bất biến, không chuyển nhóm
-    }
+    if (modalTitle) modalTitle.innerText = 'Chỉnh sửa – ' + (row ? row.fullName : 'người dùng #' + userId);
 
     const scopeBanner = document.getElementById('creatorScopeBanner');
     const scopeText = document.getElementById('creatorScopeText');
@@ -528,19 +573,77 @@ function editUser(userId) {
         scopeBanner.className = 'creator-scope-banner system-admin';
     }
     if (scopeText) {
-        scopeText.innerHTML = `Chế độ chỉnh sửa thông tin người dùng: Thuộc tính nhóm người dùng là <strong>bất biến</strong> (không thể thay đổi hoặc chuyển nhóm).`;
+        scopeText.innerHTML = 'Chế độ chỉnh sửa: tên đăng nhập, email, nhóm người dùng là <strong>bất biến</strong>; vai trò, khóa/mở khóa và ngừng hoạt động có thao tác riêng.';
     }
-    if (lockNotice) {
-        lockNotice.style.display = 'flex';
-        lockNotice.innerHTML = `
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-            <span><strong>Không thể chuyển nhóm:</strong> Người dùng thuộc cố định vào nhóm này ngay từ lúc tạo tài khoản theo quy định kiến trúc hệ thống.</span>
-        `;
-    }
+    if (lockNotice) lockNotice.style.display = 'flex';
     if (creationNotice) creationNotice.style.display = 'none';
 
+    usEditId = userId;
+    setUserModalMode('edit');
     openModal('userModal');
+    loadUserEdit(userId);
 }
+
+function loadUserEdit(userId) {
+    const seq = ++usEditSeq;
+    setUserEditState('loading', 'Đang tải thông tin người dùng...');
+    return usCallApi(token => mockGetUserDetail(token, userId))
+        .then(res => {
+            if (seq !== usEditSeq || usEditId !== userId) return; // đã mở dòng khác hoặc đã đóng
+            if (res.data.status === 'INACTIVE') { // trạng thái cuối: không sửa được nữa
+                closeUserEdit();
+                if (window.showToast) window.showToast('Tài khoản "' + res.data.fullName + '" đã ngừng hoạt động, không sửa được.', 'warning');
+                loadUsers();
+                return;
+            }
+            fillUserEditForm(res.data);
+            setUserEditState('ready');
+        })
+        .catch(err => {
+            if (seq !== usEditSeq || usEditId !== userId) return;
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            if (err && err.statusCode === 404) {
+                closeUserEdit();
+                if (window.showToast) window.showToast('Người dùng không còn tồn tại. Danh sách đã được tải lại.', 'warning');
+                loadUsers();
+                return;
+            }
+            setUserEditState('error', (err && err.statusCode && err.message) || 'Không tải được thông tin người dùng. Vui lòng thử lại.');
+        });
+}
+
+// Điền form sửa từ data (17 trường). Dải thông tin: trạng thái, đăng nhập cuối, cập nhật, mật khẩu tạm, khóa tạm.
+function fillUserEditForm(d) {
+    const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
+    set('userNameInput', d.fullName);
+    set('userUsernameInput', d.username);
+    set('userEmailInput', d.email);
+    set('userPhoneInput', d.phoneNumber || '');
+    set('userJobTitle', d.jobTitle || '');
+    set('userGroupText', d.userGroup.code + ' – ' + d.userGroup.name);
+    set('userRoleText', (US_ROLE_LABELS[d.roleCode] || d.roleName).replace(/^★ /, '') + (d.isRepresentative ? ' • Người đại diện nhóm' : ''));
+    const info = document.getElementById('userEditInfo');
+    if (!info) return;
+    const items = [
+        'Trạng thái: ' + (US_STATUS_LABELS[d.status] || d.status),
+        'Đăng nhập cuối: ' + (d.lastLoginAt ? usFormatDate(d.lastLoginAt, true) : 'Chưa đăng nhập'),
+        'Cập nhật: ' + usFormatDate(d.updatedAt, true)
+    ];
+    const warn = [];
+    if (d.mustChangePassword) warn.push('Chưa đổi mật khẩu tạm');
+    if (d.lockedUntil) warn.push('Đang khóa tạm do sai mật khẩu đến ' + usFormatTime(d.lockedUntil));
+    info.innerHTML = items.map(t => '<li>' + usEsc(t) + '</li>').join('')
+        + warn.map(t => '<li class="is-warning">' + usEsc(t) + '</li>').join('');
+    info.hidden = false;
+}
+
+// HH:mm dd/MM/yyyy (khóa tạm thường chỉ vài phút nên giờ đứng trước).
+function usFormatTime(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso || '');
+    return m ? m[4] + ':' + m[5] + ' ' + m[3] + '/' + m[2] + '/' + m[1] : '';
+}
+
+function closeUserEdit() { closeModal('userModal'); }
 
 function openAddUserModal() {
     const modal = document.getElementById('userModal');
@@ -551,6 +654,10 @@ function openAddUserModal() {
 
     const form = document.getElementById('userForm');
     if (form) form.reset();
+    usEditId = null;
+    usEditSeq++;
+    setUserModalMode('create');
+    setUserEditState('ready');
 
     const selectGroup = document.getElementById('userGroupSelect');
     const lockNotice = document.getElementById('userGroupLockNotice');
@@ -565,10 +672,7 @@ function openAddUserModal() {
     if (scopeText) {
         scopeText.innerHTML = `Đang thao tác với tư cách <strong>Quản trị viên hệ thống</strong>: Có quyền chỉ định tài khoản vào bất kỳ nhóm người dùng nào trong toàn hệ thống.`;
     }
-    if (selectGroup) {
-        selectGroup.disabled = false;
-        selectGroup.value = usQuery.userGroupId || ''; // giữ nhóm đang chọn ở danh mục bên trái
-    }
+    if (selectGroup) selectGroup.value = usQuery.userGroupId || ''; // giữ nhóm đang chọn ở danh mục bên trái
     if (lockNotice) lockNotice.style.display = 'none';
     if (creationNotice) {
         creationNotice.style.display = 'block';

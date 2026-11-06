@@ -365,6 +365,11 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0; margin-top: 1px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                     <span id="creatorScopeText">Đang thao tác với tư cách <strong>Quản trị viên hệ thống</strong>: Có quyền chỉ định tài khoản vào bất kỳ nhóm người dùng nào trong toàn hệ thống.</span>
                 </div>
+                <!-- Chế độ sửa: tải GET /api/v1/admin/users/:id mỗi lần mở (N02, M03 mục 3.3.1) -->
+                <div id="userEditState" class="users-state users-state--compact" role="status" hidden>
+                    <span id="userEditStateMessage">Đang tải thông tin người dùng...</span>
+                    <button type="button" id="btnRetryUserEdit" class="btn btn-sm btn-outline" hidden>Thử lại</button>
+                </div>
                 <form id="userForm">
                     <!-- Hàng 1: Họ tên & Tên đăng nhập -->
                     <div class="form-row">
@@ -402,6 +407,7 @@
                                 <option value="4">Tổ Giám sát Kiểm toán Độc lập (UMO-AUDIT)</option>
                                 <option value="5">Tổ Chuyên gia SOC An toàn TT (UMO-SEC-01)</option>
                             </select>
+                            <input type="text" id="userGroupText" class="form-control" readonly hidden>
                             <div id="userGroupLockNotice" class="badge-locked-note" style="display: none; margin-top: 6px;">
                                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                                 <span><strong>Cố định:</strong> Người dùng luôn thuộc nhóm này ngay từ lúc tạo và không thể chuyển nhóm sau này.</span>
@@ -413,29 +419,26 @@
                         <div class="form-group" style="flex: 1;">
                             <label>Vai trò trong nhóm <span class="text-danger">*</span></label>
                             <select id="userRoleSelect" class="form-control" required>
-                                <option value="member">Thành viên thường</option>
-                                <option value="admin">Quản trị nhóm (Group Admin)</option>
+                                <option value="REGULAR_USER">Thành viên</option>
+                                <option value="USER_RECORDING">Thành viên nghe ghi âm</option>
+                                <option value="GROUP_ADMIN">Quản trị viên nhóm</option>
                             </select>
+                            <input type="text" id="userRoleText" class="form-control" readonly hidden>
                             <span style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-top: 4px; line-height: 1.35;">
                                 Quản trị nhóm cũng là thành viên nhưng có quyền tạo và quản lý người dùng trong nhóm.
                             </span>
                         </div>
                     </div>
 
-                    <!-- Hàng 4: Chức danh & Trạng thái tài khoản -->
+                    <!-- Hàng 4: Chức danh (không có ô trạng thái: khóa/mở khóa và ngừng hoạt động là API riêng N05, N09) -->
                     <div class="form-row">
                         <div class="form-group" style="flex: 1;">
                             <label>Chức danh / Vị trí chuyên môn</label>
-                            <input type="text" id="userJobTitle" class="form-control" placeholder="Kỹ sư, Chuyên viên, Điện thoại viên...">
-                        </div>
-                        <div class="form-group" style="flex: 1;">
-                            <label>Trạng thái tài khoản</label>
-                            <select id="userStatusSelect" class="form-control">
-                                <option value="ACTIVE">Hoạt động</option>
-                                <option value="LOCKED">Đã khóa</option>
-                            </select>
+                            <input type="text" id="userJobTitle" class="form-control" maxlength="150" placeholder="Kỹ sư, Chuyên viên, Điện thoại viên...">
                         </div>
                     </div>
+                    <!-- Chỉ ở chế độ sửa: trạng thái tài khoản, mật khẩu, khóa tạm, cập nhật lần cuối (GET /admin/users/:id) -->
+                    <ul id="userEditInfo" class="user-edit-info" hidden></ul>
                 </form>
             </div>
             <div class="modal-footer">

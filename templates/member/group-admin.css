@@ -1372,6 +1372,7 @@
 .admin-toast.success { border-left-color: #10b981; }
 .admin-toast.error { border-left-color: #ef4444; }
 .admin-toast.info { border-left-color: var(--primary); }
+.admin-toast.warning { border-left-color: #f59e0b; }
 
 @keyframes slideInToast {
     from {
@@ -1613,4 +1614,41 @@ img[hidden] {
 .btn-page {
     padding: 4px 10px;
     font-size: 0.8125rem;
+}
+
+/* Hộp "Xem chi tiết" (N02, GET /api/v1/users/:id): trạng thái tải/lỗi, nhãn, cảnh báo mật khẩu/khóa tạm */
+.member-detail-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.member-detail-avatar.avatar-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 1.1rem;
+}
+
+.member-detail-alerts {
+    list-style: none;
+    margin: 0 0 14px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--secondary);
+    background: var(--secondary-light);
+    color: var(--secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+#viewMemberContent[hidden],
+#viewMemberState[hidden],
+.member-detail-alerts[hidden],
+.member-rep-mark[hidden],
+.member-detail-avatar[hidden],
+#viewMemberRecordingAccessItem[hidden] {
+    display: none !important;
 }

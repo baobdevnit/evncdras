@@ -382,9 +382,86 @@ Không có `404` (kể cả `userGroupId` không tồn tại), `409`, `403 FORBI
 
 ### 3.3.1. Chi tiết người dùng (`GET /api/v1/users/:id`)
 
-- **Response**: `data = { id, username, email, fullName, jobTitle, phoneNumber, avatarUrl, status, roleCode, roleName, isRepresentative, userGroup { id, code, name }, mustChangePassword, lockedUntil, lastLoginAt, createdAt, updatedAt }` (nhóm là đối tượng `userGroup` như phần tử mục 3.3, chủ dự án chốt ở N01; đặc tả đầy đủ rà ở N02). `isRepresentative` = tài khoản là `user_groups.representative_user_id` của nhóm. `lockedUntil` chỉ khác `null` khi đang bị khóa tạm do sai mật khẩu. Không trả `password_hash`, `failed_login_count` hay thông tin phiên.
-- Phần tử của `GET /users` (mục 3.3) là bản thu gọn 14 trường: không có `mustChangePassword`, `lockedUntil`, `updatedAt`.
-- **Phạm vi**: bản User chỉ xem người dùng trong nhóm của người gọi; người nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS`. Tài khoản `INACTIVE` vẫn xem được. `:id` không tồn tại trả `404`.
+- **Mục đích**: thông tin **đầy đủ** của một tài khoản người dùng: các trường của phần tử danh sách (mục 3.3) cộng trạng thái mật khẩu/khóa tạm và thời điểm cập nhật. Dùng cho: hộp sửa `#userModal` của `admin.users` (bản Admin, tải mỗi lần mở hộp, mục 5.1; phần lưu đặc tả ở mục 3.5) và hộp "Xem chi tiết" `#viewMemberModal` của `member.group-admin` (bản User, tải mỗi lần mở hộp, `docs/modules/02_user_group.md` mục 5.3). Chủ dự án chốt ở N02: đúng 17 trường (không thêm `passwordChangedAt`).
+- **Hai route**, chung service `UsersService.getDetail(id, scope)` và DTO (hai bản trả cùng trường):
+  - Bản Admin `GET /api/v1/admin/users/:id`: `AdminAuthGuard` → `PermissionsGuard` `user:view` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`); `401`/`403` như mục 3.3; không bị chế độ bảo trì chặn. Xem mọi người dùng của mọi nhóm, kể cả `INACTIVE`.
+  - Bản User `GET /api/v1/users/:id`: `UserAuthGuard` → bảo trì (`503 MAINTENANCE`) → `PermissionsGuard` `user:view` theo claim `roleCode` (seed: chỉ `GROUP_ADMIN`); kiểm tra tài khoản ở mỗi request (mục 3.2). **Cô lập nhóm**: người dùng đích có `user_group_id` khác `user_group_id` của người gọi (đọc từ dòng `users` ở bước kiểm tra tài khoản, không dùng claim) trả `403 FORBIDDEN_SCOPE_ACCESS` (quy ước A13: bản ghi nhóm khác vẫn `403`, chỉ id không tồn tại mới `404`). Người gọi xem được chính mình.
+  - Thứ tự kiểm tra: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → bảo trì (`503`, chỉ bản User) → quyền (`403 FORBIDDEN_PERMISSION`) → `:id` và query (`400`) → kiểm tra tài khoản (`401`) → tìm người dùng (`404`) → phạm vi (`403 FORBIDDEN_SCOPE_ACCESS`, chỉ bản User).
+- **Request**: `:id` là `users.id` (`^[1-9][0-9]{0,9}$` và ≤ 4294967295, sai thì `400` với `errors.id`). Không có query, không có body; gửi query param trả `400 VALIDATION_ERROR` với `errors.<tên tham số>`.
+- **Xử lý** (chỉ đọc, không transaction, không ghi `audit_logs`; dữ liệu chỉ để hiển thị, thao tác ghi mục 3.4–3.10 tự kiểm tra lại khi chạy):
+  1. Kiểm tra tài khoản theo khóa chính (`admins`, hoặc `users` + `user_groups` ở bản User; bản User lấy `user_group_id` từ dòng `users` vừa đọc làm `:scopeGroupId`).
+  2. Đọc người dùng; không có dòng → `404 NOT_FOUND`; bản User `ug.id <> :scopeGroupId` → `403 FORBIDDEN_SCOPE_ACCESS`. Tài khoản `INACTIVE` (kể cả của nhóm `INACTIVE`) vẫn trả `200`.
+
+```sql
+SELECT u.id, u.username, u.email, u.full_name, u.job_title, u.phone_number, u.avatar_url, u.status,
+       u.must_change_password,
+       IF(u.locked_until > NOW(), u.locked_until, NULL) AS locked_until,
+       u.last_login_at, u.created_at, u.updated_at,
+       r.code AS role_code, r.name AS role_name,
+       ug.id AS ug_id, ug.code AS ug_code, ug.name AS ug_name,
+       IFNULL(ug.representative_user_id = u.id, 0) AS is_representative
+FROM users u
+JOIN user_roles ur ON ur.user_id = u.id
+JOIN roles r ON r.id = ur.role_id
+JOIN user_groups ug ON ug.id = u.user_group_id
+WHERE u.id = :id;
+```
+
+- **Response** `200`: `data` là một đối tượng đúng 17 trường: 14 trường của phần tử mục 3.3 (cùng kiểu, cùng nguồn, cùng nghĩa) cộng 3 trường dưới.
+
+| Trường | Kiểu | Nguồn | Ghi chú |
+|---|---|---|---|
+| `id`, `username`, `email`, `fullName`, `jobTitle`, `phoneNumber`, `avatarUrl`, `status`, `roleCode`, `roleName`, `isRepresentative`, `userGroup`, `lastLoginAt`, `createdAt` | như mục 3.3 | | `userGroup = { id, code, name }`; bản User luôn là nhóm của người gọi |
+| `mustChangePassword` | boolean | `must_change_password` | `true`: mật khẩu ban đầu/do quản trị viên đặt lại, người dùng chưa đổi (lần đăng nhập kế tiếp bị buộc đổi) |
+| `lockedUntil` | chuỗi ISO 8601 `+07:00` \| `null` | `locked_until` | Chỉ khác `null` khi đang khóa tạm do sai mật khẩu (`locked_until > NOW()`); đã hết hạn thì `null`. Tách biệt với `status = LOCKED` |
+| `updatedAt` | chuỗi ISO 8601 `+07:00` | `updated_at` | |
+
+  Không trả `password_hash`, `failed_login_count`, `password_changed_at`, `permissions`, `allowRecordingAccess` hay thông tin phiên.
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy chi tiết người dùng thành công",
+  "data": {
+    "id": 104,
+    "username": "anh.nt",
+    "email": "anh.nt@71portal.vn",
+    "fullName": "Nguyễn Tuấn Anh",
+    "jobTitle": null,
+    "phoneNumber": null,
+    "avatarUrl": null,
+    "status": "ACTIVE",
+    "roleCode": "REGULAR_USER",
+    "roleName": "Thành viên",
+    "isRepresentative": false,
+    "userGroup": { "id": 1, "code": "UMO-IT-01", "name": "Khối Công nghệ Thông tin - Nhóm Vận hành" },
+    "mustChangePassword": true,
+    "lockedUntil": "2026-11-06T09:15:00+07:00",
+    "lastLoginAt": null,
+    "createdAt": "2026-04-02T10:00:00+07:00",
+    "updatedAt": "2026-11-06T09:00:00+07:00"
+  },
+  "timestamp": "2026-11-06T09:00:30+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | `:id` sai định dạng (`errors.id`), có query param (`errors.<tên tham số>`) |
+| `401` | `UNAUTHORIZED` | Như mục 3.3 |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `user:view` (bản User: `USER_RECORDING`, `REGULAR_USER`) |
+| `403` | `FORBIDDEN_SCOPE_ACCESS` | Chỉ bản User: người dùng đích thuộc nhóm khác |
+| `404` | `NOT_FOUND` | Không có người dùng `:id` |
+| `503` | `MAINTENANCE` | Chỉ bản User, chế độ bảo trì đang bật |
+
+- **Frontend** (quy ước hộp chi tiết `docs/modules/01_organization.md` mục 3.1.2: gọi API **mỗi lần mở**, không dùng dữ liệu dòng danh sách; tiêu đề/tên lấy từ dòng đã bấm; thân hộp tải/lỗi + "Thử lại" riêng; chỉ hiển thị response của lần mở sau cùng; `404`/`403 FORBIDDEN_SCOPE_ACCESS` đóng hộp + toast cảnh báo + tải lại danh sách):
+  - Admin – hộp sửa `#userModal` (mẫu `templates/admin/users.js`: `mockGetUserDetail`, `editUser`, `loadUserEdit`, `fillUserEditForm`): form ẩn khi đang tải/lỗi; điền họ tên, chức danh, số điện thoại từ `data`; `username`, `email`, nhóm (`userGroup.code – name`) chỉ đọc; vai trò hiện nhãn theo `roleCode`, không sửa trong hộp (đổi vai trò là `PUT /users/:id/role`, N07); không có ô trạng thái (khóa/mở khóa, ngừng hoạt động là API riêng, N05, N09). Dải thông tin trong hộp: "Chưa đổi mật khẩu tạm" khi `mustChangePassword`, "Đang khóa tạm do sai mật khẩu đến HH:mm dd/MM/yyyy" khi `lockedUntil`, cập nhật lần cuối `updatedAt`. `data.status = INACTIVE` (vừa ngừng hoạt động ở nơi khác) → đóng hộp + toast cảnh báo + tải lại danh sách. Phần gửi `PUT` đặc tả ở mục 3.5 (N04).
+  - Member – hộp "Xem chi tiết" `#viewMemberModal` (mẫu `templates/member/group-admin.js`: `mockGetUserDetail`, `openViewMemberModal`, `loadMemberDetail`, `renderMemberDetail`): gọi qua `memberSession.request`; `503` hiện thông điệp bảo trì + "Thử lại" trong hộp (cùng biểu ngữ, U09). Hiển thị ảnh (hoặc chữ cái đầu), họ tên, `@username`, nhãn vai trò, trạng thái, "★ Đại diện" khi `isRepresentative`, nhóm `userGroup.code – userGroup.name`, chức danh, số điện thoại ("Chưa cập nhật" khi `null`), email, quyền ghi âm (chỉ khi nhóm `allowRecordingAccess` của store: `GROUP_ADMIN`/`USER_RECORDING` "Được cấp quyền"), mật khẩu ("Chưa đổi mật khẩu tạm" khi `mustChangePassword`), khóa tạm (`lockedUntil`), lần đăng nhập cuối ("Chưa đăng nhập" khi `null`), ngày tham gia `createdAt`, cập nhật `updatedAt`.
+- **Index phục vụ**: khóa chính `admins`/`users` (kiểm tra tài khoản, bước 2), khóa chính `user_roles`, `roles`, `user_groups` cho JOIN. Không cần index mới.
 
 ### 3.4. Tạo người dùng mới (`POST /api/v1/users`)
 
@@ -555,7 +632,7 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
   - Cột Trạng thái theo `status` (`<span class="badge-status active">Hoạt động</span>` = `ACTIVE`, `<span class="badge-status locked">Đã khóa</span>` = `LOCKED`, `<span class="badge-status inactive">Ngừng hoạt động</span>` = `INACTIVE`, chỉ gặp khi lọc `INACTIVE`).
   - Cột Hành động: Sửa thông tin (`user:edit`), Ngừng hoạt động (`user:delete`); chỉ hiện ở dòng chưa `INACTIVE`. Nút "Thêm mới người dùng" chỉ hiện khi store có `user:create`. Hành vi các nút đặc tả ở N03–N09.
   - Không có ô chọn số dòng mỗi trang: `limit` = `itemsPerPage` của store `preferencesAdmin`.
-- Modal tạo mới / sửa người dùng (`#userModal`): Form nhập thông tin người dùng và chọn Nhóm người dùng (`user_group_id`), chọn vai trò (`roleCode`: Quản trị viên nhóm / Thành viên nghe ghi âm / Thành viên) khi tạo mới; khi sửa, đổi vai trò gọi `PUT /users/:id/role`. Không phụ thuộc hay tham chiếu trực tiếp đến tổ chức.
+- Modal tạo mới / sửa người dùng (`#userModal`): Form nhập thông tin người dùng và chọn Nhóm người dùng (`user_group_id`), chọn vai trò (`roleCode`: Quản trị viên nhóm / Thành viên nghe ghi âm / Thành viên) khi tạo mới. Khi sửa: tải `GET /api/v1/admin/users/:id` **mỗi lần mở** (mục 3.3.1 "Frontend": tải/lỗi + "Thử lại" trong hộp, `404` hoặc tài khoản đã `INACTIVE` đóng hộp + tải lại danh sách), `username`, `email`, nhóm, vai trò chỉ đọc, không có ô trạng thái; đổi vai trò gọi `PUT /users/:id/role` (N07). Không phụ thuộc hay tham chiếu trực tiếp đến tổ chức.
 
 ### 5.2. Khu vực Admin – Pinia Store (`useUserStore`)
 
@@ -578,3 +655,4 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
 3. **TC-USR-03**: Gọi `PUT /users/:id/role` đổi Quản trị viên nhóm duy nhất trong nhóm sang `REGULAR_USER`, kiểm tra hệ thống chặn `409` với cảnh báo thích hợp và `user_roles` không đổi.
 4. **TC-USR-04**: Group Admin tạo người dùng mới trong nhóm của mình, xác nhận có dòng `user_roles` với vai trò `REGULAR_USER` và người dùng mới tạo có thể đăng nhập bình thường.
 5. **TC-USR-05** (`GET /users`, mục 3.3): Admin gọi `GET /api/v1/admin/users` không query: `200`, mọi nhóm, không có tài khoản `INACTIVE`, phần tử đúng 14 trường (có `userGroup { id, code, name }`, không có `updatedAt`, `mustChangePassword`, `lockedUntil`), sắp mã nhóm → người đại diện → `GROUP_ADMIN` → `fullName`, `id`; `?userGroupId=1&status=INACTIVE` chỉ trả tài khoản ngừng hoạt động của nhóm 1; `?userGroupId=999999` `200` `data = []`; `?roleCode=USER_RECORDING&search=%` chỉ khớp chuỗi chứa `%` thật; `?groupId=1`, `?status=active`, `?limit=101`, `?userGroupId=null`, `?page=1&page=2` → `400 VALIDATION_ERROR`; không có dòng `audit_logs` mới. Quản trị viên nhóm gọi `GET /api/v1/users`: chỉ người cùng nhóm; `?userGroupId=<nhóm mình>` → `400`; thành viên `REGULAR_USER` → `403 FORBIDDEN_PERMISSION`; bật bảo trì → `503 MAINTENANCE` (bản Admin vẫn `200`); khóa tài khoản người gọi rồi gọi bằng token còn hạn → `401`.
+   - **TC-USR-05b** (`GET /users/:id`, mục 3.3.1): Admin gọi `GET /api/v1/admin/users/104`: `200`, `data` đúng 17 trường (14 trường của phần tử `GET /users` + `mustChangePassword`, `lockedUntil`, `updatedAt`), không có `passwordChangedAt`, `failedLoginCount`; sai mật khẩu 5 lần cho tài khoản này rồi gọi lại: `lockedUntil` khác `null`, sau thời gian khóa tạm: `null` (dù cột chưa xóa); tài khoản `INACTIVE` `200`; `/999999` → `404 NOT_FOUND`; `/abc`, `/0`, `/104?x=1` → `400 VALIDATION_ERROR`; không có dòng `audit_logs` mới. Quản trị viên nhóm 1 gọi `GET /api/v1/users/<id người nhóm 1>` và chính mình: `200`; người nhóm 2: `403 FORBIDDEN_SCOPE_ACCESS`; id không tồn tại: `404`; `REGULAR_USER` gọi: `403 FORBIDDEN_PERMISSION`; bật bảo trì: `503` (bản Admin vẫn `200`).
