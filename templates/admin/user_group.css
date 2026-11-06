@@ -797,3 +797,109 @@ a.group-name:hover {
     color: var(--secondary);
     border-color: var(--secondary);
 }
+
+/* Form tạo nhóm (#userGroupModal, M02 mục 3.2 Frontend – G05): lỗi 400/409 theo trường, cùng quy ước organization.css */
+#userGroupModal .form-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+#userGroupModal .field-error {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--secondary);
+}
+
+#userGroupModal .field-error[hidden],
+#userGroupModal [data-create-only][hidden] {
+    display: none;
+}
+
+#userGroupModal .form-control.is-invalid {
+    border-color: var(--secondary);
+}
+
+#userGroupModal .form-control[readonly] {
+    background-color: var(--bg-color, #f1f5f9);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+#userGroupModal .modal-content {
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+}
+
+#userGroupModal .modal-body {
+    overflow-y: auto;
+    min-height: 0;
+}
+
+#userGroupModal .ug-initial-admin {
+    margin: 0 0 16px;
+    padding: 12px 16px 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+#userGroupModal .ug-initial-admin legend {
+    padding: 0 6px;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+#userGroupModal .ug-initial-admin .form-group {
+    margin-bottom: 12px;
+}
+
+/* Hộp mật khẩu tạm sau khi tạo nhóm (#groupTempPasswordModal), cùng giao diện .admins-temp-* của system-settings.css */
+.ug-temp-who {
+    margin: 0 0 1rem;
+    line-height: 1.5;
+}
+
+.ug-temp-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.ug-temp-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ug-temp-value {
+    flex: 1;
+    min-width: 0;
+    padding: 0.75rem;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background-color: var(--input-bg);
+    color: var(--text-main);
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    word-break: break-all;
+}
+
+.ug-temp-warning {
+    margin: 1rem 0 0;
+    padding: 0.75rem;
+    border-left: 4px solid #f59e0b;
+    border-radius: 6px;
+    background: rgba(245, 158, 11, 0.1);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 576px) {
+    .ug-temp-box {
+        flex-wrap: wrap;
+    }
+}

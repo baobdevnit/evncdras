@@ -570,7 +570,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, là phần m�
 
 > [!IMPORTANT]
 > **Vòng đời nhóm đầu số đi liền nhóm người dùng**:
-> - **Tạo tự động** trong cùng transaction `POST /api/v1/admin/user-groups`: `code = 'PG-' + user_groups.code`, `name = 'Nhóm đầu số ' + user_groups.name`, rồi gắn vào `user_groups.phone_prefix_group_id`. Không có API tạo, xóa hay chọn nhóm đầu số riêng; chỉ sửa được `name`, `description` (`PUT /api/v1/admin/prefix-groups/:id`). Vì vậy không tồn tại nhóm đầu số chưa gắn nhóm người dùng, và chỉ cấp được dải cho nhóm đầu số của nhóm người dùng `ACTIVE`.
+> - **Tạo tự động** trong cùng transaction `POST /api/v1/admin/user-groups`: `code = 'PG-' + user_groups.code`, `name = 'Nhóm đầu số ' + user_groups.name` (cắt còn 255 ký tự vì `user_groups.name` tối đa 255), rồi gắn vào `user_groups.phone_prefix_group_id`. Không có API tạo, xóa hay chọn nhóm đầu số riêng; chỉ sửa được `name`, `description` (`PUT /api/v1/admin/prefix-groups/:id`). Vì vậy không tồn tại nhóm đầu số chưa gắn nhóm người dùng, và chỉ cấp được dải cho nhóm đầu số của nhóm người dùng `ACTIVE`.
 > - **Không có cột trạng thái**: trạng thái của nhóm đầu số là trạng thái của nhóm người dùng gắn với nó. Không bao giờ bị xóa (nhóm người dùng chỉ xóa mềm, mục 14).
 > - **Nhóm đầu số rỗng là hợp lệ**: nhóm mới tạo chưa có dải, hoặc mọi dải đã bị thu hồi (kể cả khi ngừng hoạt động nhóm có chọn thu hồi dải, mục 14).
 
@@ -578,7 +578,7 @@ Thực thể gom nhóm các dải đầu số viễn thông PABX, là phần m�
 CREATE TABLE IF NOT EXISTS `phone_prefix_groups` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `code` varchar(53) NOT NULL COMMENT 'Sinh tự động = PG- + user_groups.code (ví dụ: PG-UMO-IT), dài hơn user_groups.code 3 ký tự; duy nhất vì user_groups.code duy nhất; không sửa được',
-  `name` varchar(255) NOT NULL COMMENT 'Mặc định = Nhóm đầu số + user_groups.name; Admin sửa được',
+  `name` varchar(255) NOT NULL COMMENT 'Mặc định = Nhóm đầu số + user_groups.name, cắt còn 255 ký tự; Admin sửa được',
   `description` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1167,8 +1167,8 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 | `AUDIO` | `LISTEN_AUDIO`, `DOWNLOAD_AUDIO` |
 | `CDR` | `EXPORT_CDR`, `PURGE_CDR_PARTITION` (actor `SYSTEM`) |
 | `REPORT` | `EXPORT_REPORT` (`action_details.format`: `EXCEL`/`PDF`) |
-| `USER` / `ADMIN` | `CREATE`, `UPDATE` (kể cả tự sửa hồ sơ `PUT /profile`, `PUT /admin/profile`, tự đổi ảnh `POST .../avatar` và sửa Admin khác `PUT /admin/admins/:id`, `action_details = { "changedFields": [...] }`, chỉ ghi khi có trường thực sự đổi; `PUT .../preferences` không ghi), `LOCK` (`action_details = { "revokedCount": n }`, số phiên bị thu hồi), `UNLOCK` (`action_details = NULL`), `DEACTIVATE` (`DELETE /admin/admins/:id`, `DELETE /users/:id`; `action_details = { "revokedCount": n }`, kể cả `0`), `CHANGE_ROLE` (chỉ `USER`; `action_details = { "from": "<roleCode>", "to": "<roleCode>" }`) |
-| `USER_GROUP` | `CREATE`, `UPDATE`, `DEACTIVATE`, `TOGGLE_GROUP_RECORDING` (`allow_recording_access`) |
+| `USER` / `ADMIN` | `CREATE` (`resource_id` = id tài khoản mới; `POST /admin/admins`: `action_details = { "username", "email", "roleCode" }`; Quản trị viên nhóm đầu tiên của `POST /admin/user-groups`: `{ "username", "email", "roleCode": "GROUP_ADMIN", "userGroupId" }`; không chứa mật khẩu), `UPDATE` (kể cả tự sửa hồ sơ `PUT /profile`, `PUT /admin/profile`, tự đổi ảnh `POST .../avatar` và sửa Admin khác `PUT /admin/admins/:id`, `action_details = { "changedFields": [...] }`, chỉ ghi khi có trường thực sự đổi; `PUT .../preferences` không ghi), `LOCK` (`action_details = { "revokedCount": n }`, số phiên bị thu hồi), `UNLOCK` (`action_details = NULL`), `DEACTIVATE` (`DELETE /admin/admins/:id`, `DELETE /users/:id`; `action_details = { "revokedCount": n }`, kể cả `0`), `CHANGE_ROLE` (chỉ `USER`; `action_details = { "from": "<roleCode>", "to": "<roleCode>" }`) |
+| `USER_GROUP` | `CREATE` (`POST /admin/user-groups`; `resource_id` = id nhóm mới, `action_details = { "code", "name", "organizationId", "allowRecordingAccess", "initialAdminId" }`; cùng transaction với dòng `USER / CREATE` của Quản trị viên nhóm đầu tiên), `UPDATE`, `DEACTIVATE`, `TOGGLE_GROUP_RECORDING` (`allow_recording_access`) |
 | `PREFIX` | `UPDATE_PREFIX_GROUP`, `ALLOCATE_RANGE`, `UPDATE_RANGE`, `REVOKE_RANGE`, `UPDATE_NUMBER` |
 | `ORGANIZATION` | `CREATE` (`POST /admin/organizations`; `resource_id` = id đơn vị mới, `action_details = { "code", "name", "parentId" }`), `UPDATE` (`PUT /admin/organizations/:id`; `resource_id` = `:id`, `action_details = { "changedFields": [...] }`, chỉ ghi khi có trường thực sự đổi; `level` của nhánh tính lại không ghi riêng), `DELETE` (`DELETE /admin/organizations/:id`, xóa cứng; `resource_id` = `:id`, `action_details = { "code", "name", "parentId" }` của dòng đã xóa) |
 | `SYSTEM` | `UPDATE_SETTINGS` (kể cả nạp lại bộ nhớ đệm, `action_details.op = "RELOAD_CACHE"`, và `PUT /admin/qos/thresholds` sửa `qos_threshold_configs`), `RECALCULATE_STATS` (`POST /admin/stats/recalculate`; `action_details = { "fromDate", "toDate", "queuedHours" }`), `CREATE_NOTIFICATION` (`POST /admin/notifications`; `resource_id` = `notifications.id`, `action_details = { "type", "severity", "target" }`), `RETRY_ENRICHMENT` (`POST /admin/system/enrichment-errors/:cdrId/retry`; `resource_id` = `cdr_id`, `action_details = { "success": true|false }`) |

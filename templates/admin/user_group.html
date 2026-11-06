@@ -335,95 +335,145 @@
         </div>
     </div>
 
-    <!-- Modal 1: Thiết lập / Chỉnh sửa Nhóm người dùng -->
-    <div id="userGroupModal" class="modal">
+    <!-- Modal 1: Thiết lập / Chỉnh sửa Nhóm người dùng.
+         Chế độ tạo = POST /api/v1/admin/user-groups (G05, M02 mục 3.2): name của ô = tên trường API, khối
+         initialAdmin.* chỉ có khi tạo ([data-create-only]); lỗi 400/409 hiện ở [data-error-for].
+         Không có ô trạng thái, nhóm đầu số (tạo tự động PG-<mã>), mật khẩu hay vai trò.
+         Chế độ sửa (PUT /api/v1/admin/user-groups/:id) rà ở G06. -->
+    <div id="userGroupModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-content" style="max-width: 780px;">
             <div class="modal-header">
                 <h2 id="modalTitle">Thiết lập Nhóm người dùng mới</h2>
-                <button class="close-btn" onclick="closeModal('userGroupModal')">&times;</button>
+                <button type="button" class="close-btn" data-ug-close aria-label="Đóng">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="groupForm" onsubmit="event.preventDefault(); saveUserGroup();">
+                <form id="groupForm" novalidate onsubmit="event.preventDefault(); saveUserGroup();">
                     <input type="hidden" id="groupIdInput">
 
                     <div class="modal-2col-grid" style="margin-bottom: 12px;">
-                        <!-- Cột 1: Thông tin cơ bản & Trạng thái -->
                         <div>
                             <div class="form-group" style="margin-bottom: 12px;">
-                                <label>Mã nhóm <span class="text-danger">*</span></label>
-                                <input type="text" id="groupCodeInput" class="form-control" placeholder="vd: UMO-IT-01"
-                                    required>
+                                <label for="groupCodeInput">Mã nhóm <span class="text-danger">*</span></label>
+                                <input type="text" id="groupCodeInput" name="code" class="form-control" placeholder="vd: UMO-IT-01"
+                                    maxlength="50" autocomplete="off">
+                                <small class="form-hint" data-create-only>Chữ in hoa, chữ số, nối bằng "-"; không đổi được sau khi tạo.</small>
+                                <small class="field-error" data-error-for="code" hidden></small>
                             </div>
                             <div class="form-group" style="margin-bottom: 12px;">
-                                <label>Tên nhóm người dùng <span class="text-danger">*</span></label>
-                                <input type="text" id="groupNameInput" class="form-control"
-                                    placeholder="vd: Khối CNTT - Nhóm Vận hành" required>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 12px;">
-                                <label>Trạng thái hoạt động</label>
-                                <select id="groupStatusSelect" class="form-control">
-                                    <option value="ACTIVE">Hoạt động</option>
-                                    <option value="INACTIVE">Tạm dừng</option>
-                                </select>
+                                <label for="groupNameInput">Tên nhóm người dùng <span class="text-danger">*</span></label>
+                                <input type="text" id="groupNameInput" name="name" class="form-control"
+                                    placeholder="vd: Khối CNTT - Nhóm Vận hành" maxlength="255">
+                                <small class="field-error" data-error-for="name" hidden></small>
                             </div>
                         </div>
 
-                        <!-- Cột 2: Phân bổ Cây tổ chức & Nhóm đầu số PABX (1-1) -->
                         <div>
                             <div class="form-group" style="margin-bottom: 12px;">
-                                <label>Vị trí tham chiếu Cây tổ chức</label>
-                                <select id="groupOrgSelect" class="form-control">
-                                    <option value="null">🏢 [ Không gắn đơn vị ] - Nhóm độc lập cấp Toàn hệ thống
-                                    </option>
-                                    <option value="2">Khối Công nghệ Thông tin (Tổng công ty 71 &gt; Khối CNTT)</option>
-                                    <option value="3">Khối Kinh doanh (Tổng công ty 71 &gt; Khối Kinh doanh)</option>
-                                    <option value="4">Điện lực Thanh Xuân (EVNHANOI &gt; Điện lực Thanh Xuân)</option>
+                                <label for="groupOrgSelect">Đơn vị tổ chức</label>
+                                <!-- Dựng từ GET /api/v1/admin/organizations/tree (fillGroupOrgOptions): "" = null (nhóm độc lập),
+                                     rồi đơn vị ACTIVE thụt lề theo level -->
+                                <select id="groupOrgSelect" name="organizationId" class="form-control">
+                                    <option value="">Không gắn đơn vị (nhóm độc lập)</option>
                                 </select>
-                                <p class="form-help-text">
-                                    Một đơn vị có thể có nhiều nhóm người dùng, hoặc chọn nhóm độc lập toàn HT.
-                                </p>
+                                <small class="form-hint">Một đơn vị có thể có nhiều nhóm; để trống nếu là nhóm độc lập toàn hệ thống.</small>
+                                <small class="field-error" data-error-for="organizationId" hidden></small>
                             </div>
-                            <div class="form-group" style="margin-bottom: 12px;">
-                                <label>Nhóm đầu số điện thoại viễn thông PABX <span class="text-danger">*</span></label>
-                                <select id="groupPrefixSelect" class="form-control" required>
-                                    <!-- Options populated via populatePrefixGroupSelect() -->
-                                </select>
-                                <div class="badge-1to1-note">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                                    </svg>
-                                    <span><strong>Ràng buộc 1 - 1:</strong> Mỗi nhóm người dùng liên kết độc quyền với 1
-                                        nhóm đầu số.</span>
-                                </div>
+                            <div class="badge-1to1-note" data-create-only>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                </svg>
+                                <span><strong>Nhóm đầu số 1 - 1:</strong> hệ thống tự tạo nhóm đầu số <code>PG-&lt;mã nhóm&gt;</code>;
+                                    dải số cấp sau ở màn hình Quản lý đầu số.</span>
                             </div>
                         </div>
                     </div>
 
                     <div class="form-group" style="margin-bottom: 16px;">
-                        <label>Mô tả / Ghi chú nghiệp vụ</label>
-                        <textarea id="groupDescInput" class="form-control" rows="2"
+                        <label for="groupDescInput">Mô tả / Ghi chú nghiệp vụ</label>
+                        <textarea id="groupDescInput" name="description" class="form-control" rows="2"
                             placeholder="Ghi chú phạm vi chức năng của nhóm người dùng..."></textarea>
+                        <small class="field-error" data-error-for="description" hidden></small>
                     </div>
 
-                    <!-- Cấu hình quyền Ghi âm thoại IP (Chốt chặn Tầng 1 - BR-UG-05) -->
+                    <!-- Quyền ghi âm cấp nhóm (Tầng 1 - BR-UG-05) -->
                     <div class="form-group" style="margin-bottom: 16px;">
                         <label class="recording-permission-label">
-                            <input type="checkbox" id="groupAllowRecordingInput">
+                            <input type="checkbox" id="groupAllowRecordingInput" name="allowRecordingAccess">
                             <span class="recording-label-text">
-                                <strong>Kích hoạt quyền Ghi âm thoại IP (Chốt chặn Tầng 1 - BR-UG-05)</strong>
-                                <small>Cho phép Quản trị viên nhóm nghe, tải và phân quyền truy cập file ghi âm thoại MP3 cho các thành viên trong nhóm.</small>
+                                <strong>Cho phép nhóm nghe và tải ghi âm thoại IP (Tầng 1)</strong>
+                                <small>Quản trị viên nhóm nghe/tải được ghi âm của nhóm và phân quyền cho thành viên bằng vai trò "Thành viên nghe ghi âm".</small>
                             </span>
                         </label>
+                        <small class="field-error" data-error-for="allowRecordingAccess" hidden></small>
                     </div>
+
+                    <!-- Quản trị viên nhóm đầu tiên (initialAdmin, chỉ khi tạo) -->
+                    <fieldset class="ug-initial-admin" data-create-only>
+                        <legend>Quản trị viên nhóm đầu tiên</legend>
+                        <p class="form-hint">Tài khoản được tạo cùng nhóm, làm người đại diện; mật khẩu tạm do hệ thống sinh và chỉ hiển thị một lần.</p>
+                        <div class="modal-2col-grid">
+                            <div class="form-group">
+                                <label for="iaUsername">Tên đăng nhập <span class="text-danger">*</span></label>
+                                <input type="text" id="iaUsername" name="initialAdmin.username" class="form-control" maxlength="100" autocomplete="off">
+                                <small class="field-error" data-error-for="initialAdmin.username" hidden></small>
+                            </div>
+                            <div class="form-group">
+                                <label for="iaEmail">Email <span class="text-danger">*</span></label>
+                                <input type="email" id="iaEmail" name="initialAdmin.email" class="form-control" maxlength="150" autocomplete="off">
+                                <small class="field-error" data-error-for="initialAdmin.email" hidden></small>
+                            </div>
+                            <div class="form-group">
+                                <label for="iaFullName">Họ tên <span class="text-danger">*</span></label>
+                                <input type="text" id="iaFullName" name="initialAdmin.fullName" class="form-control" maxlength="150">
+                                <small class="field-error" data-error-for="initialAdmin.fullName" hidden></small>
+                            </div>
+                            <div class="form-group">
+                                <label for="iaPhone">Số điện thoại</label>
+                                <input type="tel" id="iaPhone" name="initialAdmin.phoneNumber" class="form-control" maxlength="30">
+                                <small class="field-error" data-error-for="initialAdmin.phoneNumber" hidden></small>
+                            </div>
+                            <div class="form-group">
+                                <label for="iaJobTitle">Chức danh</label>
+                                <input type="text" id="iaJobTitle" name="initialAdmin.jobTitle" class="form-control" maxlength="150">
+                                <small class="field-error" data-error-for="initialAdmin.jobTitle" hidden></small>
+                            </div>
+                        </div>
+                    </fieldset>
 
                     <div class="modal-footer"
                         style="padding: 12px 0 0 0; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px;">
-                        <button type="button" class="btn btn-outline"
-                            onclick="closeModal('userGroupModal')">Hủy</button>
-                        <button type="submit" class="btn btn-primary">Lưu thiết lập nhóm</button>
+                        <button type="button" class="btn btn-outline" data-ug-close>Hủy</button>
+                        <button type="submit" id="groupSubmitBtn" class="btn btn-primary">Lưu thiết lập nhóm</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hộp mật khẩu tạm sau khi tạo nhóm (M02 mục 3.2 Frontend, cùng cách #adminTempPasswordModal của system-settings):
+         bấm nền/Esc không đóng; đóng thì xóa mật khẩu khỏi DOM; không lưu store/localStorage/URL. -->
+    <div id="groupTempPasswordModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="groupTempPasswordTitle">
+        <div class="modal-content" style="max-width: 520px;">
+            <div class="modal-header">
+                <h2 id="groupTempPasswordTitle">Đã tạo nhóm người dùng</h2>
+                <button type="button" class="close-btn" data-close-group-temp aria-label="Đóng">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="ug-temp-who">Nhóm <strong id="groupTempGroupName"></strong> – Quản trị viên nhóm
+                    <strong id="groupTempFullName"></strong> (<span id="groupTempUsername"></span>)</p>
+                <div class="ug-temp-label" id="groupTempLabel">Mật khẩu tạm</div>
+                <div class="ug-temp-box">
+                    <code id="groupTempValue" class="ug-temp-value" aria-labelledby="groupTempLabel"></code>
+                    <button type="button" id="btnCopyGroupTemp" class="btn btn-outline">Sao chép</button>
+                </div>
+                <p class="ug-temp-warning">
+                    Mật khẩu chỉ hiển thị một lần và không xem lại được. Hãy chuyển cho người phụ trách qua kênh an toàn;
+                    người đó phải đổi mật khẩu ở lần đăng nhập đầu tiên.
+                </p>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end;">
+                <button type="button" class="btn btn-primary" data-close-group-temp>Tôi đã lưu mật khẩu</button>
             </div>
         </div>
     </div>

@@ -424,26 +424,31 @@ Nhóm `INACTIVE` (mục 3.4): `userCount = 0`, `representative = null`, `admins 
 
 ### 3.2. `POST /api/v1/admin/user-groups`
 
-- **Mục đích**: Thiết lập nhóm người dùng mới.
-- **Ràng buộc kiểm tra (Validation Rules)**:
-  - Không nhận `phonePrefixGroupId` (gửi thì `400`): nhóm đầu số được tạo tự động ở bước 1.
-  - `organizationId`: Không bắt buộc (cho phép `null` hoặc bỏ trống nếu là nhóm độc lập). Nếu có truyền, kiểm tra ID đơn vị phải tồn tại trên Cây tổ chức và đang `ACTIVE` (đơn vị `INACTIVE` trả `409 ORGANIZATION_INACTIVE`, `docs/01_database_schema.md` mục 4).
-  - `initialAdmin`: Bắt buộc. Thông tin tài khoản Quản trị viên nhóm đầu tiên; `username`/`email` không được trùng với tài khoản **chưa `INACTIVE`** nào (kiểm tra `username_active`/`email_active`, `docs/01_database_schema.md` mục 6, kể cả trùng chéo username ↔ email); trùng thì `409 ACCOUNT_DUPLICATE`. Định dạng `username`/`email` theo quy tắc chung `docs/02_api_contracts.md` mục 2.
-- **Xử lý Backend (một transaction)**:
-  1. Tạo dòng `phone_prefix_groups` (`code = 'PG-' + code`, `name = 'Nhóm đầu số ' + name`), rồi tạo dòng `user_groups` với `phone_prefix_group_id` trỏ tới nó.
-  2. Tạo dòng `users` thuộc nhóm vừa tạo với `must_change_password = 1`, dòng `user_roles` mang vai trò `GROUP_ADMIN` và dòng `user_settings` (`user_type = USER`, giá trị mặc định, `docs/01_database_schema.md` mục 12), mật khẩu tạm ngẫu nhiên 16 ký tự đạt chính sách mật khẩu (`docs/01_database_schema.md` mục 6.1).
-  3. Đặt `user_groups.representative_user_id` = id user vừa tạo.
-  4. Ghi `audit_logs`: `USER_GROUP / CREATE` và `USER / CREATE`.
-  5. Lỗi ở bất kỳ bước nào thì rollback toàn bộ.
-- **Mật khẩu tạm** chỉ trả về **một lần** trong response (`initialAdmin.temporaryPassword`) để Quản trị viên hệ thống chuyển cho người phụ trách. Hệ thống chỉ lưu bản băm, không có API xem lại; quên thì dùng đặt lại mật khẩu.
-- **Request Body**:
+- **Mục đích**: thiết lập một nhóm người dùng mới cùng **nhóm đầu số** 1 - 1 (tạo tự động) và **Quản trị viên nhóm đầu tiên** (người dùng không tồn tại ngoài nhóm, nhóm `ACTIVE` phải có ít nhất 1 Quản trị viên nhóm, BR-UG-02), trong một transaction. Gọi từ `#userGroupModal` ở chế độ tạo (nút "Thêm nhóm mới" của `admin.user-groups`, mục 5.1). Chỉ có bản Admin (cổng Member không tạo nhóm).
+- **Guard**: `AdminAuthGuard` → `PermissionsGuard` `user_group:manage` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` `403 PASSWORD_CHANGE_REQUIRED`; tài khoản người gọi không còn `ACTIVE` hoặc token đầy đủ mà `must_change_password = 1` `401 UNAUTHORIZED` (`docs/modules/04_auth_admin.md` mục 3.1.1). Không bị chế độ bảo trì chặn (cổng Admin).
+- **Thứ tự kiểm tra**: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → quyền (`403 FORBIDDEN_PERMISSION`) → query và body (`400`) → kiểm tra tài khoản người gọi (`401`) → đơn vị tổ chức (`400`/`409 ORGANIZATION_INACTIVE`) → trùng `code` (`409 CODE_DUPLICATE`) → trùng `username`/`email` (`409 ACCOUNT_DUPLICATE`). Mỗi lần chỉ trả một `errorCode`; lỗi không ghi `audit_logs`.
+- **Request**: không có query (gửi thì `400` với `errors.<tên tham số>`). Body JSON chỉ nhận đúng các trường dưới đây; trường khác (kể cả `id`, `status`, `phonePrefixGroupId`, `representativeUserId`, `createdAt`) và trường khác trong `initialAdmin` (kể cả `password`, `roleCode`, `status`, `avatarUrl`, `userGroupId`) trả `400 VALIDATION_ERROR`. Không ép kiểu. Lỗi của trường trong `initialAdmin` dùng khóa có tiền tố `initialAdmin.` (vd. `errors["initialAdmin.username"]`, `docs/02_api_contracts.md` mục 2.3), kể cả ở `409 ACCOUNT_DUPLICATE`; `initialAdmin` thiếu hoặc không phải đối tượng → `errors.initialAdmin`. Chủ dự án chốt ở G05: `name` 3–255 như đơn vị tổ chức; nhóm mới luôn `ACTIVE`.
+
+| Trường | Kiểu | Bắt buộc | Quy tắc | Cột |
+|---|---|---|---|---|
+| `code` | chuỗi | ✓ | Như `POST /admin/organizations` (`docs/modules/01_organization.md` mục 3.2, quy ước O04): cắt khoảng trắng hai đầu; 2–50 ký tự, khớp `^[A-Z0-9]+(-[A-Z0-9]+)*$`; backend không tự viết hoa. Trùng mã của nhóm khác (kể cả `INACTIVE`, mã không được dùng lại, `docs/01_database_schema.md` mục 14) → `409 CODE_DUPLICATE` | `user_groups.code`; `phone_prefix_groups.code = 'PG-' + code` (≤ 53) |
+| `name` | chuỗi | ✓ | Cắt khoảng trắng hai đầu; 3–255 ký tự; không kiểm tra trùng tên | `user_groups.name` |
+| `description` | chuỗi \| `null` | | Cắt khoảng trắng hai đầu; rỗng hoặc `null` → `NULL`; ≤ 65 535 byte UTF-8 (`text`); giữ nguyên xuống dòng | `user_groups.description` |
+| `organizationId` | số \| `null` | | Bỏ trống hoặc `null` = nhóm độc lập. Có giá trị: số nguyên 1…4294967295; không có đơn vị → `400` (`errors.organizationId`); đơn vị `INACTIVE` → `409 ORGANIZATION_INACTIVE` (`errors.organizationId`) | `user_groups.organization_id` |
+| `allowRecordingAccess` | boolean | | Bỏ trống = `false` (mặc định DDL); `null` → `400` | `user_groups.allow_recording_access` |
+| `initialAdmin` | đối tượng | ✓ | Đúng các trường dưới | — |
+| `initialAdmin.username` | chuỗi | ✓ | Quy tắc chung `docs/02_api_contracts.md` mục 2: cắt khoảng trắng, `^[A-Za-z0-9._@-]{3,100}$` | `users.username` |
+| `initialAdmin.email` | chuỗi | ✓ | Quy tắc chung `docs/02_api_contracts.md` mục 2: cắt khoảng trắng, ≤ 150, `^[^\s@]+@[^\s@]+\.[^\s@]+$` | `users.email` |
+| `initialAdmin.fullName` | chuỗi | ✓ | Cắt khoảng trắng hai đầu; 1–150 ký tự | `users.full_name` |
+| `initialAdmin.phoneNumber` | chuỗi \| `null` | | Quy tắc số điện thoại chung `docs/02_api_contracts.md` mục 2 (rỗng/`null`/không gửi → `NULL`) | `users.phone_number` |
+| `initialAdmin.jobTitle` | chuỗi \| `null` | | Cắt khoảng trắng hai đầu; rỗng hoặc `null` → `NULL`; ≤ 150 ký tự | `users.job_title` |
 
 ```json
 {
   "code": "UMO-KD",
   "name": "Khối Kinh doanh & Dịch vụ Khách hàng",
   "description": "Nhóm quản lý người dùng khối kinh doanh",
-  "organizationId": 2,
+  "organizationId": 3,
   "allowRecordingAccess": false,
   "initialAdmin": {
     "username": "admin.kd",
@@ -455,25 +460,88 @@ Nhóm `INACTIVE` (mục 3.4): `userCount = 0`, `representative = null`, `admins 
 }
 ```
 
-- **Response** (`201 Created`):
+- **Mật khẩu tạm** của Quản trị viên nhóm đầu tiên: sinh và băm (`bcrypt` cost 10) **trước** khi mở transaction, cùng cách sinh 16 ký tự của `POST /admin/admins` (`docs/modules/04_auth_admin.md` mục 3.3). Chỉ lưu bản băm; mật khẩu gốc chỉ có trong response (`initialAdmin.temporaryPassword`), **không** ghi vào `audit_logs`, log ứng dụng hay log request/response (logger bỏ `data.initialAdmin.temporaryPassword`); không có API xem lại, quên thì đặt lại (`PUT /users/:id/reset-password`).
+- **Xử lý** (một transaction, sau khi kiểm tra query/body và sinh mật khẩu tạm):
+  1. Kiểm tra tài khoản người gọi theo khóa chính `admins` (`401`).
+  2. `BEGIN`. Có `organizationId`: đọc khóa chia sẻ dòng đơn vị `SELECT id, status FROM organizations WHERE id = :organizationId LOCK IN SHARE MODE` (chạy tuần tự với `PUT`/`DELETE /admin/organizations/:id` đang khóa dòng đó `FOR UPDATE`, quy ước O06). Không có dòng → `ROLLBACK`, `400` (`errors.organizationId`); `status = 'INACTIVE'` → `ROLLBACK`, `409 ORGANIZATION_INACTIVE`.
+  3. `INSERT INTO phone_prefix_groups (code, name) VALUES (CONCAT('PG-', :code), LEFT(CONCAT('Nhóm đầu số ', :name), 255))` (tên mặc định cắt còn 255 ký tự vì `name` của nhóm tối đa 255, chủ dự án chốt ở G05; Admin sửa tên sau ở `PUT /admin/prefix-groups/:id`), rồi `INSERT INTO user_groups (organization_id, phone_prefix_group_id, code, name, description, representative_user_id, allow_recording_access, status) VALUES (..., NULL, ..., 'ACTIVE')`. `ER_DUP_ENTRY` trên `uniq_ppg_code` hoặc `uniq_ug_code` → `ROLLBACK`, `409 CODE_DUPLICATE` (`errors.code`); `UNIQUE` là chốt duy nhất, không cần câu kiểm tra trước (mã nhóm đầu số luôn là `PG-` + mã nhóm nên chỉ trùng khi mã nhóm trùng).
+  4. Kiểm tra trùng `initialAdmin.username`/`email` trên `users` bằng đọc khóa như `POST /admin/admins` bước 2 (`docs/modules/04_auth_admin.md` mục 3.3), thay `admins` bằng `users` (`uniq_users_username`, `uniq_users_email`), gồm trùng chéo; có lỗi → `ROLLBACK`, `409 ACCOUNT_DUPLICATE` (`errors["initialAdmin.username"]` và/hoặc `errors["initialAdmin.email"]`). Deadlock `1213` thì chạy lại cả transaction tối đa 2 lần; `ER_DUP_ENTRY` trên `uniq_users_username`/`uniq_users_email` ở bước 5 cũng trả `409 ACCOUNT_DUPLICATE`, không `500`.
+  5. `INSERT INTO users` với `user_group_id` = nhóm mới, `username`, `email`, `full_name`, `job_title`, `phone_number` đã chuẩn hóa, `password_hash`, `status = 'ACTIVE'`, `must_change_password = 1`, `password_changed_at = NULL`, `failed_login_count = 0`, `locked_until = NULL`, `avatar_url = NULL`; `INSERT INTO user_roles (user_id, role_id, role_scope)` với `role_id = (SELECT id FROM roles WHERE code = 'GROUP_ADMIN')`, `role_scope = 'USER'`; `INSERT INTO user_settings (user_type, user_id)` với `user_type = 'USER'`, cột khác mặc định DDL (`docs/01_database_schema.md` mục 12).
+  6. `UPDATE user_groups SET representative_user_id = :newUserId WHERE id = :newGroupId` (khóa ngoại `fk_ug_rep_user` cần dòng `users` có trước).
+  7. Ghi hai dòng `audit_logs` (chủ dự án chốt ở G05), cùng `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `admins.full_name` của người gọi, `ip_address`, `user_agent` của request:
+     - `USER_GROUP / CREATE`: `resource_id` = id nhóm mới, `action_details = { "code", "name", "organizationId": <số> | null, "allowRecordingAccess": true|false, "initialAdminId": <id> }`.
+     - `USER / CREATE`: `resource_id` = id người dùng mới, `action_details = { "username", "email", "roleCode": "GROUP_ADMIN", "userGroupId": <id nhóm> }` (không có mật khẩu).
+  8. `COMMIT`, rồi đọc lại nhóm như mục 3.1.2 bước 2–5 (`created_at`, `updated_at` do CSDL gán) để dựng response.
+
+  Không tạo `auth_sessions`, không gửi thông báo hay email: Quản trị viên hệ thống tự chuyển mật khẩu tạm cho người phụ trách. Lần đăng nhập đầu tiên nhận token `PASSWORD_CHANGE_ONLY` (`docs/modules/03_auth_user.md` mục 3.1). Không tăng `cache_version` (nhóm mới chưa có dải số).
+- **Response** `201`, header `Cache-Control: no-store` (response chứa mật khẩu; chủ dự án chốt ở G05): `data` = đúng 15 trường của `GET /api/v1/admin/user-groups/:id` (mục 3.1.2) **thêm** `initialAdmin`. Nhóm mới: `status = "ACTIVE"`, `userCount = 1`, `representative` và `admins` (một phần tử) là Quản trị viên vừa tạo, `phonePrefixGroup.prefixes = []`, `totalNumbers = 0`, `ranges = []`.
+
+| Trường thêm | Kiểu | Ghi chú |
+|---|---|---|
+| `initialAdmin` | đối tượng `{ id, username, fullName, email, temporaryPassword }` | `id` = `representative.id`; `temporaryPassword` chuỗi 16 ký tự, chỉ có ở response này (`GET` không bao giờ trả) |
 
 ```json
 {
   "success": true,
   "statusCode": 201,
+  "message": "Tạo nhóm người dùng thành công",
   "data": {
     "id": 7,
     "code": "UMO-KD",
-    "representativeUserId": 42,
+    "name": "Khối Kinh doanh & Dịch vụ Khách hàng",
+    "description": "Nhóm quản lý người dùng khối kinh doanh",
+    "status": "ACTIVE",
+    "allowRecordingAccess": false,
+    "organizationId": 3,
+    "organizationName": "Khối Kinh doanh",
+    "hierarchyPath": ["Tổng công ty 71", "Khối Kinh doanh"],
+    "phonePrefixGroup": {
+      "id": 16,
+      "code": "PG-UMO-KD",
+      "name": "Nhóm đầu số Khối Kinh doanh & Dịch vụ Khách hàng",
+      "prefixes": [],
+      "totalNumbers": 0,
+      "ranges": []
+    },
+    "userCount": 1,
+    "representative": { "id": 42, "fullName": "Nguyễn Văn Quản", "email": "admin.kd@evn.com.vn", "avatarUrl": null },
+    "admins": [
+      { "id": 42, "fullName": "Nguyễn Văn Quản", "email": "admin.kd@evn.com.vn", "phoneNumber": "0912345678", "avatarUrl": null }
+    ],
+    "createdAt": "2026-11-06T10:00:00+07:00",
+    "updatedAt": "2026-11-06T10:00:00+07:00",
     "initialAdmin": {
       "id": 42,
       "username": "admin.kd",
-      "temporaryPassword": "q7Vt#2mPz9Lw!4Rk",
-      "mustChangePassword": true
+      "fullName": "Nguyễn Văn Quản",
+      "email": "admin.kd@evn.com.vn",
+      "temporaryPassword": "q7Vt#2mPz9Lw!4Rk"
     }
-  }
+  },
+  "timestamp": "2026-11-06T10:00:00+07:00"
 }
 ```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Có query param; body sai (thiếu trường bắt buộc, sai kiểu, sai định dạng, vượt độ dài, trường không được nhận như `status`, `phonePrefixGroupId`, `initialAdmin.roleCode`); `organizationId` không tồn tại (`errors.organizationId`) |
+| `401` | `UNAUTHORIZED` | Như mục 3.1 (bản Admin) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `user_group:manage` |
+| `409` | `ORGANIZATION_INACTIVE` | Đơn vị `INACTIVE`; `errors = { "organizationId": ["..."] }` |
+| `409` | `CODE_DUPLICATE` | `code` đã có ở nhóm khác (kể cả `INACTIVE`); `errors = { "code": ["..."] }` |
+| `409` | `ACCOUNT_DUPLICATE` | `initialAdmin.username`/`email` trùng (kể cả trùng chéo) với người dùng chưa `INACTIVE`; `errors` có `initialAdmin.username` và/hoặc `initialAdmin.email` |
+
+Không có `404` (không có tham số đường dẫn; đơn vị không tồn tại là lỗi trường của body, quy ước A13). Mọi lỗi sau `BEGIN` rollback toàn bộ: không còn nhóm đầu số, nhóm hay tài khoản nào được tạo.
+
+- **Frontend** (`#userGroupModal` ở chế độ tạo; mẫu `templates/admin/user_group.js`: `mockCreateUserGroup`, `openCreateGroupModal`, `fillGroupOrgOptions`, `validateGroupCreateBody`, `submitCreateGroup`, `showGroupFormErrors`, `showGroupTempPassword`):
+  - Form có đúng các ô của body, `name` của ô = tên trường API (`initialAdmin.*` cho khối Quản trị viên): Mã nhóm (bắt buộc, tự viết hoa khi gõ, `maxlength` 50), Tên nhóm (bắt buộc, `maxlength` 255), Đơn vị tổ chức (ô chọn dựng từ `GET /admin/organizations/tree`: lựa chọn đầu "Không gắn đơn vị (nhóm độc lập)" = `null`, rồi các đơn vị `ACTIVE` thụt lề theo `level`; đơn vị `INACTIVE` không có trong ô), Mô tả, ô chọn "Cho phép nhóm nghe và tải ghi âm" (Tầng 1); khối "Quản trị viên nhóm đầu tiên": Tên đăng nhập (`maxlength` 100), Email (`maxlength` 150), Họ tên (`maxlength` 150) bắt buộc, Số điện thoại (`maxlength` 30), Chức danh (`maxlength` 150). Không có ô trạng thái, nhóm đầu số (ghi chú: hệ thống tự tạo nhóm đầu số `PG-<mã nhóm>`, dải số cấp sau ở Quản lý đầu số), mật khẩu hay vai trò.
+  - Kiểm tra trước khi gửi bằng cùng quy tắc (bắt buộc, định dạng `code`/`username`/`email`/số điện thoại, độ dài), lỗi hiện dưới ô và không gọi API. Ô trống của trường tùy chọn gửi `null`; `allowRecordingAccess` luôn gửi boolean.
+  - Khi gửi: khóa form và nút ("Đang lưu..."), nút đóng/Hủy, bấm nền và `Esc` không đóng hộp. `400`/`409 CODE_DUPLICATE`/`409 ACCOUNT_DUPLICATE`: hiện `errors[field]` dưới ô (khóa không có ô hiện ở toast), giữ giá trị đang nhập. `409 ORGANIZATION_INACTIVE`: lỗi dưới ô đơn vị, tải lại cây và dựng lại ô chọn. `403` toast cảnh báo; lỗi khác toast lỗi, giữ giá trị.
+  - `201`: đóng hộp, xóa form, mở hộp mật khẩu tạm `#groupTempPasswordModal` (cùng cách của `#adminTempPasswordModal`, `docs/modules/04_auth_admin.md` mục 3.3: tên nhóm, họ tên, tên đăng nhập, `temporaryPassword` phông đơn cách + nút "Sao chép", cảnh báo chỉ hiển thị một lần; bấm nền không đóng; đóng thì xóa khỏi DOM; không lưu store/`localStorage`/URL), toast "Đã tạo nhóm <name>", tải lại danh sách (giữ bộ lọc và trang).
+- **Index phục vụ**: khóa chính `admins` (bước 1), khóa chính `organizations` (bước 2), `uniq_ppg_code`, `uniq_ug_code` (bước 3), `uniq_users_username`, `uniq_users_email` (bước 4, 5), `uniq_roles_code`, `uniq_user_settings` (bước 5), khóa chính `user_groups` (bước 6). Không thêm index.
 
 ---
 
@@ -734,15 +802,15 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
 - **Hộp chi tiết (`#groupDetailModal`)**: mở khi bấm tên nhóm hoặc nút "Xem chi tiết", gọi `GET /api/v1/admin/user-groups/:id` mỗi lần mở; nội dung, nút và trạng thái theo mục 3.1.2 "Frontend".
   - Cột "Thành viên": `userCount` (thành viên chưa `INACTIVE`). Cột "Ngày thiết lập": `createdAt`.
 - **Modal Thiết lập mới / Chỉnh sửa (`#userGroupModal`)**:
-  - Dropdown chọn đơn vị trên Cây tổ chức: Tùy chọn (Optional), cho phép chọn nút tổ chức hoặc chọn tùy chọn "Không gắn đơn vị (Nhóm độc lập)".
-  - Khối "Quản trị viên nhóm đầu tiên" (chỉ khi tạo mới): nhập tên đăng nhập, email, họ tên, số điện thoại, chức danh. Sau khi lưu, hiển thị mật khẩu tạm **một lần** trong hộp thoại có nút sao chép và cảnh báo "Mật khẩu chỉ hiển thị một lần".
+  - Chế độ tạo (`POST /api/v1/admin/user-groups`): ô, kiểm tra trước khi gửi, khóa khi gửi, lỗi dưới ô và hộp mật khẩu tạm `#groupTempPasswordModal` theo mục 3.2 "Frontend". Ô đơn vị: "Không gắn đơn vị (nhóm độc lập)" hoặc đơn vị `ACTIVE` của cây tổ chức. Khối "Quản trị viên nhóm đầu tiên" (tên đăng nhập, email, họ tên, số điện thoại, chức danh) chỉ có ở chế độ tạo. Không có ô trạng thái hay ô chọn nhóm đầu số ở cả hai chế độ.
+  - Chế độ sửa (`PUT /api/v1/admin/user-groups/:id`): mục 3.3.
 
 ### 5.2. Khu vực Admin – Pinia Store (`useUserGroupStore`)
 
 - State: `userGroups: UserGroupItem[]` (phần tử mục 3.1), `query: { page, limit, search, status, organizationId, standalone }`, `loading: boolean`, `error: string | null`, `pagination: PaginationInfo` (không có danh sách nhóm đầu số để chọn: nhóm đầu số tạo tự động, mục 3.2).
 - Actions:
   - `fetchUserGroups()`: gọi `GET /admin/user-groups` với `query` hiện tại (chỉ gửi tham số có giá trị; `organizationId` và `standalone` loại trừ nhau), chỉ nhận response của request sau cùng (mục 3.1).
-  - `createUserGroup(payload)`: Kiểm tra ràng buộc 1-1 và admin tối thiểu $\ge 1$.
+  - `createUserGroup(payload)`: gọi `POST /admin/user-groups` (mục 3.2) rồi `fetchUserGroups()`; trả `data` cho view để mở hộp mật khẩu tạm, **không** giữ `initialAdmin.temporaryPassword` trong state.
   - `updateUserGroup(id, payload)`: Cập nhật thông tin nhóm.
   - `changeMemberRole(userId, roleCode)`: Gọi `PUT /users/:id/role`; bắt lỗi `409` khi vi phạm tối thiểu 1 admin hoặc nhóm chưa mở Tầng 1.
   - `deleteUserGroup(id)`: Ngừng hoạt động nhóm (xóa mềm) kèm toàn bộ thành viên chưa `INACTIVE`; gọi sau khi người dùng xác nhận số thành viên bị ảnh hưởng.
@@ -781,7 +849,8 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
    - Bản User bằng tài khoản nhóm 1: `/user-groups/1` → `200` cùng trường; `/user-groups/2` và `/user-groups/999` → `403 FORBIDDEN_SCOPE_ACCESS`; bật bảo trì → `503` (bản Admin vẫn `200`).
 3. **TC-UG-01 (Nhiều thành viên)**: Tạo nhóm và gán 10 người dùng thành viên. Xác nhận API trả về `userCount = 10` và danh sách thành viên thuộc đúng nhóm.
 4. **TC-UG-02 (Tối thiểu 1 Quản trị viên nhóm)**:
-   - Thử tạo nhóm không có `initialAdmin` -> `400 Bad Request`. Tạo nhóm với `initialAdmin.email` đã tồn tại -> `409 ACCOUNT_DUPLICATE` và **không** có dòng `user_groups` nào được tạo (rollback). Tạo nhóm hợp lệ -> nhóm có đúng 1 Quản trị viên, `representative_user_id` trỏ tới người đó, response có `temporaryPassword`, đăng nhập lần đầu bị yêu cầu đổi mật khẩu.
+   - **Tạo nhóm (mục 3.2)**: thiếu `initialAdmin` → `400` (`errors.initialAdmin`); `initialAdmin.roleCode`, `initialAdmin.password`, `status`, `phonePrefixGroupId`, `representativeUserId`, query `?x=1` → `400`; `code` chữ thường `umo-kd`, `code` 1 ký tự, `name` 2 ký tự, `allowRecordingAccess: null`, `organizationId: "3"`, `initialAdmin.username` có dấu cách ở giữa, `initialAdmin.phoneNumber = "abc"` → `400` với khóa đúng (`errors["initialAdmin.phoneNumber"]`…). `organizationId = 999` → `400` (`errors.organizationId`); đơn vị `INACTIVE` → `409 ORGANIZATION_INACTIVE`. `code` trùng nhóm `INACTIVE` → `409 CODE_DUPLICATE`. `initialAdmin.email` trùng `email` (hoặc trùng `username`, trùng chéo) của người dùng chưa `INACTIVE` → `409 ACCOUNT_DUPLICATE` (`errors["initialAdmin.email"]`); trùng của người dùng `INACTIVE` → `201`. Mọi lỗi: **không** có dòng `phone_prefix_groups`, `user_groups`, `users`, `audit_logs` mới (rollback).
+   - Tạo nhóm hợp lệ → `201`, `Cache-Control: no-store`, `data` đúng 15 trường như `GET /admin/user-groups/:id` + `initialAdmin { id, username, fullName, email, temporaryPassword }`; `userCount = 1`, `admins` một phần tử = `representative`, `ranges = []`; CSDL có `phone_prefix_groups.code = 'PG-' + code`, `representative_user_id` = người vừa tạo mang `GROUP_ADMIN`, `must_change_password = 1`, dòng `user_settings` `USER`; hai dòng audit `USER_GROUP / CREATE`, `USER / CREATE` không chứa mật khẩu; `name` 255 ký tự → tên nhóm đầu số cắt còn 255; đăng nhập lần đầu bằng mật khẩu tạm nhận token `PASSWORD_CHANGE_ONLY`.
    - Một nhóm có 1 Quản trị viên duy nhất, gọi API hạ quyền hoặc xóa user đó -> Xác nhận hệ thống chặn với thông báo lỗi yêu cầu duy trì ít nhất 1 Quản trị viên.
    - Thêm Quản trị viên thứ 2 vào nhóm -> Xác nhận hạ quyền 1 trong 2 người thành công.
 5. **TC-UG-03 (Nhóm đầu số tạo tự động 1 - 1)**:
