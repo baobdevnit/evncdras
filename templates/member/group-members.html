@@ -312,27 +312,36 @@
 
                     <!-- Cột Phải: Directory Content Card (Thẻ Danh bạ & Bảng chuyển đổi) -->
                     <section class="group-main-col">
+                        <!-- Danh bạ: GET /api/v1/user-groups/me/members (G04, M02 mục 3.6), vẽ bởi group-members.js -->
                         <div class="directory-card">
-                            <!-- Directory Header & Toolbar -->
                             <div class="directory-header">
                                 <div class="directory-header-title">
                                     <h3>Danh sách thành viên trong nhóm</h3>
-                                    <span class="badge-count" id="directoryCountBadge">0 thành viên</span>
+                                    <!-- pagination.total theo bộ lọc hiện tại -->
+                                    <span class="badge-count" id="directoryCountBadge" hidden></span>
                                 </div>
 
                                 <div class="directory-toolbar">
-                                    <!-- Search Input -->
+                                    <!-- search: họ tên, email, chức danh, số điện thoại (khớp chứa) -->
                                     <div class="directory-search-box">
                                         <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none"
                                             stroke="currentColor" stroke-width="2">
                                             <circle cx="11" cy="11" r="8"></circle>
                                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                         </svg>
-                                        <input type="text" id="memberSearchInput" class="form-control"
-                                            placeholder="Tìm tên, email, số điện thoại EVN, chức danh...">
+                                        <input type="search" id="memberSearchInput" class="form-control" maxlength="100"
+                                            placeholder="Tìm họ tên, email, chức danh, số điện thoại..."
+                                            aria-label="Tìm trong danh bạ nhóm">
                                     </div>
 
-                                    <!-- View Mode Switcher: Cards vs Table -->
+                                    <!-- isGroupAdmin: rỗng (không gửi) | true | false -->
+                                    <select id="filterRoleSelect" class="filter-select" aria-label="Lọc theo vai trò">
+                                        <option value="">Tất cả vai trò</option>
+                                        <option value="true">Quản trị viên nhóm</option>
+                                        <option value="false">Thành viên</option>
+                                    </select>
+
+                                    <!-- Chế độ xem Thẻ / Bảng: trạng thái giao diện cục bộ, không gọi lại API -->
                                     <div class="view-mode-toggle">
                                         <button type="button" class="view-mode-btn active" id="btnViewGrid"
                                             title="Xem dạng Thẻ danh bạ">
@@ -362,17 +371,23 @@
                                 </div>
                             </div>
 
-                            <!-- 1. Contact Cards Grid (Default view) -->
-                            <div class="contact-grid" id="contactCardsGrid">
+                            <!-- Trạng thái tải / lỗi (kể cả 503) + "Thử lại" riêng của danh bạ -->
+                            <div id="directoryState" class="directory-state" role="status">
+                                <span id="directoryStateMessage">Đang tải danh bạ nhóm...</span>
+                                <button type="button" class="btn btn-outline btn-sm" id="btnRetryDirectory" hidden>Thử lại</button>
                             </div>
 
-                            <!-- 2. Compact Table View (Toggled view) -->
-                            <div class="directory-table-view" id="contactTableView">
+                            <!-- 1. Dạng Thẻ (mặc định) -->
+                            <div class="contact-grid" id="contactCardsGrid" hidden></div>
+
+                            <!-- 2. Dạng Bảng -->
+                            <div class="directory-table-view" id="contactTableView" hidden>
                                 <table class="contact-data-table">
                                     <thead>
                                         <tr>
                                             <th>Thành viên</th>
                                             <th>Điện thoại</th>
+                                            <th>Email</th>
                                             <th>Vai trò</th>
                                             <th style="text-align: right;">Chi tiết</th>
                                         </tr>
@@ -382,29 +397,21 @@
                                 </table>
                             </div>
 
-                            <!-- Empty State -->
-                            <div class="table-empty-state" id="directoryEmptyState" style="display: none;">
+                            <!-- Rỗng: thông điệp khác nhau khi có / không có bộ lọc -->
+                            <div class="table-empty-state" id="directoryEmptyState" hidden>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <circle cx="11" cy="11" r="8"></circle>
                                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                 </svg>
-                                <h4>Không tìm thấy liên hệ nào trong nhóm</h4>
-                                <p style="font-size: 0.8125rem;">Thử tìm kiếm với số điện thoại EVN hoặc từ khóa khác
-                                </p>
+                                <h4 id="directoryEmptyTitle"></h4>
+                                <p id="directoryEmptyHint" style="font-size: 0.8125rem;"></p>
                             </div>
 
-                            <!-- Pagination -->
-                            <div class="pagination-container"
+                            <!-- Phân trang theo pagination của response -->
+                            <div class="pagination-container" id="directoryPagination" hidden
                                 style="padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 10px;">
-                                <span id="paginationInfo" style="font-size: 0.8125rem; color: var(--text-muted);">Hiển
-                                    thị 0 thành viên</span>
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <button type="button" class="btn btn-outline" id="paginationPrevBtn"
-                                        style="padding: 4px 10px; font-size: 0.8125rem;">Trước</button>
-                                    <div id="paginationPages" style="display: flex; gap: 4px;"></div>
-                                    <button type="button" class="btn btn-outline" id="paginationNextBtn"
-                                        style="padding: 4px 10px; font-size: 0.8125rem;">Sau</button>
-                                </div>
+                                <span id="paginationInfo" style="font-size: 0.8125rem; color: var(--text-muted);"></span>
+                                <div id="paginationPages" style="display: flex; gap: 4px;"></div>
                             </div>
                         </div>
                     </section>
@@ -414,10 +421,8 @@
     </div>
 
     <!-- ==========================================================================
-       MODALS THÀNH VIÊN (CHỈ XEM CHI TIẾT)
+       HỘP CHI TIẾT LIÊN HỆ (CHỈ XEM): dữ liệu của dòng danh bạ đã tải, không gọi API
        ========================================================================== -->
-
-    <!-- Modal: Xem Chi Tiết Thành Viên -->
     <div class="modal" id="viewMemberModal">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -428,16 +433,10 @@
                 <div class="modal-body">
                     <div class="member-detail-profile"
                         style="display: flex; align-items: center; gap: 16px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-                        <img id="viewMemberAvatar" src=""
-                            style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover;" alt="Avatar">
+                        <div id="viewMemberAvatar"></div>
                         <div>
-                            <h4 id="viewMemberFullName" style="font-size: 1.1rem; margin-bottom: 2px;"></h4>
-                            <span id="viewMemberUsername"
-                                style="font-size: 0.8125rem; color: var(--text-muted); display: block; margin-bottom: 6px;"></span>
-                            <div style="display: flex; gap: 8px;">
-                                <div id="viewMemberRoleBadge"></div>
-                                <div id="viewMemberStatusBadge"></div>
-                            </div>
+                            <h4 id="viewMemberFullName" style="font-size: 1.1rem; margin-bottom: 6px;"></h4>
+                            <div id="viewMemberRoleBadge"></div>
                         </div>
                     </div>
 
@@ -448,20 +447,27 @@
                                 style="font-size: 0.8125rem;"></span>
                         </div>
                         <div class="group-meta-item">
-                            <span class="group-meta-label">Chức danh / Vị trí</span>
+                            <span class="group-meta-label">Chức danh</span>
                             <span class="group-meta-value" id="viewMemberTitle" style="font-size: 0.8125rem;"></span>
                         </div>
-                        <div class="group-meta-item">
-                            <span class="group-meta-label">Điện thoại di động</span>
-                            <span class="group-meta-value" id="viewMemberPhone" style="font-size: 0.8125rem;"></span>
+                        <div class="group-meta-item" style="grid-column: 1 / -1;">
+                            <span class="group-meta-label">Điện thoại</span>
+                            <div class="member-copy-row">
+                                <span class="group-meta-value" id="viewMemberPhone" style="font-size: 0.8125rem;"></span>
+                                <button type="button" class="btn btn-outline btn-sm" id="btnCopyMemberPhone">Sao chép</button>
+                            </div>
                         </div>
                         <div class="group-meta-item" style="grid-column: 1 / -1;">
                             <span class="group-meta-label">Email</span>
-                            <span class="group-meta-value" id="viewMemberEmail" style="font-size: 0.8125rem;"></span>
+                            <div class="member-copy-row">
+                                <span class="group-meta-value" id="viewMemberEmail" style="font-size: 0.8125rem;"></span>
+                                <button type="button" class="btn btn-outline btn-sm" id="btnCopyMemberEmail">Sao chép</button>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <a class="btn btn-outline" id="btnMailMember" href="#">Gửi email</a>
                     <button type="button" class="btn btn-outline" onclick="closeModal('viewMemberModal')">Đóng</button>
                 </div>
             </div>

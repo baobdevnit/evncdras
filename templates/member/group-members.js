@@ -1,640 +1,424 @@
-// templates/group-members.js - EVN CDR AS (Giao diện Danh bạ Thành viên nhóm)
+// templates/member/group-members.js – EVN CDR AS, Danh bạ nhóm (member.group-members → GroupMembersView.vue)
+//
+// Danh bạ: GET /api/v1/user-groups/me/members (G04, docs/modules/02_user_group.md mục 3.6). Chỉ đọc, mọi vai trò User.
+// Nhóm luôn là nhóm của người gọi (backend đọc users.user_group_id), không có tham số/ô chọn nhóm.
+// Thẻ tóm tắt nhóm (tên, đơn vị, dải số, Quản trị viên, số thành viên) do group-summary.js vẽ từ GET /user-groups/:id (G03);
+// trang này chỉ lấy representative.id từ sự kiện `member-group-summary` để gắn nhãn "Đại diện".
+// Vue: store useGroupDirectoryStore (members, pagination, query, viewMode cục bộ), action fetchMembers.
+// Kiểm tay mock: ?maintenance=1 (503), ?account=locked (401), ?membersError=1 (lỗi mạng một lần, "Thử lại" thành công).
 
 // ==========================================================================
-// 1. Dữ liệu Mô phỏng (Mock Data theo chuẩn Module 02 & Module 03)
+// 1. Giả lập backend GET /api/v1/user-groups/me/members
 // ==========================================================================
 
-// Thông tin nhóm (thẻ tóm tắt, người đại diện) không còn mock ở đây: lấy từ GET /api/v1/user-groups/:id
-// (G03) trong group-summary.js (window.memberGroupSummary). MEMBERS_DATA bên dưới là dữ liệu CŨ của danh sách
-// thành viên, chưa rà (G04 GET /user-groups/me/members).
-
-const MEMBERS_DATA = [
-    // Group 1: UMO-IT-01
-    {
-        id: 10,
-        userGroupId: 1,
-        fullName: "Trần Thị B",
-        username: "tran.b",
-        email: "tran.b@71portal.vn",
-        phoneNumber: "0912.345.678",
-        extension: "42101",
-        title: "Trưởng nhóm Kỹ thuật Vận hành",
-        isGroupAdmin: true,
-        status: "ACTIVE",
-        createdAt: "2026-03-15",
-        avatarUrl: "https://ui-avatars.com/api/?name=Tran+B&background=0033A0&color=fff"
-    },
-    {
-        id: 15,
-        userGroupId: 1,
-        fullName: "Lê Văn C",
-        username: "le.c",
-        email: "le.c@71portal.vn",
-        phoneNumber: "0983.456.789",
-        extension: "42102",
-        title: "Kỹ sư Quản trị Hệ thống Chính",
-        isGroupAdmin: true,
-        status: "ACTIVE",
-        createdAt: "2026-03-16",
-        avatarUrl: "https://ui-avatars.com/api/?name=Le+C&background=10b981&color=fff"
-    },
-    {
-        id: 101,
-        userGroupId: 1,
-        fullName: "Phạm Văn D",
-        username: "pham.d",
-        email: "pham.d@71portal.vn",
-        phoneNumber: "0977.112.233",
-        extension: "42105",
-        title: "Kỹ sư Vận hành Máy chủ & Storage",
-        isGroupAdmin: false,
-        status: "ACTIVE",
-        createdAt: "2026-03-20",
-        avatarUrl: "https://ui-avatars.com/api/?name=Pham+D&background=FFD100&color=000"
-    },
-    {
-        id: 102,
-        userGroupId: 1,
-        fullName: "Hoàng Minh Trí",
-        username: "tri.hm",
-        email: "tri.hm@71portal.vn",
-        phoneNumber: "0904.556.677",
-        extension: "42108",
-        title: "Chuyên viên Giám sát Mạng & Tổng đài",
-        isGroupAdmin: false,
-        status: "ACTIVE",
-        createdAt: "2026-03-22",
-        avatarUrl: "https://ui-avatars.com/api/?name=Minh+Tri&background=0284c7&color=fff"
-    },
-    {
-        id: 103,
-        userGroupId: 1,
-        fullName: "Đỗ Thị Mai",
-        username: "mai.dt",
-        email: "mai.dt@71portal.vn",
-        phoneNumber: "0936.889.900",
-        extension: "42110",
-        title: "Kỹ sư Trực ca Vận hành 24/7",
-        isGroupAdmin: false,
-        status: "ACTIVE",
-        createdAt: "2026-03-25",
-        avatarUrl: "https://ui-avatars.com/api/?name=Do+Mai&background=ec4899&color=fff"
-    },
-    {
-        id: 104,
-        userGroupId: 1,
-        fullName: "Nguyễn Tuấn Anh",
-        username: "anh.nt",
-        email: "anh.nt@71portal.vn",
-        phoneNumber: "0968.334.455",
-        extension: "42115",
-        title: "Kỹ sư Cơ sở Dữ liệu & Backup",
-        isGroupAdmin: false,
-        status: "LOCKED",
-        createdAt: "2026-04-01",
-        avatarUrl: "https://ui-avatars.com/api/?name=Tuan+Anh&background=64748b&color=fff"
-    },
-
-    // Group 2: UMO-IT-02
-    {
-        id: 18,
-        userGroupId: 2,
-        fullName: "Hoàng Văn Tuấn",
-        username: "tuan.hv",
-        email: "tuan.hv@71portal.vn",
-        phoneNumber: "0918.234.567",
-        extension: "43101",
-        title: "Trưởng phòng Phát triển Phần mềm",
-        isGroupAdmin: true,
-        status: "ACTIVE",
-        createdAt: "2026-04-02",
-        avatarUrl: "https://ui-avatars.com/api/?name=Hoang+Tuan&background=0284c7&color=fff"
-    },
-    {
-        id: 201,
-        userGroupId: 2,
-        fullName: "Nguyễn Hải Long",
-        username: "long.nh",
-        email: "long.nh@71portal.vn",
-        phoneNumber: "0972.123.456",
-        extension: "43105",
-        title: "Lập trình viên Backend NestJS",
-        isGroupAdmin: false,
-        status: "ACTIVE",
-        createdAt: "2026-04-05",
-        avatarUrl: "https://ui-avatars.com/api/?name=Hai+Long&background=10b981&color=fff"
-    },
-    {
-        id: 202,
-        userGroupId: 2,
-        fullName: "Vũ Phương Linh",
-        username: "linh.vp",
-        email: "linh.vp@71portal.vn",
-        phoneNumber: "0981.654.321",
-        extension: "43108",
-        title: "Kỹ sư Frontend Vue/UX",
-        isGroupAdmin: false,
-        status: "ACTIVE",
-        createdAt: "2026-04-08",
-        avatarUrl: "https://ui-avatars.com/api/?name=Phuong+Linh&background=8b5cf6&color=fff"
-    },
-
-    // Group 3: UMO-KD-01
-    {
-        id: 22,
-        userGroupId: 3,
-        fullName: "Phạm Thu Hương",
-        username: "huong.pt",
-        email: "huong.pt@71portal.vn",
-        phoneNumber: "0903.112.233",
-        extension: "48100",
-        title: "Trưởng ban Chăm sóc Khách hàng",
-        isGroupAdmin: true,
-        status: "ACTIVE",
-        createdAt: "2026-04-18",
-        avatarUrl: "https://ui-avatars.com/api/?name=Pham+Huong&background=f59e0b&color=fff"
-    },
-    {
-        id: 25,
-        userGroupId: 3,
-        fullName: "Đặng Quốc Huy",
-        username: "huy.dq",
-        email: "huy.dq@71portal.vn",
-        phoneNumber: "0934.567.890",
-        extension: "48102",
-        title: "Phó ban CSKH Call Center",
-        isGroupAdmin: true,
-        status: "ACTIVE",
-        createdAt: "2026-04-20",
-        avatarUrl: "https://ui-avatars.com/api/?name=Quoc+Huy&background=0033A0&color=fff"
-    },
-    {
-        id: 301,
-        userGroupId: 3,
-        fullName: "Bùi Tuyết Mai",
-        username: "mai.bt",
-        email: "mai.bt@71portal.vn",
-        phoneNumber: "0988.776.655",
-        extension: "48110",
-        title: "Điện thoại viên CSKH",
-        isGroupAdmin: false,
-        status: "ACTIVE",
-        createdAt: "2026-04-22",
-        avatarUrl: "https://ui-avatars.com/api/?name=Tuyet+Mai&background=ec4899&color=fff"
-    },
-
-    // Group 4: UMO-AUDIT-GLOBAL
-    {
-        id: 31,
-        userGroupId: 4,
-        fullName: "Nguyễn Hải Nam",
-        username: "nam.nh",
-        email: "nam.nh@evn.com.vn",
-        phoneNumber: "0915.667.788",
-        extension: "20101",
-        title: "Trưởng ban Kiểm toán Nội bộ",
-        isGroupAdmin: true,
-        status: "ACTIVE",
-        createdAt: "2026-05-10",
-        avatarUrl: "https://ui-avatars.com/api/?name=Nguyen+Nam&background=64748b&color=fff"
-    },
-    {
-        id: 401,
-        userGroupId: 4,
-        fullName: "Trần Bảo Quân",
-        username: "quan.tb",
-        email: "quan.tb@evn.com.vn",
-        phoneNumber: "0982.334.455",
-        extension: "20105",
-        title: "Chuyên viên Quản trị Lưu lượng Thoại",
-        isGroupAdmin: false,
-        status: "ACTIVE",
-        createdAt: "2026-05-12",
-        avatarUrl: "https://ui-avatars.com/api/?name=Bao+Quan&background=0284c7&color=fff"
-    }
+// Dòng "CSDL" của mock (users + user_roles), KHÔNG phải cấu trúc response: response chỉ có 7 trường của toMemberDto.
+// Có cả thành viên LOCKED/INACTIVE và nhóm khác để thấy backend lọc; vai trò USER_RECORDING không lộ ra response.
+const MOCK_USER_ROWS = [
+    { id: 10, userGroupId: 1, fullName: 'Trần Thị B', jobTitle: 'Trưởng nhóm Kỹ thuật Vận hành', email: 'tran.b@71portal.vn', phoneNumber: '0912.345.678', avatarUrl: null, status: 'ACTIVE', roleCode: 'GROUP_ADMIN' },
+    { id: 15, userGroupId: 1, fullName: 'Lê Văn C', jobTitle: 'Kỹ sư Quản trị Hệ thống Chính', email: 'le.c@71portal.vn', phoneNumber: null, avatarUrl: null, status: 'ACTIVE', roleCode: 'GROUP_ADMIN' },
+    { id: 101, userGroupId: 1, fullName: 'Phạm Văn D', jobTitle: 'Kỹ sư Vận hành Máy chủ & Storage', email: 'pham.d@71portal.vn', phoneNumber: '0977 112 233', avatarUrl: null, status: 'ACTIVE', roleCode: 'USER_RECORDING' },
+    { id: 102, userGroupId: 1, fullName: 'Hoàng Minh Trí', jobTitle: 'Chuyên viên Giám sát Mạng & Tổng đài', email: 'tri.hm@71portal.vn', phoneNumber: '0904556677', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER' },
+    { id: 103, userGroupId: 1, fullName: 'Đỗ Thị Mai', jobTitle: 'Kỹ sư Trực ca Vận hành 24/7', email: 'mai.dt@71portal.vn', phoneNumber: '0936.889.900', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER' },
+    { id: 104, userGroupId: 1, fullName: 'Nguyễn Tuấn Anh', jobTitle: 'Kỹ sư Cơ sở Dữ liệu & Backup', email: 'anh.nt@71portal.vn', phoneNumber: '0968.334.455', avatarUrl: null, status: 'LOCKED', roleCode: 'REGULAR_USER' },
+    { id: 105, userGroupId: 1, fullName: 'Vũ Hải Đăng', jobTitle: null, email: 'dang.vh@71portal.vn', phoneNumber: null, avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER' },
+    { id: 106, userGroupId: 1, fullName: 'Bùi Thanh Hà', jobTitle: 'Kỹ sư An toàn Thông tin', email: 'ha.bt@71portal.vn', phoneNumber: '0983 556 778', avatarUrl: null, status: 'ACTIVE', roleCode: 'USER_RECORDING' },
+    { id: 107, userGroupId: 1, fullName: 'Ngô Quang Vinh', jobTitle: 'Kỹ sư Mạng Truyền dẫn', email: 'vinh.nq@71portal.vn', phoneNumber: '0915.223.344', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER' },
+    { id: 108, userGroupId: 1, fullName: 'Trịnh Thu Trang', jobTitle: 'Chuyên viên Tổng hợp', email: 'trang.tt@71portal.vn', phoneNumber: '0988.990.011', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER' },
+    { id: 109, userGroupId: 1, fullName: 'Lý Minh Khôi', jobTitle: 'Kỹ sư Vận hành Tổng đài', email: 'khoi.lm@71portal.vn', phoneNumber: '0903.667.788', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER' },
+    { id: 110, userGroupId: 1, fullName: 'Cao Thị Hồng', jobTitle: 'Kỹ sư Giám sát Chất lượng', email: 'hong.ct@71portal.vn', phoneNumber: null, avatarUrl: null, status: 'INACTIVE', roleCode: 'REGULAR_USER' },
+    { id: 201, userGroupId: 2, fullName: 'Nguyễn Hải Long', jobTitle: 'Lập trình viên Backend', email: 'long.nh@71portal.vn', phoneNumber: '0972.123.456', avatarUrl: null, status: 'ACTIVE', roleCode: 'GROUP_ADMIN' }
 ];
+const MOCK_REPRESENTATIVE_USER_ID = { 1: 10, 2: 201 }; // user_groups.representative_user_id
 
-// ==========================================================================
-// 2. Trạng thái Ứng dụng (App State)
-// ==========================================================================
+const dirParams = new URLSearchParams(window.location.search);
+const DIR_MOCK_MAINTENANCE = dirParams.get('maintenance') === '1';
+const DIR_MOCK_ACCOUNT_LOCKED = dirParams.get('account') === 'locked';
+let dirMockNetworkError = dirParams.get('membersError') === '1';
 
-let appState = {
-    currentGroupId: window.memberSession ? window.memberSession.getAccount().userGroup.id : 1, // nhóm của người gọi, không đổi
-    viewMode: 'grid',       // 'grid' hoặc 'table'
-    searchKeyword: '',
-    filterRole: 'all',      // 'all', 'admin', 'member'
-    currentPage: 1,
-    pageSize: 8
-};
+const dirNow = () => new Date().toISOString().replace('Z', '+07:00');
+const dirFail = (statusCode, errorCode, message, errors) =>
+    Promise.reject({ success: false, statusCode, errorCode, message, errors: errors || null, timestamp: dirNow() });
+// utf8mb4_unicode_ci: không phân biệt hoa thường, không phân biệt dấu thanh/mũ (mock xấp xỉ bằng NFD bỏ dấu).
+const dirFold = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-// ==========================================================================
-// 3. Khởi tạo Giao diện khi tải trang (DOMContentLoaded)
-// ==========================================================================
-
-document.addEventListener('DOMContentLoaded', () => {
-    initEventListeners();
-    renderCurrentGroup();
-    window.addEventListener('member-group-summary', () => renderDirectoryContent());
-});
-
-function initEventListeners() {
-    // 1. Chuyển đổi chế độ xem (Grid vs Table)
-    const btnGridView = document.getElementById('btnViewGrid');
-    const btnTableView = document.getElementById('btnViewTable');
-
-    if (btnGridView && btnTableView) {
-        btnGridView.addEventListener('click', () => setViewMode('grid'));
-        btnTableView.addEventListener('click', () => setViewMode('table'));
-    }
-
-    // 2. Tìm kiếm danh bạ
-    const searchInput = document.getElementById('memberSearchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            appState.searchKeyword = e.target.value.trim().toLowerCase();
-            appState.currentPage = 1;
-            renderDirectoryContent();
-        });
-    }
-
-    // 3. Lọc theo vai trò
-    const roleFilter = document.getElementById('filterRoleSelect');
-    if (roleFilter) {
-        roleFilter.addEventListener('change', (e) => {
-            appState.filterRole = e.target.value;
-            appState.currentPage = 1;
-            renderDirectoryContent();
-        });
-    }
-
-    // 4. Đóng modal khi click ra ngoài backdrop hoặc ấn ESC
-    window.addEventListener('click', (e) => {
-        if (e.target.classList && e.target.classList.contains('modal')) {
-            closeAllModals();
-        }
-    });
-
-    window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeAllModals();
-        }
-    });
-}
-
-function setViewMode(mode) {
-    appState.viewMode = mode;
-
-    const btnGridView = document.getElementById('btnViewGrid');
-    const btnTableView = document.getElementById('btnViewTable');
-    const gridContainer = document.getElementById('contactCardsGrid');
-    const tableContainer = document.getElementById('contactTableView');
-
-    if (mode === 'grid') {
-        btnGridView?.classList.add('active');
-        btnTableView?.classList.remove('active');
-        if (gridContainer) gridContainer.style.display = 'grid';
-        if (tableContainer) tableContainer.classList.remove('active');
-    } else {
-        btnGridView?.classList.remove('active');
-        btnTableView?.classList.add('active');
-        if (gridContainer) gridContainer.style.display = 'none';
-        if (tableContainer) tableContainer.classList.add('active');
-    }
-
-    renderDirectoryContent();
-}
-
-// Nhóm của người gọi cho phần danh sách thành viên: tên + cờ Tầng 1 từ store (authUser.user.userGroup, /auth/me),
-// mã + người đại diện từ data của GET /user-groups/:id (rỗng/null khi thẻ tóm tắt chưa tải xong).
-function getCurrentGroup() {
-    const data = window.memberGroupSummary ? window.memberGroupSummary.getData() : null;
-    const ug = window.memberSession ? window.memberSession.getAccount().userGroup : null;
+// DTO phần tử: đúng 7 trường; không trả username, status, roleCode, lastLoginAt, phiên.
+function toMemberDto(row) {
     return {
-        id: appState.currentGroupId,
-        code: data ? data.code : '',
-        name: data ? data.name : (ug ? ug.name : ''),
-        allowRecordingAccess: ug ? ug.allowRecordingAccess : true,
-        representativeUserId: data && data.representative ? data.representative.id : null
+        id: row.id,
+        fullName: row.fullName,
+        jobTitle: row.jobTitle,
+        email: row.email,
+        phoneNumber: row.phoneNumber,
+        avatarUrl: row.avatarUrl,
+        isGroupAdmin: row.roleCode === 'GROUP_ADMIN'
     };
 }
 
-function getGroupMembers() {
-    return MEMBERS_DATA.filter(m => m.userGroupId === appState.currentGroupId);
+// Thứ tự: guard (401) → bảo trì (503) → quyền user_group:view (mọi vai trò User có) → query (400)
+// → kiểm tra tài khoản (401, đọc users + user_groups: lấy user_group_id, representative_user_id). Không có 403 phạm vi, 404.
+function mockGetGroupMembers(token, query) {
+    return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+        if (dirMockNetworkError) { dirMockNetworkError = false; return Promise.reject(new Error('Network Error')); }
+        if (!token) return dirFail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+        if (DIR_MOCK_MAINTENANCE) return dirFail(503, 'MAINTENANCE', 'Hệ thống đang bảo trì, vui lòng quay lại sau');
+
+        const errors = {};
+        const allowed = ['page', 'limit', 'search', 'isGroupAdmin'];
+        Object.keys(query).forEach(k => {
+            if (!allowed.includes(k)) errors[k] = ['Tham số không được nhận'];      // vd. roleCode, groupId, sort
+            else if (Array.isArray(query[k])) errors[k] = ['Tham số bị lặp lại'];
+        });
+        const page = query.page === undefined ? 1 : (/^[1-9][0-9]{0,8}$/.test(String(query.page)) ? Number(query.page) : NaN);
+        const limit = query.limit === undefined ? 20 : (/^[1-9][0-9]{0,2}$/.test(String(query.limit)) ? Number(query.limit) : NaN);
+        if (!errors.page && !(page >= 1)) errors.page = ['page phải là số nguyên ≥ 1'];
+        if (!errors.limit && !(limit >= 1 && limit <= 100)) errors.limit = ['limit phải trong khoảng 1–100'];
+        const search = query.search === undefined ? '' : String(query.search).trim();
+        if (!errors.search && search.length > 100) errors.search = ['Tối đa 100 ký tự'];
+        if (!errors.isGroupAdmin && query.isGroupAdmin !== undefined && !['true', 'false'].includes(query.isGroupAdmin)) {
+            errors.isGroupAdmin = ['Chỉ nhận true hoặc false'];
+        }
+        if (Object.keys(errors).length) return dirFail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', errors);
+        if (DIR_MOCK_ACCOUNT_LOCKED) return dirFail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+
+        const groupId = window.memberSession ? window.memberSession.getAccount().userGroup.id : 1;
+        const repId = MOCK_REPRESENTATIVE_USER_ID[groupId] || null;
+        const kw = dirFold(search);
+        const rows = MOCK_USER_ROWS
+            .filter(r => r.userGroupId === groupId && r.status === 'ACTIVE')
+            .filter(r => query.isGroupAdmin === undefined || (r.roleCode === 'GROUP_ADMIN') === (query.isGroupAdmin === 'true'))
+            .filter(r => !kw || [r.fullName, r.email, r.jobTitle, r.phoneNumber].some(v => dirFold(v).includes(kw)))
+            // Người đại diện → Quản trị viên nhóm → còn lại; trong mỗi khối full_name, id.
+            .sort((a, b) => ((b.id === repId) - (a.id === repId))
+                || ((b.roleCode === 'GROUP_ADMIN') - (a.roleCode === 'GROUP_ADMIN'))
+                || a.fullName.localeCompare(b.fullName, 'vi')
+                || a.id - b.id);
+        const total = rows.length;
+        const totalPages = Math.ceil(total / limit);
+        return {
+            success: true, statusCode: 200, message: 'Lấy danh bạ nhóm thành công',
+            data: rows.slice((page - 1) * limit, page * limit).map(toMemberDto), // page vượt totalPages → []
+            pagination: { page, limit, total, totalPages, hasNext: page < totalPages, hasPrev: page > 1 },
+            timestamp: dirNow()
+        };
+    });
 }
 
 // ==========================================================================
-// 4. Render Thẻ Tóm tắt Thông tin Nhóm
+// 2. Trạng thái màn hình
 // ==========================================================================
 
-function renderCurrentGroup() {
-    // Thẻ tóm tắt nhóm (tiêu đề, đơn vị, dải số, Quản trị viên, số thành viên) do group-summary.js vẽ từ G03.
-    const members = getGroupMembers();
+const dirQuery = { page: 1, search: '', isGroupAdmin: '' }; // '' = không lọc
+let dirSeq = 0;
+let dirSearchTimer = null;
+let dirViewMode = 'grid';      // 'grid' | 'table' – trạng thái giao diện cục bộ, không lưu
+let dirRows = [];              // data của trang đang hiển thị (hộp chi tiết đọc từ đây, không gọi API)
+let dirRepId = null;           // representative.id từ GET /user-groups/:id (sự kiện member-group-summary)
 
-    // Table / Card count badge
-    const countBadge = document.getElementById('directoryCountBadge');
-    if (countBadge) countBadge.innerText = `${members.length} thành viên`;
-
-    renderDirectoryContent();
+const dirCallApi = fn => (window.memberSession ? window.memberSession.request(fn) : fn('mock-token'));
+const dirEsc = v => String(v == null ? '' : v)
+    .replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const dirTel = phone => String(phone).replace(/[^0-9+]/g, '');
+function dirInitials(name) {
+    const parts = String(name || '').trim().split(/\s+/);
+    return ((parts.length > 1 ? parts[0][0] : '') + (parts[parts.length - 1][0] || '')).toUpperCase();
+}
+// limit = itemsPerPage của store preferencesUser (10/20/50), đọc lại mỗi lần gửi.
+function dirLimit() {
+    const prefs = window.memberSession ? window.memberSession.getPreferences() : null;
+    return prefs && prefs.itemsPerPage ? prefs.itemsPerPage : 10;
+}
+function dirBuildQuery() {
+    const q = { page: String(dirQuery.page), limit: String(dirLimit()) };
+    if (dirQuery.search) q.search = dirQuery.search;
+    if (dirQuery.isGroupAdmin) q.isGroupAdmin = dirQuery.isGroupAdmin;
+    return q;
 }
 
 // ==========================================================================
-// 5. Render Nội dung Danh bạ (Thẻ Cards hoặc Bảng Table)
+// 3. Khởi tạo
 // ==========================================================================
 
-function renderDirectoryContent() {
-    let members = getGroupMembers();
+document.addEventListener('DOMContentLoaded', () => {
+    initDirectoryEvents();
+    loadMembers();
+    window.addEventListener('member-group-summary', e => {
+        const data = e.detail && e.detail.data;
+        dirRepId = data && data.representative ? data.representative.id : null;
+        if (dirRows.length) renderMembers(dirRows); // chỉ vẽ lại nhãn "Đại diện", không gọi lại API
+    });
+});
 
-    // 1. Filter Search Keyword
-    if (appState.searchKeyword) {
-        const kw = appState.searchKeyword;
-        members = members.filter(m =>
-            m.fullName.toLowerCase().includes(kw) ||
-            m.email.toLowerCase().includes(kw) ||
-            m.username.toLowerCase().includes(kw) ||
-            (m.phoneNumber && m.phoneNumber.toLowerCase().includes(kw)) ||
-            (m.title && m.title.toLowerCase().includes(kw))
-        );
+function initDirectoryEvents() {
+    document.getElementById('btnViewGrid')?.addEventListener('click', () => setViewMode('grid'));
+    document.getElementById('btnViewTable')?.addEventListener('click', () => setViewMode('table'));
+    document.getElementById('btnRetryDirectory')?.addEventListener('click', loadMembers);
+
+    // Tìm kiếm: 300 ms sau lần gõ cuối hoặc Enter; đổi điều kiện thì về trang 1.
+    const searchInput = document.getElementById('memberSearchInput');
+    if (searchInput) {
+        const apply = () => {
+            clearTimeout(dirSearchTimer);
+            const value = searchInput.value.trim();
+            if (value === dirQuery.search) return;
+            dirQuery.search = value;
+            dirQuery.page = 1;
+            loadMembers();
+        };
+        searchInput.addEventListener('input', () => { clearTimeout(dirSearchTimer); dirSearchTimer = setTimeout(apply, 300); });
+        searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
     }
 
-    // 2. Filter Role
-    if (appState.filterRole === 'admin') {
-        members = members.filter(m => m.isGroupAdmin);
-    } else if (appState.filterRole === 'member') {
-        members = members.filter(m => !m.isGroupAdmin);
-    }
+    document.getElementById('filterRoleSelect')?.addEventListener('change', e => {
+        dirQuery.isGroupAdmin = e.target.value; // '' | 'true' | 'false'
+        dirQuery.page = 1;
+        loadMembers();
+    });
 
-    const emptyState = document.getElementById('directoryEmptyState');
-    const gridContainer = document.getElementById('contactCardsGrid');
-    const tableContainer = document.getElementById('contactTableView');
+    document.getElementById('paginationPages')?.addEventListener('click', e => {
+        const btn = e.target.closest('button[data-page]');
+        if (!btn) return;
+        dirQuery.page = Number(btn.dataset.page);
+        loadMembers();
+    });
 
-    // Empty state
-    if (members.length === 0) {
-        if (gridContainer) gridContainer.innerHTML = '';
-        const tbody = document.getElementById('contactTableBody');
-        if (tbody) tbody.innerHTML = '';
-        if (emptyState) emptyState.style.display = 'block';
-        renderPagination(0, 1);
-        return;
-    }
-
-    if (emptyState) emptyState.style.display = 'none';
-
-    // Pagination
-    const total = members.length;
-    const totalPages = Math.ceil(total / appState.pageSize) || 1;
-    if (appState.currentPage > totalPages) appState.currentPage = totalPages;
-
-    const startIdx = (appState.currentPage - 1) * appState.pageSize;
-    const pageMembers = members.slice(startIdx, startIdx + appState.pageSize);
-
-    if (appState.viewMode === 'grid') {
-        renderCardGrid(pageMembers);
-    } else {
-        renderTableView(pageMembers);
-    }
-
-    renderPagination(total, totalPages);
+    window.addEventListener('click', e => {
+        if (e.target.classList && e.target.classList.contains('modal')) closeAllModals();
+    });
+    window.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllModals(); });
 }
 
-// Render Card Grid View
-function renderCardGrid(members) {
-    const gridContainer = document.getElementById('contactCardsGrid');
-    if (!gridContainer) return;
+function setViewMode(mode) {
+    dirViewMode = mode;
+    document.getElementById('btnViewGrid')?.classList.toggle('active', mode === 'grid');
+    document.getElementById('btnViewTable')?.classList.toggle('active', mode === 'table');
+    if (dirRows.length) renderMembers(dirRows);
+}
 
-    gridContainer.innerHTML = members.map(m => {
-        const isGroupRep = getCurrentGroup().representativeUserId === m.id;
+// ==========================================================================
+// 4. Tải & vẽ danh bạ
+// ==========================================================================
 
-        return `
-            <div class="contact-card" data-user-id="${m.id}">
-                <div>
-                    <!-- Top: Avatar & Basic Info -->
-                    <div class="contact-card-top">
-                        <img src="${m.avatarUrl}" alt="${m.fullName}" class="contact-avatar">
-                        <div class="contact-info">
-                            <h4 class="contact-name" title="${m.fullName}">
-                                ${m.fullName}
-                                ${isGroupRep ? '<span title="Người đại diện nhóm" style="color: #f59e0b; font-size: 0.85rem;">★</span>' : ''}
-                            </h4>
-                            <p class="contact-title" title="${m.title || 'Chưa cập nhật'}">
-                                ${m.title || 'Thành viên'}
-                            </p>
-                            <div class="contact-badges">
-                                ${m.isGroupAdmin
-                ? `<span class="badge-group-role admin">★ Quản trị nhóm</span>`
-                : `<span class="badge-group-role member">Thành viên</span>`
+// state: 'loading' | 'error' | 'empty' | 'ready'
+function setDirectoryState(state, message, hint) {
+    const box = document.getElementById('directoryState');
+    const msg = document.getElementById('directoryStateMessage');
+    const retry = document.getElementById('btnRetryDirectory');
+    const empty = document.getElementById('directoryEmptyState');
+    const grid = document.getElementById('contactCardsGrid');
+    const table = document.getElementById('contactTableView');
+    const pager = document.getElementById('directoryPagination');
+    const badge = document.getElementById('directoryCountBadge');
+    if (box) { box.hidden = !(state === 'loading' || state === 'error'); box.classList.toggle('is-error', state === 'error'); }
+    if (msg) msg.textContent = state === 'loading' || state === 'error' ? message : '';
+    if (retry) retry.hidden = state !== 'error';
+    if (empty) {
+        empty.hidden = state !== 'empty';
+        if (state === 'empty') {
+            document.getElementById('directoryEmptyTitle').textContent = message;
+            document.getElementById('directoryEmptyHint').textContent = hint || '';
+        }
+    }
+    if (grid) grid.hidden = !(state === 'ready' && dirViewMode === 'grid');
+    if (table) table.hidden = !(state === 'ready' && dirViewMode === 'table');
+    if (pager) pager.hidden = state !== 'ready';
+    if (badge && state === 'error') badge.hidden = true;
+}
+
+function loadMembers() {
+    const seq = ++dirSeq;
+    setDirectoryState('loading', 'Đang tải danh bạ nhóm...');
+    return dirCallApi(token => mockGetGroupMembers(token, dirBuildQuery()))
+        .then(res => {
+            if (seq !== dirSeq) return; // đã có request mới hơn
+            const p = res.pagination;
+            const badge = document.getElementById('directoryCountBadge');
+            if (badge) { badge.textContent = p.total + ' thành viên'; badge.hidden = false; }
+            if (!res.data.length && p.page > 1 && p.totalPages > 0) {
+                dirQuery.page = p.totalPages; // danh sách ngắn lại: lùi về trang cuối
+                return loadMembers();
             }
-                            </div>
-                        </div>
-                    </div>
+            dirRows = res.data;
+            if (!res.data.length) {
+                const filtered = dirQuery.search || dirQuery.isGroupAdmin;
+                if (filtered) setDirectoryState('empty', 'Không có thành viên phù hợp với bộ lọc', 'Thử từ khóa khác hoặc chọn "Tất cả vai trò"');
+                else setDirectoryState('empty', 'Nhóm chưa có thành viên đang hoạt động', '');
+                return;
+            }
+            renderMembers(res.data);
+            renderPagination(p, res.data.length);
+        })
+        .catch(err => {
+            if (seq !== dirSeq) return;
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            // 503: request() hiện biểu ngữ bảo trì; khối danh bạ vẫn hiện thông điệp + "Thử lại" riêng (U09).
+            setDirectoryState('error', (err && err.statusCode && err.message) || 'Không tải được danh bạ nhóm. Vui lòng thử lại.');
+        });
+}
 
-                    <!-- Meta Details: SĐT EVN, Điện thoại & Email (Trình bày đồng nhất giống email) -->
-                    <div class="contact-meta-list">
-                        <div class="contact-meta-row" title="Điện thoại">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                                <line x1="12" y1="18" x2="12.01" y2="18"></line>
-                            </svg>
-                            <span>${m.phoneNumber ? `<a href="tel:${m.phoneNumber.replace(/[^0-9]/g, '')}">${m.phoneNumber}</a>` : '—'}</span>
-                        </div>
-                        <div class="contact-meta-row" title="Email">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                                <polyline points="22,6 12,13 2,6"></polyline>
-                            </svg>
-                            <a href="mailto:${m.email}">${m.email}</a>
-                        </div>
+function avatarHtml(m, size) {
+    return m.avatarUrl
+        ? `<img src="${dirEsc(m.avatarUrl)}" alt="" class="contact-avatar" style="width:${size}px;height:${size}px;">`
+        : `<span class="contact-avatar contact-avatar-initials" style="width:${size}px;height:${size}px;" aria-hidden="true">${dirEsc(dirInitials(m.fullName))}</span>`;
+}
+function roleBadgeHtml(m) {
+    return m.isGroupAdmin
+        ? '<span class="badge-group-role admin">★ Quản trị viên nhóm</span>'
+        : '<span class="badge-group-role member">Thành viên</span>';
+}
+function repMarkHtml(m) {
+    return m.id === dirRepId ? '<span class="contact-rep-mark" title="Người đại diện nhóm">★ Đại diện</span>' : '';
+}
+function phoneHtml(m) {
+    return m.phoneNumber ? `<a href="tel:${dirEsc(dirTel(m.phoneNumber))}">${dirEsc(m.phoneNumber)}</a>` : '<span class="text-muted">—</span>';
+}
+
+function renderMembers(members) {
+    if (dirViewMode === 'grid') renderCardGrid(members);
+    else renderTableView(members);
+    setDirectoryState('ready');
+}
+
+function renderCardGrid(members) {
+    const grid = document.getElementById('contactCardsGrid');
+    if (!grid) return;
+    grid.innerHTML = members.map(m => `
+        <div class="contact-card" data-user-id="${m.id}">
+            <div>
+                <div class="contact-card-top">
+                    ${avatarHtml(m, 52)}
+                    <div class="contact-info">
+                        <h4 class="contact-name" title="${dirEsc(m.fullName)}">${dirEsc(m.fullName)} ${repMarkHtml(m)}</h4>
+                        <p class="contact-title ${m.jobTitle ? '' : 'text-muted'}" title="${dirEsc(m.jobTitle || '')}">
+                            ${m.jobTitle ? dirEsc(m.jobTitle) : 'Chưa cập nhật chức danh'}
+                        </p>
+                        <div class="contact-badges">${roleBadgeHtml(m)}</div>
                     </div>
                 </div>
-
-                <!-- Footer Quick Actions -->
-                <div class="contact-card-footer">
-                    <a href="mailto:${m.email}" class="btn-card-action" title="Gửi Email">
-                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="contact-meta-list">
+                    <div class="contact-meta-row" title="Điện thoại">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                        </svg>
+                        <span>${phoneHtml(m)}</span>
+                    </div>
+                    <div class="contact-meta-row" title="Email">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
                             <polyline points="22,6 12,13 2,6"></polyline>
                         </svg>
-                        Gửi Email
-                    </a>
-                    <button type="button" class="btn-card-action" onclick="openViewMemberModal(${m.id})" title="Xem chi tiết">
-                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                            <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Chi tiết
-                    </button>
+                        <a href="mailto:${dirEsc(m.email)}">${dirEsc(m.email)}</a>
+                    </div>
                 </div>
             </div>
-        `;
-    }).join('');
+            <div class="contact-card-footer">
+                <a href="mailto:${dirEsc(m.email)}" class="btn-card-action" title="Gửi email">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                    Gửi email
+                </a>
+                <button type="button" class="btn-card-action" onclick="openViewMemberModal(${m.id})" title="Xem chi tiết">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    Chi tiết
+                </button>
+            </div>
+        </div>`).join('');
 }
 
-// Render Table View
 function renderTableView(members) {
     const tbody = document.getElementById('contactTableBody');
     if (!tbody) return;
-
-    tbody.innerHTML = members.map(m => {
-        const isGroupRep = getCurrentGroup().representativeUserId === m.id;
-
-        return `
-            <tr>
-                <td>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <img src="${m.avatarUrl}" style="width: 32px; height: 32px; border-radius: 50%;" alt="${m.fullName}">
-                        <div>
-                            <strong style="color: var(--text-main); font-size: 0.875rem;">
-                                ${m.fullName}
-                                ${isGroupRep ? '<span title="Người đại diện nhóm" style="color: #f59e0b; font-size: 0.8rem;">★</span>' : ''}
-                            </strong>
-                            <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">@${m.username}</span>
-                        </div>
+    tbody.innerHTML = members.map(m => `
+        <tr>
+            <td>
+                <div class="contact-table-person">
+                    ${avatarHtml(m, 32)}
+                    <div>
+                        <strong>${dirEsc(m.fullName)} ${repMarkHtml(m)}</strong>
+                        <span class="contact-table-sub">${m.jobTitle ? dirEsc(m.jobTitle) : 'Chưa cập nhật chức danh'}</span>
                     </div>
-                </td>
-                <td>
-                    ${m.phoneNumber ? `<a href="tel:${m.phoneNumber.replace(/[^0-9]/g, '')}" style="color: var(--text-main); text-decoration: none;">${m.phoneNumber}</a>` : '—'}
-                </td>
-                <td>
-                    ${m.isGroupAdmin
-                ? `<span class="badge-group-role admin">★ Quản trị nhóm</span>`
-                : `<span class="badge-group-role member">Thành viên</span>`
-            }
-                </td>
-                <td style="text-align: right;">
-                    <button type="button" class="btn-icon-detail" onclick="openViewMemberModal(${m.id})" title="Xem chi tiết">
-                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                            <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                    </button>
-                </td>
-            </tr>
-        `;
-    }).join('');
-}
-
-function renderPagination(total, totalPages) {
-    const infoEl = document.getElementById('paginationInfo');
-    const pagesContainer = document.getElementById('paginationPages');
-    const prevBtn = document.getElementById('paginationPrevBtn');
-    const nextBtn = document.getElementById('paginationNextBtn');
-
-    if (infoEl) {
-        const start = total === 0 ? 0 : (appState.currentPage - 1) * appState.pageSize + 1;
-        const end = Math.min(appState.currentPage * appState.pageSize, total);
-        infoEl.innerText = `Hiển thị ${start} - ${end} trên tổng số ${total} thành viên`;
-    }
-
-    if (prevBtn) {
-        prevBtn.disabled = appState.currentPage <= 1;
-        prevBtn.onclick = () => {
-            if (appState.currentPage > 1) {
-                appState.currentPage--;
-                renderDirectoryContent();
-            }
-        };
-    }
-
-    if (nextBtn) {
-        nextBtn.disabled = appState.currentPage >= totalPages;
-        nextBtn.onclick = () => {
-            if (appState.currentPage < totalPages) {
-                appState.currentPage++;
-                renderDirectoryContent();
-            }
-        };
-    }
-
-    if (pagesContainer) {
-        let pagesHtml = '';
-        for (let i = 1; i <= totalPages; i++) {
-            pagesHtml += `
-                <button type="button" class="btn ${i === appState.currentPage ? 'btn-primary' : 'btn-outline'}" 
-                    style="padding: 4px 10px; font-size: 0.8125rem;" onclick="goToPage(${i})">
-                    ${i}
+                </div>
+            </td>
+            <td>${phoneHtml(m)}</td>
+            <td><a href="mailto:${dirEsc(m.email)}">${dirEsc(m.email)}</a></td>
+            <td>${roleBadgeHtml(m)}</td>
+            <td style="text-align: right;">
+                <button type="button" class="btn-icon-detail" onclick="openViewMemberModal(${m.id})" title="Xem chi tiết">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
                 </button>
-            `;
-        }
-        pagesContainer.innerHTML = pagesHtml;
-    }
+            </td>
+        </tr>`).join('');
 }
 
-function goToPage(page) {
-    appState.currentPage = page;
-    renderDirectoryContent();
+// Phân trang theo pagination của response (cửa sổ 5 trang).
+function renderPagination(p, count) {
+    const info = document.getElementById('paginationInfo');
+    const pages = document.getElementById('paginationPages');
+    const from = (p.page - 1) * p.limit + 1;
+    if (info) info.textContent = `Hiển thị ${from}–${from + count - 1} / ${p.total} thành viên`;
+    if (!pages) return;
+    const btn = (label, page, { disabled = false, active = false, aria } = {}) =>
+        `<button type="button" class="btn ${active ? 'btn-primary' : 'btn-outline'} btn-page"
+            ${disabled || active ? 'disabled' : `data-page="${page}"`} ${aria ? `aria-label="${aria}"` : ''}
+            ${active ? 'aria-current="page"' : ''}>${label}</button>`;
+    const first = Math.max(1, Math.min(p.page - 2, p.totalPages - 4));
+    const last = Math.min(p.totalPages, first + 4);
+    let html = btn('«', p.page - 1, { disabled: !p.hasPrev, aria: 'Trang trước' });
+    for (let i = first; i <= last; i++) html += btn(String(i), i, { active: i === p.page });
+    html += btn('»', p.page + 1, { disabled: !p.hasNext, aria: 'Trang sau' });
+    pages.innerHTML = html;
 }
 
 // ==========================================================================
-// 6. Tiện ích & Modal Chi tiết
+// 5. Hộp chi tiết liên hệ (dữ liệu của dòng đã tải, không gọi API) & tiện ích
 // ==========================================================================
 
-function openModal(modalId) {
-    const el = document.getElementById(modalId);
-    if (el) el.classList.add('show');
-}
-
-function closeModal(modalId) {
-    const el = document.getElementById(modalId);
-    if (el) el.classList.remove('show');
-}
-
-function closeAllModals() {
-    document.querySelectorAll('.modal').forEach(m => m.classList.remove('show'));
-}
+function openModal(modalId) { document.getElementById(modalId)?.classList.add('show'); }
+function closeModal(modalId) { document.getElementById(modalId)?.classList.remove('show'); }
+function closeAllModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('show')); }
 
 function openViewMemberModal(userId) {
-    const member = MEMBERS_DATA.find(m => m.id === userId);
-    if (!member) return;
-
-    const group = getCurrentGroup();
-
-    document.getElementById('viewMemberAvatar').src = member.avatarUrl;
-    document.getElementById('viewMemberFullName').innerText = member.fullName;
-    document.getElementById('viewMemberUsername').innerText = `@${member.username}`;
-
-    document.getElementById('viewMemberRoleBadge').innerHTML = member.isGroupAdmin
-        ? `<span class="badge-group-role admin">★ Quản trị nhóm</span>`
-        : `<span class="badge-group-role member">Thành viên</span>`;
-
-    document.getElementById('viewMemberGroupName').innerText = `${group.code} - ${group.name}`;
-    document.getElementById('viewMemberTitle').innerText = member.title || 'Chưa cập nhật';
-    document.getElementById('viewMemberPhone').innerText = member.phoneNumber || 'Chưa cập nhật';
-    document.getElementById('viewMemberEmail').innerText = member.email;
-
+    const m = dirRows.find(r => r.id === userId);
+    if (!m) return;
+    const ug = window.memberSession ? window.memberSession.getAccount().userGroup : null;
+    document.getElementById('viewMemberAvatar').innerHTML = avatarHtml(m, 56);
+    document.getElementById('viewMemberFullName').innerHTML = `${dirEsc(m.fullName)} ${repMarkHtml(m)}`;
+    document.getElementById('viewMemberRoleBadge').innerHTML = roleBadgeHtml(m);
+    document.getElementById('viewMemberGroupName').textContent = ug ? ug.name : '';
+    const title = document.getElementById('viewMemberTitle');
+    title.textContent = m.jobTitle || 'Chưa cập nhật';
+    title.classList.toggle('text-muted', !m.jobTitle);
+    document.getElementById('viewMemberPhone').innerHTML = phoneHtml(m);
+    document.getElementById('viewMemberEmail').innerHTML = `<a href="mailto:${dirEsc(m.email)}">${dirEsc(m.email)}</a>`;
+    const copyPhone = document.getElementById('btnCopyMemberPhone');
+    copyPhone.hidden = !m.phoneNumber;
+    copyPhone.onclick = () => copyText(m.phoneNumber, 'số điện thoại');
+    document.getElementById('btnCopyMemberEmail').onclick = () => copyText(m.email, 'email');
+    document.getElementById('btnMailMember').href = 'mailto:' + m.email;
     openModal('viewMemberModal');
 }
 
-function exportDirectoryCSV() {
-    const group = getCurrentGroup();
-    const members = getGroupMembers();
-
-    let csv = "HoTen,ChucVu,DienThoai,Email,VaiTroTrongNhom\n";
-    members.forEach(m => {
-        csv += `"${m.fullName}","${m.title || ''}","${m.phoneNumber || ''}","${m.email}","${m.isGroupAdmin ? 'Admin' : 'Member'}"\n`;
-    });
-
-    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Danh_ba_nhom_${group.code}_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    showToast(`Đã tải xuống danh bạ nhóm ${group.code}`, 'success');
+function copyText(value, label) {
+    if (!navigator.clipboard) { showToast('Trình duyệt không hỗ trợ sao chép', 'error'); return; }
+    navigator.clipboard.writeText(value)
+        .then(() => showToast(`Đã sao chép ${label}`, 'success'))
+        .catch(() => showToast(`Không sao chép được ${label}`, 'error'));
 }
 
 function showToast(message, type = 'info') {
-    const existing = document.querySelector('.member-toast');
-    if (existing) existing.remove();
-
+    document.querySelector('.member-toast')?.remove();
     const toast = document.createElement('div');
     toast.className = `member-toast ${type}`;
-    toast.innerHTML = `<span style="font-weight: 500;">${message}</span>`;
+    toast.setAttribute('role', 'status');
+    toast.textContent = message;
     document.body.appendChild(toast);
-
-    setTimeout(() => {
-        toast.remove();
-    }, 3200);
+    setTimeout(() => toast.remove(), 3200);
 }

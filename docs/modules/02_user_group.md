@@ -526,11 +526,50 @@ Nhóm `INACTIVE` (mục 3.4): `userCount = 0`, `representative = null`, `admins 
 
 ### 3.6. `GET /api/v1/user-groups/me/members` (Danh bạ nhóm – chỉ khu vực Member)
 
-- **Mục đích**: cho **mọi** thành viên nhóm tra cứu liên hệ của đồng nghiệp cùng nhóm. Tách khỏi `GET /api/v1/users` (cần `user:view`, chỉ Quản trị viên nhóm có) để thành viên thường không nhận được dữ liệu quản trị tài khoản.
-- **Guard / Quyền**: `UserAuthGuard` + `user_group:view` (cả 3 vai trò User đều có, `docs/modules/10_permissions_and_roles.md` mục 2.2). Không có bản `/api/v1/admin/...`: Admin xem thành viên nhóm qua `GET /api/v1/admin/users?groupId=`.
-- **Phạm vi**: luôn là `req.user.userGroupId`; endpoint không nhận tham số nhóm. Chỉ trả tài khoản `status = 'ACTIVE'`.
-- **Query params**: `page=1`, `limit=20` (tối đa 100), `search` (khớp `full_name`, `email`, `job_title`, `phone_number`), `roleCode` (`GROUP_ADMIN` \| `USER_RECORDING` \| `REGULAR_USER`). Sắp xếp: Quản trị viên nhóm trước, sau đó `full_name` tăng dần.
-- **Response** `200`:
+- **Mục đích**: cho **mọi** thành viên nhóm tra cứu liên hệ của đồng nghiệp cùng nhóm (màn hình `member.group-members`, mục 5.4). Tách khỏi `GET /api/v1/users` (cần `user:view`, chỉ Quản trị viên nhóm có) để thành viên thường không nhận được dữ liệu quản trị tài khoản. Phần tử chỉ cho biết người đó có phải Quản trị viên nhóm hay không (`isGroupAdmin`), **không** trả `roleCode` (chủ dự án chốt ở G04): thành viên thường không được biết ai mang vai trò `USER_RECORDING` (quyền nghe/tải ghi âm).
+- **Một route** (chỉ cổng User): `UserAuthGuard` → bảo trì (`503 MAINTENANCE`) → `PermissionsGuard` `user_group:view` theo claim `roleCode` (seed: cả 3 vai trò User, `docs/modules/10_permissions_and_roles.md` mục 2.2) → query (`400`) → kiểm tra tài khoản ở mỗi request (`docs/modules/03_auth_user.md` mục 3.2, `401`). Token `PASSWORD_CHANGE_ONLY` `403 PASSWORD_CHANGE_REQUIRED`. Không có bản `/api/v1/admin/...`: Admin xem thành viên nhóm qua `GET /api/v1/admin/users?groupId=` (`docs/modules/03_auth_user.md` mục 3.3); `GET /api/v1/admin/user-groups/me/members` không khớp route nào → `404 NOT_FOUND`.
+- **Phạm vi**: luôn là nhóm của người gọi, lấy `users.user_group_id` của dòng đọc ở bước kiểm tra tài khoản (không dùng claim). Endpoint không nhận tham số nhóm (`groupId`, `userGroupId` → `400`), nên không có `403 FORBIDDEN_SCOPE_ACCESS`. Chỉ trả tài khoản `status = 'ACTIVE'` (gồm cả người gọi); `LOCKED`, `INACTIVE` không có trong danh bạ.
+- **Query** (quy tắc chung `docs/02_api_contracts.md` mục 2.2; không có body):
+
+| Tham số | Kiểu | Mặc định | Ràng buộc | Điều kiện SQL |
+|---|---|---|---|---|
+| `page` | số nguyên | 1 | ≥ 1 | |
+| `limit` | số nguyên | 20 | 1–100 | |
+| `search` | chuỗi | — | Cắt khoảng trắng hai đầu, rỗng = không lọc, ≤ 100 ký tự; khớp **chứa** trên `full_name`, `email`, `job_title`, `phone_number` (`OR`), so theo collation `utf8mb4_unicode_ci` (không phân biệt hoa thường và dấu); số điện thoại so nguyên chuỗi đã lưu (có thể có `.`, khoảng trắng: `02` mục 2) | `u.full_name LIKE :pattern OR u.email LIKE :pattern OR u.job_title LIKE :pattern OR u.phone_number LIKE :pattern` |
+| `isGroupAdmin` | `true` \| `false` | — (cả hai) | Chỉ nhận đúng `true`/`false` (giá trị khác `400`): `true` chỉ Quản trị viên nhóm, `false` chỉ thành viên khác (`USER_RECORDING` và `REGULAR_USER` không phân biệt) | `(r.code = 'GROUP_ADMIN') = :isGroupAdmin` |
+
+  Sai định dạng, ngoài khoảng, tham số lặp lại hoặc tham số khác (`roleCode`, `groupId`, `userGroupId`, `status`, `sort`, `order`, `keyword`…) trả `400 VALIDATION_ERROR` với `errors` theo tên tham số.
+- **Xử lý** (chỉ đọc, không transaction, không ghi `audit_logs`):
+  1. Kiểm tra tài khoản theo khóa chính (`users` + `user_groups`), lấy `user_group_id` của người gọi và `user_groups.representative_user_id` (`:repId`) từ cùng lần đọc.
+  2. Đếm và lấy trang trong cùng một điều kiện:
+
+```sql
+SELECT u.id, u.full_name, u.job_title, u.email, u.phone_number, u.avatar_url,
+       (r.code = 'GROUP_ADMIN') AS is_group_admin
+FROM users u
+JOIN user_roles ur ON ur.user_id = u.id
+JOIN roles r ON r.id = ur.role_id
+WHERE u.user_group_id = :groupId AND u.status = 'ACTIVE'
+  AND (:isGroupAdmin IS NULL OR (r.code = 'GROUP_ADMIN') = :isGroupAdmin)
+  AND (:search IS NULL OR u.full_name LIKE :pattern ESCAPE '\' OR u.email LIKE :pattern ESCAPE '\'
+       OR u.job_title LIKE :pattern ESCAPE '\' OR u.phone_number LIKE :pattern ESCAPE '\')
+ORDER BY (u.id <=> :repId) DESC, is_group_admin DESC, u.full_name, u.id
+LIMIT :limit OFFSET (:page - 1) * :limit;
+-- :pattern = CONCAT('%', <search đã thoát \ % _>, '%'); total: SELECT COUNT(*) cùng FROM/JOIN/WHERE
+```
+
+  3. Thứ tự cố định (không có tham số sắp xếp, chủ dự án chốt ở G04, cùng cách sắp `admins` của mục 3.1.2): người đại diện nhóm đứng đầu (khi còn `ACTIVE` và khớp bộ lọc), rồi các Quản trị viên nhóm khác, rồi thành viên còn lại; trong mỗi khối `full_name` (collation `utf8mb4_unicode_ci`), `id` tăng dần. `page` vượt `totalPages` trả `200`, `data = []`.
+- **Response** `200` (khung `docs/02_api_contracts.md` mục 2.2, không có khóa cấp cao khác). Mỗi phần tử đúng 7 trường:
+
+| Trường | Kiểu | Nguồn | Ghi chú |
+|---|---|---|---|
+| `id` | số | `users.id` | |
+| `fullName` | chuỗi ≤ 150 | `full_name` | |
+| `jobTitle` | chuỗi ≤ 150 \| `null` | `job_title` | |
+| `email` | chuỗi ≤ 150 | `email` | |
+| `phoneNumber` | chuỗi ≤ 30 \| `null` | `phone_number` | Trả nguyên chuỗi đã lưu |
+| `avatarUrl` | chuỗi ≤ 255 \| `null` | `avatar_url` | Đường dẫn tương đối `/media/avatars/...` |
+| `isGroupAdmin` | boolean | `roles.code = 'GROUP_ADMIN'` | `false` cho cả `USER_RECORDING` lẫn `REGULAR_USER` |
 
 ```json
 {
@@ -545,16 +584,44 @@ Nhóm `INACTIVE` (mục 3.4): `userCount = 0`, `representative = null`, `admins 
       "email": "tran.b@71portal.vn",
       "phoneNumber": "0905123456",
       "avatarUrl": "/media/avatars/8a1d2c3e-5b6f-4a7d-9e0f-1b2c3d4e5f60.jpg",
-      "roleCode": "GROUP_ADMIN"
+      "isGroupAdmin": true
+    },
+    {
+      "id": 101,
+      "fullName": "Phạm Văn D",
+      "jobTitle": null,
+      "email": "pham.d@71portal.vn",
+      "phoneNumber": null,
+      "avatarUrl": null,
+      "isGroupAdmin": false
     }
   ],
-  "pagination": { "page": 1, "limit": 20, "total": 45, "totalPages": 3, "hasNext": true, "hasPrev": false }
+  "pagination": { "page": 1, "limit": 20, "total": 45, "totalPages": 3, "hasNext": true, "hasPrev": false },
+  "timestamp": "2026-11-06T09:00:00+07:00"
 }
 ```
 
-- **Không trả**: `username`, `status`, `lastLoginAt`, `mustChangePassword`, `failedLoginCount`, `lockedUntil`, phiên đăng nhập.
-- **Thông tin tóm tắt nhóm** (người đại diện, danh sách Quản trị viên nhóm, nhóm đầu số và dải số) lấy từ `GET /api/v1/user-groups/:id` với `id` là nhóm của người gọi.
-- **Khai báo route NestJS**: đặt `@Get('me/members')` **trước** `@Get(':id')` trong `UserGroupsController` và dùng `ParseIntPipe` cho `:id`, để `me` không bị bắt nhầm là id.
+- **Không trả**: `username`, `status`, `roleCode`/`roleName`, `userGroupId`, `lastLoginAt`, `mustChangePassword`, `failedLoginCount`, `lockedUntil`, `createdAt`, phiên đăng nhập. Không có trường người đại diện: frontend so `id` với `representative.id` của mục 3.1.2.
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Query sai định dạng/ngoài khoảng, `isGroupAdmin` khác `true`/`false`, tham số lặp lại hoặc không có trong bảng trên (`errors.<tên tham số>`) |
+| `401` | `UNAUTHORIZED` | Thiếu/sai/hết hạn Access Token; tài khoản không còn `ACTIVE`, nhóm `INACTIVE` hoặc token đầy đủ mà `must_change_password = 1` |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `user_group:view` (chốt phòng vệ, seed cấp cho mọi vai trò User) |
+| `503` | `MAINTENANCE` | Chế độ bảo trì đang bật |
+
+Không có `403 FORBIDDEN_SCOPE_ACCESS`, `404`, `409`.
+
+- **Frontend** (`member.group-members`, mục 5.4; mẫu `templates/member/group-members.js`: `mockGetGroupMembers`, `loadMembers`, `setDirectoryState`, `renderCardGrid`, `renderTableView`, `renderPagination`, `openViewMemberModal`, `copyText`):
+  - Gọi qua `memberSession.request`; quy ước danh sách `docs/modules/04_auth_admin.md` mục 5.2: tìm kiếm 300 ms/Enter, đổi bộ lọc về trang 1, chỉ hiển thị response của request sau cùng, trang rỗng mà `page > 1` thì lùi về trang cuối, rỗng có lọc ("Không có thành viên phù hợp với bộ lọc") / không lọc khác thông điệp, trạng thái tải/lỗi + "Thử lại" riêng của khối danh bạ, độc lập với thẻ tóm tắt nhóm (quy ước A11); `503` hiện thông điệp bảo trì trong khối (U09). `limit` = `itemsPerPage` của store `preferencesUser` (10/20/50), đọc lại mỗi lần gửi.
+  - Thanh công cụ: ô tìm kiếm (`maxlength = 100`), ô lọc vai trò "Tất cả vai trò" (không gửi) / "Quản trị viên nhóm" (`isGroupAdmin=true`) / "Thành viên" (`false`), nút chuyển Thẻ/Bảng (trạng thái giao diện cục bộ, không gọi lại API). Số đếm cạnh tiêu đề = `pagination.total` theo bộ lọc.
+  - Thẻ / dòng bảng: ảnh (`avatarUrl`, `null` thì chữ cái đầu của họ tên), `fullName`, nhãn "★ Đại diện" khi `id = representative.id` của mục 3.1.2 (sự kiện `member-group-summary`; thẻ tóm tắt lỗi thì không có nhãn), `jobTitle` ("Chưa cập nhật chức danh" khi `null`), nhãn vai trò "Quản trị viên nhóm" / "Thành viên" theo `isGroupAdmin`, `phoneNumber` (`tel:`, "—" khi `null`), `email` (`mailto:`), nút "Gửi email", "Chi tiết".
+  - Hộp "Chi tiết liên hệ" dùng dữ liệu của dòng đã tải (không gọi API, không có API chi tiết thành viên cho mọi vai trò): ảnh, họ tên, nhãn vai trò, tên nhóm (`userGroup.name` của store), chức danh, số điện thoại và email kèm nút "Sao chép" (Clipboard API, toast kết quả; ẩn nút sao chép số khi `null`), nút "Gửi email".
+  - Không hiển thị `username`, trạng thái tài khoản, nhãn quyền ghi âm; không có nút thêm/sửa/khóa/xóa, không xuất file (không có API xuất danh bạ).
+- **Index phục vụ**: khóa chính `users`, `user_groups` (kiểm tra tài khoản); `idx_users_group` cho `u.user_group_id = :groupId` (một nhóm vài chục tới vài trăm người, lọc `status`/`search` và sắp xếp trên tập này trong bộ nhớ); khóa chính `user_roles`, `roles` cho JOIN. Không đổi DDL.
+- **Khai báo route NestJS**: đặt `@Get('me/members')` **trước** `@Get(':id')` trong `UserGroupsController` (`apps/member`) và dùng pipe kiểm tra định dạng cho `:id`, để `me` không bị bắt nhầm là id; `GET /api/v1/user-groups/me` (không có `/members`) khớp `/:id` → `400` (`errors.id`, mục 3.1.2).
 
 ---
 
@@ -694,9 +761,9 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
 
 - **Đối tượng**: mọi vai trò User (`GROUP_ADMIN`, `USER_RECORDING`, `REGULAR_USER`). **Chỉ đọc**: không có nút hay modal thêm/sửa/khóa/xóa.
 - **Thẻ tóm tắt nhóm**: `GET /api/v1/user-groups/:id` với `id = userGroup.id` của tài khoản trong store (`GET /api/v1/auth/me` hoặc đăng nhập) – tên nhóm, mã, mô tả, đơn vị, nhóm đầu số và dải số, Quản trị viên nhóm (`admins`, nhãn đại diện); tải độc lập với danh bạ, không có ô chuyển nhóm (mục 3.1.2 "Frontend").
-- **Danh bạ**: `GET /api/v1/user-groups/me/members` (mục 3.6); 2 chế độ xem Thẻ / Bảng; tìm kiếm theo họ tên, email, chức danh, số điện thoại; lọc theo vai trò; thao tác sao chép số điện thoại/email và `mailto:`.
-- **Không hiển thị**: trạng thái tài khoản, lần đăng nhập cuối, nhãn quyền ghi âm của từng người. Trường `extension` (máy lẻ) trong mock của template không có trong bảng `users` nên không triển khai.
-- **Store**: `useGroupDirectoryStore` – state `group` (`data` của mục 3.1.2), `members`, `pagination`, `viewMode` (`card` \| `table`, trạng thái giao diện cục bộ); actions `fetchGroupSummary`, `fetchMembers`.
+- **Danh bạ**: `GET /api/v1/user-groups/me/members` (mục 3.6, bộ lọc/thẻ/bảng/hộp chi tiết theo "Frontend" của mục đó); 2 chế độ xem Thẻ / Bảng; tìm kiếm theo họ tên, email, chức danh, số điện thoại; lọc "Quản trị viên nhóm" / "Thành viên" (`isGroupAdmin`); hộp "Chi tiết liên hệ" từ dữ liệu dòng, có nút sao chép số điện thoại/email và `mailto:`.
+- **Không hiển thị**: `username`, trạng thái tài khoản, lần đăng nhập cuối, nhãn quyền ghi âm của từng người (API không trả `roleCode`, chủ dự án chốt ở G04). Không có máy lẻ `extension` (không có cột trong `users`), không xuất danh bạ ra file (không có API).
+- **Store**: `useGroupDirectoryStore` – state `group` (`data` của mục 3.1.2), `members`, `pagination`, `query` (`page`, `search`, `isGroupAdmin`), `loading`, `error`, `viewMode` (`card` \| `table`, trạng thái giao diện cục bộ); actions `fetchGroupSummary`, `fetchMembers` (chỉ nhận response của request sau cùng).
 
 ---
 
@@ -731,5 +798,7 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
    - Gọi lại API DELETE trên nhóm đã `INACTIVE` -> `409 GROUP_INACTIVE`.
    - Trước khi ngừng hoạt động nhóm, gọi `DELETE /api/v1/users/:id` với Quản trị viên nhóm duy nhất -> `409` (quy tắc tối thiểu 1 Quản trị viên nhóm vẫn áp dụng khi nhóm còn `ACTIVE`).
 9. **TC-UG-07 (Danh bạ nhóm cho thành viên thường)**:
-   - Đăng nhập khu vực Member bằng `REGULAR_USER` -> mở `/group-members` thành công; `GET /api/v1/user-groups/me/members` trả `200`, chỉ thành viên `ACTIVE` cùng nhóm, không có trường `username`, `status`, `lastLoginAt`.
+   - Đăng nhập khu vực Member bằng `REGULAR_USER` -> mở `/group-members` thành công; `GET /api/v1/user-groups/me/members` trả `200`, chỉ thành viên `ACTIVE` cùng nhóm (có cả người gọi; thành viên `LOCKED`/`INACTIVE` và nhóm khác không có), phần tử đúng 7 trường (không có `username`, `status`, `roleCode`, `lastLoginAt`); thành viên `USER_RECORDING` và `REGULAR_USER` cùng `isGroupAdmin = false`.
+   - Thứ tự: người đại diện đầu tiên, rồi Quản trị viên nhóm khác, rồi thành viên còn lại, trong mỗi khối `fullName`, `id`; `?isGroupAdmin=true` chỉ Quản trị viên nhóm, `?isGroupAdmin=false` chỉ thành viên khác; `?search=` khớp chứa trên họ tên/email/chức danh/số điện thoại, thoát `%`/`_`; `page` vượt `totalPages` → `200` rỗng.
+   - `?isGroupAdmin=1`, `?roleCode=GROUP_ADMIN`, `?groupId=2`, `?userGroupId=2`, `?status=LOCKED`, `?sort=fullName`, `?limit=101`, `?page=0`, `search` 101 ký tự → `400 VALIDATION_ERROR`; bật bảo trì → `503`; token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; tài khoản bị khóa giữa phiên → `401`. `GET /api/v1/user-groups/me` → `400` (`errors.id`); `GET /api/v1/admin/user-groups/me/members` → `404`.
    - Cùng tài khoản gọi `GET /api/v1/users` -> `403 FORBIDDEN_PERMISSION`; menu không có mục "Quản trị nhóm", truy cập thẳng `/group-admin` -> trang 403 của khu vực Member.

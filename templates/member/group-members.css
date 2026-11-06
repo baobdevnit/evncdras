@@ -915,12 +915,7 @@
    5. Compact Table View Layout (Giao diện Bảng rút gọn)
    ========================================================================== */
 .directory-table-view {
-    display: none;
     overflow-x: auto;
-}
-
-.directory-table-view.active {
-    display: block;
 }
 
 .contact-data-table {
@@ -1008,6 +1003,8 @@
 
 .member-toast.info { border-left-color: var(--primary); }
 .member-toast.success { border-left-color: #10b981; }
+.member-toast.warning { border-left-color: #f59e0b; }
+.member-toast.error { border-left-color: var(--secondary); }
 
 @keyframes slideInToast {
     from {
@@ -1080,3 +1077,79 @@
 .group-summary-state.is-error {
     color: var(--secondary);
 }
+
+/* Danh bạ (G04): ẩn/hiện khối theo trạng thái tải/lỗi/rỗng/sẵn sàng do group-members.js điều khiển */
+.contact-grid[hidden],
+.directory-table-view[hidden],
+.table-empty-state[hidden],
+.pagination-container[hidden],
+.badge-count[hidden] {
+    display: none;
+}
+
+.directory-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 40px 16px;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.directory-state[hidden] {
+    display: none;
+}
+
+.directory-state.is-error {
+    color: var(--secondary);
+}
+
+/* Ảnh đại diện null → chữ cái đầu (không dùng dịch vụ ảnh ngoài) */
+.contact-avatar-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.contact-rep-mark {
+    color: #d97706;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.contact-table-person {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.contact-table-person strong {
+    color: var(--text-main);
+    font-size: 0.875rem;
+}
+
+.contact-table-sub {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.btn-page {
+    padding: 4px 10px;
+    font-size: 0.8125rem;
+}
+
+.member-copy-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
