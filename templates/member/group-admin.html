@@ -251,7 +251,7 @@
 
                                 <div class="group-hero-actions">
                                     <!-- Nút Thêm mới (Thẩm quyền Quản trị viên nhóm) -->
-                                    <button type="button" class="btn btn-primary btn-block"
+                                    <button type="button" data-permission="user:create" class="btn btn-primary btn-block"
                                         onclick="openAddMemberModal()">
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
                                             stroke="currentColor" stroke-width="2">
@@ -263,17 +263,6 @@
                                         Thêm mới thành viên
                                     </button>
 
-                                    <!-- Nút Xuất danh bạ -->
-                                    <button type="button" class="btn btn-outline btn-block"
-                                        onclick="exportMembersList()">
-                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
-                                            stroke="currentColor" stroke-width="2">
-                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                            <polyline points="7 10 12 15 17 10"></polyline>
-                                            <line x1="12" y1="15" x2="12" y2="3"></line>
-                                        </svg>
-                                        Xuất danh sách (CSV)
-                                    </button>
                                 </div>
                             </div>
 
@@ -332,10 +321,6 @@
                                         style="color: var(--primary);">0</strong></div>
                                 <div><span class="text-muted">Quản trị viên:</span> <strong id="kpiTotalAdmins"
                                         style="color: #d97706;">0</strong></div>
-                                <div><span class="text-muted">Đang hoạt động:</span> <strong id="kpiActiveMembers"
-                                        style="color: #059669;">0</strong></div>
-                                <div><span class="text-muted">Đã khóa:</span> <strong id="kpiLockedMembers"
-                                        style="color: #dc2626;">0</strong></div>
                             </div>
                         </div>
                     </aside>
@@ -347,7 +332,7 @@
                             <div class="member-table-header">
                                 <div class="member-table-title">
                                     <h3>Danh sách thành viên quản lý</h3>
-                                    <span class="badge-count" id="memberTableCountBadge">0 thành viên</span>
+                                    <span class="badge-count" id="memberTableCountBadge" hidden></span>
                                 </div>
 
                                 <div class="member-filter-bar">
@@ -359,21 +344,23 @@
                                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                         </svg>
                                         <input type="text" id="memberSearchInput" class="form-control"
-                                            placeholder="Tìm họ tên, email, số điện thoại EVN...">
+                                            maxlength="100" placeholder="Họ tên, tên đăng nhập, email, chức danh, SĐT...">
                                     </div>
 
                                     <!-- Filter Role -->
                                     <select id="filterRoleSelect" class="filter-select" title="Lọc theo vai trò">
-                                        <option value="all">Tất cả vai trò</option>
-                                        <option value="admin">Quản trị viên nhóm</option>
-                                        <option value="member">Thành viên thường</option>
+                                        <option value="">Tất cả vai trò</option>
+                                        <option value="GROUP_ADMIN">Quản trị viên nhóm</option>
+                                        <option value="USER_RECORDING" data-recording-only>Thành viên nghe ghi âm</option>
+                                        <option value="REGULAR_USER">Thành viên</option>
                                     </select>
 
                                     <!-- Filter Status -->
                                     <select id="filterStatusSelect" class="filter-select" title="Lọc theo trạng thái">
-                                        <option value="all">Tất cả trạng thái</option>
-                                        <option value="ACTIVE">Đang hoạt động</option>
+                                        <option value="">Đang sử dụng</option>
+                                        <option value="ACTIVE">Hoạt động</option>
                                         <option value="LOCKED">Đã khóa</option>
+                                        <option value="INACTIVE">Ngừng hoạt động</option>
                                     </select>
 
                                     <!-- View Mode Switcher: Cards vs Table -->
@@ -406,17 +393,24 @@
                                 </div>
                             </div>
 
-                            <!-- 1. Admin Cards Grid (Default view) -->
-                            <div class="admin-cards-grid" id="adminCardsGrid"></div>
+                            <!-- Danh sách thành viên – GET /api/v1/users (N01, M03 mục 3.3): trạng thái tải/lỗi/503 riêng -->
+                            <div id="memberListState" class="member-list-state" role="status">
+                                <span id="memberListMessage">Đang tải danh sách thành viên...</span>
+                                <button type="button" class="btn btn-outline btn-sm" id="btnRetryMembers" hidden>Thử lại</button>
+                            </div>
+
+                            <!-- 1. Dạng Thẻ (mặc định) -->
+                            <div class="admin-cards-grid" id="adminCardsGrid" hidden></div>
 
                             <!-- 2. Data Table (Toggled view) -->
-                            <div class="data-table-wrapper" id="adminTableView" style="display: none;">
+                            <div class="data-table-wrapper" id="adminTableView" hidden>
                                 <table class="member-data-table" id="membersTable">
                                     <thead>
                                         <tr>
                                             <th>Thành viên</th>
                                             <th>Điện thoại</th>
                                             <th>Vai trò</th>
+                                            <th>Tham gia</th>
                                             <th>Trạng thái</th>
                                             <th class="text-right">Hành động</th>
                                         </tr>
@@ -427,28 +421,20 @@
                             </div>
 
                             <!-- Empty State -->
-                            <div class="table-empty-state" id="memberEmptyState" style="display: none;">
+                            <div class="table-empty-state" id="memberEmptyState" hidden>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <circle cx="11" cy="11" r="8"></circle>
                                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                 </svg>
-                                <h4>Không tìm thấy thành viên nào</h4>
-                                <p style="font-size: 0.8125rem;">Thử thay đổi từ khóa tìm kiếm hoặc bỏ bớt các bộ lọc
-                                    đang chọn</p>
+                                <h4 id="memberEmptyTitle">Không tìm thấy thành viên nào</h4>
+                                <p id="memberEmptyHint" style="font-size: 0.8125rem;"></p>
                             </div>
 
                             <!-- Pagination -->
-                            <div class="pagination-container"
+                            <div class="pagination-container" id="memberPagination" hidden
                                 style="padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 10px;">
-                                <span id="paginationInfo" style="font-size: 0.8125rem; color: var(--text-muted);">Hiển
-                                    thị 0 thành viên</span>
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <button type="button" class="btn btn-outline" id="paginationPrevBtn"
-                                        style="padding: 4px 10px; font-size: 0.8125rem;">Trước</button>
-                                    <div id="paginationPages" style="display: flex; gap: 4px;"></div>
-                                    <button type="button" class="btn btn-outline" id="paginationNextBtn"
-                                        style="padding: 4px 10px; font-size: 0.8125rem;">Sau</button>
-                                </div>
+                                <span id="paginationInfo" style="font-size: 0.8125rem; color: var(--text-muted);"></span>
+                                <div id="paginationPages" style="display: flex; gap: 4px;"></div>
                             </div>
                         </div>
                     </section>

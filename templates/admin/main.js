@@ -275,9 +275,11 @@ window.adminSession = (function () {
         avatarUrl: null,
         roleCode: 'ROOT_ADMIN',
         roleName: 'Quản trị viên tối cao',
+        // ROOT_ADMIN có đủ 25 mã của seed (M10 mục 2.1), sắp theo code.
         permissions: ['admin:manage', 'audit:view', 'cdr:download_audio', 'cdr:export', 'cdr:filter_advanced',
-            'cdr:listen_audio', 'cdr:view', 'org:manage', 'org:view', 'qos:manage', 'qos:view', 'role:view', 'system:manage',
-            'user_group:manage', 'user_group:view']
+            'cdr:listen_audio', 'cdr:view', 'group:manage_admin', 'group:toggle_recording', 'org:manage', 'org:view',
+            'prefix:manage', 'prefix:view', 'qos:manage', 'qos:view', 'report:export', 'report:view', 'role:view',
+            'system:manage', 'user:create', 'user:delete', 'user:edit', 'user:view', 'user_group:manage', 'user_group:view']
     };
 
     // Giả lập backend GET /api/v1/admin/auth/me (A04): không query, không ghi CSDL.

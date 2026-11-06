@@ -1,645 +1,452 @@
-// templates/group-admin.js - EVN CDR AS (Giao diện Quản trị viên nhóm)
+// templates/member/group-admin.js - EVN CDR AS (Quản trị nhóm: member.group-admin → GroupAdminView.vue, chỉ GROUP_ADMIN)
+//
+// Bảng thành viên: GET /api/v1/users (N01, docs/modules/03_auth_user.md mục 3.3; màn hình M02 mục 5.3).
+// Bản User: nhóm = users.user_group_id của người gọi (backend), không có tham số/ô chọn nhóm (gửi userGroupId → 400).
+// Thẻ tóm tắt nhóm (tên, đơn vị, dải số, Quản trị viên, số thành viên) do group-summary.js vẽ từ GET /user-groups/:id (G03);
+// trang này dùng data.admins (Quản trị viên nhóm ACTIVE) từ sự kiện `member-group-summary` cho cảnh báo hạ quyền/khóa.
+// Vue: store useGroupAdminStore (members, pagination, query { page, search, roleCode, status }, viewMode cục bộ), action fetchMembers.
+// Kiểm tay mock: ?maintenance=1 (503), ?account=locked (401), ?role=REGULAR_USER (403), ?usersError=1 (lỗi mạng một lần).
+// Các hộp Thêm/Sửa/Đổi vai trò/Đặt lại mật khẩu/Khóa ở mục 6 vẫn là mock CŨ (N03–N09): sửa dòng "CSDL" rồi tải lại danh sách.
 
 // ==========================================================================
-// 1. Dữ liệu Mô phỏng (Mock Data theo chuẩn Module 02 & Module 03)
+// 1. Giả lập backend GET /api/v1/users (bản User)
 // ==========================================================================
 
-// Thông tin nhóm (thẻ tóm tắt, người đại diện) không còn mock ở đây: lấy từ GET /api/v1/user-groups/:id
-// (G03) trong group-summary.js (window.memberGroupSummary). MEMBERS_DATA bên dưới là dữ liệu CŨ của danh sách
-// thành viên, chưa rà (N01 GET /users).
-
-let MEMBERS_DATA = [
-    // Group 1: UMO-IT-01 (Nhóm Vận hành - 2 Admin: 10 & 15)
-    {
-        id: 10,
-        userGroupId: 1,
-        fullName: "Trần Thị B",
-        username: "tran.b",
-        email: "tran.b@71portal.vn",
-        phoneNumber: "0912.345.678",
-        extension: "42101",
-        title: "Trưởng nhóm Kỹ thuật Vận hành",
-        isGroupAdmin: true,
-        canAccessRecording: true,
-        status: "ACTIVE",
-        createdAt: "2026-03-15",
-        avatarUrl: "https://ui-avatars.com/api/?name=Tran+B&background=0033A0&color=fff"
-    },
-    {
-        id: 15,
-        userGroupId: 1,
-        fullName: "Lê Văn C",
-        username: "le.c",
-        email: "le.c@71portal.vn",
-        phoneNumber: "0983.456.789",
-        extension: "42102",
-        title: "Kỹ sư Quản trị Hệ thống Chính",
-        isGroupAdmin: true,
-        canAccessRecording: true,
-        status: "ACTIVE",
-        createdAt: "2026-03-16",
-        avatarUrl: "https://ui-avatars.com/api/?name=Le+C&background=10b981&color=fff"
-    },
-    {
-        id: 101,
-        userGroupId: 1,
-        fullName: "Phạm Văn D",
-        username: "pham.d",
-        email: "pham.d@71portal.vn",
-        phoneNumber: "0977.112.233",
-        extension: "42105",
-        title: "Kỹ sư Vận hành Máy chủ & Storage",
-        isGroupAdmin: false,
-        canAccessRecording: true,
-        status: "ACTIVE",
-        createdAt: "2026-03-20",
-        avatarUrl: "https://ui-avatars.com/api/?name=Pham+D&background=FFD100&color=000"
-    },
-    {
-        id: 102,
-        userGroupId: 1,
-        fullName: "Hoàng Minh Trí",
-        username: "tri.hm",
-        email: "tri.hm@71portal.vn",
-        phoneNumber: "0904.556.677",
-        extension: "42108",
-        title: "Chuyên viên Giám sát Mạng & Tổng đài",
-        isGroupAdmin: false,
-        canAccessRecording: false,
-        status: "ACTIVE",
-        createdAt: "2026-03-22",
-        avatarUrl: "https://ui-avatars.com/api/?name=Minh+Tri&background=0284c7&color=fff"
-    },
-    {
-        id: 103,
-        userGroupId: 1,
-        fullName: "Đỗ Thị Mai",
-        username: "mai.dt",
-        email: "mai.dt@71portal.vn",
-        phoneNumber: "0936.889.900",
-        extension: "42110",
-        title: "Kỹ sư Trực ca Vận hành 24/7",
-        isGroupAdmin: false,
-        canAccessRecording: false,
-        status: "ACTIVE",
-        createdAt: "2026-03-25",
-        avatarUrl: "https://ui-avatars.com/api/?name=Do+Mai&background=ec4899&color=fff"
-    },
-    {
-        id: 104,
-        userGroupId: 1,
-        fullName: "Nguyễn Tuấn Anh",
-        username: "anh.nt",
-        email: "anh.nt@71portal.vn",
-        phoneNumber: "0968.334.455",
-        extension: "42115",
-        title: "Kỹ sư Cơ sở Dữ liệu & Backup",
-        isGroupAdmin: false,
-        canAccessRecording: false,
-        status: "LOCKED",
-        createdAt: "2026-04-01",
-        avatarUrl: "https://ui-avatars.com/api/?name=Tuan+Anh&background=64748b&color=fff"
-    },
-
-    // Group 2: UMO-IT-02 (Nhóm Phần mềm - DUY NHẤT 1 ADMIN: 18)
-    {
-        id: 18,
-        userGroupId: 2,
-        fullName: "Hoàng Văn Tuấn",
-        username: "tuan.hv",
-        email: "tuan.hv@71portal.vn",
-        phoneNumber: "0918.234.567",
-        extension: "43101",
-        title: "Trưởng phòng Phát triển Phần mềm",
-        isGroupAdmin: true,
-        status: "ACTIVE",
-        createdAt: "2026-04-02",
-        avatarUrl: "https://ui-avatars.com/api/?name=Hoang+Tuan&background=0284c7&color=fff"
-    },
-    {
-        id: 201,
-        userGroupId: 2,
-        fullName: "Nguyễn Hải Long",
-        username: "long.nh",
-        email: "long.nh@71portal.vn",
-        phoneNumber: "0972.123.456",
-        extension: "43105",
-        title: "Lập trình viên Backend NestJS",
-        isGroupAdmin: false,
-        status: "ACTIVE",
-        createdAt: "2026-04-05",
-        avatarUrl: "https://ui-avatars.com/api/?name=Hai+Long&background=10b981&color=fff"
-    },
-    {
-        id: 202,
-        userGroupId: 2,
-        fullName: "Vũ Phương Linh",
-        username: "linh.vp",
-        email: "linh.vp@71portal.vn",
-        phoneNumber: "0981.654.321",
-        extension: "43108",
-        title: "Kỹ sư Frontend Vue/UX",
-        isGroupAdmin: false,
-        status: "ACTIVE",
-        createdAt: "2026-04-08",
-        avatarUrl: "https://ui-avatars.com/api/?name=Phuong+Linh&background=8b5cf6&color=fff"
-    },
-
-    // Group 3: UMO-KD-01 (Call Center CSKH - 2 Admin: 22 & 25)
-    {
-        id: 22,
-        userGroupId: 3,
-        fullName: "Phạm Thu Hương",
-        username: "huong.pt",
-        email: "huong.pt@71portal.vn",
-        phoneNumber: "0903.112.233",
-        extension: "48100",
-        title: "Trưởng ban Chăm sóc Khách hàng",
-        isGroupAdmin: true,
-        status: "ACTIVE",
-        createdAt: "2026-04-18",
-        avatarUrl: "https://ui-avatars.com/api/?name=Pham+Huong&background=f59e0b&color=fff"
-    },
-    {
-        id: 25,
-        userGroupId: 3,
-        fullName: "Đặng Quốc Huy",
-        username: "huy.dq",
-        email: "huy.dq@71portal.vn",
-        phoneNumber: "0934.567.890",
-        extension: "48102",
-        title: "Phó ban CSKH Call Center",
-        isGroupAdmin: true,
-        status: "ACTIVE",
-        createdAt: "2026-04-20",
-        avatarUrl: "https://ui-avatars.com/api/?name=Quoc+Huy&background=0033A0&color=fff"
-    },
-    {
-        id: 301,
-        userGroupId: 3,
-        fullName: "Bùi Tuyết Mai",
-        username: "mai.bt",
-        email: "mai.bt@71portal.vn",
-        phoneNumber: "0988.776.655",
-        extension: "48110",
-        title: "Điện thoại viên CSKH",
-        isGroupAdmin: false,
-        status: "ACTIVE",
-        createdAt: "2026-04-22",
-        avatarUrl: "https://ui-avatars.com/api/?name=Tuyet+Mai&background=ec4899&color=fff"
-    },
-
-    // Group 4: UMO-AUDIT-GLOBAL
-    {
-        id: 31,
-        userGroupId: 4,
-        fullName: "Nguyễn Hải Nam",
-        username: "nam.nh",
-        email: "nam.nh@evn.com.vn",
-        phoneNumber: "0915.667.788",
-        extension: "20101",
-        title: "Trưởng ban Kiểm toán Nội bộ",
-        isGroupAdmin: true,
-        status: "ACTIVE",
-        createdAt: "2026-05-10",
-        avatarUrl: "https://ui-avatars.com/api/?name=Nguyen+Nam&background=64748b&color=fff"
-    },
-    {
-        id: 401,
-        userGroupId: 4,
-        fullName: "Trần Bảo Quân",
-        username: "quan.tb",
-        email: "quan.tb@evn.com.vn",
-        phoneNumber: "0982.334.455",
-        extension: "20105",
-        title: "Chuyên viên Quản trị Lưu lượng Thoại",
-        isGroupAdmin: false,
-        status: "ACTIVE",
-        createdAt: "2026-05-12",
-        avatarUrl: "https://ui-avatars.com/api/?name=Bao+Quan&background=0284c7&color=fff"
-    }
+// Dòng "CSDL" của mock (users + user_roles), KHÔNG phải cấu trúc response: response là 14 trường của toUserListItem.
+const MOCK_USER_ROWS = [
+    { id: 10, userGroupId: 1, username: 'tran.b', email: 'tran.b@71portal.vn', fullName: 'Trần Thị B', jobTitle: 'Trưởng nhóm Kỹ thuật Vận hành', phoneNumber: '0912.345.678', avatarUrl: null, status: 'ACTIVE', roleCode: 'GROUP_ADMIN', lastLoginAt: '2026-11-05T08:12:40+07:00', createdAt: '2026-03-15T08:30:00+07:00' },
+    { id: 15, userGroupId: 1, username: 'le.c', email: 'le.c@71portal.vn', fullName: 'Lê Văn C', jobTitle: 'Kỹ sư Quản trị Hệ thống Chính', phoneNumber: '0983.456.789', avatarUrl: null, status: 'ACTIVE', roleCode: 'GROUP_ADMIN', lastLoginAt: '2026-11-04T16:40:00+07:00', createdAt: '2026-03-16T09:00:00+07:00' },
+    { id: 101, userGroupId: 1, username: 'pham.d', email: 'pham.d@71portal.vn', fullName: 'Phạm Văn D', jobTitle: 'Kỹ sư Vận hành Máy chủ & Storage', phoneNumber: '0977 112 233', avatarUrl: null, status: 'ACTIVE', roleCode: 'USER_RECORDING', lastLoginAt: '2026-11-01T07:55:00+07:00', createdAt: '2026-03-20T10:00:00+07:00' },
+    { id: 102, userGroupId: 1, username: 'tri.hm', email: 'tri.hm@71portal.vn', fullName: 'Hoàng Minh Trí', jobTitle: 'Chuyên viên Giám sát Mạng & Tổng đài', phoneNumber: '0904556677', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: null, createdAt: '2026-04-01T08:00:00+07:00' },
+    { id: 103, userGroupId: 1, username: 'mai.dt', email: 'mai.dt@71portal.vn', fullName: 'Đỗ Thị Mai', jobTitle: 'Kỹ sư Trực ca Vận hành 24/7', phoneNumber: '0936.889.900', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: '2026-10-30T22:10:00+07:00', createdAt: '2026-04-01T08:10:00+07:00' },
+    { id: 104, userGroupId: 1, username: 'anh.nt', email: 'anh.nt@71portal.vn', fullName: 'Nguyễn Tuấn Anh', jobTitle: null, phoneNumber: null, avatarUrl: null, status: 'LOCKED', roleCode: 'REGULAR_USER', lastLoginAt: null, createdAt: '2026-04-02T10:00:00+07:00' },
+    { id: 105, userGroupId: 1, username: 'dang.vh', email: 'dang.vh@71portal.vn', fullName: 'Vũ Hải Đăng', jobTitle: null, phoneNumber: null, avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: '2026-11-02T08:00:00+07:00', createdAt: '2026-05-05T08:00:00+07:00' },
+    { id: 106, userGroupId: 1, username: 'ha.bt', email: 'ha.bt@71portal.vn', fullName: 'Bùi Thanh Hà', jobTitle: 'Kỹ sư An toàn Thông tin', phoneNumber: '0983 556 778', avatarUrl: null, status: 'ACTIVE', roleCode: 'USER_RECORDING', lastLoginAt: '2026-11-05T09:30:00+07:00', createdAt: '2026-05-06T08:00:00+07:00' },
+    { id: 107, userGroupId: 1, username: 'vinh.nq', email: 'vinh.nq@71portal.vn', fullName: 'Ngô Quang Vinh', jobTitle: 'Kỹ sư Mạng Truyền dẫn', phoneNumber: '0915.223.344', avatarUrl: null, status: 'ACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: '2026-10-20T08:00:00+07:00', createdAt: '2026-06-01T08:00:00+07:00' },
+    { id: 110, userGroupId: 1, username: 'hong.ct', email: 'hong.ct@71portal.vn', fullName: 'Cao Thị Hồng', jobTitle: 'Kỹ sư Giám sát Chất lượng', phoneNumber: null, avatarUrl: null, status: 'INACTIVE', roleCode: 'REGULAR_USER', lastLoginAt: '2026-06-30T17:00:00+07:00', createdAt: '2026-03-18T09:00:00+07:00' },
+    { id: 201, userGroupId: 2, username: 'long.nh', email: 'long.nh@71portal.vn', fullName: 'Nguyễn Hải Long', jobTitle: 'Lập trình viên Backend', phoneNumber: '0972.123.456', avatarUrl: null, status: 'ACTIVE', roleCode: 'GROUP_ADMIN', lastLoginAt: null, createdAt: '2026-03-15T09:10:00+07:00' }
 ];
+// user_groups giả lập: code, name, representative_user_id (nhóm 1 khớp tài khoản mock của main.js).
+const MOCK_GROUPS = {
+    1: { code: 'UMO-IT-01', name: 'Nhóm QLND Khối CNTT', representativeUserId: 10 },
+    2: { code: 'UMO-IT-02', name: 'Nhóm Kỹ thuật Phần mềm', representativeUserId: 201 }
+};
+const MOCK_ROLE_NAMES = { GROUP_ADMIN: 'Quản trị viên nhóm', USER_RECORDING: 'Thành viên nghe ghi âm', REGULAR_USER: 'Thành viên' };
+
+const gaParams = new URLSearchParams(window.location.search);
+const GA_MOCK_MAINTENANCE = gaParams.get('maintenance') === '1';
+const GA_MOCK_ACCOUNT_LOCKED = gaParams.get('account') === 'locked';
+let gaMockNetworkError = gaParams.get('usersError') === '1';
+
+const gaNow = () => new Date().toISOString().replace('Z', '+07:00');
+const gaFail = (statusCode, errorCode, message, errors) =>
+    Promise.reject({ success: false, statusCode, errorCode, message, errors: errors || null, timestamp: gaNow() });
+// utf8mb4_unicode_ci: không phân biệt hoa thường, không phân biệt dấu (mock xấp xỉ bằng NFD bỏ dấu).
+const gaFold = v => String(v == null ? '' : v).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+// DTO phần tử: đúng 14 trường (M03 mục 3.3), cùng DTO với bản Admin.
+function toUserListItem(row) {
+    const g = MOCK_GROUPS[row.userGroupId];
+    return {
+        id: row.id,
+        username: row.username,
+        email: row.email,
+        fullName: row.fullName,
+        jobTitle: row.jobTitle,
+        phoneNumber: row.phoneNumber,
+        avatarUrl: row.avatarUrl,
+        status: row.status,
+        roleCode: row.roleCode,
+        roleName: MOCK_ROLE_NAMES[row.roleCode],
+        isRepresentative: g.representativeUserId === row.id,
+        userGroup: { id: row.userGroupId, code: g.code, name: g.name },
+        lastLoginAt: row.lastLoginAt,
+        createdAt: row.createdAt
+    };
+}
+
+// Thứ tự: guard (401) → bảo trì (503) → quyền user:view theo claim roleCode (chỉ GROUP_ADMIN) → query (400)
+// → kiểm tra tài khoản (401, đọc users + user_groups: lấy user_group_id để cô lập). Không có 403 phạm vi, 404.
+function mockGetUsers(token, query) {
+    return new Promise(resolve => setTimeout(resolve, 300)).then(() => {
+        if (gaMockNetworkError) { gaMockNetworkError = false; return Promise.reject(new Error('Network Error')); }
+        if (!token) return gaFail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+        if (GA_MOCK_MAINTENANCE) return gaFail(503, 'MAINTENANCE', 'Hệ thống đang bảo trì, vui lòng quay lại sau');
+        const account = window.memberSession ? window.memberSession.getAccount() : null;
+        if (account && !(account.permissions || []).includes('user:view')) {
+            return gaFail(403, 'FORBIDDEN_PERMISSION', 'Bạn không có quyền thực hiện thao tác này');
+        }
+
+        const q = query || {};
+        const errors = {};
+        const allowed = ['page', 'limit', 'search', 'status', 'roleCode']; // không có userGroupId ở route User
+        Object.keys(q).forEach(k => {
+            if (!allowed.includes(k)) errors[k] = ['Tham số không được nhận'];
+            else if (Array.isArray(q[k])) errors[k] = ['Tham số bị lặp lại'];
+        });
+        const page = q.page === undefined ? 1 : (/^[1-9][0-9]{0,8}$/.test(String(q.page)) ? Number(q.page) : NaN);
+        const limit = q.limit === undefined ? 20 : (/^[1-9][0-9]{0,2}$/.test(String(q.limit)) ? Number(q.limit) : NaN);
+        if (!errors.page && !(page >= 1)) errors.page = ['page phải là số nguyên ≥ 1'];
+        if (!errors.limit && !(limit >= 1 && limit <= 100)) errors.limit = ['limit phải trong khoảng 1–100'];
+        const search = q.search === undefined ? '' : String(q.search).trim();
+        if (!errors.search && search.length > 100) errors.search = ['Tối đa 100 ký tự'];
+        if (!errors.status && q.status !== undefined && !['ACTIVE', 'LOCKED', 'INACTIVE'].includes(q.status)) errors.status = ['Trạng thái không hợp lệ'];
+        if (!errors.roleCode && q.roleCode !== undefined && !['GROUP_ADMIN', 'USER_RECORDING', 'REGULAR_USER'].includes(q.roleCode)) errors.roleCode = ['Vai trò không hợp lệ'];
+        if (Object.keys(errors).length) return gaFail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', errors);
+        if (GA_MOCK_ACCOUNT_LOCKED) return gaFail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+
+        const groupId = account ? account.userGroup.id : 1; // = users.user_group_id đọc ở bước kiểm tra tài khoản
+        const repId = MOCK_GROUPS[groupId] ? MOCK_GROUPS[groupId].representativeUserId : null;
+        const kw = gaFold(search);
+        const rows = MOCK_USER_ROWS
+            .filter(r => r.userGroupId === groupId)
+            .filter(r => (q.status === undefined ? r.status !== 'INACTIVE' : r.status === q.status))
+            .filter(r => q.roleCode === undefined || r.roleCode === q.roleCode)
+            .filter(r => !kw || [r.fullName, r.username, r.email, r.jobTitle, r.phoneNumber].some(v => gaFold(v).includes(kw)))
+            // Một nhóm: người đại diện → Quản trị viên nhóm → còn lại; mỗi khối full_name, id.
+            .sort((a, b) => ((b.id === repId) - (a.id === repId))
+                || ((b.roleCode === 'GROUP_ADMIN') - (a.roleCode === 'GROUP_ADMIN'))
+                || a.fullName.localeCompare(b.fullName, 'vi')
+                || a.id - b.id);
+        const total = rows.length;
+        const totalPages = Math.ceil(total / limit);
+        return {
+            success: true, statusCode: 200, message: 'Lấy danh sách người dùng thành công',
+            data: rows.slice((page - 1) * limit, page * limit).map(toUserListItem), // page vượt totalPages → []
+            pagination: { page, limit, total, totalPages, hasNext: page < totalPages, hasPrev: page > 1 },
+            timestamp: gaNow()
+        };
+    });
+}
 
 // ==========================================================================
-// 2. Trạng thái Ứng dụng (App State)
+// 2. Trạng thái màn hình
 // ==========================================================================
 
 let appState = {
-    currentGroupId: window.memberSession ? window.memberSession.getAccount().userGroup.id : 1, // nhóm của người gọi, không đổi
-    viewMode: 'grid',       // 'grid' hoặc 'table'
-    searchKeyword: '',
-    filterRole: 'all',      // 'all', 'admin', 'member'
-    filterStatus: 'all',    // 'all', 'ACTIVE', 'LOCKED'
-    currentPage: 1,
-    pageSize: 6,
+    viewMode: 'grid',       // 'grid' | 'table' – trạng thái giao diện cục bộ, không lưu
+    query: { page: 1, search: '', roleCode: '', status: '' }, // '' = không lọc (status '' = "Đang sử dụng")
+    seq: 0,                 // chỉ hiển thị response của request gửi sau cùng
+    items: [],              // data của trang đang hiển thị (hộp chi tiết đọc từ đây cho tới khi rà N02)
+    summary: null,          // data của GET /user-groups/:id (sự kiện member-group-summary)
     pendingActionUserId: null
 };
 
+const gaCallApi = fn => (window.memberSession ? window.memberSession.request(fn) : fn('mock-token'));
+const gaEsc = v => String(v == null ? '' : v)
+    .replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function gaInitials(name) {
+    const parts = String(name || '').trim().split(/\s+/);
+    return ((parts.length > 1 ? parts[0][0] : '') + (parts[parts.length - 1][0] || '')).toUpperCase();
+}
+function gaFormatDate(iso, withTime) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso || '');
+    return m ? m[3] + '/' + m[2] + '/' + m[1] + (withTime ? ' ' + m[4] + ':' + m[5] : '') : '';
+}
+function gaAccount() { return window.memberSession ? window.memberSession.getAccount() : null; }
+function gaCan(code) { const a = gaAccount(); return !!(a && (a.permissions || []).includes(code)); }
+// limit = itemsPerPage của store preferencesUser (10/20/50), đọc lại mỗi lần gửi.
+function gaLimit() {
+    const prefs = window.memberSession ? window.memberSession.getPreferences() : null;
+    return prefs && [10, 20, 50].includes(prefs.itemsPerPage) ? prefs.itemsPerPage : 10;
+}
+function gaBuildQuery() {
+    const q = { page: String(appState.query.page), limit: String(gaLimit()) };
+    ['search', 'roleCode', 'status'].forEach(k => { if (appState.query[k]) q[k] = appState.query[k]; });
+    return q;
+}
+const GA_ROLE_BADGE = {
+    GROUP_ADMIN: '<span class="badge-group-role admin">★ Quản trị viên nhóm</span>',
+    USER_RECORDING: '<span class="badge-group-role recording">Thành viên nghe ghi âm</span>',
+    REGULAR_USER: '<span class="badge-group-role member">Thành viên</span>'
+};
+const GA_STATUS_LABELS = { ACTIVE: 'Hoạt động', LOCKED: 'Đã khóa', INACTIVE: 'Ngừng hoạt động' };
+
 // ==========================================================================
-// 3. Khởi tạo Giao diện khi tải trang (DOMContentLoaded)
+// 3. Khởi tạo
 // ==========================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
-    renderCurrentGroup();
-    window.addEventListener('member-group-summary', () => renderMembersContent());
+    applyRecordingVisibility();
+    document.querySelectorAll('[data-permission]').forEach(el => { el.hidden = !gaCan(el.dataset.permission); });
+    loadMembers();
+    window.addEventListener('member-group-summary', e => {
+        appState.summary = e.detail && e.detail.data;
+        if (appState.items.length) renderMembers(appState.items); // chỉ vẽ lại, không gọi lại API
+    });
 });
 
+// Nhóm chưa được cấp phép ghi âm (Tầng 1): ẩn lựa chọn vai trò USER_RECORDING ở bộ lọc (M02 mục 5.3).
+function applyRecordingVisibility() {
+    const ug = gaAccount() ? gaAccount().userGroup : null;
+    const allowed = !ug || ug.allowRecordingAccess;
+    document.querySelectorAll('[data-recording-only]').forEach(el => { el.hidden = !allowed; el.disabled = !allowed; });
+}
+
 function initEventListeners() {
-    // 1. Chuyển đổi chế độ xem (Grid Card vs Table)
-    const btnGridView = document.getElementById('btnViewGrid');
-    const btnTableView = document.getElementById('btnViewTable');
+    document.getElementById('btnViewGrid')?.addEventListener('click', () => setViewMode('grid'));
+    document.getElementById('btnViewTable')?.addEventListener('click', () => setViewMode('table'));
+    document.getElementById('btnRetryMembers')?.addEventListener('click', () => loadMembers());
 
-    if (btnGridView && btnTableView) {
-        btnGridView.addEventListener('click', () => setViewMode('grid'));
-        btnTableView.addEventListener('click', () => setViewMode('table'));
-    }
-
-    // 2. Tìm kiếm thành viên
+    // Tìm kiếm: 300 ms sau lần gõ cuối hoặc Enter; đổi điều kiện thì về trang 1.
     const searchInput = document.getElementById('memberSearchInput');
     if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            appState.searchKeyword = e.target.value.trim().toLowerCase();
-            appState.currentPage = 1;
-            renderMembersContent();
-        });
+        let timer = null;
+        const apply = () => {
+            clearTimeout(timer);
+            const value = searchInput.value.trim();
+            if (value === appState.query.search) return;
+            appState.query.search = value;
+            appState.query.page = 1;
+            loadMembers();
+        };
+        searchInput.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(apply, 300); });
+        searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
     }
+    document.getElementById('filterRoleSelect')?.addEventListener('change', e => {
+        appState.query.roleCode = e.target.value; appState.query.page = 1; loadMembers();
+    });
+    document.getElementById('filterStatusSelect')?.addEventListener('change', e => {
+        appState.query.status = e.target.value; appState.query.page = 1; loadMembers();
+    });
+    document.getElementById('paginationPages')?.addEventListener('click', e => {
+        const btn = e.target.closest('button[data-page]');
+        if (!btn) return;
+        appState.query.page = Number(btn.dataset.page);
+        loadMembers();
+    });
 
-    // 3. Lọc theo vai trò
-    const roleFilter = document.getElementById('filterRoleSelect');
-    if (roleFilter) {
-        roleFilter.addEventListener('change', (e) => {
-            appState.filterRole = e.target.value;
-            appState.currentPage = 1;
-            renderMembersContent();
-        });
-    }
-
-    // 4. Lọc theo trạng thái
-    const statusFilter = document.getElementById('filterStatusSelect');
-    if (statusFilter) {
-        statusFilter.addEventListener('change', (e) => {
-            appState.filterStatus = e.target.value;
-            appState.currentPage = 1;
-            renderMembersContent();
-        });
-    }
-
-    // 5. Đóng modal khi click ra ngoài backdrop hoặc ấn ESC
     window.addEventListener('click', (e) => {
-        if (e.target.classList && e.target.classList.contains('modal')) {
-            closeAllModals();
-        }
+        if (e.target.classList && e.target.classList.contains('modal')) closeAllModals();
     });
-
-    window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeAllModals();
-        }
-    });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAllModals(); });
 }
 
 function setViewMode(mode) {
     appState.viewMode = mode;
-
-    const btnGridView = document.getElementById('btnViewGrid');
-    const btnTableView = document.getElementById('btnViewTable');
-    const gridContainer = document.getElementById('adminCardsGrid');
-    const tableContainer = document.getElementById('adminTableView');
-
-    if (mode === 'grid') {
-        btnGridView?.classList.add('active');
-        btnTableView?.classList.remove('active');
-        if (gridContainer) gridContainer.style.display = 'grid';
-        if (tableContainer) tableContainer.style.display = 'none';
-    } else {
-        btnGridView?.classList.remove('active');
-        btnTableView?.classList.add('active');
-        if (gridContainer) gridContainer.style.display = 'none';
-        if (tableContainer) tableContainer.style.display = 'block';
-    }
-
-    renderMembersContent();
+    document.getElementById('btnViewGrid')?.classList.toggle('active', mode === 'grid');
+    document.getElementById('btnViewTable')?.classList.toggle('active', mode === 'table');
+    if (appState.items.length) renderMembers(appState.items);
 }
 
-// Nhóm của người gọi cho phần danh sách thành viên: tên + cờ Tầng 1 từ store (authUser.user.userGroup, /auth/me),
+// Nhóm của người gọi: tên + cờ Tầng 1 từ store (authUser.user.userGroup, /auth/me),
 // mã + người đại diện từ data của GET /user-groups/:id (rỗng/null khi thẻ tóm tắt chưa tải xong).
 function getCurrentGroup() {
-    const data = window.memberGroupSummary ? window.memberGroupSummary.getData() : null;
-    const ug = window.memberSession ? window.memberSession.getAccount().userGroup : null;
+    const data = appState.summary;
+    const ug = gaAccount() ? gaAccount().userGroup : null;
     return {
-        id: appState.currentGroupId,
+        id: ug ? ug.id : 1,
         code: data ? data.code : '',
         name: data ? data.name : (ug ? ug.name : ''),
-        allowRecordingAccess: ug ? ug.allowRecordingAccess : true,
-        representativeUserId: data && data.representative ? data.representative.id : null
+        allowRecordingAccess: ug ? ug.allowRecordingAccess : true
     };
 }
+// Số Quản trị viên nhóm ACTIVE: admins của GET /user-groups/:id (null khi chưa tải được → backend vẫn chặn 409).
+function getActiveAdminCount() {
+    return appState.summary && Array.isArray(appState.summary.admins) ? appState.summary.admins.length : null;
+}
+function findMember(userId) { return appState.items.find(m => m.id === userId) || null; }
 
-function getGroupMembers() {
-    return MEMBERS_DATA.filter(m => m.userGroupId === appState.currentGroupId);
+// ==========================================================================
+// 4. Tải & vẽ danh sách thành viên
+// ==========================================================================
+
+// state: 'loading' | 'error' | 'empty' | 'ready'
+function setMembersState(state, message, hint) {
+    const box = document.getElementById('memberListState');
+    const msg = document.getElementById('memberListMessage');
+    const retry = document.getElementById('btnRetryMembers');
+    const empty = document.getElementById('memberEmptyState');
+    const grid = document.getElementById('adminCardsGrid');
+    const table = document.getElementById('adminTableView');
+    const pager = document.getElementById('memberPagination');
+    const badge = document.getElementById('memberTableCountBadge');
+    if (box) { box.hidden = !(state === 'loading' || state === 'error'); box.classList.toggle('is-error', state === 'error'); }
+    if (msg) msg.textContent = state === 'loading' || state === 'error' ? message : '';
+    if (retry) retry.hidden = state !== 'error';
+    if (empty) {
+        empty.hidden = state !== 'empty';
+        if (state === 'empty') {
+            document.getElementById('memberEmptyTitle').textContent = message;
+            document.getElementById('memberEmptyHint').textContent = hint || '';
+        }
+    }
+    if (grid) grid.hidden = !(state === 'ready' && appState.viewMode === 'grid');
+    if (table) table.hidden = !(state === 'ready' && appState.viewMode === 'table');
+    if (pager) pager.hidden = state !== 'ready';
+    if (badge && state === 'error') badge.hidden = true;
 }
 
-// ==========================================================================
-// 4. Render Thẻ Tóm tắt Thông tin Nhóm (Group Hero Summary)
-// ==========================================================================
+function loadMembers() {
+    const seq = ++appState.seq;
+    setMembersState('loading', 'Đang tải danh sách thành viên...');
+    return gaCallApi(token => mockGetUsers(token, gaBuildQuery()))
+        .then(res => {
+            if (seq !== appState.seq) return; // đã có request mới hơn
+            const p = res.pagination;
+            const badge = document.getElementById('memberTableCountBadge');
+            if (badge) { badge.textContent = p.total + ' thành viên'; badge.hidden = false; }
+            if (!res.data.length && p.page > 1 && p.totalPages > 0) {
+                appState.query.page = p.totalPages; // danh sách ngắn lại: lùi về trang cuối
+                return loadMembers();
+            }
+            appState.items = res.data;
+            if (!res.data.length) {
+                const q = appState.query;
+                if (q.search || q.roleCode || q.status) setMembersState('empty', 'Không có thành viên phù hợp với bộ lọc', 'Thử từ khóa khác hoặc bỏ bớt bộ lọc');
+                else setMembersState('empty', 'Nhóm chưa có thành viên đang sử dụng', 'Tài khoản ngừng hoạt động xem bằng bộ lọc "Ngừng hoạt động"');
+                return;
+            }
+            renderMembers(res.data);
+            renderPagination(p, res.data.length);
+        })
+        .catch(err => {
+            if (seq !== appState.seq) return;
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            // 503: request() hiện biểu ngữ bảo trì; khối danh sách vẫn hiện thông điệp + "Thử lại" riêng (U09).
+            setMembersState('error', (err && err.statusCode && err.message) || 'Không tải được danh sách thành viên. Vui lòng thử lại.');
+        });
+}
+// Tên cũ dùng ở các hộp mục 6: mọi thao tác xong thì tải lại danh sách (A13).
+const renderCurrentGroup = loadMembers;
 
-function renderCurrentGroup() {
-    // Thẻ tóm tắt nhóm (tiêu đề, đơn vị, dải số, Quản trị viên, số thành viên) do group-summary.js vẽ từ G03.
-    const members = getGroupMembers();
-    const activeMembers = members.filter(m => m.status === 'ACTIVE');
-    const lockedMembers = members.filter(m => m.status === 'LOCKED');
-
-    // KPI Badges in Summary Grid
-    const countActive = document.getElementById('kpiActiveMembers');
-    const countLocked = document.getElementById('kpiLockedMembers');
-
-    if (countActive) countActive.innerText = activeMembers.length;
-    if (countLocked) countLocked.innerText = lockedMembers.length;
-
-    // Header badge inside table card
-    const tableBadge = document.getElementById('memberTableCountBadge');
-    if (tableBadge) tableBadge.innerText = `${members.length} thành viên`;
-
-    // Render Content (Cards or Table)
-    renderMembersContent();
+function avatarHtml(m, cls) {
+    return m.avatarUrl
+        ? `<img src="${gaEsc(m.avatarUrl)}" alt="" class="${cls}">`
+        : `<span class="${cls} avatar-initials" aria-hidden="true">${gaEsc(gaInitials(m.fullName))}</span>`;
+}
+function recordingBadgeHtml(m) {
+    // Nghe/tải ghi âm = Tầng 1 của nhóm + vai trò GROUP_ADMIN/USER_RECORDING (M10 mục 2.3)
+    return getCurrentGroup().allowRecordingAccess && (m.roleCode === 'GROUP_ADMIN' || m.roleCode === 'USER_RECORDING')
+        ? `<span class="badge-recording" title="Được nghe & tải ghi âm của nhóm"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg> Ghi âm</span>`
+        : '';
+}
+function repMarkHtml(m) {
+    return m.isRepresentative ? '<span class="member-rep-mark" title="Người đại diện nhóm">★ Đại diện</span>' : '';
+}
+function statusBadgeHtml(m) {
+    return `<span class="badge-status ${m.status.toLowerCase()}">${GA_STATUS_LABELS[m.status] || gaEsc(m.status)}</span>`;
 }
 
-// ==========================================================================
-// 5. Render Nội dung Thành viên (Thẻ Cards hoặc Bảng Table) & Phân trang
-// ==========================================================================
-
-function renderMembersContent() {
-    const emptyState = document.getElementById('memberEmptyState');
-    const gridContainer = document.getElementById('adminCardsGrid');
-    const tableContainer = document.getElementById('adminTableView');
-
-    let members = getGroupMembers();
-
-    // 1. Filter Search Keyword
-    if (appState.searchKeyword) {
-        const kw = appState.searchKeyword;
-        members = members.filter(m =>
-            m.fullName.toLowerCase().includes(kw) ||
-            m.email.toLowerCase().includes(kw) ||
-            m.username.toLowerCase().includes(kw) ||
-            (m.phoneNumber && m.phoneNumber.toLowerCase().includes(kw)) ||
-            (m.title && m.title.toLowerCase().includes(kw))
-        );
+const GA_ICONS = {
+    view: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>',
+    edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>',
+    role: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>',
+    password: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>',
+    status: '<circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>'
+};
+// Nút trên một dòng: xem luôn có; dòng INACTIVE chỉ xem; dòng của chính mình không khóa/đặt lại mật khẩu
+// (403 SELF_ACTION_FORBIDDEN); mỗi nút theo mã quyền của store.
+function rowActionsHtml(m, btnClass, size) {
+    const icon = (key, cls, onclick, title) =>
+        `<button type="button" class="${btnClass}${cls ? ' ' + cls : ''}" onclick="${onclick}(${m.id})" title="${title}"><svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2">${GA_ICONS[key]}</svg></button>`;
+    const self = gaAccount() && gaAccount().id === m.id;
+    let html = icon('view', '', 'openViewMemberModal', 'Xem chi tiết');
+    if (m.status === 'INACTIVE') return html;
+    if (gaCan('user:edit')) html += icon('edit', 'edit', 'openEditMemberModal', 'Sửa thông tin thành viên');
+    if (gaCan('group:manage_admin')) html += icon('role', 'role', 'openToggleAdminModal', m.roleCode === 'GROUP_ADMIN' ? 'Hạ quyền Quản trị viên nhóm' : 'Bổ nhiệm làm Quản trị viên nhóm');
+    if (!self && gaCan('user:edit')) {
+        html += icon('password', 'password', 'openResetPasswordModal', 'Đặt lại mật khẩu');
+        html += icon('status', 'status', 'openToggleStatusModal', m.status === 'ACTIVE' ? 'Khóa tài khoản' : 'Mở khóa tài khoản');
     }
-
-    // 2. Filter Role
-    if (appState.filterRole === 'admin') {
-        members = members.filter(m => m.isGroupAdmin);
-    } else if (appState.filterRole === 'member') {
-        members = members.filter(m => !m.isGroupAdmin);
-    }
-
-    // 3. Filter Status
-    if (appState.filterStatus !== 'all') {
-        members = members.filter(m => m.status === appState.filterStatus);
-    }
-
-    // Check Empty State
-    if (members.length === 0) {
-        if (gridContainer) gridContainer.innerHTML = '';
-        const tbody = document.getElementById('membersTableBody');
-        if (tbody) tbody.innerHTML = '';
-        if (emptyState) emptyState.style.display = 'block';
-        if (gridContainer) gridContainer.style.display = 'none';
-        if (tableContainer) tableContainer.style.display = 'none';
-        renderPagination(0, 1);
-        return;
-    }
-
-    if (emptyState) emptyState.style.display = 'none';
-
-    // Pagination
-    const total = members.length;
-    const totalPages = Math.ceil(total / appState.pageSize) || 1;
-    if (appState.currentPage > totalPages) appState.currentPage = totalPages;
-
-    const startIdx = (appState.currentPage - 1) * appState.pageSize;
-    const pageMembers = members.slice(startIdx, startIdx + appState.pageSize);
-
-    if (appState.viewMode === 'grid') {
-        if (gridContainer) gridContainer.style.display = 'grid';
-        if (tableContainer) tableContainer.style.display = 'none';
-        renderCardGrid(pageMembers);
-    } else {
-        if (gridContainer) gridContainer.style.display = 'none';
-        if (tableContainer) tableContainer.style.display = 'block';
-        renderTableView(pageMembers);
-    }
-
-    renderPagination(total, totalPages);
+    return html;
 }
 
-// Alias for backwards compatibility
-const renderMembersTable = renderMembersContent;
+function renderMembers(members) {
+    if (appState.viewMode === 'grid') renderCardGrid(members);
+    else renderTableView(members);
+    setMembersState('ready');
+}
 
-// Render Card Grid View
 function renderCardGrid(members) {
-    const gridContainer = document.getElementById('adminCardsGrid');
-    if (!gridContainer) return;
-
-    gridContainer.innerHTML = members.map(m => {
-        const isGroupRep = getCurrentGroup().representativeUserId === m.id;
-
-        return `
-            <div class="admin-card" data-user-id="${m.id}">
-                <div>
-                    <!-- Card Top: Avatar, Name, Title, Badges -->
-                    <div class="admin-card-top">
-                        <img src="${m.avatarUrl}" alt="${m.fullName}" class="admin-card-avatar">
-                        <div class="admin-card-info">
-                            <div class="admin-card-name-row">
-                                <h4 class="admin-card-name" title="${m.fullName}">
-                                    ${m.fullName}
-                                    ${isGroupRep ? '<span title="Người đại diện nhóm" style="color: #f59e0b; font-size: 0.85rem;">★</span>' : ''}
-                                </h4>
-                                <span class="badge-status ${m.status.toLowerCase()}">
-                                    ${m.status === 'ACTIVE' ? 'Hoạt động' : 'Đã khóa'}
-                                </span>
-                            </div>
-                            <p class="admin-card-title">${m.title || 'Chưa cập nhật'}</p>
-                            <div class="admin-card-badges">
-                                ${m.isGroupAdmin
-                ? `<span class="badge-group-role admin">★ Quản trị viên</span>`
-                : `<span class="badge-group-role member">Thành viên</span>`
-            }
-                                ${getCurrentGroup().allowRecordingAccess && (m.isGroupAdmin || m.canAccessRecording)
-                ? `<span class="badge-recording" title="Được cấp quyền nghe & tải ghi âm thoại (BR-UG-05)"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg> Ghi âm</span>`
-                : ''
-            }
-                            </div>
+    const grid = document.getElementById('adminCardsGrid');
+    if (!grid) return;
+    grid.innerHTML = members.map(m => `
+        <div class="admin-card${m.status === 'INACTIVE' ? ' is-inactive' : ''}" data-user-id="${m.id}">
+            <div>
+                <div class="admin-card-top">
+                    ${avatarHtml(m, 'admin-card-avatar')}
+                    <div class="admin-card-info">
+                        <div class="admin-card-name-row">
+                            <h4 class="admin-card-name" title="${gaEsc(m.fullName)}">${gaEsc(m.fullName)} ${repMarkHtml(m)}</h4>
+                            ${statusBadgeHtml(m)}
                         </div>
-                    </div>
-
-                    <!-- Contact info: Hiển thị đồng nhất giống email -->
-                    <div class="admin-card-meta">
-                        <div class="admin-card-email-row" title="Điện thoại">
-                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                                <line x1="12" y1="18" x2="12.01" y2="18"></line>
-                            </svg>
-                            <span>${m.phoneNumber || '—'}</span>
-                        </div>
-                        <div class="admin-card-email-row" title="${m.email}">
-                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                                <polyline points="22,6 12,13 2,6"></polyline>
-                            </svg>
-                            <span>${m.email}</span>
-                        </div>
+                        <p class="admin-card-title">${m.jobTitle ? gaEsc(m.jobTitle) : '<span class="text-muted">Chưa cập nhật chức danh</span>'}</p>
+                        <div class="admin-card-badges">${GA_ROLE_BADGE[m.roleCode] || gaEsc(m.roleName)} ${recordingBadgeHtml(m)}</div>
                     </div>
                 </div>
-
-                <!-- Card Footer: All 5 Admin Actions -->
-                <div class="admin-card-footer">
-                    <div class="admin-card-actions">
-                        <button type="button" class="btn-card-icon" onclick="openViewMemberModal(${m.id})" title="Xem chi tiết">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                        </button>
-                        <button type="button" class="btn-card-icon edit" onclick="openEditMemberModal(${m.id})" title="Sửa thông tin thành viên">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                        </button>
-                        <button type="button" class="btn-card-icon role" onclick="openToggleAdminModal(${m.id})" title="${m.isGroupAdmin ? 'Hạ quyền Quản trị viên nhóm' : 'Bổ nhiệm làm Quản trị viên nhóm'}">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                        </button>
-                        <button type="button" class="btn-card-icon password" onclick="openResetPasswordModal(${m.id})" title="Đặt lại mật khẩu">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                        </button>
-                        <button type="button" class="btn-card-icon status" onclick="openToggleStatusModal(${m.id})" title="${m.status === 'ACTIVE' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
-                        </button>
+                <div class="admin-card-meta">
+                    <div class="admin-card-email-row" title="Tên đăng nhập"><span>@${gaEsc(m.username)}</span></div>
+                    <div class="admin-card-email-row" title="Điện thoại">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                        <span>${m.phoneNumber ? gaEsc(m.phoneNumber) : '—'}</span>
+                    </div>
+                    <div class="admin-card-email-row" title="${gaEsc(m.email)}">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                        <span>${gaEsc(m.email)}</span>
                     </div>
                 </div>
             </div>
-        `;
-    }).join('');
+            <div class="admin-card-footer">
+                <div class="admin-card-actions">${rowActionsHtml(m, 'btn-card-icon', 14)}</div>
+            </div>
+        </div>`).join('');
 }
 
-// Render Table View
 function renderTableView(members) {
     const tbody = document.getElementById('membersTableBody');
     if (!tbody) return;
-
-    tbody.innerHTML = members.map(m => {
-        const isGroupRep = getCurrentGroup().representativeUserId === m.id;
-
-        return `
-            <tr data-user-id="${m.id}">
-                <td>
-                    <div class="member-user-cell">
-                        <img src="${m.avatarUrl}" alt="${m.fullName}" class="avatar">
-                        <div class="member-user-meta">
-                            <span class="member-name">
-                                ${m.fullName}
-                                ${isGroupRep ? '<span title="Người đại diện nhóm" style="color: #f59e0b; font-size: 0.8rem;">★</span>' : ''}
-                            </span>
-                            <span class="member-email">@${m.username}</span>
-                        </div>
+    tbody.innerHTML = members.map(m => `
+        <tr data-user-id="${m.id}">
+            <td>
+                <div class="member-user-cell">
+                    ${avatarHtml(m, 'avatar')}
+                    <div class="member-user-meta">
+                        <span class="member-name">${gaEsc(m.fullName)} ${repMarkHtml(m)}</span>
+                        <span class="member-email">@${gaEsc(m.username)} • ${gaEsc(m.email)}</span>
                     </div>
-                </td>
-                <td>
-                    <span style="color: var(--text-main); font-size: 0.8125rem;">${m.phoneNumber || '—'}</span>
-                </td>
-                <td>
-                    <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
-                        ${m.isGroupAdmin
-                ? `<span class="badge-group-role admin">★ Quản trị nhóm</span>`
-                : `<span class="badge-group-role member">Thành viên</span>`
-            }
-                        ${getCurrentGroup().allowRecordingAccess && (m.isGroupAdmin || m.canAccessRecording)
-                ? `<span class="badge-recording" title="Được cấp quyền nghe & tải ghi âm thoại (BR-UG-05)"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg> Ghi âm</span>`
-                : ''
-            }
-                    </div>
-                </td>
-                <td>
-                    <span class="badge-status ${m.status.toLowerCase()}">
-                        ${m.status === 'ACTIVE' ? 'Hoạt động' : 'Đã khóa'}
-                    </span>
-                </td>
-                <td class="text-right">
-                    <div class="row-actions-group">
-                        <button type="button" class="btn-icon-action" onclick="openViewMemberModal(${m.id})" title="Xem chi tiết">
-                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                        </button>
-                        <button type="button" class="btn-icon-action edit" onclick="openEditMemberModal(${m.id})" title="Sửa thông tin thành viên">
-                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                        </button>
-                        <button type="button" class="btn-icon-action role" onclick="openToggleAdminModal(${m.id})" title="${m.isGroupAdmin ? 'Hạ quyền Quản trị viên nhóm' : 'Bổ nhiệm làm Quản trị viên nhóm'}">
-                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                        </button>
-                        <button type="button" class="btn-icon-action password" onclick="openResetPasswordModal(${m.id})" title="Cấp lại mật khẩu">
-                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                        </button>
-                        <button type="button" class="btn-icon-action status" onclick="openToggleStatusModal(${m.id})" title="${m.status === 'ACTIVE' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}">
-                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
-    }).join('');
+                </div>
+            </td>
+            <td><span class="member-phone">${m.phoneNumber ? gaEsc(m.phoneNumber) : '—'}</span></td>
+            <td>
+                <div class="member-role-cell">${GA_ROLE_BADGE[m.roleCode] || gaEsc(m.roleName)} ${recordingBadgeHtml(m)}</div>
+            </td>
+            <td>
+                <span>${gaFormatDate(m.createdAt)}</span>
+                <span class="member-sub">${m.lastLoginAt ? 'Đăng nhập: ' + gaFormatDate(m.lastLoginAt, true) : 'Chưa đăng nhập'}</span>
+            </td>
+            <td>${statusBadgeHtml(m)}</td>
+            <td class="text-right"><div class="row-actions-group">${rowActionsHtml(m, 'btn-icon-action', 15)}</div></td>
+        </tr>`).join('');
 }
 
-function renderPagination(total, totalPages) {
-    const infoEl = document.getElementById('paginationInfo');
-    const pagesContainer = document.getElementById('paginationPages');
-    const prevBtn = document.getElementById('paginationPrevBtn');
-    const nextBtn = document.getElementById('paginationNextBtn');
-
-    if (infoEl) {
-        const start = total === 0 ? 0 : (appState.currentPage - 1) * appState.pageSize + 1;
-        const end = Math.min(appState.currentPage * appState.pageSize, total);
-        infoEl.innerText = `Hiển thị ${start} - ${end} trên tổng số ${total} thành viên`;
-    }
-
-    if (prevBtn) {
-        prevBtn.disabled = appState.currentPage <= 1;
-        prevBtn.onclick = () => {
-            if (appState.currentPage > 1) {
-                appState.currentPage--;
-                renderMembersTable();
-            }
-        };
-    }
-
-    if (nextBtn) {
-        nextBtn.disabled = appState.currentPage >= totalPages;
-        nextBtn.onclick = () => {
-            if (appState.currentPage < totalPages) {
-                appState.currentPage++;
-                renderMembersTable();
-            }
-        };
-    }
-
-    if (pagesContainer) {
-        let pagesHtml = '';
-        for (let i = 1; i <= totalPages; i++) {
-            pagesHtml += `
-                <button type="button" class="btn ${i === appState.currentPage ? 'btn-primary' : 'btn-outline'}" 
-                    style="padding: 4px 10px; font-size: 0.8125rem;" onclick="goToPage(${i})">
-                    ${i}
-                </button>
-            `;
-        }
-        pagesContainer.innerHTML = pagesHtml;
-    }
-}
-
-function goToPage(page) {
-    appState.currentPage = page;
-    renderMembersTable();
+// Phân trang theo pagination của response (cửa sổ 5 trang).
+function renderPagination(p, count) {
+    const info = document.getElementById('paginationInfo');
+    const pages = document.getElementById('paginationPages');
+    const from = (p.page - 1) * p.limit + 1;
+    if (info) info.textContent = `Hiển thị ${from}–${from + count - 1} / ${p.total} thành viên`;
+    if (!pages) return;
+    const btn = (label, page, { disabled = false, active = false, aria } = {}) =>
+        `<button type="button" class="btn ${active ? 'btn-primary' : 'btn-outline'} btn-page"
+            ${disabled || active ? 'disabled' : `data-page="${page}"`} ${aria ? `aria-label="${aria}"` : ''}
+            ${active ? 'aria-current="page"' : ''}>${label}</button>`;
+    const first = Math.max(1, Math.min(p.page - 2, p.totalPages - 4));
+    const last = Math.min(p.totalPages, first + 4);
+    let html = btn('«', p.page - 1, { disabled: !p.hasPrev, aria: 'Trang trước' });
+    for (let i = first; i <= last; i++) html += btn(String(i), i, { active: i === p.page });
+    html += btn('»', p.page + 1, { disabled: !p.hasNext, aria: 'Trang sau' });
+    pages.innerHTML = html;
 }
 
 // ==========================================================================
-// 6. Quản lý Modal & Hành động Quản trị
+// 6. Hộp thao tác – mock CŨ, chưa rà (N03 POST, N04 PUT, N05 status, N06 reset-password, N07 role):
+//    mở hộp đọc dòng đã tải (findMember, DTO 14 trường); xác nhận sửa dòng "CSDL" (mockRow) rồi tải lại.
 // ==========================================================================
+
+// Dòng "CSDL" của mock theo id (chỉ dùng trong các hộp mock cũ ở mục này).
+function mockRow(userId) { return MOCK_USER_ROWS.find(r => r.id === userId) || null; }
 
 function openModal(modalId) {
     const el = document.getElementById(modalId);
@@ -691,28 +498,17 @@ function submitAddMember(e) {
     const canAccessRecording = hasRecording ? !!document.getElementById('addCanAccessRecording')?.checked : false;
 
     // Validate duplicate username or email
-    const exists = MEMBERS_DATA.some(m => m.username === username || m.email === email);
+    const exists = MOCK_USER_ROWS.some(m => m.status !== 'INACTIVE' && [m.username, m.email].some(v => v.toLowerCase() === username || v.toLowerCase() === email));
     if (exists) {
         showToast('Tên đăng nhập hoặc email đã tồn tại trong hệ thống!', 'error');
         return;
     }
 
-    const newMember = {
-        id: Date.now(),
-        userGroupId: group.id,
-        fullName,
-        username,
-        email,
-        phoneNumber,
-        title,
-        isGroupAdmin: false,
-        canAccessRecording,
-        status: "ACTIVE",
-        createdAt: new Date().toISOString().split('T')[0],
-        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=0033A0&color=fff`
-    };
-
-    MEMBERS_DATA.unshift(newMember);
+    MOCK_USER_ROWS.push({
+        id: Date.now(), userGroupId: group.id, username, email, fullName,
+        jobTitle: title || null, phoneNumber: phoneNumber || null, avatarUrl: null, status: 'ACTIVE',
+        roleCode: canAccessRecording ? 'USER_RECORDING' : 'REGULAR_USER', lastLoginAt: null, createdAt: gaNow()
+    });
     closeModal('addMemberModal');
     renderCurrentGroup();
     showToast(`Đã thêm thành viên "${fullName}" vào nhóm ${group.code} thành công!`, 'success');
@@ -720,7 +516,7 @@ function submitAddMember(e) {
 
 // Modal 2: Chỉnh sửa thông tin thành viên
 function openEditMemberModal(userId) {
-    const member = MEMBERS_DATA.find(m => m.id === userId);
+    const member = findMember(userId);
     if (!member) return;
 
     appState.pendingActionUserId = userId;
@@ -731,7 +527,7 @@ function openEditMemberModal(userId) {
     document.getElementById('editUsername').value = member.username;
     document.getElementById('editEmail').value = member.email;
     document.getElementById('editPhone').value = member.phoneNumber || '';
-    document.getElementById('editTitle').value = member.title || '';
+    document.getElementById('editTitle').value = member.jobTitle || '';
     document.getElementById('editStatus').value = member.status;
 
     // Quản lý quyền ghi âm thoại (BR-UG-05): Ẩn nếu nhóm chưa được cấp phép
@@ -743,7 +539,7 @@ function openEditMemberModal(userId) {
     if (recGroup) {
         if (hasRecording) {
             recGroup.style.display = 'block';
-            if (member.isGroupAdmin) {
+            if (member.roleCode === 'GROUP_ADMIN') {
                 if (recCheck) {
                     recCheck.checked = true;
                     recCheck.disabled = true;
@@ -751,7 +547,7 @@ function openEditMemberModal(userId) {
                 if (recNote) recNote.innerText = 'Quản trị viên nhóm mặc định có toàn quyền nghe & tải ghi âm thoại.';
             } else {
                 if (recCheck) {
-                    recCheck.checked = !!member.canAccessRecording;
+                    recCheck.checked = member.roleCode === 'USER_RECORDING';
                     recCheck.disabled = false;
                 }
                 if (recNote) recNote.innerText = 'Ủy quyền cho thành viên được nghe trực tuyến và tải file ghi âm cuộc gọi của nhóm.';
@@ -766,22 +562,22 @@ function openEditMemberModal(userId) {
 
 function submitEditMember(e) {
     e.preventDefault();
-    const member = MEMBERS_DATA.find(m => m.id === appState.pendingActionUserId);
+    const member = mockRow(appState.pendingActionUserId);
     if (!member) return;
 
     const group = getCurrentGroup();
     const hasRecording = group.allowRecordingAccess ?? group.recordingAccessEnabled;
 
     member.fullName = document.getElementById('editFullName').value.trim();
-    member.phoneNumber = document.getElementById('editPhone').value.trim();
-    member.title = document.getElementById('editTitle').value.trim();
+    member.phoneNumber = document.getElementById('editPhone').value.trim() || null;
+    member.jobTitle = document.getElementById('editTitle').value.trim() || null;
     member.status = document.getElementById('editStatus').value;
 
     // Cập nhật quyền ghi âm nếu nhóm được cấp phép và tài khoản không phải Admin
-    if (hasRecording && !member.isGroupAdmin) {
+    if (hasRecording && member.roleCode !== 'GROUP_ADMIN') {
         const recCheck = document.getElementById('editCanAccessRecording');
         if (recCheck) {
-            member.canAccessRecording = recCheck.checked;
+            member.roleCode = recCheck.checked ? 'USER_RECORDING' : 'REGULAR_USER';
         }
     }
 
@@ -792,24 +588,24 @@ function submitEditMember(e) {
 
 // Modal 3: Bổ nhiệm / Hạ quyền Admin kèm Safeguard BR-UG-02
 function openToggleAdminModal(userId) {
-    const member = MEMBERS_DATA.find(m => m.id === userId);
+    const member = findMember(userId);
     if (!member) return;
 
     appState.pendingActionUserId = userId;
     const group = getCurrentGroup();
-    const groupAdmins = getGroupMembers().filter(m => m.isGroupAdmin);
+    const adminCount = getActiveAdminCount(); // null: thẻ tóm tắt chưa tải, backend vẫn chặn 409
 
     const titleEl = document.getElementById('toggleAdminModalTitle');
     const descEl = document.getElementById('toggleAdminModalDesc');
     const safeguardBox = document.getElementById('toggleAdminSafeguardBox');
     const confirmBtn = document.getElementById('confirmToggleAdminBtn');
 
-    if (member.isGroupAdmin) {
+    if (member.roleCode === 'GROUP_ADMIN') {
         titleEl.innerText = "Hạ quyền Quản trị viên nhóm";
         descEl.innerHTML = `Bạn có chắc muốn thu hồi quyền Quản trị viên nhóm của <strong>${member.fullName}</strong> (@${member.username}) trong nhóm <strong>${group.name}</strong>?`;
 
         // Check Safeguard BR-UG-02: Nhóm phải có ít nhất 1 Group Admin
-        if (groupAdmins.length <= 1) {
+        if (adminCount !== null && adminCount <= 1) {
             safeguardBox.style.display = "flex";
             safeguardBox.className = "safeguard-alert-box danger";
             safeguardBox.innerHTML = `
@@ -828,7 +624,7 @@ function openToggleAdminModal(userId) {
             safeguardBox.innerHTML = `
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                 <div>
-                    Sau khi hạ quyền, người này sẽ chuyển thành <strong>Thành viên thường</strong> và không còn quyền tạo, chỉnh sửa, phân bổ thành viên khác trong nhóm. Nhóm vẫn còn <strong>${groupAdmins.length - 1}</strong> Quản trị viên nhóm khác.
+                    Sau khi hạ quyền, người này sẽ chuyển thành <strong>Thành viên thường</strong> và không còn quyền tạo, chỉnh sửa, phân bổ thành viên khác trong nhóm. ${adminCount === null ? '' : `Nhóm vẫn còn <strong>${adminCount - 1}</strong> Quản trị viên nhóm khác.`}
                 </div>
             `;
             confirmBtn.disabled = false;
@@ -855,15 +651,15 @@ function openToggleAdminModal(userId) {
 }
 
 function confirmToggleAdmin() {
-    const member = MEMBERS_DATA.find(m => m.id === appState.pendingActionUserId);
+    const member = mockRow(appState.pendingActionUserId);
     if (!member) return;
 
-    member.isGroupAdmin = !member.isGroupAdmin;
+    member.roleCode = member.roleCode === 'GROUP_ADMIN' ? 'REGULAR_USER' : 'GROUP_ADMIN';
     closeModal('toggleAdminModal');
     renderCurrentGroup();
 
     showToast(
-        member.isGroupAdmin
+        member.roleCode === 'GROUP_ADMIN'
             ? `Đã bổ nhiệm "${member.fullName}" làm Quản trị viên nhóm thành công!`
             : `Đã thu hồi quyền Quản trị viên nhóm của "${member.fullName}".`,
         'success'
@@ -872,7 +668,7 @@ function confirmToggleAdmin() {
 
 // Modal 4: Đặt lại Mật khẩu
 function openResetPasswordModal(userId) {
-    const member = MEMBERS_DATA.find(m => m.id === userId);
+    const member = findMember(userId);
     if (!member) return;
 
     const group = getCurrentGroup();
@@ -884,7 +680,7 @@ function openResetPasswordModal(userId) {
     const emailEl = document.getElementById('resetPassUserEmail');
     const groupEl = document.getElementById('resetPassUserGroup');
 
-    if (avatarEl) avatarEl.src = member.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.fullName)}&background=0033A0&color=fff`;
+    if (avatarEl) { avatarEl.src = member.avatarUrl || ''; avatarEl.hidden = !member.avatarUrl; }
     if (nameEl) nameEl.innerHTML = `${member.fullName} <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-muted);">(@${member.username})</span>`;
     if (emailEl) emailEl.innerText = member.email || 'Chưa cập nhật email';
     if (groupEl) groupEl.innerText = group ? `${group.code} - ${group.name}` : '';
@@ -963,7 +759,7 @@ function copyResetPassword() {
 function confirmResetPassword(event) {
     if (event) event.preventDefault();
 
-    const member = MEMBERS_DATA.find(m => m.id === appState.pendingActionUserId);
+    const member = mockRow(appState.pendingActionUserId);
     if (!member) return;
 
     const autoTab = document.getElementById('resetPassTabAuto');
@@ -994,7 +790,7 @@ function confirmResetPassword(event) {
 
 // Modal 5: Khóa / Mở khóa Tài khoản
 function openToggleStatusModal(userId) {
-    const member = MEMBERS_DATA.find(m => m.id === userId);
+    const member = findMember(userId);
     if (!member) return;
 
     appState.pendingActionUserId = userId;
@@ -1008,8 +804,8 @@ function openToggleStatusModal(userId) {
         descEl.innerHTML = `Bạn có chắc muốn <strong>khóa tài khoản</strong> của <strong>${member.fullName}</strong> (@${member.username})?`;
 
         // Check if admin & only 1 active admin
-        const groupAdmins = getGroupMembers().filter(m => m.isGroupAdmin && m.status === 'ACTIVE');
-        if (member.isGroupAdmin && groupAdmins.length <= 1) {
+        const adminCount = getActiveAdminCount();
+        if (member.roleCode === 'GROUP_ADMIN' && adminCount !== null && adminCount <= 1) {
             alertBox.style.display = "flex";
             alertBox.className = "safeguard-alert-box danger";
             alertBox.innerHTML = `
@@ -1036,7 +832,7 @@ function openToggleStatusModal(userId) {
 }
 
 function confirmToggleStatus() {
-    const member = MEMBERS_DATA.find(m => m.id === appState.pendingActionUserId);
+    const member = mockRow(appState.pendingActionUserId);
     if (!member) return;
 
     member.status = member.status === 'ACTIVE' ? 'LOCKED' : 'ACTIVE';
@@ -1053,25 +849,23 @@ function confirmToggleStatus() {
 
 // Modal 6: Xem Chi Tiết Thành Viên
 function openViewMemberModal(userId) {
-    const member = MEMBERS_DATA.find(m => m.id === userId);
+    const member = findMember(userId);
     if (!member) return;
 
     const group = getCurrentGroup();
 
-    document.getElementById('viewMemberAvatar').src = member.avatarUrl;
+    const viewAvatar = document.getElementById('viewMemberAvatar');
+    viewAvatar.src = member.avatarUrl || '';
+    viewAvatar.hidden = !member.avatarUrl;
     document.getElementById('viewMemberFullName').innerText = member.fullName;
     document.getElementById('viewMemberUsername').innerText = `@${member.username}`;
 
-    document.getElementById('viewMemberRoleBadge').innerHTML = member.isGroupAdmin
-        ? `<span class="badge-group-role admin">★ Quản trị nhóm</span>`
-        : `<span class="badge-group-role member">Thành viên</span>`;
+    document.getElementById('viewMemberRoleBadge').innerHTML = GA_ROLE_BADGE[member.roleCode] || gaEsc(member.roleName);
 
-    document.getElementById('viewMemberStatusBadge').innerHTML = member.status === 'ACTIVE'
-        ? `<span class="badge-status active">Đang hoạt động</span>`
-        : `<span class="badge-status locked">Đã khóa</span>`;
+    document.getElementById('viewMemberStatusBadge').innerHTML = statusBadgeHtml(member);
 
     document.getElementById('viewMemberGroupName').innerText = `${group.code} - ${group.name}`;
-    document.getElementById('viewMemberTitle').innerText = member.title || 'Chưa cập nhật';
+    document.getElementById('viewMemberTitle').innerText = member.jobTitle || 'Chưa cập nhật';
     document.getElementById('viewMemberPhone').innerText = member.phoneNumber || 'Chưa cập nhật';
     document.getElementById('viewMemberEmail').innerText = member.email;
 
@@ -1082,12 +876,12 @@ function openViewMemberModal(userId) {
     if (recItem) {
         if (hasRecording) {
             recItem.style.display = 'block';
-            const hasAccess = member.isGroupAdmin || !!member.canAccessRecording;
+            const hasAccess = member.roleCode === 'GROUP_ADMIN' || member.roleCode === 'USER_RECORDING';
             if (recBadge) {
                 recBadge.innerHTML = hasAccess
                     ? `<span class="badge-recording" style="font-size: 0.8125rem; padding: 4px 10px;">
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
-                        Được cấp quyền (${member.isGroupAdmin ? 'Mặc định theo vai trò Quản trị viên' : 'Được Quản trị viên nhóm ủy quyền'})
+                        Được cấp quyền (${member.roleCode === 'GROUP_ADMIN' ? 'Mặc định theo vai trò Quản trị viên' : 'Vai trò Thành viên nghe ghi âm'})
                        </span>`
                     : `<span style="font-size: 0.8125rem; color: var(--text-muted);">Chưa được cấp quyền</span>`;
             }
@@ -1097,29 +891,6 @@ function openViewMemberModal(userId) {
     }
 
     openModal('viewMemberModal');
-}
-
-// Xuất danh sách thành viên ra CSV
-function exportMembersList() {
-    const group = getCurrentGroup();
-    const members = getGroupMembers();
-
-    let csv = "ID,HoTen,Username,Email,DienThoai,ChucVu,VaiTroNhom,TrangThai\n";
-    members.forEach(m => {
-        csv += `"${m.id}","${m.fullName}","${m.username}","${m.email}","${m.phoneNumber || ''}","${m.title || ''}","${m.isGroupAdmin ? 'Admin' : 'Member'}","${m.status}"\n`;
-    });
-
-    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Danh_sach_thanh_vien_${group.code}_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    showToast(`Đã xuất danh sách thành viên nhóm ${group.code} thành công!`, 'success');
 }
 
 // Toast Notification

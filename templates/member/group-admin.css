@@ -1530,3 +1530,87 @@
 .group-summary-state.is-error {
     color: var(--secondary);
 }
+
+/* Danh sách thành viên (N01, GET /api/v1/users): trạng thái tải / lỗi / 503 + "Thử lại", nhãn, ảnh chữ cái đầu */
+.member-list-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 40px 16px;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.member-list-state.is-error {
+    color: var(--secondary);
+}
+
+.member-list-state[hidden],
+.admin-cards-grid[hidden],
+.data-table-wrapper[hidden],
+.table-empty-state[hidden],
+.pagination-container[hidden],
+.badge-count[hidden],
+.btn[hidden],
+option[hidden],
+img[hidden] {
+    display: none !important;
+}
+
+.avatar-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.member-rep-mark {
+    color: #d97706;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.badge-group-role.recording {
+    background: rgba(0, 51, 160, 0.08);
+    color: var(--primary);
+    border: 1px solid rgba(0, 51, 160, 0.2);
+}
+
+.badge-status.inactive {
+    background: rgba(100, 116, 139, 0.12);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+.admin-card.is-inactive {
+    opacity: 0.75;
+}
+
+.member-role-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+}
+
+.member-phone {
+    color: var(--text-main);
+    font-size: 0.8125rem;
+}
+
+.member-sub {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.btn-page {
+    padding: 4px 10px;
+    font-size: 0.8125rem;
+}
