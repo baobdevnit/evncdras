@@ -11,13 +11,16 @@
 // ?groupInactive=<id> (nhóm đó vừa ngừng hoạt động → 409 GROUP_INACTIVE), ?noRoleAdmin=1 / ?noRoleRecording=1
 // (store thiếu group:manage_admin / group:toggle_recording); tran.b, LE.C@71portal.vn → 409 ACCOUNT_DUPLICATE,
 // hong.ct (tài khoản INACTIVE) dùng lại được; nhóm UMO-IT-02 chưa cấp Tầng 1 (không chọn được USER_RECORDING).
-// Phần lưu của hộp sửa và Ngừng hoạt động vẫn là mock cũ, rà ở N04 (PUT), N09 (DELETE).
+// Nút "Lưu thay đổi" của hộp sửa gọi PUT /api/v1/admin/users/:id (N04, M03 mục 3.5); kiểm tay: ?updateError=1 (lỗi mạng
+// một lần), ?updateInactive=<id> (dòng đó vừa ngừng hoạt động → 409 ACCOUNT_INACTIVE), ?updateMissing=<id> (→ 404).
+// Ngừng hoạt động vẫn là mock cũ, rà ở N09 (DELETE).
 
 const US_QS = new URLSearchParams(window.location.search);
 let usMockUsersError = US_QS.get('usersError') === '1';
 let usMockGroupsError = US_QS.get('groupsError') === '1';
 let usMockEditLoadError = US_QS.get('editLoadError') === '1';
 let usMockCreateError = US_QS.get('createError') === '1';
+let usMockUpdateError = US_QS.get('updateError') === '1';
 
 // ==========================================================================
 // 1. Giả lập backend
@@ -198,6 +201,7 @@ let usGroupSeq = 0;      // như trên, cho danh mục nhóm
 let usRows = [];         // data của trang đang hiển thị (tiêu đề hộp sửa, hộp Ngừng hoạt động)
 let usEditSeq = 0;       // chỉ hiển thị response của lần mở hộp sửa sau cùng
 let usEditId = null;     // id đang mở trong hộp sửa (null = chế độ tạo)
+let usEditData = null;   // data của GET /admin/users/:id đang sửa (so trường đã đổi khi lưu)
 let usGroupOptions = []; // data của danh mục nhóm (tiêu đề bảng)
 const US_ROLE_LABELS = { GROUP_ADMIN: '★ Quản trị viên nhóm', USER_RECORDING: 'Thành viên nghe ghi âm', REGULAR_USER: 'Thành viên' };
 const US_ROLE_CLASS = { GROUP_ADMIN: 'admin', USER_RECORDING: 'recording', REGULAR_USER: 'member' };
@@ -519,7 +523,7 @@ function renderUsersPagination(p, count) {
 }
 
 // ==========================================================================
-// 6. Hộp Thêm (N03 POST /admin/users) / Sửa (tải N02; phần lưu mock CŨ, N04) / Ngừng hoạt động (mock CŨ, N09)
+// 6. Hộp Thêm (N03 POST /admin/users) / Sửa (tải N02, lưu N04 PUT /admin/users/:id) / Ngừng hoạt động (mock CŨ, N09)
 // ==========================================================================
 
 function openModal(modalId) {
@@ -532,7 +536,7 @@ function openModal(modalId) {
 
 function closeModal(modalId) {
     if (modalId === 'userModal' && usFormBusy) return; // đang gửi: nút đóng/Hủy, nền, Esc không đóng
-    if (modalId === 'userModal') { usEditId = null; usEditSeq++; } // bỏ response GET /:id đang chờ
+    if (modalId === 'userModal') { usEditId = null; usEditData = null; usEditSeq++; } // bỏ response GET /:id đang chờ
     const modal = document.getElementById(modalId);
     if (modal) {
         modal.classList.remove('show');
@@ -611,6 +615,7 @@ function loadUserEdit(userId) {
                 loadUsers();
                 return;
             }
+            usEditData = res.data;
             fillUserEditForm(res.data);
             setUserEditState('ready');
         })
@@ -952,16 +957,120 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Nút Lưu: chế độ tạo gửi POST (N03); chế độ sửa vẫn là mock cũ, phần PUT /admin/users/:id rà ở N04.
+// ---------- Hộp sửa: PUT /api/v1/admin/users/:id (N04, M03 mục 3.5) ----------
+
+const US_UPDATE_KEYS = ['fullName', 'jobTitle', 'phoneNumber'];
+
+// Kiểm tra body cập nhật một phần (dùng chung cho mock backend và kiểm tra trước khi gửi ở frontend).
+// Trả { errors, body } với body chỉ gồm trường đã gửi, đã cắt khoảng trắng; jobTitle/phoneNumber rỗng → null.
+function validateUserUpdateBody(raw) {
+    const errors = {};
+    const add = (k, m) => { (errors[k] = errors[k] || []).push(m); };
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !Object.keys(raw).length) {
+        US_UPDATE_KEYS.forEach(k => add(k, 'Cần gửi ít nhất một trường'));
+        return { errors, body: {} };
+    }
+    Object.keys(raw).forEach(k => {
+        if (k === 'userGroupId') add(k, 'Thuộc tính nhóm người dùng là cố định từ lúc tạo, không thể thay đổi hoặc chuyển nhóm');
+        else if (!US_UPDATE_KEYS.includes(k)) add(k, 'Trường không được nhận');
+    });
+    const body = {};
+    const str = (key, { required, max, re, reMsg }) => {
+        if (!(key in raw)) return;
+        const v = raw[key];
+        if (v === null) { if (required) add(key, 'Bắt buộc'); else body[key] = null; return; }
+        if (typeof v !== 'string') { add(key, 'Phải là chuỗi'); return; }
+        const t = v.trim();
+        if (t === '') { if (required) add(key, 'Bắt buộc'); else body[key] = null; return; }
+        if (t.length > max) { add(key, `Tối đa ${max} ký tự`); return; }
+        if (re && !re.test(t)) { add(key, reMsg); return; }
+        body[key] = t;
+    };
+    str('fullName', { required: true, max: 150 });
+    str('jobTitle', { max: 150 });
+    str('phoneNumber', { max: 30, re: US_PHONE_RE, reMsg: 'Chỉ chữ số, dấu cách và + - . ( ), có ít nhất một chữ số' });
+    return { errors, body };
+}
+
+// Giả lập PUT /api/v1/admin/users/:id. Thứ tự: guard (401) → quyền user:edit → :id/query/body (400) → kiểm tra tài khoản
+// → SELECT ... FROM users WHERE id = :id FOR UPDATE (404) → INACTIVE (409) → so trường → UPDATE + USER / UPDATE.
+// 200: data = 17 trường của GET /admin/users/:id; không đổi gì thì không ghi, message "Không có thay đổi nào".
+function mockUpdateUser(token, id, body, query) {
+    return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+        if (usMockUpdateError) { usMockUpdateError = false; return Promise.reject(new Error('Network Error')); }
+        if (!token) return usUnauthorized();
+        if (!usHasPermission('user:edit')) return usFail(403, 'FORBIDDEN_PERMISSION', 'Bạn không có quyền thực hiện thao tác này');
+        const { errors, body: b } = validateUserUpdateBody(body);
+        if (!(/^[1-9][0-9]{0,9}$/.test(String(id)) && Number(id) <= 4294967295)) errors.id = ['Mã người dùng phải là số nguyên dương'];
+        Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+        if (Object.keys(errors).length) return usFail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', errors);
+        const row = MOCK_US_USERS.find(u => u.id === Number(id));
+        if (!row || US_QS.get('updateMissing') === String(id)) return usFail(404, 'NOT_FOUND', 'Không tìm thấy tài nguyên');
+        if (US_QS.get('updateInactive') === String(id)) row.status = 'INACTIVE'; // giả lập vừa bị ngừng hoạt động ở nơi khác
+        if (row.status === 'INACTIVE') return usFail(409, 'ACCOUNT_INACTIVE', 'Tài khoản đã ngừng hoạt động, không sửa được');
+        const changed = US_UPDATE_KEYS.filter(k => k in b && b[k] !== (row[k] == null ? null : row[k])); // so chính xác
+        if (!changed.length) {
+            return { success: true, statusCode: 200, message: 'Không có thay đổi nào', data: toUserDetail(row), timestamp: usNow() };
+        }
+        changed.forEach(k => { row[k] = b[k]; });
+        row.updatedAt = usNow(); // + audit USER / UPDATE { changedFields } cùng transaction
+        return { success: true, statusCode: 200, message: 'Cập nhật người dùng thành công', data: toUserDetail(row), timestamp: usNow() };
+    });
+}
+
+// So form (đã cắt khoảng trắng) với data đã tải, chỉ giữ trường khác; ô tùy chọn rỗng → null, họ tên rỗng → null (báo "Bắt buộc").
+function buildUserUpdateBody() {
+    const f = usForm().elements;
+    const current = {
+        fullName: f.fullName.value.trim() || null,
+        jobTitle: f.jobTitle.value.trim() || null,
+        phoneNumber: f.phoneNumber.value.trim() || null
+    };
+    const body = {};
+    US_UPDATE_KEYS.forEach(k => { if (current[k] !== (usEditData[k] == null ? null : usEditData[k])) body[k] = current[k]; });
+    return body;
+}
+
+function submitUpdateUser() {
+    clearUserFormErrors();
+    if (!usEditData) return;
+    const body = buildUserUpdateBody();
+    if (!Object.keys(body).length) { // không có trường nào đổi: không gọi API
+        closeModal('userModal');
+        if (window.showToast) window.showToast('Không có thay đổi nào', 'info');
+        return;
+    }
+    const { errors } = validateUserUpdateBody(body);
+    if (Object.keys(errors).length) { showUserFormErrors(errors); return; } // không gọi API
+    const id = usEditId;
+    setUserFormBusy(true);
+    usCallApi(token => mockUpdateUser(token, id, body))
+        .then(res => {
+            setUserFormBusy(false);
+            closeModal('userModal');
+            if (window.showToast) window.showToast(usEsc(res.message), 'success');
+            loadUsers(); // giữ bộ lọc và trang; fullName đổi làm đổi thứ tự
+        })
+        .catch(err => {
+            setUserFormBusy(false);
+            const status = err && err.statusCode;
+            if (status === 401) return; // request() đã chuyển về login
+            if (status === 400 && err.errors) { showUserFormErrors(err.errors); return; }
+            if (status === 403 || status === 404 || status === 409) { // 409 ACCOUNT_INACTIVE
+                closeModal('userModal');
+                if (window.showToast) window.showToast(usEsc(err.message), 'warning');
+                loadUsers();
+                return;
+            }
+            if (window.showToast) window.showToast(usEsc((err && err.statusCode && err.message) || 'Không lưu được thay đổi. Vui lòng thử lại.'), 'error');
+        });
+}
+
+// Nút Lưu: chế độ tạo gửi POST (N03), chế độ sửa gửi PUT chỉ các trường đã đổi (N04).
 function saveUser() {
     if (usFormBusy) return;
-    if (usEditId === null) { submitCreateUser(); return; }
-    setUserFormBusy(true);
-    setTimeout(() => {
-        setUserFormBusy(false);
-        closeModal('userModal');
-        loadUsers();
-    }, 600);
+    if (usEditId === null) submitCreateUser();
+    else submitUpdateUser();
 }
 
 let userIdToDelete = null;

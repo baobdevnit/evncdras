@@ -556,65 +556,62 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h3>Chỉnh sửa thông tin thành viên</h3>
-                    <button type="button" class="close-btn" onclick="closeModal('editMemberModal')">&times;</button>
+                    <h3 id="editMemberTitle">Chỉnh sửa thông tin thành viên</h3>
+                    <button type="button" class="close-btn" data-edit-close aria-label="Đóng">&times;</button>
                 </div>
-                <form id="editMemberForm" onsubmit="submitEditMember(event)">
+                <!-- PUT /api/v1/users/:id (N04, M03 mục 3.5): tải GET /users/:id mỗi lần mở; đúng 3 ô sửa được,
+                     định danh/nhóm/vai trò chỉ đọc; không có ô trạng thái hay quyền ghi âm (thao tác riêng N05, N07) -->
+                <div id="editMemberState" class="member-list-state edit-member-state" role="status" hidden>
+                    <span id="editMemberStateMessage">Đang tải thông tin thành viên...</span>
+                    <button type="button" class="btn btn-outline btn-sm" id="btnRetryEditMember" hidden>Thử lại</button>
+                </div>
+                <form id="editMemberForm" novalidate onsubmit="submitEditMember(event)" hidden>
                     <div class="modal-body">
-                        <input type="hidden" id="editGroupNameDisplay" class="form-control" disabled
-                            style="background: var(--bg-hover); cursor: not-allowed; display: none;">
-                        <div class="form-group">
-                            <label class="form-label">Họ và tên <span style="color: var(--secondary);">*</span></label>
-                            <input type="text" id="editFullName" class="form-control" required>
-                        </div>
-
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="edit-member-grid">
                             <div class="form-group">
                                 <label class="form-label">Tên đăng nhập</label>
-                                <input type="text" id="editUsername" class="form-control" disabled
-                                    style="background: var(--bg-hover); cursor: not-allowed;">
+                                <div id="editUsername" class="edit-member-readonly"></div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Email</label>
-                                <input type="email" id="editEmail" class="form-control" disabled
-                                    style="background: var(--bg-hover); cursor: not-allowed;">
+                                <div id="editEmail" class="edit-member-readonly"></div>
+                            </div>
+                        </div>
+                        <div class="edit-member-grid">
+                            <div class="form-group">
+                                <label class="form-label">Nhóm người dùng</label>
+                                <div id="editGroupName" class="edit-member-readonly"></div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Vai trò</label>
+                                <div id="editRoleName" class="edit-member-readonly"></div>
                             </div>
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Điện thoại di động liên hệ</label>
-                            <input type="text" id="editPhone" class="form-control">
+                            <label class="form-label" for="editFullName">Họ và tên <span style="color: var(--secondary);">*</span></label>
+                            <input type="text" id="editFullName" name="fullName" class="form-control" maxlength="150">
+                            <span class="field-error" data-error-for="fullName" hidden></span>
                         </div>
 
-                        <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 12px;">
+                        <div class="edit-member-grid">
                             <div class="form-group">
-                                <label class="form-label">Chức danh / Vị trí</label>
-                                <input type="text" id="editTitle" class="form-control">
+                                <label class="form-label" for="editPhone">Điện thoại di động liên hệ</label>
+                                <input type="tel" id="editPhone" name="phoneNumber" class="form-control" maxlength="30"
+                                    placeholder="0912.xxx.xxx">
+                                <span class="field-error" data-error-for="phoneNumber" hidden></span>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Trạng thái</label>
-                                <select id="editStatus" class="form-control">
-                                    <option value="ACTIVE">Hoạt động</option>
-                                    <option value="LOCKED">Đã khóa</option>
-                                </select>
+                                <label class="form-label" for="editTitle">Chức danh / Vị trí công tác</label>
+                                <input type="text" id="editTitle" name="jobTitle" class="form-control" maxlength="150">
+                                <span class="field-error" data-error-for="jobTitle" hidden></span>
                             </div>
                         </div>
-
-                        <!-- Cấp quyền ghi âm thoại MP3 (BR-UG-05 - Ẩn nếu nhóm chưa được cấp phép) -->
-                        <div class="form-group" id="editRecordingAccessGroup" style="display: none; margin-top: 6px;">
-                            <label class="recording-permission-label">
-                                <input type="checkbox" id="editCanAccessRecording">
-                                <span class="recording-label-text">
-                                    <strong>Cho phép nghe & tải ghi âm thoại MP3 (BR-UG-05)</strong>
-                                    <small id="editRecordingAccessNote">Ủy quyền cho thành viên được nghe trực tuyến và tải file ghi âm cuộc gọi của nhóm</small>
-                                </span>
-                            </label>
-                        </div>
+                        <p class="form-hint">Tên đăng nhập, email và nhóm không đổi được. Vai trò, khóa/mở khóa, đặt lại mật khẩu dùng nút riêng trên dòng thành viên.</p>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-outline" onclick="closeModal('editMemberModal')">Hủy
-                            bỏ</button>
-                        <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+                        <button type="button" class="btn btn-outline" data-edit-close>Hủy bỏ</button>
+                        <button type="submit" id="editMemberSubmitBtn" class="btn btn-primary">Lưu thay đổi</button>
                     </div>
                 </form>
             </div>

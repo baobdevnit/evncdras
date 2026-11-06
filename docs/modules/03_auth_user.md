@@ -382,7 +382,7 @@ Không có `404` (kể cả `userGroupId` không tồn tại), `409`, `403 FORBI
 
 ### 3.3.1. Chi tiết người dùng (`GET /api/v1/users/:id`)
 
-- **Mục đích**: thông tin **đầy đủ** của một tài khoản người dùng: các trường của phần tử danh sách (mục 3.3) cộng trạng thái mật khẩu/khóa tạm và thời điểm cập nhật. Dùng cho: hộp sửa `#userModal` của `admin.users` (bản Admin, tải mỗi lần mở hộp, mục 5.1; phần lưu đặc tả ở mục 3.5) và hộp "Xem chi tiết" `#viewMemberModal` của `member.group-admin` (bản User, tải mỗi lần mở hộp, `docs/modules/02_user_group.md` mục 5.3). Chủ dự án chốt ở N02: đúng 17 trường (không thêm `passwordChangedAt`).
+- **Mục đích**: thông tin **đầy đủ** của một tài khoản người dùng: các trường của phần tử danh sách (mục 3.3) cộng trạng thái mật khẩu/khóa tạm và thời điểm cập nhật. Dùng cho: hộp sửa `#userModal` của `admin.users` (bản Admin, tải mỗi lần mở hộp, mục 5.1; phần lưu ở mục 3.5) và hộp "Xem chi tiết" `#viewMemberModal` của `member.group-admin` (bản User, tải mỗi lần mở hộp, `docs/modules/02_user_group.md` mục 5.3). Chủ dự án chốt ở N02: đúng 17 trường (không thêm `passwordChangedAt`).
 - **Hai route**, chung service `UsersService.getDetail(id, scope)` và DTO (hai bản trả cùng trường):
   - Bản Admin `GET /api/v1/admin/users/:id`: `AdminAuthGuard` → `PermissionsGuard` `user:view` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`); `401`/`403` như mục 3.3; không bị chế độ bảo trì chặn. Xem mọi người dùng của mọi nhóm, kể cả `INACTIVE`.
   - Bản User `GET /api/v1/users/:id`: `UserAuthGuard` → bảo trì (`503 MAINTENANCE`) → `PermissionsGuard` `user:view` theo claim `roleCode` (seed: chỉ `GROUP_ADMIN`); kiểm tra tài khoản ở mỗi request (mục 3.2). **Cô lập nhóm**: người dùng đích có `user_group_id` khác `user_group_id` của người gọi (đọc từ dòng `users` ở bước kiểm tra tài khoản, không dùng claim) trả `403 FORBIDDEN_SCOPE_ACCESS` (quy ước A13: bản ghi nhóm khác vẫn `403`, chỉ id không tồn tại mới `404`). Người gọi xem được chính mình.
@@ -459,7 +459,7 @@ WHERE u.id = :id;
 | `503` | `MAINTENANCE` | Chỉ bản User, chế độ bảo trì đang bật |
 
 - **Frontend** (quy ước hộp chi tiết `docs/modules/01_organization.md` mục 3.1.2: gọi API **mỗi lần mở**, không dùng dữ liệu dòng danh sách; tiêu đề/tên lấy từ dòng đã bấm; thân hộp tải/lỗi + "Thử lại" riêng; chỉ hiển thị response của lần mở sau cùng; `404`/`403 FORBIDDEN_SCOPE_ACCESS` đóng hộp + toast cảnh báo + tải lại danh sách):
-  - Admin – hộp sửa `#userModal` (mẫu `templates/admin/users.js`: `mockGetUserDetail`, `editUser`, `loadUserEdit`, `fillUserEditForm`): form ẩn khi đang tải/lỗi; điền họ tên, chức danh, số điện thoại từ `data`; `username`, `email`, nhóm (`userGroup.code – name`) chỉ đọc; vai trò hiện nhãn theo `roleCode`, không sửa trong hộp (đổi vai trò là `PUT /users/:id/role`, N07); không có ô trạng thái (khóa/mở khóa, ngừng hoạt động là API riêng, N05, N09). Dải thông tin trong hộp: "Chưa đổi mật khẩu tạm" khi `mustChangePassword`, "Đang khóa tạm do sai mật khẩu đến HH:mm dd/MM/yyyy" khi `lockedUntil`, cập nhật lần cuối `updatedAt`. `data.status = INACTIVE` (vừa ngừng hoạt động ở nơi khác) → đóng hộp + toast cảnh báo + tải lại danh sách. Phần gửi `PUT` đặc tả ở mục 3.5 (N04).
+  - Admin – hộp sửa `#userModal` (mẫu `templates/admin/users.js`: `mockGetUserDetail`, `editUser`, `loadUserEdit`, `fillUserEditForm`): form ẩn khi đang tải/lỗi; điền họ tên, chức danh, số điện thoại từ `data`; `username`, `email`, nhóm (`userGroup.code – name`) chỉ đọc; vai trò hiện nhãn theo `roleCode`, không sửa trong hộp (đổi vai trò là `PUT /users/:id/role`, N07); không có ô trạng thái (khóa/mở khóa, ngừng hoạt động là API riêng, N05, N09). Dải thông tin trong hộp: "Chưa đổi mật khẩu tạm" khi `mustChangePassword`, "Đang khóa tạm do sai mật khẩu đến HH:mm dd/MM/yyyy" khi `lockedUntil`, cập nhật lần cuối `updatedAt`. `data.status = INACTIVE` (vừa ngừng hoạt động ở nơi khác) → đóng hộp + toast cảnh báo + tải lại danh sách. Phần gửi `PUT` ở mục 3.5 "Frontend".
   - Member – hộp "Xem chi tiết" `#viewMemberModal` (mẫu `templates/member/group-admin.js`: `mockGetUserDetail`, `openViewMemberModal`, `loadMemberDetail`, `renderMemberDetail`): gọi qua `memberSession.request`; `503` hiện thông điệp bảo trì + "Thử lại" trong hộp (cùng biểu ngữ, U09). Hiển thị ảnh (hoặc chữ cái đầu), họ tên, `@username`, nhãn vai trò, trạng thái, "★ Đại diện" khi `isRepresentative`, nhóm `userGroup.code – userGroup.name`, chức danh, số điện thoại ("Chưa cập nhật" khi `null`), email, quyền ghi âm (chỉ khi nhóm `allowRecordingAccess` của store: `GROUP_ADMIN`/`USER_RECORDING` "Được cấp quyền"), mật khẩu ("Chưa đổi mật khẩu tạm" khi `mustChangePassword`), khóa tạm (`lockedUntil`), lần đăng nhập cuối ("Chưa đăng nhập" khi `null`), ngày tham gia `createdAt`, cập nhật `updatedAt`.
 - **Index phục vụ**: khóa chính `admins`/`users` (kiểm tra tài khoản, bước 2), khóa chính `user_roles`, `roles`, `user_groups` cho JOIN. Không cần index mới.
 
@@ -579,12 +579,92 @@ SELECT id, username_active, email_active FROM users
 
 ### 3.5. Cập nhật thông tin người dùng (`PUT /api/v1/users/:id`)
 
-- **Mục đích**: Chỉnh sửa họ tên, chức danh, số điện thoại. Không nhận `roleCode` (vai trò chỉ đổi qua API 3.6) và không nhận `status`: khóa/mở khóa chỉ qua `PUT /api/v1/users/:id/status` (`ACTIVE` | `LOCKED`), ngừng hoạt động chỉ qua `DELETE /api/v1/users/:id`. Không nhận `avatarUrl`: ảnh đại diện chỉ do chính chủ tài khoản đổi qua `POST /api/v1/profile/avatar` (`docs/modules/08_user_profile.md` mục 3.3), quản trị viên không đổi ảnh của người khác. `username` và `email` bất biến sau khi tạo, không API nào sửa (`docs/01_database_schema.md` mục 6). Body có `roleCode`, `status`, `avatarUrl`, `username` hoặc `email` thì trả `400`.
-- **`PUT /users/:id/status` chỉ chuyển giữa `ACTIVE` và `LOCKED`**: tài khoản đã `INACTIVE` trả `409` (`ACCOUNT_INACTIVE`), không kích hoạt lại được (`docs/01_database_schema.md` mục 14).
-- **Tối thiểu 1 Quản trị viên nhóm**: `PUT /users/:id/status` sang `LOCKED` và `DELETE /users/:id` đều bị chặn `409 LAST_GROUP_ADMIN` nếu tài khoản là `GROUP_ADMIN` `ACTIVE` cuối cùng của nhóm (`docs/01_database_schema.md` mục 14). Ngoại lệ duy nhất là khi Quản trị viên hệ thống ngừng hoạt động cả nhóm (`docs/modules/02_user_group.md` mục 3.4).
-- **Quy tắc bất biến nhóm (Group Immutability Rule)**:
-  - **Nghiêm cấm thay đổi `user_group_id`**: Người dùng gắn liền với đơn vị tổ chức/nhóm người dùng suốt vòng đời tài khoản. Tuyệt đối không có khái niệm chuyển người dùng giữa các nhóm.
-  - DTO không có trường `userGroupId`: body có trường này (kể cả trùng nhóm hiện tại) thì chặn với mã lỗi `400 BAD REQUEST: Thuộc tính nhóm người dùng là cố định từ lúc tạo, không thể thay đổi hoặc chuyển nhóm` (`docs/02_api_contracts.md` mục 3.5).
+- **Mục đích**: sửa họ tên, chức danh, số điện thoại của một tài khoản người dùng. Dùng cho: hộp sửa `#userModal` của `admin.users` (bản Admin, mục 5.1) và hộp `#editMemberModal` của `member.group-admin` (bản User, `docs/modules/02_user_group.md` mục 5.3). Đây là đường **duy nhất** sửa `jobTitle` (người dùng tự sửa hồ sơ `PUT /profile` chỉ đổi họ tên, điện thoại, `docs/modules/08_user_profile.md` mục 3.2).
+- **Không nhận** (`400` với `errors.<tên trường>`): `roleCode` (đổi vai trò qua mục 3.6), `status` (khóa/mở khóa qua mục 3.7, ngừng hoạt động qua mục 3.9), `avatarUrl` (ảnh chỉ chủ tài khoản tự đổi qua `POST /api/v1/profile/avatar`, `docs/modules/08_user_profile.md` mục 3.3), `username`, `email` (bất biến sau khi tạo, `docs/01_database_schema.md` mục 6), `userGroupId` (kể cả trùng nhóm hiện tại; thông điệp "Thuộc tính nhóm người dùng là cố định từ lúc tạo, không thể thay đổi hoặc chuyển nhóm", quy tắc bất biến nhóm mục 1.2), mọi trường khác (`password`, `mustChangePassword`, `id`…).
+- **Hai route**, chung service `UsersService.update(id, body, scope)` và DTO (hai bản trả cùng trường):
+  - Bản Admin `PUT /api/v1/admin/users/:id`: `AdminAuthGuard` → `PermissionsGuard` `user:edit` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`); `401`/`403` như mục 3.4; không bị chế độ bảo trì chặn. Sửa được người dùng của mọi nhóm.
+  - Bản User `PUT /api/v1/users/:id`: `UserAuthGuard` → bảo trì (`503 MAINTENANCE`) → `PermissionsGuard` `user:edit` theo claim `roleCode` (seed: chỉ `GROUP_ADMIN`); kiểm tra tài khoản ở mỗi request (mục 3.2). **Cô lập nhóm** như mục 3.3.1: người dùng đích thuộc nhóm khác `403 FORBIDDEN_SCOPE_ACCESS` (id không tồn tại `404`). Quản trị viên nhóm **sửa được chính mình** (không có `SELF_ACTION_FORBIDDEN`, `docs/02_api_contracts.md` mục 2.3) và Quản trị viên nhóm khác cùng nhóm, kể cả người đại diện.
+  - Thứ tự kiểm tra: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → bảo trì (`503`, chỉ bản User) → quyền `user:edit` (`403 FORBIDDEN_PERMISSION`) → `:id`, query, body (`400`) → kiểm tra tài khoản người gọi (`401`) → khóa dòng đích (`404`) → phạm vi (`403 FORBIDDEN_SCOPE_ACCESS`, chỉ bản User) → `INACTIVE` (`409 ACCOUNT_INACTIVE`). Mỗi lần chỉ trả một `errorCode`; lỗi không ghi `audit_logs`.
+- **Request**: `:id` là `users.id` (`^[1-9][0-9]{0,9}$` và ≤ 4294967295, sai thì `400` với `errors.id`). Không có query (gửi thì `400` với `errors.<tên tham số>`). Body JSON, **cập nhật một phần** (quy ước A18), ít nhất một trường; không ép kiểu:
+
+| Trường | Kiểu | Bắt buộc | Quy tắc | Cột |
+|---|---|---|---|---|
+| `fullName` | chuỗi | | Cắt khoảng trắng hai đầu; 1–150 ký tự; `null` hoặc rỗng sau khi cắt → `400` (trường bắt buộc khi tạo) | `users.full_name` |
+| `jobTitle` | chuỗi \| `null` | | Cắt khoảng trắng hai đầu; rỗng hoặc `null` = xóa (`NULL`); ≤ 150 ký tự | `users.job_title` |
+| `phoneNumber` | chuỗi \| `null` | | Quy tắc số điện thoại chung `docs/02_api_contracts.md` mục 2: rỗng/`null` = xóa (`NULL`), còn lại `^(?=.*[0-9])[0-9+\-.() ]{1,30}$` | `users.phone_number` |
+
+```json
+{ "jobTitle": "Kỹ sư Vận hành chính", "phoneNumber": null }
+```
+
+  Body rỗng `{}` (hoặc không phải đối tượng JSON) trả `400` (`errors` có khóa `fullName`, `jobTitle`, `phoneNumber`, thông điệp "Cần gửi ít nhất một trường"). Trường không gửi giữ nguyên.
+- **Xử lý** (một transaction, sau khi kiểm tra request; theo thứ tự, dừng ở lỗi đầu tiên):
+  1. Kiểm tra tài khoản người gọi theo khóa chính (`admins`, hoặc `users` + `user_groups` ở bản User, `401`); bản User lấy `user_group_id` của dòng `users` vừa đọc làm `:scopeGroupId`.
+  2. `BEGIN`. Khóa **chỉ** dòng người dùng đích (thao tác không đụng ràng buộc của nhóm nên không khóa dòng `user_groups`, `docs/01_database_schema.md` mục 14):
+
+```sql
+SELECT id, user_group_id, full_name, job_title, phone_number, status FROM users WHERE id = :id FOR UPDATE;
+```
+
+     Không có dòng → `ROLLBACK`, `404 NOT_FOUND`. Bản User: `user_group_id <> :scopeGroupId` → `ROLLBACK`, `403 FORBIDDEN_SCOPE_ACCESS`.
+  3. `status = 'INACTIVE'` → `ROLLBACK`, `409 ACCOUNT_INACTIVE` (trạng thái cuối, `docs/01_database_schema.md` mục 14; gồm thành viên của nhóm vừa ngừng hoạt động). Tài khoản `LOCKED` vẫn sửa được, trạng thái giữ nguyên.
+  4. So từng trường đã gửi (sau chuẩn hóa) với giá trị hiện tại bằng so sánh **chính xác** (phân biệt hoa thường; `NULL` = `NULL`); `changedFields` = các trường khác giá trị, theo thứ tự `fullName`, `jobTitle`, `phoneNumber`. Rỗng: không `UPDATE`, không ghi `audit_logs`, sang bước 6 (thông điệp "Không có thay đổi nào").
+  5. `UPDATE users` chỉ các cột trong `changedFields` (`updated_at` tự cập nhật); ghi `audit_logs` `USER / UPDATE`: `actor_type` = `ADMIN` (bản Admin) hoặc `USER` (bản User), `actor_id = sub`, `actor_name` = `full_name` của người gọi, `resource_id` = `:id`, `ip_address`, `user_agent` của request, `action_details = { "changedFields": [...] }` (không ghi giá trị cũ/mới).
+  6. Đọc lại bằng câu `SELECT` của mục 3.3.1 với `WHERE u.id = :id`, rồi `COMMIT`.
+
+  Không thu hồi phiên, không gửi thông báo, không tăng `cache_version`, không đổi `user_groups`/`user_roles`. Header của người dùng đích đọc `fullName` từ store của chính họ nên chỉ đổi ở lần `GET /auth/me` kế tiếp (trừ khi Quản trị viên nhóm sửa chính mình, xem "Frontend").
+- **Response** `200`: `data` = đúng 17 trường của `GET /users/:id` (mục 3.3.1, cùng kiểu và nguồn) sau khi sửa; không đổi gì cũng trả đủ 17 trường (thông điệp "Không có thay đổi nào").
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Cập nhật người dùng thành công",
+  "data": {
+    "id": 101,
+    "username": "pham.d",
+    "email": "pham.d@71portal.vn",
+    "fullName": "Phạm Văn D",
+    "jobTitle": "Kỹ sư Vận hành chính",
+    "phoneNumber": null,
+    "avatarUrl": null,
+    "status": "ACTIVE",
+    "roleCode": "USER_RECORDING",
+    "roleName": "Thành viên nghe ghi âm",
+    "isRepresentative": false,
+    "userGroup": { "id": 1, "code": "UMO-IT-01", "name": "Khối Công nghệ Thông tin - Nhóm Vận hành" },
+    "mustChangePassword": false,
+    "lockedUntil": null,
+    "lastLoginAt": "2026-11-01T07:55:00+07:00",
+    "createdAt": "2026-03-20T10:00:00+07:00",
+    "updatedAt": "2026-11-06T15:00:00+07:00"
+  },
+  "timestamp": "2026-11-06T15:00:00+07:00"
+}
+```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | `:id` sai định dạng (`errors.id`); có query param; body sai (bảng trên: `{}`, sai kiểu, quá độ dài, `fullName` `null`/rỗng, số điện thoại sai); trường không được nhận (`roleCode`, `status`, `avatarUrl`, `username`, `email`, `userGroupId`…) |
+| `401` | `UNAUTHORIZED` | Như mục 3.3 (bước 1) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `user:edit` (bản User: `USER_RECORDING`, `REGULAR_USER`) |
+| `403` | `FORBIDDEN_SCOPE_ACCESS` | Chỉ bản User: người dùng đích thuộc nhóm khác (bước 2) |
+| `404` | `NOT_FOUND` | Không có người dùng `:id` (bước 2) |
+| `409` | `ACCOUNT_INACTIVE` | Người dùng đích đã `INACTIVE` (bước 3) |
+| `503` | `MAINTENANCE` | Chỉ bản User, chế độ bảo trì đang bật |
+
+  Không có `409 ACCOUNT_DUPLICATE` (không sửa `username`/`email`), không có `ROOT_ADMIN_PROTECTED`/`SELF_ACTION_FORBIDDEN`.
+- **Frontend** (chung hai cổng; quy ước form sửa A18, O05, N02):
+  - Nút "Sửa" chỉ ở dòng chưa `INACTIVE` khi store có `user:edit` (bản User: kể cả dòng của chính mình). Hộp sửa tải `GET .../users/:id` **mỗi lần mở** (mục 3.3.1 "Frontend": tải/lỗi + "Thử lại" trong hộp, `404`/`403` hoặc `data.status = INACTIVE` đóng hộp + toast cảnh báo + tải lại danh sách).
+  - Form có đúng 3 ô sửa được (`name` = tên trường API): Họ và tên (bắt buộc, `maxlength` 150), Chức danh (`maxlength` 150), Số điện thoại (`maxlength` 30). `username`, `email`, nhóm, vai trò hiện chỉ đọc; **không** có ô trạng thái, ô chọn quyền ghi âm hay ảnh (thao tác riêng N05–N09).
+  - Lưu: kiểm tra bằng cùng quy tắc, lỗi dưới ô, không gọi API; so giá trị đã cắt khoảng trắng với giá trị đã tải, chỉ gửi trường khác (ô tùy chọn rỗng gửi `null`); không có trường nào đổi → toast thông tin "Không có thay đổi nào", đóng hộp, không gọi API.
+  - Khi gửi: khóa form và nút ("Đang lưu..."), nút đóng/Hủy, bấm nền và `Esc` không đóng hộp. `400`: `errors[field]` dưới ô (khóa không có ô hiện ở toast), giữ hộp mở. `403`, `404`, `409 ACCOUNT_INACTIVE`: đóng hộp, toast cảnh báo theo `message`, tải lại danh sách. Cổng Member `503`: toast cảnh báo + biểu ngữ bảo trì, giữ hộp và giá trị đang nhập. Lỗi khác: toast lỗi, giữ hộp mở.
+  - `200`: đóng hộp, toast thành công theo `message`, tải lại danh sách (giữ bộ lọc và trang; `fullName` đổi làm đổi thứ tự). Cổng Member: `data.id` là chính người gọi thì cập nhật header qua `memberSession.updateAccount({ fullName })` (quy ước U06).
+  - Admin (mẫu `templates/admin/users.js`: `mockUpdateUser`, `validateUserUpdateBody`, `buildUserUpdateBody`, `submitUpdateUser`). Member (mẫu `templates/member/group-admin.js`: `mockUpdateUser`, `validateUserUpdateBody`, `openEditMemberModal`, `loadEditMember`, `submitEditMember`), gọi qua `memberSession.request`.
+- **Index phục vụ**: khóa chính `admins`/`users` (bước 1, 2), khóa chính `user_roles`, `roles`, `user_groups` (bước 6). Không cần index mới.
 
 ### 3.6. Đổi vai trò người dùng (`PUT /api/v1/users/:id/role`)
 
@@ -599,7 +679,7 @@ SELECT id, username_active, email_active FROM users
 - Câu đầu của transaction khóa dòng nhóm của tài khoản đích (`SELECT ... FOR UPDATE`, `docs/01_database_schema.md` mục 14), rồi kiểm tra theo thứ tự:
   1. Bản User: tài khoản đích thuộc nhóm khác trả `403 FORBIDDEN_SCOPE_ACCESS`; tài khoản đích là chính người gọi trả `403 SELF_ACTION_FORBIDDEN`.
   2. Tài khoản `INACTIVE` trả `409 ACCOUNT_INACTIVE`.
-  3. Sang `LOCKED` mà tài khoản là `GROUP_ADMIN` `ACTIVE` cuối cùng của nhóm trả `409 LAST_GROUP_ADMIN`.
+  3. Sang `LOCKED` mà tài khoản là `GROUP_ADMIN` `ACTIVE` cuối cùng của nhóm trả `409 LAST_GROUP_ADMIN`. Quy tắc tối thiểu 1 Quản trị viên nhóm áp cho cả `DELETE /users/:id` (mục 3.9); ngoại lệ duy nhất là Quản trị viên hệ thống ngừng hoạt động cả nhóm (`docs/modules/02_user_group.md` mục 3.4).
 - Trạng thái mới bằng trạng thái hiện tại: trả `200`, không ghi gì.
 - Sang `LOCKED`: thu hồi mọi phiên (`ACCOUNT_LOCKED`), ghi `audit_logs` `USER / LOCK`. Sang `ACTIVE`: ghi `USER / UNLOCK`. Không đổi `representative_user_id`, `locked_until`, `failed_login_count`.
 - **Response** `200`: `data = { id, status }`.
@@ -716,12 +796,12 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
   - Cột Trạng thái theo `status` (`<span class="badge-status active">Hoạt động</span>` = `ACTIVE`, `<span class="badge-status locked">Đã khóa</span>` = `LOCKED`, `<span class="badge-status inactive">Ngừng hoạt động</span>` = `INACTIVE`, chỉ gặp khi lọc `INACTIVE`).
   - Cột Hành động: Sửa thông tin (`user:edit`), Ngừng hoạt động (`user:delete`); chỉ hiện ở dòng chưa `INACTIVE`. Nút "Thêm mới người dùng" chỉ hiện khi store có `user:create`. Hành vi các nút đặc tả ở N03–N09.
   - Không có ô chọn số dòng mỗi trang: `limit` = `itemsPerPage` của store `preferencesAdmin`.
-- Modal tạo mới / sửa người dùng (`#userModal`): chế độ tạo (nút "Thêm mới người dùng", `user:create`) gửi `POST /api/v1/admin/users` theo mục 3.4 "Frontend": ô Nhóm người dùng (`userGroupId`, chỉ nhóm `ACTIVE` của danh mục bên trái), ô vai trò (`roleCode`), không có ô mật khẩu/trạng thái; `201` mở hộp mật khẩu tạm `#userTempPasswordModal`. Khi sửa: tải `GET /api/v1/admin/users/:id` **mỗi lần mở** (mục 3.3.1 "Frontend": tải/lỗi + "Thử lại" trong hộp, `404` hoặc tài khoản đã `INACTIVE` đóng hộp + tải lại danh sách), `username`, `email`, nhóm, vai trò chỉ đọc, không có ô trạng thái; đổi vai trò gọi `PUT /users/:id/role` (N07). Không phụ thuộc hay tham chiếu trực tiếp đến tổ chức.
+- Modal tạo mới / sửa người dùng (`#userModal`): chế độ tạo (nút "Thêm mới người dùng", `user:create`) gửi `POST /api/v1/admin/users` theo mục 3.4 "Frontend": ô Nhóm người dùng (`userGroupId`, chỉ nhóm `ACTIVE` của danh mục bên trái), ô vai trò (`roleCode`), không có ô mật khẩu/trạng thái; `201` mở hộp mật khẩu tạm `#userTempPasswordModal`. Khi sửa: tải `GET /api/v1/admin/users/:id` **mỗi lần mở** (mục 3.3.1 "Frontend": tải/lỗi + "Thử lại" trong hộp, `404` hoặc tài khoản đã `INACTIVE` đóng hộp + tải lại danh sách), `username`, `email`, nhóm, vai trò chỉ đọc, không có ô trạng thái; nút "Lưu thay đổi" gửi `PUT /api/v1/admin/users/:id` chỉ các trường đã đổi (mục 3.5 "Frontend"); đổi vai trò gọi `PUT /users/:id/role` (N07). Không phụ thuộc hay tham chiếu trực tiếp đến tổ chức.
 
 ### 5.2. Khu vực Admin – Pinia Store (`useUserStore`)
 
 - State: `users: UserItem[]` (phần tử mục 3.3), `pagination: PaginationInfo`, `query: { page, search, status, roleCode, userGroupId }` (`userGroupId = null`: mọi nhóm, chỉ Admin), `loading: boolean`, `error: string | null`.
-- Actions: `fetchUsers()` (chỉ gửi tham số có giá trị, `limit` từ `preferencesAdmin.itemsPerPage`, chỉ nhận response của request sau cùng), `createUser(body)` (`POST /admin/users`, trả `data` để mở hộp mật khẩu tạm, không lưu `temporaryPassword` vào state), `updateUser()`, `changeRole()`, `toggleStatus()`, `resetPassword()`.
+- Actions: `fetchUsers()` (chỉ gửi tham số có giá trị, `limit` từ `preferencesAdmin.itemsPerPage`, chỉ nhận response của request sau cùng), `createUser(body)` (`POST /admin/users`, trả `data` để mở hộp mật khẩu tạm, không lưu `temporaryPassword` vào state), `updateUser(id, body)` (`PUT /admin/users/:id`, chỉ trường đã đổi), `changeRole()`, `toggleStatus()`, `resetPassword()`.
 
 ---
 
@@ -742,3 +822,4 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
    - **TC-USR-04c**: Admin gọi `POST /api/v1/admin/users` với `userGroupId = 2`, `roleCode = GROUP_ADMIN` → `201`, `actor_type = ADMIN`, nhóm 2 thêm một Quản trị viên nhưng người đại diện không đổi; thiếu `userGroupId`, `userGroupId: "2"`, `userGroupId: null` → `400`; `userGroupId = 999999` → `400` `errors.userGroupId`; nhóm `INACTIVE` → `409 GROUP_INACTIVE` `errors.userGroupId`; ngừng hoạt động nhóm 2 đồng thời với lần tạo → hoặc tạo trước rồi bị ngừng hoạt động cùng nhóm, hoặc `409 GROUP_INACTIVE` (không có người dùng `ACTIVE` trong nhóm `INACTIVE`).
 5. **TC-USR-05** (`GET /users`, mục 3.3): Admin gọi `GET /api/v1/admin/users` không query: `200`, mọi nhóm, không có tài khoản `INACTIVE`, phần tử đúng 14 trường (có `userGroup { id, code, name }`, không có `updatedAt`, `mustChangePassword`, `lockedUntil`), sắp mã nhóm → người đại diện → `GROUP_ADMIN` → `fullName`, `id`; `?userGroupId=1&status=INACTIVE` chỉ trả tài khoản ngừng hoạt động của nhóm 1; `?userGroupId=999999` `200` `data = []`; `?roleCode=USER_RECORDING&search=%` chỉ khớp chuỗi chứa `%` thật; `?groupId=1`, `?status=active`, `?limit=101`, `?userGroupId=null`, `?page=1&page=2` → `400 VALIDATION_ERROR`; không có dòng `audit_logs` mới. Quản trị viên nhóm gọi `GET /api/v1/users`: chỉ người cùng nhóm; `?userGroupId=<nhóm mình>` → `400`; thành viên `REGULAR_USER` → `403 FORBIDDEN_PERMISSION`; bật bảo trì → `503 MAINTENANCE` (bản Admin vẫn `200`); khóa tài khoản người gọi rồi gọi bằng token còn hạn → `401`.
    - **TC-USR-05b** (`GET /users/:id`, mục 3.3.1): Admin gọi `GET /api/v1/admin/users/104`: `200`, `data` đúng 17 trường (14 trường của phần tử `GET /users` + `mustChangePassword`, `lockedUntil`, `updatedAt`), không có `passwordChangedAt`, `failedLoginCount`; sai mật khẩu 5 lần cho tài khoản này rồi gọi lại: `lockedUntil` khác `null`, sau thời gian khóa tạm: `null` (dù cột chưa xóa); tài khoản `INACTIVE` `200`; `/999999` → `404 NOT_FOUND`; `/abc`, `/0`, `/104?x=1` → `400 VALIDATION_ERROR`; không có dòng `audit_logs` mới. Quản trị viên nhóm 1 gọi `GET /api/v1/users/<id người nhóm 1>` và chính mình: `200`; người nhóm 2: `403 FORBIDDEN_SCOPE_ACCESS`; id không tồn tại: `404`; `REGULAR_USER` gọi: `403 FORBIDDEN_PERMISSION`; bật bảo trì: `503` (bản Admin vẫn `200`).
+   - **TC-USR-05c** (`PUT /users/:id`, mục 3.5): Quản trị viên nhóm 1 gọi `PUT /api/v1/users/101` với `{ "jobTitle": "  Kỹ sư Vận hành chính ", "phoneNumber": "" }`: `200`, `data` đúng 17 trường (`jobTitle` đã cắt, `phoneNumber = null`, `updatedAt` mới), một dòng `USER / UPDATE` (`actor_type = USER`, `resource_id = 101`, `action_details = { changedFields: ["jobTitle", "phoneNumber"] }`); gửi lại cùng body: `200` "Không có thay đổi nào", không thêm audit, `updated_at` không đổi; sửa chính mình (`fullName`) `200`; sửa tài khoản `LOCKED` `200`, `status` giữ `LOCKED`. `{}`, `fullName: null`, `fullName: "  "`, `jobTitle` 151 ký tự, `phoneNumber: "abc"`, `status`, `roleCode`, `username`, `email`, `avatarUrl`, `userGroupId: 1`, `?x=1`, `:id = abc` → `400` theo khóa, không ghi audit; người nhóm 2 → `403 FORBIDDEN_SCOPE_ACCESS`; `999999` → `404`; tài khoản `INACTIVE` → `409 ACCOUNT_INACTIVE`; `REGULAR_USER` gọi → `403 FORBIDDEN_PERMISSION`; bật bảo trì → `503` (bản Admin vẫn `200`). Admin gọi `PUT /api/v1/admin/users/201` (nhóm 2) `{ "fullName": "Nguyễn Hải Long" }` (không đổi) `200` không audit; đổi `fullName` → `200`, `actor_type = ADMIN`; phiên đang có của người dùng đích không bị thu hồi.

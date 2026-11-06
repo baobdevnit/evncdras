@@ -9,7 +9,8 @@
 // Hộp "Xem chi tiết" gọi GET /api/v1/users/:id mỗi lần mở (N02, M03 mục 3.3.1): ?detailError=1 (lỗi mạng một lần),
 // ?detailMissing=<id> (dòng đó trả 404), ?detailOtherGroup=<id> (dòng đó trả 403 FORBIDDEN_SCOPE_ACCESS).
 // Hộp Thêm gọi POST /api/v1/users (N03, M03 mục 3.4, mock mục 1b); kiểm tay: ?createError=1, ?maintenance=1, ?recording=0.
-// Các hộp Sửa/Đổi vai trò/Đặt lại mật khẩu/Khóa ở mục 6 vẫn là mock CŨ (N04–N09): sửa dòng "CSDL" rồi tải lại danh sách.
+// Hộp Sửa gọi PUT /api/v1/users/:id (N04, M03 mục 3.5); kiểm tay: ?updateError=1, ?updateInactive=<id>, ?maintenance=1.
+// Các hộp Đổi vai trò/Đặt lại mật khẩu/Khóa ở mục 6 vẫn là mock CŨ (N05–N09): sửa dòng "CSDL" rồi tải lại danh sách.
 // Hộp Đặt lại mật khẩu còn sinh mật khẩu ở frontend (generateRandomPassword): N06 thay bằng hộp mật khẩu tạm như #memberTempPasswordModal.
 
 // ==========================================================================
@@ -587,7 +588,7 @@ function renderPagination(p, count) {
 }
 
 // ==========================================================================
-// 6. Hộp thao tác – mock CŨ, chưa rà (N03 POST, N04 PUT, N05 status, N06 reset-password, N07 role):
+// 6. Hộp thao tác – Thêm (N03 POST), Sửa (N04 PUT) đã theo API; còn mock CŨ (N05 status, N06 reset-password, N07 role):
 //    mở hộp đọc dòng đã tải (findMember, DTO 14 trường); xác nhận sửa dòng "CSDL" (mockRow) rồi tải lại.
 // ==========================================================================
 
@@ -600,16 +601,17 @@ function openModal(modalId) {
 }
 
 function closeModal(modalId) {
-    if (modalId === 'addMemberModal' && gaAddBusy) return; // đang gửi: nút đóng/Hủy, nền, Esc không đóng
+    if ((modalId === 'addMemberModal' && gaAddBusy) || (modalId === 'editMemberModal' && gaEditBusy)) return; // đang gửi: không đóng
+    if (modalId === 'editMemberModal') { gaEditId = null; gaEditData = null; gaEditSeq++; } // bỏ response GET /:id đang chờ
     if (modalId === 'viewMemberModal') { appState.detailId = null; appState.detailSeq++; } // bỏ response GET /:id đang chờ
     const el = document.getElementById(modalId);
     if (el) el.classList.remove('show');
 }
 
-// Bấm nền / Esc: đóng mọi hộp, trừ hộp mật khẩu tạm (chỉ đóng bằng nút) và hộp Thêm đang gửi.
+// Bấm nền / Esc: đóng mọi hộp, trừ hộp mật khẩu tạm (chỉ đóng bằng nút) và hộp Thêm/Sửa đang gửi.
 function closeAllModals() {
     document.querySelectorAll('.modal.show').forEach(m => {
-        if (m.id === 'memberTempPasswordModal' || (m.id === 'addMemberModal' && gaAddBusy)) return;
+        if (m.id === 'memberTempPasswordModal' || (m.id === 'addMemberModal' && gaAddBusy) || (m.id === 'editMemberModal' && gaEditBusy)) return;
         closeModal(m.id);
     });
 }
@@ -748,77 +750,240 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Modal 2: Chỉnh sửa thông tin thành viên
-function openEditMemberModal(userId) {
-    const member = findMember(userId);
-    if (!member) return;
+// Modal 2: Sửa thông tin thành viên – PUT /api/v1/users/:id (N04, M03 mục 3.5). Tải GET /users/:id mỗi lần mở;
+// chỉ gửi trường đã đổi trong fullName, jobTitle, phoneNumber. Kiểm tay: ?updateError=1 (lỗi mạng một lần),
+// ?updateInactive=<id> (→ 409 ACCOUNT_INACTIVE), ?maintenance=1 (503), ?detailOtherGroup=<id> (mở hộp → 403).
+const GA_UPDATE_KEYS = ['fullName', 'jobTitle', 'phoneNumber'];
+let gaMockUpdateError = gaParams.get('updateError') === '1';
+let gaEditBusy = false;
+let gaEditSeq = 0;      // chỉ hiển thị response của lần mở sau cùng
+let gaEditId = null;    // id đang mở trong hộp sửa
+let gaEditData = null;  // data của GET /users/:id đang sửa (so trường đã đổi khi lưu)
 
-    appState.pendingActionUserId = userId;
-    const group = getCurrentGroup();
-
-    document.getElementById('editGroupNameDisplay').value = `${group.code} - ${group.name}`;
-    document.getElementById('editFullName').value = member.fullName;
-    document.getElementById('editUsername').value = member.username;
-    document.getElementById('editEmail').value = member.email;
-    document.getElementById('editPhone').value = member.phoneNumber || '';
-    document.getElementById('editTitle').value = member.jobTitle || '';
-    document.getElementById('editStatus').value = member.status;
-
-    // Quản lý quyền ghi âm thoại (BR-UG-05): Ẩn nếu nhóm chưa được cấp phép
-    const recGroup = document.getElementById('editRecordingAccessGroup');
-    const recCheck = document.getElementById('editCanAccessRecording');
-    const recNote = document.getElementById('editRecordingAccessNote');
-
-    const hasRecording = group.allowRecordingAccess ?? group.recordingAccessEnabled;
-    if (recGroup) {
-        if (hasRecording) {
-            recGroup.style.display = 'block';
-            if (member.roleCode === 'GROUP_ADMIN') {
-                if (recCheck) {
-                    recCheck.checked = true;
-                    recCheck.disabled = true;
-                }
-                if (recNote) recNote.innerText = 'Quản trị viên nhóm mặc định có toàn quyền nghe & tải ghi âm thoại.';
-            } else {
-                if (recCheck) {
-                    recCheck.checked = member.roleCode === 'USER_RECORDING';
-                    recCheck.disabled = false;
-                }
-                if (recNote) recNote.innerText = 'Ủy quyền cho thành viên được nghe trực tuyến và tải file ghi âm cuộc gọi của nhóm.';
-            }
-        } else {
-            recGroup.style.display = 'none';
-        }
+// Kiểm tra body cập nhật một phần (dùng chung cho mock backend và kiểm tra trước khi gửi ở frontend).
+function validateUserUpdateBody(raw) {
+    const errors = {};
+    const add = (k, m) => { (errors[k] = errors[k] || []).push(m); };
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !Object.keys(raw).length) {
+        GA_UPDATE_KEYS.forEach(k => add(k, 'Cần gửi ít nhất một trường'));
+        return { errors, body: {} };
     }
+    Object.keys(raw).forEach(k => {
+        if (k === 'userGroupId') add(k, 'Thuộc tính nhóm người dùng là cố định từ lúc tạo, không thể thay đổi hoặc chuyển nhóm');
+        else if (!GA_UPDATE_KEYS.includes(k)) add(k, 'Trường không được nhận');
+    });
+    const body = {};
+    const str = (key, { required, max, re, reMsg }) => {
+        if (!(key in raw)) return;
+        const v = raw[key];
+        if (v === null) { if (required) add(key, 'Bắt buộc'); else body[key] = null; return; }
+        if (typeof v !== 'string') { add(key, 'Phải là chuỗi'); return; }
+        const t = v.trim();
+        if (t === '') { if (required) add(key, 'Bắt buộc'); else body[key] = null; return; }
+        if (t.length > max) { add(key, `Tối đa ${max} ký tự`); return; }
+        if (re && !re.test(t)) { add(key, reMsg); return; }
+        body[key] = t;
+    };
+    str('fullName', { required: true, max: 150 });
+    str('jobTitle', { max: 150 });
+    str('phoneNumber', { max: 30, re: GA_PHONE_RE, reMsg: 'Chỉ chữ số, dấu cách và + - . ( ), có ít nhất một chữ số' });
+    return { errors, body };
+}
 
+// Giả lập PUT /api/v1/users/:id (bản User). Thứ tự: guard (401) → bảo trì (503) → quyền user:edit (403) → :id/query/body (400)
+// → kiểm tra tài khoản (401) → khóa dòng users đích (404) → phạm vi nhóm (403 FORBIDDEN_SCOPE_ACCESS) → INACTIVE (409)
+// → so trường → UPDATE + USER / UPDATE { changedFields }. 200: data = 17 trường của GET /users/:id. Sửa được chính mình.
+function mockUpdateUser(token, id, body, query) {
+    return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+        if (gaMockUpdateError) { gaMockUpdateError = false; return Promise.reject(new Error('Network Error')); }
+        if (!token) return gaFail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+        if (GA_MOCK_MAINTENANCE) return gaFail(503, 'MAINTENANCE', 'Hệ thống đang bảo trì, vui lòng quay lại sau');
+        const account = gaAccount();
+        if (account && !(account.permissions || []).includes('user:edit')) {
+            return gaFail(403, 'FORBIDDEN_PERMISSION', 'Bạn không có quyền thực hiện thao tác này');
+        }
+        const { errors, body: b } = validateUserUpdateBody(body);
+        if (!(/^[1-9][0-9]{0,9}$/.test(String(id)) && Number(id) <= 4294967295)) errors.id = ['Mã người dùng phải là số nguyên dương'];
+        Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+        if (Object.keys(errors).length) return gaFail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', errors);
+        if (GA_MOCK_ACCOUNT_LOCKED) return gaFail(401, 'UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+
+        const scopeGroupId = account ? account.userGroup.id : 1; // = users.user_group_id đọc ở bước kiểm tra tài khoản
+        const row = MOCK_USER_ROWS.find(r => r.id === Number(id)); // SELECT ... FROM users WHERE id = :id FOR UPDATE
+        if (!row) return gaFail(404, 'NOT_FOUND', 'Không tìm thấy tài nguyên');
+        if (row.userGroupId !== scopeGroupId) return gaFail(403, 'FORBIDDEN_SCOPE_ACCESS', 'Bạn không có quyền truy cập dữ liệu của nhóm khác');
+        if (gaParams.get('updateInactive') === String(id)) row.status = 'INACTIVE'; // giả lập vừa bị ngừng hoạt động ở nơi khác
+        if (row.status === 'INACTIVE') return gaFail(409, 'ACCOUNT_INACTIVE', 'Tài khoản đã ngừng hoạt động, không sửa được');
+        const changed = GA_UPDATE_KEYS.filter(k => k in b && b[k] !== (row[k] == null ? null : row[k])); // so chính xác
+        if (!changed.length) {
+            return { success: true, statusCode: 200, message: 'Không có thay đổi nào', data: toUserDetail(row), timestamp: gaNow() };
+        }
+        changed.forEach(k => { row[k] = b[k]; });
+        row.updatedAt = gaNow(); // + audit USER / UPDATE { changedFields } cùng transaction
+        return { success: true, statusCode: 200, message: 'Cập nhật người dùng thành công', data: toUserDetail(row), timestamp: gaNow() };
+    });
+}
+
+function editMemberForm() { return document.getElementById('editMemberForm'); }
+
+function clearEditMemberErrors() {
+    const form = editMemberForm();
+    form.querySelectorAll('[data-error-for]').forEach(el => { el.textContent = ''; el.hidden = true; });
+    form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+}
+
+function showEditMemberErrors(errors) {
+    const form = editMemberForm();
+    const orphan = [];
+    Object.keys(errors || {}).forEach(key => {
+        const slot = form.querySelector(`[data-error-for="${CSS.escape(key)}"]`);
+        if (!slot) { orphan.push(errors[key].join(', ')); return; }
+        slot.textContent = errors[key].join(', ');
+        slot.hidden = false;
+        const input = form.elements[key];
+        if (input && input.classList) input.classList.add('is-invalid');
+    });
+    if (orphan.length) showToast(gaEsc(orphan.join('; ')), 'error');
+    const first = form.querySelector('.is-invalid');
+    if (first) first.focus();
+}
+
+// state: 'loading' | 'error' | 'ready' – form ẩn khi đang tải/lỗi.
+function setEditMemberState(state, message) {
+    const box = document.getElementById('editMemberState');
+    const msg = document.getElementById('editMemberStateMessage');
+    const retry = document.getElementById('btnRetryEditMember');
+    if (box) { box.hidden = state === 'ready'; box.classList.toggle('is-error', state === 'error'); }
+    if (msg && message) msg.textContent = message;
+    if (retry) retry.hidden = state !== 'error';
+    editMemberForm().hidden = state !== 'ready';
+}
+
+function setEditMemberBusy(busy) {
+    gaEditBusy = busy;
+    [...editMemberForm().elements].forEach(el => { el.disabled = busy; });
+    document.querySelectorAll('#editMemberModal [data-edit-close]').forEach(b => { b.disabled = busy; });
+    const btn = document.getElementById('editMemberSubmitBtn');
+    if (btn) btn.textContent = busy ? 'Đang lưu...' : 'Lưu thay đổi';
+}
+
+// Mở hộp sửa: tiêu đề từ dòng đã bấm, dữ liệu form từ GET /users/:id (mỗi lần mở, không dùng dòng danh sách).
+function openEditMemberModal(userId) {
+    const row = findMember(userId);
+    document.getElementById('editMemberTitle').textContent = 'Chỉnh sửa – ' + (row ? row.fullName : 'thành viên #' + userId);
+    gaEditId = userId;
+    gaEditData = null;
+    clearEditMemberErrors();
     openModal('editMemberModal');
+    loadEditMember(userId);
+}
+
+function loadEditMember(userId) {
+    const seq = ++gaEditSeq;
+    setEditMemberState('loading', 'Đang tải thông tin thành viên...');
+    return gaCallApi(token => mockGetUserDetail(token, userId))
+        .then(res => {
+            if (seq !== gaEditSeq || gaEditId !== userId) return; // đã mở dòng khác hoặc đã đóng
+            if (res.data.status === 'INACTIVE') { // trạng thái cuối: không sửa được nữa
+                closeModal('editMemberModal');
+                showToast('Tài khoản "' + gaEsc(res.data.fullName) + '" đã ngừng hoạt động, không sửa được.', 'warning');
+                loadMembers();
+                return;
+            }
+            gaEditData = res.data;
+            fillEditMemberForm(res.data);
+            setEditMemberState('ready');
+            document.getElementById('editFullName').focus();
+        })
+        .catch(err => {
+            if (seq !== gaEditSeq || gaEditId !== userId) return;
+            if (err && err.statusCode === 401) return; // request() đã chuyển về login
+            if (err && (err.statusCode === 404 || (err.statusCode === 403 && err.errorCode === 'FORBIDDEN_SCOPE_ACCESS'))) {
+                closeModal('editMemberModal');
+                showToast('Thành viên không còn trong nhóm. Danh sách đã được tải lại.', 'warning');
+                loadMembers();
+                return;
+            }
+            // 503: request() hiện biểu ngữ bảo trì; hộp hiện thông điệp + "Thử lại" riêng (U09).
+            setEditMemberState('error', (err && err.statusCode && err.message) || 'Không tải được thông tin thành viên. Vui lòng thử lại.');
+        });
+}
+
+function fillEditMemberForm(d) {
+    document.getElementById('editUsername').textContent = '@' + d.username;
+    document.getElementById('editEmail').textContent = d.email;
+    document.getElementById('editGroupName').textContent = d.userGroup.code + ' – ' + d.userGroup.name;
+    document.getElementById('editRoleName').textContent = d.roleName + (d.isRepresentative ? ' • Người đại diện nhóm' : '');
+    const f = editMemberForm().elements;
+    f.fullName.value = d.fullName;
+    f.jobTitle.value = d.jobTitle || '';
+    f.phoneNumber.value = d.phoneNumber || '';
+}
+
+// So form (đã cắt khoảng trắng) với data đã tải, chỉ giữ trường khác; ô rỗng → null (họ tên rỗng → null, báo "Bắt buộc").
+function buildMemberUpdateBody() {
+    const f = editMemberForm().elements;
+    const current = {
+        fullName: f.fullName.value.trim() || null,
+        jobTitle: f.jobTitle.value.trim() || null,
+        phoneNumber: f.phoneNumber.value.trim() || null
+    };
+    const body = {};
+    GA_UPDATE_KEYS.forEach(k => { if (current[k] !== (gaEditData[k] == null ? null : gaEditData[k])) body[k] = current[k]; });
+    return body;
 }
 
 function submitEditMember(e) {
-    e.preventDefault();
-    const member = mockRow(appState.pendingActionUserId);
-    if (!member) return;
-
-    const group = getCurrentGroup();
-    const hasRecording = group.allowRecordingAccess ?? group.recordingAccessEnabled;
-
-    member.fullName = document.getElementById('editFullName').value.trim();
-    member.phoneNumber = document.getElementById('editPhone').value.trim() || null;
-    member.jobTitle = document.getElementById('editTitle').value.trim() || null;
-    member.status = document.getElementById('editStatus').value;
-
-    // Cập nhật quyền ghi âm nếu nhóm được cấp phép và tài khoản không phải Admin
-    if (hasRecording && member.roleCode !== 'GROUP_ADMIN') {
-        const recCheck = document.getElementById('editCanAccessRecording');
-        if (recCheck) {
-            member.roleCode = recCheck.checked ? 'USER_RECORDING' : 'REGULAR_USER';
-        }
+    if (e) e.preventDefault();
+    if (gaEditBusy || !gaEditData) return;
+    clearEditMemberErrors();
+    const body = buildMemberUpdateBody();
+    if (!Object.keys(body).length) { // không có trường nào đổi: không gọi API
+        closeModal('editMemberModal');
+        showToast('Không có thay đổi nào', 'info');
+        return;
     }
-
-    closeModal('editMemberModal');
-    renderCurrentGroup();
-    showToast(`Đã cập nhật thông tin thành viên "${member.fullName}"`, 'success');
+    const { errors } = validateUserUpdateBody(body);
+    if (Object.keys(errors).length) { showEditMemberErrors(errors); return; } // không gọi API
+    const id = gaEditId;
+    setEditMemberBusy(true);
+    gaCallApi(token => mockUpdateUser(token, id, body))
+        .then(res => {
+            setEditMemberBusy(false);
+            closeModal('editMemberModal');
+            const self = gaAccount();
+            if (self && self.id === res.data.id && window.memberSession) {
+                window.memberSession.updateAccount({ fullName: res.data.fullName }); // header đổi ngay (U06)
+            }
+            showToast(gaEsc(res.message), 'success');
+            loadMembers(); // giữ bộ lọc và trang; fullName đổi làm đổi thứ tự
+        })
+        .catch(err => {
+            setEditMemberBusy(false);
+            const status = err && err.statusCode;
+            if (status === 401) return; // request() đã chuyển về login
+            if (status === 503) { showToast(gaEsc(err.message || 'Hệ thống đang bảo trì'), 'warning'); return; } // + biểu ngữ, giữ hộp
+            if (status === 400 && err.errors) { showEditMemberErrors(err.errors); return; }
+            if (status === 403 || status === 404 || status === 409) { // 409 ACCOUNT_INACTIVE
+                closeModal('editMemberModal');
+                showToast(gaEsc(err.message), 'warning');
+                loadMembers();
+                return;
+            }
+            showToast(gaEsc((err && err.statusCode && err.message) || 'Không lưu được thay đổi. Vui lòng thử lại.'), 'error');
+        });
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('#editMemberModal [data-edit-close]').forEach(b => b.addEventListener('click', () => closeModal('editMemberModal')));
+    document.getElementById('btnRetryEditMember')?.addEventListener('click', () => { if (gaEditId) loadEditMember(gaEditId); });
+    const form = editMemberForm();
+    if (form) form.addEventListener('input', ev => { // gõ lại vào ô thì bỏ lỗi của ô đó
+        const slot = ev.target.name && form.querySelector(`[data-error-for="${CSS.escape(ev.target.name)}"]`);
+        if (slot) { slot.hidden = true; slot.textContent = ''; }
+        ev.target.classList && ev.target.classList.remove('is-invalid');
+    });
+});
 
 // Modal 3: Bổ nhiệm / Hạ quyền Admin kèm Safeguard BR-UG-02
 function openToggleAdminModal(userId) {
