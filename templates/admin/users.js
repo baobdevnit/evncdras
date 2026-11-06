@@ -7,12 +7,17 @@
 // ?noEdit=1 / ?noDelete=1 (store thiếu user:edit / user:delete).
 // Hộp sửa tải GET /api/v1/admin/users/:id mỗi lần mở (N02, M03 mục 3.3.1); kiểm tay: ?editLoadError=1 (lỗi mạng một lần),
 // ?editMissing=<id> (dòng đó trả 404), ?editInactive=<id> (dòng đó vừa bị ngừng hoạt động).
-// Phần lưu của hộp sửa, hộp Thêm, Ngừng hoạt động vẫn là mock cũ, rà ở N03 (POST), N04 (PUT), N09 (DELETE).
+// Hộp Thêm gọi POST /api/v1/admin/users (N03, M03 mục 3.4); kiểm tay: ?createError=1 (lỗi mạng một lần),
+// ?groupInactive=<id> (nhóm đó vừa ngừng hoạt động → 409 GROUP_INACTIVE), ?noRoleAdmin=1 / ?noRoleRecording=1
+// (store thiếu group:manage_admin / group:toggle_recording); tran.b, LE.C@71portal.vn → 409 ACCOUNT_DUPLICATE,
+// hong.ct (tài khoản INACTIVE) dùng lại được; nhóm UMO-IT-02 chưa cấp Tầng 1 (không chọn được USER_RECORDING).
+// Phần lưu của hộp sửa và Ngừng hoạt động vẫn là mock cũ, rà ở N04 (PUT), N09 (DELETE).
 
 const US_QS = new URLSearchParams(window.location.search);
 let usMockUsersError = US_QS.get('usersError') === '1';
 let usMockGroupsError = US_QS.get('groupsError') === '1';
 let usMockEditLoadError = US_QS.get('editLoadError') === '1';
+let usMockCreateError = US_QS.get('createError') === '1';
 
 // ==========================================================================
 // 1. Giả lập backend
@@ -26,13 +31,13 @@ const usUnauthorized = () => usFail(401, 'UNAUTHORIZED', 'Phiên đăng nhập �
 // utf8mb4_unicode_ci: không phân biệt hoa thường, không phân biệt dấu (mock xấp xỉ bằng NFD bỏ dấu).
 const usFold = v => String(v == null ? '' : v).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-// Bảng user_groups giả lập (id, code, name, status, representative_user_id).
+// Bảng user_groups giả lập (id, code, name, status, representative_user_id, allow_recording_access).
 const MOCK_US_GROUPS = [
-    { id: 1, code: 'UMO-IT-01', name: 'Nhóm Quản trị Vận hành HT', status: 'ACTIVE', representativeUserId: 10 },
-    { id: 2, code: 'UMO-IT-02', name: 'Nhóm Kỹ thuật Phần mềm', status: 'ACTIVE', representativeUserId: 201 },
-    { id: 3, code: 'UMO-KD-01', name: 'Nhóm Call Center CSKH', status: 'ACTIVE', representativeUserId: null },
-    { id: 4, code: 'UMO-AUDIT', name: 'Tổ Giám sát Kiểm toán Độc lập', status: 'ACTIVE', representativeUserId: 401 },
-    { id: 6, code: 'UMO-TBA-500', name: 'Nhóm Thử nghiệm Trạm Biến áp 500kV', status: 'INACTIVE', representativeUserId: null }
+    { id: 1, code: 'UMO-IT-01', name: 'Nhóm Quản trị Vận hành HT', status: 'ACTIVE', representativeUserId: 10, allowRecordingAccess: true },
+    { id: 2, code: 'UMO-IT-02', name: 'Nhóm Kỹ thuật Phần mềm', status: 'ACTIVE', representativeUserId: 201, allowRecordingAccess: false },
+    { id: 3, code: 'UMO-KD-01', name: 'Nhóm Call Center CSKH', status: 'ACTIVE', representativeUserId: null, allowRecordingAccess: true },
+    { id: 4, code: 'UMO-AUDIT', name: 'Tổ Giám sát Kiểm toán Độc lập', status: 'ACTIVE', representativeUserId: 401, allowRecordingAccess: false },
+    { id: 6, code: 'UMO-TBA-500', name: 'Nhóm Thử nghiệm Trạm Biến áp 500kV', status: 'INACTIVE', representativeUserId: null, allowRecordingAccess: false }
 ];
 const MOCK_US_ROLE_NAMES = { GROUP_ADMIN: 'Quản trị viên nhóm', USER_RECORDING: 'Thành viên nghe ghi âm', REGULAR_USER: 'Thành viên' };
 
@@ -157,7 +162,8 @@ function mockGetUserDetail(token, id, query) {
 }
 
 // Giả lập GET /api/v1/admin/user-groups (G01) – chỉ phần danh mục cần: search trên code/name, sắp code, id.
-// Phần tử đúng cấu trúc G01 nhưng mock chỉ điền các trường màn hình này đọc (name, code, status, userCount, representative).
+// Phần tử đúng cấu trúc G01 nhưng mock chỉ điền các trường màn hình này đọc (name, code, status, allowRecordingAccess,
+// userCount, representative; ô Nhóm của hộp Thêm dùng status, allowRecordingAccess).
 function mockGetGroupOptions(token, query) {
     return new Promise(resolve => setTimeout(resolve, 250)).then(() => {
         if (usMockGroupsError) { usMockGroupsError = false; return Promise.reject(new Error('Network Error')); }
@@ -174,7 +180,7 @@ function mockGetGroupOptions(token, query) {
             data: slice.map(g => {
                 const rep = MOCK_US_USERS.find(u => u.id === g.representativeUserId);
                 return {
-                    id: g.id, code: g.code, name: g.name, status: g.status,
+                    id: g.id, code: g.code, name: g.name, status: g.status, allowRecordingAccess: g.allowRecordingAccess,
                     userCount: MOCK_US_USERS.filter(u => u.userGroupId === g.id && u.status !== 'INACTIVE').length,
                     representative: rep ? { id: rep.id, fullName: rep.fullName, email: rep.email, avatarUrl: rep.avatarUrl } : null
                 };
@@ -212,6 +218,8 @@ function usFormatDate(iso, withTime) {
 }
 function usHasPermission(code) {
     if ((code === 'user:edit' && US_QS.get('noEdit') === '1') || (code === 'user:delete' && US_QS.get('noDelete') === '1')) return false;
+    if ((code === 'group:manage_admin' && US_QS.get('noRoleAdmin') === '1')
+        || (code === 'group:toggle_recording' && US_QS.get('noRoleRecording') === '1')) return false;
     const account = window.adminSession ? window.adminSession.getAccount() : null;
     return !!(account && (account.permissions || []).includes(code));
 }
@@ -511,7 +519,7 @@ function renderUsersPagination(p, count) {
 }
 
 // ==========================================================================
-// 6. Hộp Thêm/Sửa/Ngừng hoạt động – mock CŨ, chưa rà (N03 POST /users, N04 PUT /users/:id, N09 DELETE /users/:id)
+// 6. Hộp Thêm (N03 POST /admin/users) / Sửa (tải N02; phần lưu mock CŨ, N04) / Ngừng hoạt động (mock CŨ, N09)
 // ==========================================================================
 
 function openModal(modalId) {
@@ -523,6 +531,7 @@ function openModal(modalId) {
 }
 
 function closeModal(modalId) {
+    if (modalId === 'userModal' && usFormBusy) return; // đang gửi: nút đóng/Hủy, nền, Esc không đóng
     if (modalId === 'userModal') { usEditId = null; usEditSeq++; } // bỏ response GET /:id đang chờ
     const modal = document.getElementById(modalId);
     if (modal) {
@@ -540,6 +549,12 @@ function setUserModalMode(mode) {
     ['userGroupText', 'userRoleText'].forEach(id => { const el = byId(id); if (el) el.hidden = !edit; });
     const info = byId('userEditInfo');
     if (info && !edit) info.hidden = true;
+    document.querySelectorAll('#userModal [data-create-only]').forEach(el => { el.hidden = edit; });
+    const hint = byId('userRoleHint');
+    if (hint) hint.hidden = edit;
+    const save = byId('userSaveBtn');
+    if (save) save.textContent = edit ? 'Lưu thay đổi' : 'Tạo người dùng';
+    clearUserFormErrors();
 }
 
 // state: 'loading' | 'error' | 'ready' – form ẩn khi đang tải/lỗi; nút Lưu chỉ bật khi đã có dữ liệu.
@@ -645,58 +660,305 @@ function usFormatTime(iso) {
 
 function closeUserEdit() { closeModal('userModal'); }
 
+// ---------- Hộp Thêm: POST /api/v1/admin/users (N03, M03 mục 3.4) ----------
+
+const US_CREATE_KEYS = ['userGroupId', 'username', 'email', 'fullName', 'jobTitle', 'phoneNumber', 'roleCode'];
+const US_ROLE_CODES = ['GROUP_ADMIN', 'USER_RECORDING', 'REGULAR_USER'];
+const US_ROLE_OPTION_LABELS = { GROUP_ADMIN: 'Quản trị viên nhóm', USER_RECORDING: 'Thành viên nghe ghi âm', REGULAR_USER: 'Thành viên' };
+const US_ROLE_PERMISSION = { GROUP_ADMIN: 'group:manage_admin', USER_RECORDING: 'group:toggle_recording' };
+const US_USERNAME_RE = /^[A-Za-z0-9._@-]{3,100}$/;
+const US_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const US_PHONE_RE = /^(?=.*[0-9])[0-9+\-.() ]{1,30}$/;
+let usFormBusy = false;
+
+// Kiểm tra body theo bảng M03 mục 3.4 (dùng chung cho mock backend và kiểm tra trước khi gửi ở frontend).
+// Trả { errors, body } với body đã cắt khoảng trắng / chuẩn hóa rỗng → null, roleCode mặc định REGULAR_USER.
+// admin = true: bản Admin (userGroupId bắt buộc); false: bản User (gửi userGroupId → 400).
+function validateUserCreateBody(raw, admin) {
+    const errors = {};
+    const add = (k, m) => { (errors[k] = errors[k] || []).push(m); };
+    const b = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    Object.keys(b).forEach(k => {
+        if (!US_CREATE_KEYS.includes(k) || (k === 'userGroupId' && !admin)) add(k, 'Trường không được nhận');
+    });
+    const str = (v, key, { required, min = 1, max, re, reMsg }) => {
+        if (v === undefined || v === null) { if (required) add(key, 'Bắt buộc'); return null; }
+        if (typeof v !== 'string') { add(key, 'Phải là chuỗi'); return null; }
+        const t = v.trim();
+        if (t === '') { if (required) add(key, 'Bắt buộc'); return null; }
+        if (t.length < min || t.length > max) add(key, min > 1 ? `Từ ${min} đến ${max} ký tự` : `Tối đa ${max} ký tự`);
+        else if (re && !re.test(t)) add(key, reMsg);
+        return t;
+    };
+    const body = {};
+    if (admin) {
+        const g = b.userGroupId;
+        if (g === undefined || g === null) add('userGroupId', 'Bắt buộc chọn nhóm người dùng');
+        else if (!Number.isInteger(g) || g < 1 || g > 4294967295) add('userGroupId', 'Nhóm người dùng không hợp lệ');
+        else body.userGroupId = g;
+    }
+    body.username = str(b.username, 'username', { required: true, min: 3, max: 100, re: US_USERNAME_RE,
+        reMsg: 'Chỉ chữ Latin không dấu, chữ số và . _ @ -' });
+    body.email = str(b.email, 'email', { required: true, max: 150, re: US_EMAIL_RE, reMsg: 'Email không hợp lệ' });
+    body.fullName = str(b.fullName, 'fullName', { required: true, max: 150 });
+    body.jobTitle = str(b.jobTitle, 'jobTitle', { max: 150 });
+    body.phoneNumber = str(b.phoneNumber, 'phoneNumber', { max: 30, re: US_PHONE_RE,
+        reMsg: 'Chỉ chữ số, dấu cách và + - . ( ), có ít nhất một chữ số' });
+    if (b.roleCode === undefined) body.roleCode = 'REGULAR_USER';
+    else if (!US_ROLE_CODES.includes(b.roleCode)) add('roleCode', 'Vai trò không hợp lệ');
+    else body.roleCode = b.roleCode;
+    return { errors, body };
+}
+
+// Mật khẩu tạm 16 ký tự, 4 nhóm ký tự đã bỏ ký tự dễ nhầm (cùng cách sinh M04 mục 3.3; backend dùng crypto.randomInt)
+function usTempPassword() {
+    const sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghjkmnpqrstuvwxyz', '23456789', '!@#$%^&*-_=+?'];
+    const rnd = n => crypto.getRandomValues(new Uint32Array(1))[0] % n;
+    const chars = sets.map(set => set[rnd(set.length)]);
+    const all = sets.join('');
+    while (chars.length < 16) chars.push(all[rnd(all.length)]);
+    for (let i = chars.length - 1; i > 0; i--) { const j = rnd(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+    return chars.join('');
+}
+
+// Giả lập POST /api/v1/admin/users. Thứ tự: guard (401) → quyền user:create → query/body (400) → quyền gán vai trò (403)
+// → kiểm tra tài khoản → khóa dòng nhóm: không có 400 / INACTIVE 409 GROUP_INACTIVE → Tầng 1 409 → trùng 409.
+// 201: data = 17 trường của GET /admin/users/:id + temporaryPassword; backend gửi kèm Cache-Control: no-store.
+// Lỗi: không thay đổi gì (rollback). Không tự gán người đại diện nhóm.
+function mockCreateUser(token, body, query) {
+    return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+        if (usMockCreateError) { usMockCreateError = false; return Promise.reject(new Error('Network Error')); }
+        if (!token) return usUnauthorized();
+        if (!usHasPermission('user:create')) return usFail(403, 'FORBIDDEN_PERMISSION', 'Bạn không có quyền thực hiện thao tác này');
+        const { errors, body: b } = validateUserCreateBody(body, true);
+        Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+        if (Object.keys(errors).length) return usFail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', errors);
+        const needed = US_ROLE_PERMISSION[b.roleCode];
+        if (needed && !usHasPermission(needed)) return usFail(403, 'FORBIDDEN_PERMISSION', 'Bạn không có quyền gán vai trò này');
+
+        const group = MOCK_US_GROUPS.find(g => g.id === b.userGroupId); // SELECT ... FROM user_groups ... FOR UPDATE
+        if (!group) return usFail(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', { userGroupId: ['Nhóm người dùng không tồn tại'] });
+        if (US_QS.get('groupInactive') === String(group.id)) group.status = 'INACTIVE'; // giả lập vừa ngừng hoạt động
+        if (group.status === 'INACTIVE') {
+            return usFail(409, 'GROUP_INACTIVE', 'Nhóm người dùng đã ngừng hoạt động',
+                { userGroupId: ['Nhóm đã ngừng hoạt động, hãy chọn nhóm khác'] });
+        }
+        if (b.roleCode === 'USER_RECORDING' && !group.allowRecordingAccess) {
+            return usFail(409, 'GROUP_RECORDING_DISABLED', 'Nhóm chưa được cấp quyền nghe/tải ghi âm',
+                { roleCode: ['Nhóm chưa được cấp quyền nghe/tải ghi âm, không gán được vai trò này'] });
+        }
+        // username_active / email_active: mọi người dùng chưa INACTIVE của mọi nhóm, gồm trùng chéo; so không phân biệt hoa thường
+        const live = MOCK_US_USERS.filter(u => u.status !== 'INACTIVE');
+        const taken = v => live.some(u => [u.username, u.email].some(x => x.toLowerCase() === v.toLowerCase()));
+        const dup = {};
+        if (taken(b.username)) dup.username = ['Tên đăng nhập đã được dùng'];
+        if (taken(b.email)) dup.email = ['Email đã được dùng'];
+        if (Object.keys(dup).length) return usFail(409, 'ACCOUNT_DUPLICATE', 'Tên đăng nhập hoặc email đã được dùng', dup);
+
+        const now = usNow();
+        const row = {
+            id: Math.max(...MOCK_US_USERS.map(u => u.id)) + 1, userGroupId: group.id,
+            username: b.username, email: b.email, fullName: b.fullName, jobTitle: b.jobTitle, phoneNumber: b.phoneNumber,
+            avatarUrl: null, status: 'ACTIVE', roleCode: b.roleCode, lastLoginAt: null,
+            createdAt: now, updatedAt: now, mustChangePassword: true
+        };
+        MOCK_US_USERS.push(row); // users + user_roles + user_settings + audit USER / CREATE trong một transaction
+        const data = Object.assign(toUserDetail(row), { temporaryPassword: usTempPassword() });
+        return { success: true, statusCode: 201, message: 'Tạo người dùng thành công', data, timestamp: now };
+    });
+}
+
+function usForm() { return document.getElementById('userForm'); }
+
+function clearUserFormErrors() {
+    const form = usForm();
+    if (!form) return;
+    form.querySelectorAll('[data-error-for]').forEach(el => { el.textContent = ''; el.hidden = true; });
+    form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+}
+
+// errors[field] → dưới ô có data-error-for = field; khóa không có ô (vd. trường lạ, tham số) gom vào toast.
+function showUserFormErrors(errors) {
+    const form = usForm();
+    const orphan = [];
+    Object.keys(errors || {}).forEach(key => {
+        const slot = form.querySelector(`[data-error-for="${CSS.escape(key)}"]`);
+        if (!slot) { orphan.push(errors[key].join(', ')); return; }
+        slot.textContent = errors[key].join(', ');
+        slot.hidden = false;
+        const input = form.elements[key];
+        if (input && input.classList) input.classList.add('is-invalid');
+    });
+    if (orphan.length && window.showToast) window.showToast(usEsc(orphan.join('; ')), 'error');
+    const first = form.querySelector('.is-invalid');
+    if (first) first.focus();
+}
+
+// Ô Nhóm của hộp Thêm: nhóm ACTIVE của danh mục bên trái (usGroupOptions = data của GET /admin/user-groups?limit=100).
+function fillUserGroupOptions(selectedId) {
+    const select = document.getElementById('userGroupSelect');
+    if (!select) return;
+    select.replaceChildren(new Option('-- Chọn nhóm người dùng --', ''));
+    usGroupOptions.filter(g => g.status === 'ACTIVE').forEach(g => {
+        const opt = new Option(g.name + ' (' + g.code + ')', String(g.id));
+        opt.dataset.recording = g.allowRecordingAccess ? '1' : '0';
+        select.appendChild(opt);
+    });
+    select.value = [...select.options].some(o => o.value === String(selectedId || '')) ? String(selectedId) : '';
+    applyUserRoleOptions();
+}
+
+// Lựa chọn vai trò: ẩn khi store thiếu mã quyền gán; USER_RECORDING tắt khi nhóm đang chọn chưa cấp Tầng 1.
+function applyUserRoleOptions() {
+    const role = document.getElementById('userRoleSelect');
+    const group = document.getElementById('userGroupSelect');
+    if (!role) return;
+    const groupOpt = group && group.selectedOptions[0];
+    const recordingAllowed = !groupOpt || !groupOpt.value || groupOpt.dataset.recording === '1';
+    [...role.options].forEach(o => {
+        const allowed = !o.dataset.rolePermission || usHasPermission(o.dataset.rolePermission);
+        o.hidden = !allowed;
+        o.disabled = !allowed || (o.value === 'USER_RECORDING' && !recordingAllowed);
+        o.textContent = o.value === 'USER_RECORDING' && !recordingAllowed
+            ? 'Thành viên nghe ghi âm (nhóm chưa được cấp ghi âm)' : US_ROLE_OPTION_LABELS[o.value];
+    });
+    if (role.selectedOptions[0] && role.selectedOptions[0].disabled) role.value = 'REGULAR_USER';
+}
+
+function setUserFormBusy(busy) {
+    usFormBusy = busy;
+    const editOnlyText = ['userGroupSelect', 'userRoleSelect']; // chế độ sửa: hai ô chọn này ẩn + tắt (setUserModalMode)
+    [...usForm().elements].forEach(el => { el.disabled = busy || (usEditId !== null && editOnlyText.includes(el.id)); });
+    document.querySelectorAll('#userModal [data-user-close]').forEach(b => { b.disabled = busy; });
+    const btn = document.getElementById('userSaveBtn');
+    if (btn) { btn.disabled = busy; btn.textContent = busy ? 'Đang lưu...' : (usEditId === null ? 'Tạo người dùng' : 'Lưu thay đổi'); }
+    if (!busy) applyUserRoleOptions();
+}
+
+function closeUserForm() { closeModal('userModal'); } // closeModal tự chặn khi đang gửi
+
 function openAddUserModal() {
     const modal = document.getElementById('userModal');
     if (!modal) return;
-
     const modalTitle = modal.querySelector('.modal-header h2');
     if (modalTitle) modalTitle.innerText = 'Thêm mới Người dùng';
-
-    const form = document.getElementById('userForm');
-    if (form) form.reset();
+    usForm().reset();
     usEditId = null;
     usEditSeq++;
     setUserModalMode('create');
     setUserEditState('ready');
 
-    const selectGroup = document.getElementById('userGroupSelect');
     const lockNotice = document.getElementById('userGroupLockNotice');
     const creationNotice = document.getElementById('userGroupCreationNotice');
     const scopeBanner = document.getElementById('creatorScopeBanner');
     const scopeText = document.getElementById('creatorScopeText');
-
     if (scopeBanner) {
         scopeBanner.style.display = 'flex';
         scopeBanner.className = 'creator-scope-banner system-admin';
     }
     if (scopeText) {
-        scopeText.innerHTML = `Đang thao tác với tư cách <strong>Quản trị viên hệ thống</strong>: Có quyền chỉ định tài khoản vào bất kỳ nhóm người dùng nào trong toàn hệ thống.`;
+        scopeText.innerHTML = 'Đang thao tác với tư cách <strong>Quản trị viên hệ thống</strong>: chọn nhóm người dùng đang hoạt động bất kỳ cho tài khoản mới.';
     }
-    if (selectGroup) selectGroup.value = usQuery.userGroupId || ''; // giữ nhóm đang chọn ở danh mục bên trái
     if (lockNotice) lockNotice.style.display = 'none';
-    if (creationNotice) {
-        creationNotice.style.display = 'block';
-        creationNotice.innerHTML = `<span>ℹ️ Người dùng luôn luôn thuộc cố định vào một nhóm người dùng ngay từ lúc khởi tạo; hệ thống không có khái niệm chuyển người dùng giữa các nhóm.</span>`;
+    if (creationNotice) creationNotice.style.display = 'block';
+    fillUserGroupOptions(usQuery.userGroupId); // chọn sẵn nhóm đang chọn ở danh mục nếu nhóm đó ACTIVE
+    if (!usGroupOptions.some(g => g.status === 'ACTIVE') && window.showToast) {
+        window.showToast('Danh mục nhóm chưa tải được hoặc không có nhóm đang hoạt động; hãy tải lại danh mục nhóm.', 'warning');
     }
-
     openModal('userModal');
+    document.getElementById('userNameInput').focus();
 }
 
+// Đọc form thành body đúng các trường API: ô trống tùy chọn → null, roleCode luôn gửi, userGroupId là số.
+function readUserCreateForm() {
+    const f = usForm().elements;
+    const opt = name => (f[name].value.trim() === '' ? null : f[name].value);
+    return {
+        userGroupId: f.userGroupId.value === '' ? null : Number(f.userGroupId.value),
+        username: f.username.value,
+        email: f.email.value,
+        fullName: f.fullName.value,
+        jobTitle: opt('jobTitle'),
+        phoneNumber: opt('phoneNumber'),
+        roleCode: f.roleCode.value
+    };
+}
+
+function submitCreateUser() {
+    clearUserFormErrors();
+    const { errors, body } = validateUserCreateBody(readUserCreateForm(), true);
+    if (Object.keys(errors).length) { showUserFormErrors(errors); return; } // không gọi API
+    setUserFormBusy(true);
+    usCallApi(token => mockCreateUser(token, body))
+        .then(res => {
+            setUserFormBusy(false);
+            closeModal('userModal');
+            usForm().reset();
+            showUserTempPassword(res.data);
+            if (window.showToast) window.showToast('Đã tạo người dùng ' + usEsc(res.data.fullName), 'success');
+            loadUsers(); // giữ bộ lọc và trang hiện tại
+            loadGroupSidebar(document.getElementById('groupSearchInput')?.value.trim() || ''); // userCount đổi
+        })
+        .catch(err => {
+            setUserFormBusy(false);
+            const status = err && err.statusCode;
+            if (status === 401) return; // request() đã chuyển về login
+            if (status === 409 && err.errorCode === 'GROUP_INACTIVE') {
+                showUserFormErrors(err.errors);
+                // nhóm vừa ngừng hoạt động: tải lại danh mục rồi dựng lại ô chọn (nhóm đó không còn trong ô)
+                loadGroupSidebar(document.getElementById('groupSearchInput')?.value.trim() || '')
+                    .then(() => { if (usEditId === null) fillUserGroupOptions(''); });
+                return;
+            }
+            if ((status === 400 || status === 409) && err.errors) { showUserFormErrors(err.errors); return; }
+            if (status === 403) { if (window.showToast) window.showToast(usEsc(err.message || 'Bạn không có quyền thực hiện thao tác này'), 'warning'); return; }
+            if (window.showToast) window.showToast(usEsc((err && err.statusCode && err.message) || 'Không tạo được người dùng. Vui lòng thử lại.'), 'error');
+        });
+}
+
+// Hộp mật khẩu tạm: chỉ giữ trong DOM khi đang mở; đóng thì xóa. Không lưu store/localStorage/URL.
+function showUserTempPassword(data) {
+    document.getElementById('userTempFullName').textContent = data.fullName;
+    document.getElementById('userTempUsername').textContent = data.username;
+    document.getElementById('userTempGroup').textContent = data.userGroup.code + ' – ' + data.userGroup.name;
+    document.getElementById('userTempValue').textContent = data.temporaryPassword;
+    document.getElementById('userTempPasswordModal').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+function closeUserTempPassword() {
+    ['userTempFullName', 'userTempUsername', 'userTempGroup', 'userTempValue']
+        .forEach(id => { document.getElementById(id).textContent = ''; });
+    document.getElementById('userTempPasswordModal').classList.remove('show');
+    document.body.style.overflow = '';
+}
+function copyUserTempPassword() {
+    const value = document.getElementById('userTempValue').textContent;
+    if (!navigator.clipboard) { window.showToast && window.showToast('Trình duyệt không hỗ trợ sao chép, hãy chép thủ công', 'warning'); return; }
+    navigator.clipboard.writeText(value)
+        .then(() => window.showToast && window.showToast('Đã sao chép mật khẩu tạm', 'success'))
+        .catch(() => window.showToast && window.showToast('Không sao chép được, hãy chép thủ công', 'warning'));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('#userModal [data-user-close]').forEach(b => b.addEventListener('click', closeUserForm));
+    document.querySelectorAll('[data-close-user-temp]').forEach(b => b.addEventListener('click', closeUserTempPassword));
+    document.getElementById('btnCopyUserTemp')?.addEventListener('click', copyUserTempPassword);
+    document.getElementById('userGroupSelect')?.addEventListener('change', applyUserRoleOptions);
+    const form = usForm();
+    if (form) form.addEventListener('input', e => { // gõ lại vào ô thì bỏ lỗi của ô đó
+        const slot = e.target.name && form.querySelector(`[data-error-for="${CSS.escape(e.target.name)}"]`);
+        if (slot) { slot.hidden = true; slot.textContent = ''; }
+        e.target.classList && e.target.classList.remove('is-invalid');
+    });
+});
+
+// Nút Lưu: chế độ tạo gửi POST (N03); chế độ sửa vẫn là mock cũ, phần PUT /admin/users/:id rà ở N04.
 function saveUser() {
-    const form = document.getElementById('userForm');
-    if (form && !form.checkValidity()) {
-        form.reportValidity();
-        return;
-    }
-
-    const btn = document.querySelector('#userModal .btn-primary');
-    const originalText = btn.innerText;
-    btn.innerText = 'Đang lưu...';
-    btn.disabled = true;
-
+    if (usFormBusy) return;
+    if (usEditId === null) { submitCreateUser(); return; }
+    setUserFormBusy(true);
     setTimeout(() => {
-        btn.innerText = originalText;
-        btn.disabled = false;
+        setUserFormBusy(false);
         closeModal('userModal');
         loadUsers();
     }, 600);
@@ -731,15 +993,15 @@ function confirmDeleteUser() {
     }, 500);
 }
 
-// Global modal backdrop close & escape key listener
+// Bấm nền / Esc: đóng hộp đang mở, trừ hộp mật khẩu tạm (chỉ đóng bằng nút) và hộp Thêm đang gửi (closeModal tự chặn).
 window.addEventListener('click', (e) => {
-    if (e.target.classList && e.target.classList.contains('modal')) {
+    if (e.target.classList && e.target.classList.contains('modal') && e.target.id !== 'userTempPasswordModal') {
         closeModal(e.target.id);
     }
 });
 
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        document.querySelectorAll('.modal.show').forEach(m => closeModal(m.id));
+        document.querySelectorAll('.modal.show').forEach(m => { if (m.id !== 'userTempPasswordModal') closeModal(m.id); });
     }
 });

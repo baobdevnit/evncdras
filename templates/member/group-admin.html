@@ -447,65 +447,106 @@
        MODALS QUẢN TRỊ
        ========================================================================== -->
 
-    <!-- Modal 1: Thêm thành viên mới (Cố định vào nhóm - BR-UG-01) -->
+    <!-- Modal 1: Thêm thành viên mới – POST /api/v1/users (N03, M03 mục 3.4). Nhóm cố định = nhóm của người gọi (BR-UG-01).
+         name của ô = tên trường API (lỗi 400/409 hiện dưới ô theo errors[name]); không có ô mật khẩu, trạng thái, nhóm -->
     <div class="modal" id="addMemberModal">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
                     <h3>Thêm thành viên mới vào nhóm</h3>
-                    <button type="button" class="close-btn" onclick="closeModal('addMemberModal')">&times;</button>
+                    <button type="button" class="close-btn" data-add-close aria-label="Đóng">&times;</button>
                 </div>
-                <form id="addMemberForm" onsubmit="submitAddMember(event)">
+                <form id="addMemberForm" novalidate onsubmit="submitAddMember(event)">
                     <div class="modal-body">
                         <div class="form-group">
-                            <label class="form-label">Họ và tên thành viên <span
+                            <label class="form-label">Nhóm người dùng</label>
+                            <div id="addMemberGroupNameDisplay" class="add-member-group"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="addFullName">Họ và tên thành viên <span
                                     style="color: var(--secondary);">*</span></label>
-                            <input type="text" id="addFullName" class="form-control" placeholder="Ví dụ: Nguyễn Văn An"
-                                required>
+                            <input type="text" id="addFullName" name="fullName" class="form-control" maxlength="150"
+                                placeholder="Ví dụ: Nguyễn Văn An">
+                            <span class="field-error" data-error-for="fullName" hidden></span>
                         </div>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="add-member-grid">
                             <div class="form-group">
-                                <label class="form-label">Tên đăng nhập (@username) <span
+                                <label class="form-label" for="addUsername">Tên đăng nhập (@username) <span
                                         style="color: var(--secondary);">*</span></label>
-                                <input type="text" id="addUsername" class="form-control" placeholder="nguyen.va"
-                                    required>
+                                <input type="text" id="addUsername" name="username" class="form-control" maxlength="100"
+                                    autocomplete="off" spellcheck="false" placeholder="nguyen.va">
+                                <span class="field-error" data-error-for="username" hidden></span>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Email <span style="color: var(--secondary);">*</span></label>
-                                <input type="email" id="addEmail" class="form-control" placeholder="an.nv@71portal.vn"
-                                    required>
+                                <label class="form-label" for="addEmail">Email <span style="color: var(--secondary);">*</span></label>
+                                <input type="email" id="addEmail" name="email" class="form-control" maxlength="150"
+                                    autocomplete="off" placeholder="an.nv@71portal.vn">
+                                <span class="field-error" data-error-for="email" hidden></span>
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label class="form-label">Điện thoại di động liên hệ</label>
-                            <input type="text" id="addPhone" class="form-control" placeholder="0912.xxx.xxx">
+                        <div class="add-member-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="addPhone">Điện thoại di động liên hệ</label>
+                                <input type="tel" id="addPhone" name="phoneNumber" class="form-control" maxlength="30"
+                                    placeholder="0912.xxx.xxx">
+                                <span class="field-error" data-error-for="phoneNumber" hidden></span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="addTitle">Chức danh / Vị trí công tác</label>
+                                <input type="text" id="addTitle" name="jobTitle" class="form-control" maxlength="150"
+                                    placeholder="Ví dụ: Kỹ sư Quản trị Hệ thống">
+                                <span class="field-error" data-error-for="jobTitle" hidden></span>
+                            </div>
                         </div>
 
+                        <!-- Vai trò: lựa chọn ẩn khi store thiếu mã quyền gán (data-role-permission);
+                             USER_RECORDING ẩn hẳn khi nhóm chưa được cấp Tầng 1 (data-recording-only, M02 mục 5.3) -->
                         <div class="form-group">
-                            <label class="form-label">Chức danh / Vị trí công tác</label>
-                            <input type="text" id="addTitle" class="form-control"
-                                placeholder="Ví dụ: Kỹ sư Quản trị Hệ thống">
+                            <label class="form-label" for="addRole">Vai trò trong nhóm</label>
+                            <select id="addRole" name="roleCode" class="form-control">
+                                <option value="REGULAR_USER">Thành viên</option>
+                                <option value="USER_RECORDING" data-recording-only data-role-permission="group:toggle_recording">Thành viên nghe ghi âm</option>
+                                <option value="GROUP_ADMIN" data-role-permission="group:manage_admin">Quản trị viên nhóm</option>
+                            </select>
+                            <span class="field-error" data-error-for="roleCode" hidden></span>
                         </div>
-
-                        <!-- Cấp quyền ghi âm thoại MP3 (BR-UG-05 - Ẩn nếu nhóm chưa được cấp phép) -->
-                        <div class="form-group" id="addRecordingAccessGroup" style="display: none; margin-top: 6px;">
-                            <label class="recording-permission-label">
-                                <input type="checkbox" id="addCanAccessRecording">
-                                <span class="recording-label-text">
-                                    <strong>Cho phép nghe & tải ghi âm thoại MP3 (BR-UG-05)</strong>
-                                    <small>Ủy quyền cho thành viên được nghe trực tuyến và tải file ghi âm cuộc gọi của nhóm</small>
-                                </span>
-                            </label>
-                        </div>
+                        <p class="form-hint">Mật khẩu tạm do hệ thống sinh và chỉ hiển thị một lần sau khi tạo; thành viên phải đổi mật khẩu ở lần đăng nhập đầu tiên.</p>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-outline" onclick="closeModal('addMemberModal')">Hủy
-                            bỏ</button>
-                        <button type="submit" class="btn btn-primary">Thêm thành viên</button>
+                        <button type="button" class="btn btn-outline" data-add-close>Hủy bỏ</button>
+                        <button type="submit" id="addMemberSubmitBtn" class="btn btn-primary">Thêm thành viên</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hộp mật khẩu tạm sau khi thêm (N03): xem một lần, bấm nền/Esc không đóng, đóng thì xóa khỏi DOM -->
+    <div class="modal" id="memberTempPasswordModal" role="dialog" aria-modal="true" aria-labelledby="memberTempPasswordTitle">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="memberTempPasswordTitle">Đã thêm thành viên</h3>
+                    <button type="button" class="close-btn" data-close-member-temp aria-label="Đóng">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p class="ga-temp-who"><strong id="memberTempFullName"></strong> (<span id="memberTempUsername"></span>)</p>
+                    <div class="ga-temp-label" id="memberTempLabel">Mật khẩu tạm</div>
+                    <div class="ga-temp-box">
+                        <code id="memberTempValue" class="ga-temp-value" aria-labelledby="memberTempLabel"></code>
+                        <button type="button" id="btnCopyMemberTemp" class="btn btn-outline">Sao chép</button>
+                    </div>
+                    <p class="ga-temp-warning">
+                        Mật khẩu chỉ hiển thị một lần và không xem lại được. Hãy chuyển cho thành viên qua kênh an toàn;
+                        thành viên phải đổi mật khẩu ở lần đăng nhập đầu tiên.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-close-member-temp>Tôi đã lưu mật khẩu</button>
+                </div>
             </div>
         </div>
     </div>

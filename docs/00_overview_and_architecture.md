@@ -651,6 +651,7 @@ Cột View là component trong `src/apps/admin/views/`; Template nguồn trong `
 | `admin.prefixes` | Nhóm đầu số (danh sách + modal sửa tên/mô tả; nhóm đầu số tạo tự động cùng nhóm người dùng, không thêm/xóa) | xem `prefix:view`, sửa `prefix:manage` | `GET /admin/prefix-groups`, `PUT /admin/prefix-groups/:id` |
 | `admin.dashboard` | Bảng xếp hạng nhóm theo lưu lượng, widget kho số (`docs/modules/05_dashboard_analytics.md`) | bảng xếp hạng: —; widget kho số: `prefix:view` | `/admin/dashboard/groups`, `/admin/phone-numbers/pool/summary` |
 | `admin.prefix-history` | Tab "Lịch sử số" bên cạnh lịch sử cấp phát dải | `prefix:view` | `/admin/phone-numbers/history` |
+| `admin.users` | Nút "Thêm mới người dùng" + hộp tạo (`docs/modules/03_auth_user.md` mục 3.4) | `user:create` (lựa chọn vai trò `GROUP_ADMIN` cần `group:manage_admin`, `USER_RECORDING` cần `group:toggle_recording`) | `POST /admin/users` |
 | `admin.users` | Nút "Thu hồi phiên đăng nhập" của người dùng | `user:edit` | `DELETE /admin/users/:id/sessions` |
 | `admin.profile` | Phiên đăng nhập của tôi, hoạt động gần đây | — | `/admin/auth/sessions*`, `/admin/profile/recent-activity` |
 

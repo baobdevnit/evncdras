@@ -465,13 +465,22 @@ WHERE u.id = :id;
 
 ### 3.4. Tạo người dùng mới (`POST /api/v1/users`)
 
-- **Thẩm quyền thực hiện (Authorization)**:
-  - **Quản trị viên hệ thống (System Admin)**: Được phép chỉ định `userGroupId` tùy ý hợp lệ trong danh mục nhóm người dùng.
-  - **Quản trị viên nhóm (Group Admin, route User)**: Hệ thống tự động gán `userGroupId = req.user.userGroupId`. DTO bản User **không có** trường `userGroupId`: body có trường này (kể cả đúng nhóm của mình) thì trả `400` (`docs/02_api_contracts.md` mục 1.1).
-- **Ràng buộc tạo tài khoản**:
-  - `userGroupId`: Bắt buộc trên bản Admin (`users.user_group_id NOT NULL`). Người dùng luôn gắn cố định với nhóm người dùng ngay từ lúc khởi tạo.
-  - Không có tùy chọn khởi tạo người dùng mà không thuộc nhóm nào.
-- **Request Body**:
+- **Mục đích**: tạo một tài khoản người dùng trong một nhóm, kèm vai trò, với mật khẩu tạm do hệ thống sinh. Dùng cho: nút "Thêm mới người dùng" của `admin.users` (bản Admin, hộp `#userModal` chế độ tạo, mục 5.1) và nút "Thêm thành viên" của `member.group-admin` (bản User, hộp `#addMemberModal`, `docs/modules/02_user_group.md` mục 5.3). Quản trị viên nhóm đầu tiên của nhóm mới tạo cùng nhóm ở `POST /admin/user-groups` (`docs/modules/02_user_group.md` mục 3.2), không qua API này.
+- **Hai route**, chung service `UsersService.create(body, scope)` và DTO response:
+  - Bản Admin `POST /api/v1/admin/users`: `AdminAuthGuard` → `PermissionsGuard` `user:create` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` `403 PASSWORD_CHANGE_REQUIRED`; tài khoản người gọi không còn `ACTIVE` hoặc token đầy đủ mà `must_change_password = 1` `401 UNAUTHORIZED` (`docs/modules/04_auth_admin.md` mục 3.1.1). Không bị chế độ bảo trì chặn. Body **bắt buộc** `userGroupId`, tạo được trong mọi nhóm `ACTIVE`.
+  - Bản User `POST /api/v1/users`: `UserAuthGuard` → bảo trì (`503 MAINTENANCE`) → `PermissionsGuard` `user:create` theo claim `roleCode` (seed: chỉ `GROUP_ADMIN`); kiểm tra tài khoản ở mỗi request (mục 3.2). Luôn tạo trong nhóm của người gọi (`users.user_group_id` đọc ở bước kiểm tra tài khoản, không dùng claim). DTO **không có** `userGroupId`: body có trường này (kể cả đúng nhóm của mình) trả `400` (`errors.userGroupId`, `docs/02_api_contracts.md` mục 1.1). Không có `403 FORBIDDEN_SCOPE_ACCESS` (không nhận tham số nhóm).
+  - Thứ tự kiểm tra: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → bảo trì (`503`, chỉ bản User) → quyền `user:create` (`403 FORBIDDEN_PERMISSION`) → query và body (`400`) → quyền gán vai trò (`403 FORBIDDEN_PERMISSION`) → kiểm tra tài khoản người gọi (`401`) → nhóm (`400`/`409 GROUP_INACTIVE`, bản Admin) → Tầng 1 ghi âm (`409 GROUP_RECORDING_DISABLED`) → trùng `username`/`email` (`409 ACCOUNT_DUPLICATE`). Mỗi lần chỉ trả một `errorCode`; lỗi không ghi `audit_logs`.
+- **Request**: không có query (gửi thì `400` với `errors.<tên tham số>`). Body JSON chỉ nhận đúng các trường dưới đây; trường khác (kể cả `password`, `status`, `avatarUrl`, `mustChangePassword`, `id`, `isRepresentative`) trả `400 VALIDATION_ERROR` với `errors.<tên trường>`. Không ép kiểu (`"1"` cho `userGroupId` là sai kiểu).
+
+| Trường | Kiểu | Bắt buộc | Quy tắc | Cột |
+|---|---|---|---|---|
+| `userGroupId` | số | ✓ (bản Admin) | **Chỉ bản Admin** (bản User `400`). Số nguyên 1…4294967295; `null` → `400`. Không có nhóm → `400` (`errors.userGroupId`, quy ước O04); nhóm `INACTIVE` → `409 GROUP_INACTIVE` (`errors.userGroupId`; chủ dự án chốt ở N03) | `users.user_group_id` |
+| `username` | chuỗi | ✓ | Quy tắc chung `docs/02_api_contracts.md` mục 2: cắt khoảng trắng, `^[A-Za-z0-9._@-]{3,100}$`, giữ chữ hoa/thường | `users.username` |
+| `email` | chuỗi | ✓ | Quy tắc chung `docs/02_api_contracts.md` mục 2: cắt khoảng trắng, ≤ 150, `^[^\s@]+@[^\s@]+\.[^\s@]+$`, giữ chữ hoa/thường | `users.email` |
+| `fullName` | chuỗi | ✓ | Cắt khoảng trắng hai đầu; 1–150 ký tự | `users.full_name` |
+| `jobTitle` | chuỗi \| `null` | | Cắt khoảng trắng hai đầu; rỗng, `null` hoặc không gửi → `NULL`; ≤ 150 ký tự | `users.job_title` |
+| `phoneNumber` | chuỗi \| `null` | | Quy tắc số điện thoại chung `docs/02_api_contracts.md` mục 2 (rỗng/`null`/không gửi → `NULL`) | `users.phone_number` |
+| `roleCode` | enum | | `GROUP_ADMIN` \| `USER_RECORDING` \| `REGULAR_USER`; không gửi = `REGULAR_USER`; `null` hoặc giá trị khác → `400` | `user_roles.role_id` qua `roles.code` |
 
 ```json
 {
@@ -485,13 +494,88 @@ WHERE u.id = :id;
 }
 ```
 
-- **Mật khẩu ban đầu do hệ thống sinh**: body không có `password`. Hệ thống sinh mật khẩu tạm 16 ký tự đạt chính sách (`docs/01_database_schema.md` mục 6.1), đặt `must_change_password = 1`, và trả **một lần** trong response (`temporaryPassword`); hệ thống chỉ lưu bản băm, không có API xem lại.
-- `roleCode` tùy chọn, mặc định `REGULAR_USER`; chỉ nhận `GROUP_ADMIN`, `USER_RECORDING`, `REGULAR_USER`. Gán `GROUP_ADMIN` cần thêm `group:manage_admin`; gán `USER_RECORDING` cần thêm `group:toggle_recording` và nhóm có `allow_recording_access = 1` (ngược lại `409 GROUP_RECORDING_DISABLED`).
-- `jobTitle`, `phoneNumber` tùy chọn (`users.job_title`, `users.phone_number` cho phép NULL).
-- `username`, `email`: định dạng và kiểm tra trùng (kể cả trùng chéo username ↔ email trong các user chưa `INACTIVE`, `409 ACCOUNT_DUPLICATE` có `errors.username`/`errors.email`) theo quy tắc chung `docs/02_api_contracts.md` mục 2; cách khóa và sinh mật khẩu tạm như `POST /admin/admins` (`docs/modules/04_auth_admin.md` mục 3.3), trên bảng `users` (`uniq_users_username`, `uniq_users_email`) thay cho `admins`. Đặc tả đầy đủ rà ở N03.
-- Cùng transaction tạo dòng `users`, dòng `user_roles` và dòng `user_settings` (`user_type = USER`, giá trị mặc định, `docs/01_database_schema.md` mục 12); ghi `audit_logs` `USER / CREATE`. Response trả về `roleCode`, `roleName`.
+  Bản User gửi cùng body bỏ `userGroupId`.
+- **Quyền gán vai trò** (theo bảng `docs/modules/10_permissions_and_roles.md` mục 1.3, tính từ claim `roleCode` như `PermissionsGuard`): `roleCode = GROUP_ADMIN` cần thêm `group:manage_admin`, `roleCode = USER_RECORDING` cần thêm `group:toggle_recording`, thiếu thì `403 FORBIDDEN_PERMISSION`. Với seed hiện tại mọi vai trò có `user:create` đều có cả hai mã, nên đây là chốt phòng vệ khi seed đổi. `USER_RECORDING` còn cần nhóm có `allow_recording_access = 1` (đọc sau khi khóa dòng nhóm), ngược lại `409 GROUP_RECORDING_DISABLED` (`errors.roleCode`).
+- **Mật khẩu tạm**: sinh và băm (`bcrypt` cost 10) **trước** khi mở transaction (sau khi kiểm tra body), cùng cách sinh 16 ký tự của `POST /admin/admins` (`docs/modules/04_auth_admin.md` mục 3.3). Chỉ lưu bản băm; mật khẩu gốc chỉ có trong response (`data.temporaryPassword`), **không** ghi vào `audit_logs`, log ứng dụng hay log request/response (logger bỏ `data.temporaryPassword`); không có API xem lại, quên thì đặt lại (`PUT /users/:id/reset-password`, mục 3.8).
+- **Xử lý** (một transaction, sau khi kiểm tra query/body, quyền gán vai trò và sinh mật khẩu tạm):
+  1. Kiểm tra tài khoản người gọi theo khóa chính (`admins`, hoặc `users` + `user_groups` ở bản User, `401`); bản User lấy `user_group_id` của dòng `users` vừa đọc làm `:groupId`, bản Admin dùng `userGroupId` của body.
+  2. `BEGIN`. Câu đầu tiên khóa dòng nhóm (`docs/01_database_schema.md` mục 14, để chạy tuần tự với `DELETE /admin/user-groups/:id` và các thao tác vai trò cùng nhóm):
 
-- Mật khẩu được mã hóa `bcrypt.hash(password, 10)` trước khi lưu vào CSDL.
+```sql
+SELECT id, status, allow_recording_access FROM user_groups WHERE id = :groupId FOR UPDATE;
+```
+
+     Bản Admin: không có dòng → `ROLLBACK`, `400` (`errors.userGroupId`); `status = 'INACTIVE'` → `ROLLBACK`, `409 GROUP_INACTIVE` (`errors.userGroupId`). Bản User: nhóm vừa `INACTIVE` sau bước 1 (khi đó người gọi cũng đã `INACTIVE`) → `ROLLBACK`, `401 UNAUTHORIZED` như kiểm tra tài khoản.
+  3. `roleCode = USER_RECORDING` mà `allow_recording_access = 0` → `ROLLBACK`, `409 GROUP_RECORDING_DISABLED` (`errors.roleCode`).
+  4. Kiểm tra trùng `username`/`email` trên `users` bằng đọc khóa như `POST /admin/admins` bước 2 (`docs/modules/04_auth_admin.md` mục 3.3), thay `admins` bằng `users`:
+
+```sql
+SELECT id, username_active, email_active FROM users
+ WHERE username_active IN (:username, :email) FOR UPDATE;   -- uniq_users_username
+SELECT id, username_active, email_active FROM users
+ WHERE email_active IN (:username, :email) FOR UPDATE;      -- uniq_users_email
+```
+
+     So với mọi người dùng chưa `INACTIVE` của **mọi nhóm** (cùng bảng), gồm trùng chéo (`docs/02_api_contracts.md` mục 2); có lỗi → `ROLLBACK`, `409 ACCOUNT_DUPLICATE` (`errors.username` và/hoặc `errors.email`). Deadlock `1213` thì chạy lại cả transaction tối đa 2 lần; `ER_DUP_ENTRY` trên `uniq_users_username`/`uniq_users_email` ở bước 5 cũng trả `409 ACCOUNT_DUPLICATE` (khóa `errors` theo index), không `500`.
+  5. `INSERT INTO users` với `user_group_id = :groupId`, `username`, `email`, `full_name`, `job_title`, `phone_number` đã chuẩn hóa, `password_hash`, `status = 'ACTIVE'`, `must_change_password = 1`, `password_changed_at = NULL`, `failed_login_count = 0`, `locked_until = NULL`, `avatar_url = NULL`; `INSERT INTO user_roles (user_id, role_id, role_scope)` với `role_id = (SELECT id FROM roles WHERE code = :roleCode)` (`uniq_roles_code`), `role_scope = 'USER'`; `INSERT INTO user_settings (user_type, user_id)` với `user_type = 'USER'`, cột khác mặc định DDL (`docs/01_database_schema.md` mục 12).
+  6. Ghi `audit_logs` `USER / CREATE`: `actor_type` = `ADMIN` (bản Admin) hoặc `USER` (bản User), `actor_id = sub`, `actor_name` = `full_name` của người gọi, `resource_id` = id người dùng mới, `ip_address`, `user_agent` của request, `action_details = { "username", "email", "roleCode", "userGroupId" }` (không có mật khẩu; cùng dạng dòng `USER / CREATE` của `POST /admin/user-groups`).
+  7. `COMMIT`, rồi đọc lại người dùng bằng câu `SELECT` của mục 3.3.1 với `WHERE u.id = :newId` (`created_at`, `updated_at` do CSDL gán) để dựng response.
+
+  Không đổi `user_groups` (kể cả khi tạo `GROUP_ADMIN` cho nhóm chưa có người đại diện: không tự gán `representative_user_id`, người đại diện chỉ đặt ở `PUT /admin/user-groups/:id`; chủ dự án chốt ở N03). Không tạo `auth_sessions`, không gửi thông báo hay email: người tạo tự chuyển mật khẩu tạm cho người được tạo. Lần đăng nhập đầu tiên nhận token `PASSWORD_CHANGE_ONLY` (mục 3.1). Không tăng `cache_version`.
+- **Response** `201 Created`, header `Cache-Control: no-store` (response chứa mật khẩu). `data` = đúng 17 trường của `GET /users/:id` (mục 3.3.1, cùng kiểu và nguồn) **thêm** `temporaryPassword` (chủ dự án chốt ở N03). Người dùng mới: `status = "ACTIVE"`, `mustChangePassword = true`, `lockedUntil = null`, `lastLoginAt = null`, `avatarUrl = null`, `isRepresentative = false`.
+
+```json
+{
+  "success": true,
+  "statusCode": 201,
+  "message": "Tạo người dùng thành công",
+  "data": {
+    "id": 125,
+    "username": "nguyen.vanc",
+    "email": "vanc@evn.com.vn",
+    "fullName": "Nguyễn Văn C",
+    "jobTitle": "Kỹ sư Vận hành",
+    "phoneNumber": "0987654321",
+    "avatarUrl": null,
+    "status": "ACTIVE",
+    "roleCode": "REGULAR_USER",
+    "roleName": "Thành viên",
+    "isRepresentative": false,
+    "userGroup": { "id": 1, "code": "UMO-IT-01", "name": "Khối Công nghệ Thông tin - Nhóm Vận hành" },
+    "mustChangePassword": true,
+    "lockedUntil": null,
+    "lastLoginAt": null,
+    "createdAt": "2026-11-06T14:00:00+07:00",
+    "updatedAt": "2026-11-06T14:00:00+07:00",
+    "temporaryPassword": "q7Vt#2mPz9Lw!4Rk"
+  },
+  "timestamp": "2026-11-06T14:00:00+07:00"
+}
+```
+
+  `temporaryPassword` chỉ có ở response này (và ở response `PUT /users/:id/reset-password`, mục 3.8); `GET` không bao giờ trả.
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Có query param; body sai (bảng trên: thiếu trường bắt buộc, sai kiểu, sai định dạng, vượt độ dài, trường không được nhận); bản User gửi `userGroupId`; bản Admin `userGroupId` không tồn tại (`errors.userGroupId`) |
+| `401` | `UNAUTHORIZED` | Như mục 3.3; bản User: nhóm của người gọi vừa `INACTIVE` (bước 2) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `user:create` (bản User: `USER_RECORDING`, `REGULAR_USER`); thiếu `group:manage_admin` khi gán `GROUP_ADMIN` hoặc `group:toggle_recording` khi gán `USER_RECORDING` |
+| `409` | `GROUP_INACTIVE` | Chỉ bản Admin: nhóm `userGroupId` đã `INACTIVE`; `errors = { "userGroupId": ["..."] }` |
+| `409` | `GROUP_RECORDING_DISABLED` | `roleCode = USER_RECORDING` mà nhóm chưa được cấp Tầng 1; `errors = { "roleCode": ["..."] }` |
+| `409` | `ACCOUNT_DUPLICATE` | `username`/`email` trùng (kể cả trùng chéo) với người dùng chưa `INACTIVE` của bất kỳ nhóm nào; `errors.username` và/hoặc `errors.email` |
+| `503` | `MAINTENANCE` | Chỉ bản User, chế độ bảo trì đang bật |
+
+  Không có `404` (không có tham số đường dẫn; nhóm không tồn tại là lỗi trường của body, quy ước A13), không có `403 FORBIDDEN_SCOPE_ACCESS`. Mọi lỗi sau `BEGIN` rollback toàn bộ: không còn dòng `users`, `user_roles`, `user_settings` nào được tạo.
+- **Frontend** (chung hai cổng; quy ước form tạo A16, G05):
+  - Form có đúng các ô của body (`name` của ô = tên trường API để hiện lỗi dưới ô): Họ và tên (bắt buộc, `maxlength` 150), Tên đăng nhập (bắt buộc, `maxlength` 100, không tự hạ chữ), Email (bắt buộc, `maxlength` 150, không tự hạ chữ), Số điện thoại (`maxlength` 30), Chức danh (`maxlength` 150), Vai trò (ô chọn: "Thành viên" `REGULAR_USER` mặc định, "Thành viên nghe ghi âm" `USER_RECORDING`, "Quản trị viên nhóm" `GROUP_ADMIN`; lựa chọn chỉ hiện khi store có mã quyền tương ứng `group:toggle_recording`/`group:manage_admin`); bản Admin thêm ô chọn Nhóm người dùng (bắt buộc). Không có ô mật khẩu, trạng thái, ảnh; dòng ghi chú: mật khẩu tạm do hệ thống sinh, người được tạo phải đổi ở lần đăng nhập đầu tiên.
+  - `USER_RECORDING` chỉ chọn được khi nhóm có `allowRecordingAccess`: bản Admin theo nhóm đang chọn ở ô Nhóm (dữ liệu `GET /admin/user-groups`), đổi sang nhóm chưa cấp thì ô vai trò về "Thành viên"; bản User theo `userGroup.allowRecordingAccess` của store (ẩn hẳn lựa chọn, `docs/modules/02_user_group.md` mục 5.3).
+  - Kiểm tra trước khi gửi bằng cùng quy tắc (bắt buộc, định dạng `username`/`email`/số điện thoại, độ dài), lỗi hiện dưới ô và không gọi API. Ô trống của trường tùy chọn gửi `null`; `roleCode` luôn gửi.
+  - Khi gửi: khóa form và nút ("Đang lưu..."), nút đóng/Hủy, bấm nền và `Esc` không đóng hộp. `400`/`409 ACCOUNT_DUPLICATE`/`409 GROUP_RECORDING_DISABLED`: hiện `errors[field]` dưới ô (khóa không có ô hiện ở toast), giữ giá trị đang nhập. `409 GROUP_INACTIVE` (Admin): lỗi dưới ô nhóm, tải lại danh mục nhóm và dựng lại ô chọn. `403` toast cảnh báo; cổng Member `503` toast cảnh báo + biểu ngữ bảo trì, giữ giá trị; lỗi khác toast lỗi, giữ giá trị.
+  - `201`: đóng hộp, xóa form, mở hộp mật khẩu tạm (cùng cách của `#adminTempPasswordModal`, `docs/modules/04_auth_admin.md` mục 3.3: họ tên, tên đăng nhập, nhóm, `temporaryPassword` phông đơn cách + nút "Sao chép", cảnh báo chỉ hiển thị một lần; bấm nền/`Esc` không đóng, đóng thì xóa khỏi DOM; không lưu store/`localStorage`/URL), toast "Đã tạo người dùng <fullName>", tải lại danh sách (giữ bộ lọc và trang; Admin tải lại cả danh mục nhóm vì `userCount` đổi).
+  - Admin (mẫu `templates/admin/users.js`: `mockCreateUser`, `validateUserCreateBody`, `openAddUserModal`, `fillUserGroupOptions`, `submitCreateUser`, `showUserFormErrors`, `showUserTempPassword`): ô Nhóm dựng từ dữ liệu danh mục nhóm bên trái (`GET /admin/user-groups?limit=100`), chỉ nhóm `ACTIVE`, chọn sẵn nhóm đang chọn ở danh mục nếu nhóm đó `ACTIVE`. Member (mẫu `templates/member/group-admin.js`: `mockCreateUser`, `validateUserCreateBody`, `openAddMemberModal`, `submitAddMember`, `showAddMemberErrors`, `showMemberTempPassword`): nhóm hiện chữ chỉ đọc (`userGroup` của store), gọi qua `memberSession.request`.
+- **Index phục vụ**: khóa chính `admins`/`users` (bước 1), khóa chính `user_groups` (bước 2), `uniq_users_username`, `uniq_users_email` (bước 4, 5, chặn trùng ở mức CSDL), `uniq_roles_code`, `uniq_user_settings` (bước 5), khóa chính `user_roles`, `roles`, `user_groups` (bước 7). Không thêm index.
 
 ### 3.5. Cập nhật thông tin người dùng (`PUT /api/v1/users/:id`)
 
@@ -632,12 +716,12 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
   - Cột Trạng thái theo `status` (`<span class="badge-status active">Hoạt động</span>` = `ACTIVE`, `<span class="badge-status locked">Đã khóa</span>` = `LOCKED`, `<span class="badge-status inactive">Ngừng hoạt động</span>` = `INACTIVE`, chỉ gặp khi lọc `INACTIVE`).
   - Cột Hành động: Sửa thông tin (`user:edit`), Ngừng hoạt động (`user:delete`); chỉ hiện ở dòng chưa `INACTIVE`. Nút "Thêm mới người dùng" chỉ hiện khi store có `user:create`. Hành vi các nút đặc tả ở N03–N09.
   - Không có ô chọn số dòng mỗi trang: `limit` = `itemsPerPage` của store `preferencesAdmin`.
-- Modal tạo mới / sửa người dùng (`#userModal`): Form nhập thông tin người dùng và chọn Nhóm người dùng (`user_group_id`), chọn vai trò (`roleCode`: Quản trị viên nhóm / Thành viên nghe ghi âm / Thành viên) khi tạo mới. Khi sửa: tải `GET /api/v1/admin/users/:id` **mỗi lần mở** (mục 3.3.1 "Frontend": tải/lỗi + "Thử lại" trong hộp, `404` hoặc tài khoản đã `INACTIVE` đóng hộp + tải lại danh sách), `username`, `email`, nhóm, vai trò chỉ đọc, không có ô trạng thái; đổi vai trò gọi `PUT /users/:id/role` (N07). Không phụ thuộc hay tham chiếu trực tiếp đến tổ chức.
+- Modal tạo mới / sửa người dùng (`#userModal`): chế độ tạo (nút "Thêm mới người dùng", `user:create`) gửi `POST /api/v1/admin/users` theo mục 3.4 "Frontend": ô Nhóm người dùng (`userGroupId`, chỉ nhóm `ACTIVE` của danh mục bên trái), ô vai trò (`roleCode`), không có ô mật khẩu/trạng thái; `201` mở hộp mật khẩu tạm `#userTempPasswordModal`. Khi sửa: tải `GET /api/v1/admin/users/:id` **mỗi lần mở** (mục 3.3.1 "Frontend": tải/lỗi + "Thử lại" trong hộp, `404` hoặc tài khoản đã `INACTIVE` đóng hộp + tải lại danh sách), `username`, `email`, nhóm, vai trò chỉ đọc, không có ô trạng thái; đổi vai trò gọi `PUT /users/:id/role` (N07). Không phụ thuộc hay tham chiếu trực tiếp đến tổ chức.
 
 ### 5.2. Khu vực Admin – Pinia Store (`useUserStore`)
 
 - State: `users: UserItem[]` (phần tử mục 3.3), `pagination: PaginationInfo`, `query: { page, search, status, roleCode, userGroupId }` (`userGroupId = null`: mọi nhóm, chỉ Admin), `loading: boolean`, `error: string | null`.
-- Actions: `fetchUsers()` (chỉ gửi tham số có giá trị, `limit` từ `preferencesAdmin.itemsPerPage`, chỉ nhận response của request sau cùng), `createUser()`, `updateUser()`, `changeRole()`, `toggleStatus()`, `resetPassword()`.
+- Actions: `fetchUsers()` (chỉ gửi tham số có giá trị, `limit` từ `preferencesAdmin.itemsPerPage`, chỉ nhận response của request sau cùng), `createUser(body)` (`POST /admin/users`, trả `data` để mở hộp mật khẩu tạm, không lưu `temporaryPassword` vào state), `updateUser()`, `changeRole()`, `toggleStatus()`, `resetPassword()`.
 
 ---
 
@@ -653,6 +737,8 @@ export class UserJwtStrategy extends PassportStrategy(Strategy, 'user-jwt') {
    - **TC-USR-02e**: Đăng nhập User, gọi `POST /api/v1/auth/logout`: `200` `data = null`, `Set-Cookie` `Path=/api/v1/auth` `Max-Age=0`, phiên có `revoked_reason = 'LOGOUT'`, một dòng `audit_logs` `AUTH / LOGOUT` (`actor_type = USER`, `actor_name` = họ tên, `resource_id` = id phiên); gọi lại: `200`, không thêm dòng audit; refresh bằng cookie cũ: `401`. Cookie vừa `ROTATED` (tab khác refresh): phiên mới trong chuỗi bị thu hồi. Cookie của User khác kèm Access Token của mình: `200`, phiên kia không đổi. Token `PASSWORD_CHANGE_ONLY` (không cookie): `200`, không audit. Body `{"x":1}` hoặc `?x=1`: `400 VALIDATION_ERROR`. Bật `system_maintenance_mode`: logout vẫn `200`, phiên `LOGOUT`, cookie bị xóa; tắt bảo trì rồi refresh bằng cookie cũ: `401`. Gọi logout ở cổng Member không làm mất phiên cổng Admin trên cùng trình duyệt. Giao diện: mọi trang Member có nút "Đăng xuất" mở hộp xác nhận, bấm xác nhận khóa nút rồi về trang đăng nhập dù API lỗi.
    - **TC-USR-02f**: Đăng nhập User `GROUP_ADMIN` của nhóm đã được cấp ghi âm, gọi `GET /api/v1/auth/me`: `200`, `data` trùng `data.user` của response đăng nhập (`permissions` 17 mã sắp theo `code`, có `userGroup`), không có `mustChangePassword`, không thêm dòng `audit_logs`, `last_login_at` không đổi. Admin tắt ghi âm của nhóm: gọi lại ngay (cùng token) không còn `cdr:listen_audio`, `cdr:download_audio` (15 mã), `userGroup.allowRecordingAccess = false`. Quản trị viên nhóm đổi vai trò người này sang `REGULAR_USER`: gọi lại bằng Access Token cũ vẫn `roleCode = GROUP_ADMIN` (theo claim, khớp `PermissionsGuard`); refresh rồi gọi lại: `REGULAR_USER`, 9 mã. Token `PASSWORD_CHANGE_ONLY`: `200` cùng cấu trúc. `?x=1`: `400 VALIDATION_ERROR`. Khóa tài khoản, ngừng hoạt động tài khoản, hoặc quản trị viên đặt lại mật khẩu, rồi gọi bằng Access Token đầy đủ còn hạn: `401 UNAUTHORIZED`, không có `Set-Cookie`; refresh sau đó `401` và xóa cookie. Access Token của Admin: `401`. Bật `system_maintenance_mode`: vẫn `200`. Giao diện: tải lại trang → refresh → `/auth/me` một lần, header hiện họ tên, vai trò, tên nhóm; `REGULAR_USER` không thấy mục "Quản trị nhóm" ở sidebar; đang bảo trì thì biểu ngữ vàng hiện sau API nghiệp vụ đầu tiên trả `503`.
 3. **TC-USR-03**: Gọi `PUT /users/:id/role` đổi Quản trị viên nhóm duy nhất trong nhóm sang `REGULAR_USER`, kiểm tra hệ thống chặn `409` với cảnh báo thích hợp và `user_roles` không đổi.
-4. **TC-USR-04**: Group Admin tạo người dùng mới trong nhóm của mình, xác nhận có dòng `user_roles` với vai trò `REGULAR_USER` và người dùng mới tạo có thể đăng nhập bình thường.
+4. **TC-USR-04** (`POST /users`, mục 3.4): Quản trị viên nhóm 1 gọi `POST /api/v1/users` với `{ username: "Nguyen.VanC", email: " vanc@evn.com.vn ", fullName: "Nguyễn Văn C" }`: `201`, header `Cache-Control: no-store`, `data` đúng 18 khóa (17 trường của `GET /users/:id` + `temporaryPassword` 16 ký tự đủ 4 nhóm ký tự), `userGroup.id = 1`, `roleCode = REGULAR_USER`, `mustChangePassword = true`, `username` giữ chữ hoa, `email` đã cắt khoảng trắng; CSDL có đúng 1 dòng `users` (`must_change_password = 1`, `password_changed_at = NULL`), 1 dòng `user_roles`, 1 dòng `user_settings` (`user_type = USER`), 1 dòng `audit_logs` `USER / CREATE` (`actor_type = USER`, `action_details = { username, email, roleCode, userGroupId }`, không có mật khẩu); `user_groups.representative_user_id` không đổi; đăng nhập bằng mật khẩu tạm nhận token `PASSWORD_CHANGE_ONLY`.
+   - **TC-USR-04b**: bản User gửi `userGroupId` (kể cả `1`) → `400` `errors.userGroupId`; `password`, `status`, `roleCode: null`, `roleCode: "ROOT_ADMIN"`, `username: "ab"`, `email: "a@b"`, `fullName` 151 ký tự, `jobTitle` 151 ký tự, `phoneNumber: "abc"`, `?x=1` → `400 VALIDATION_ERROR` theo khóa, không ghi audit; `REGULAR_USER` gọi → `403 FORBIDDEN_PERMISSION`; bật bảo trì → `503` (bản Admin vẫn `201`); `roleCode = USER_RECORDING` khi nhóm `allow_recording_access = 0` → `409 GROUP_RECORDING_DISABLED` `errors.roleCode`; `username` trùng `email` của người dùng `LOCKED` ở nhóm 2 → `409 ACCOUNT_DUPLICATE` `errors.username`; dùng lại `username`/`email` của tài khoản `INACTIVE` → `201`. Hai request đồng thời cùng `username` → một `201`, một `409` (không `500`).
+   - **TC-USR-04c**: Admin gọi `POST /api/v1/admin/users` với `userGroupId = 2`, `roleCode = GROUP_ADMIN` → `201`, `actor_type = ADMIN`, nhóm 2 thêm một Quản trị viên nhưng người đại diện không đổi; thiếu `userGroupId`, `userGroupId: "2"`, `userGroupId: null` → `400`; `userGroupId = 999999` → `400` `errors.userGroupId`; nhóm `INACTIVE` → `409 GROUP_INACTIVE` `errors.userGroupId`; ngừng hoạt động nhóm 2 đồng thời với lần tạo → hoặc tạo trước rồi bị ngừng hoạt động cùng nhóm, hoặc `409 GROUP_INACTIVE` (không có người dùng `ACTIVE` trong nhóm `INACTIVE`).
 5. **TC-USR-05** (`GET /users`, mục 3.3): Admin gọi `GET /api/v1/admin/users` không query: `200`, mọi nhóm, không có tài khoản `INACTIVE`, phần tử đúng 14 trường (có `userGroup { id, code, name }`, không có `updatedAt`, `mustChangePassword`, `lockedUntil`), sắp mã nhóm → người đại diện → `GROUP_ADMIN` → `fullName`, `id`; `?userGroupId=1&status=INACTIVE` chỉ trả tài khoản ngừng hoạt động của nhóm 1; `?userGroupId=999999` `200` `data = []`; `?roleCode=USER_RECORDING&search=%` chỉ khớp chuỗi chứa `%` thật; `?groupId=1`, `?status=active`, `?limit=101`, `?userGroupId=null`, `?page=1&page=2` → `400 VALIDATION_ERROR`; không có dòng `audit_logs` mới. Quản trị viên nhóm gọi `GET /api/v1/users`: chỉ người cùng nhóm; `?userGroupId=<nhóm mình>` → `400`; thành viên `REGULAR_USER` → `403 FORBIDDEN_PERMISSION`; bật bảo trì → `503 MAINTENANCE` (bản Admin vẫn `200`); khóa tài khoản người gọi rồi gọi bằng token còn hạn → `401`.
    - **TC-USR-05b** (`GET /users/:id`, mục 3.3.1): Admin gọi `GET /api/v1/admin/users/104`: `200`, `data` đúng 17 trường (14 trường của phần tử `GET /users` + `mustChangePassword`, `lockedUntil`, `updatedAt`), không có `passwordChangedAt`, `failedLoginCount`; sai mật khẩu 5 lần cho tài khoản này rồi gọi lại: `lockedUntil` khác `null`, sau thời gian khóa tạm: `null` (dù cột chưa xóa); tài khoản `INACTIVE` `200`; `/999999` → `404 NOT_FOUND`; `/abc`, `/0`, `/104?x=1` → `400 VALIDATION_ERROR`; không có dòng `audit_logs` mới. Quản trị viên nhóm 1 gọi `GET /api/v1/users/<id người nhóm 1>` và chính mình: `200`; người nhóm 2: `403 FORBIDDEN_SCOPE_ACCESS`; id không tồn tại: `404`; `REGULAR_USER` gọi: `403 FORBIDDEN_PERMISSION`; bật bảo trì: `503` (bản Admin vẫn `200`).

@@ -1652,3 +1652,95 @@ img[hidden] {
 #viewMemberRecordingAccessItem[hidden] {
     display: none !important;
 }
+
+/* Hộp Thêm thành viên (#addMemberModal, N03 – M03 mục 3.4 Frontend): lỗi 400/409 theo trường, nhóm chỉ đọc */
+#addMemberModal .add-member-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+#addMemberModal .add-member-group {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+#addMemberModal .field-error {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.8125rem;
+    color: var(--secondary);
+}
+
+#addMemberModal .field-error[hidden] {
+    display: none;
+}
+
+#addMemberModal .form-control.is-invalid {
+    border-color: var(--secondary);
+}
+
+#addMemberModal .form-hint {
+    margin: 4px 0 0;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+
+@media (max-width: 576px) {
+    #addMemberModal .add-member-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Hộp mật khẩu tạm sau khi thêm (#memberTempPasswordModal), cùng giao diện .us-temp-* của admin/users.css */
+.ga-temp-who {
+    margin: 0 0 1rem;
+    line-height: 1.5;
+}
+
+.ga-temp-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.ga-temp-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ga-temp-value {
+    flex: 1;
+    min-width: 0;
+    padding: 0.75rem;
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    background-color: var(--bg-hover);
+    color: var(--text-main);
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    word-break: break-all;
+}
+
+.ga-temp-warning {
+    margin: 1rem 0 0;
+    padding: 0.75rem;
+    border-left: 4px solid #f59e0b;
+    border-radius: 6px;
+    background: rgba(245, 158, 11, 0.1);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 576px) {
+    .ga-temp-box {
+        flex-wrap: wrap;
+    }
+}

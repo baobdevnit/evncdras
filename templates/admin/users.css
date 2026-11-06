@@ -719,3 +719,94 @@ select:disabled {
 #userModal .form-control[hidden] {
     display: none;
 }
+
+/* Hộp Thêm người dùng (N03, M03 mục 3.4 Frontend): lỗi 400/409 theo trường, ghi chú, khối chỉ dùng khi tạo */
+#userModal .form-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+}
+
+#userModal .field-error {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.8125rem;
+    color: var(--secondary);
+}
+
+#userModal .field-error[hidden],
+#userModal .form-hint[hidden],
+#userModal [data-create-only][hidden] {
+    display: none;
+}
+
+#userModal .form-control.is-invalid {
+    border-color: var(--secondary);
+}
+
+#userModal .form-control[readonly] {
+    background-color: var(--table-header-bg);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+#userModal .modal-content {
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+}
+
+#userModal .modal-body {
+    overflow-y: auto;
+    min-height: 0;
+}
+
+/* Hộp mật khẩu tạm sau khi tạo (#userTempPasswordModal), cùng giao diện .ug-temp-* của user_group.css */
+.us-temp-who {
+    margin: 0 0 1rem;
+    line-height: 1.5;
+}
+
+.us-temp-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.us-temp-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.us-temp-value {
+    flex: 1;
+    min-width: 0;
+    padding: 0.75rem;
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    background-color: var(--table-header-bg);
+    color: var(--text-main);
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    word-break: break-all;
+}
+
+.us-temp-warning {
+    margin: 1rem 0 0;
+    padding: 0.75rem;
+    border-left: 4px solid #f59e0b;
+    border-radius: 6px;
+    background: rgba(245, 158, 11, 0.1);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 576px) {
+    .us-temp-box {
+        flex-wrap: wrap;
+    }
+}
