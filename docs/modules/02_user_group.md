@@ -134,6 +134,7 @@ erDiagram
    - Khai báo **Quản trị viên nhóm đầu tiên** (tên đăng nhập, email, họ tên, số điện thoại, chức danh). Tài khoản này được tạo cùng lúc với nhóm, trong một transaction, vì người dùng không thể tồn tại ngoài nhóm.
    - **Cấu hình Quyền Ghi âm Nhóm (`allowRecordingAccess`)**: Trường chuyển đổi Switch/Checkbox "Cho phép nhóm nghe và tải ghi âm thoại IP" do Quản trị viên hệ thống thiết lập (Chốt chặn Tầng 1 - BR-UG-05).
    - Ghi chú / Mô tả.
+   - Chế độ sửa (mục 3.3): mã nhóm chỉ đọc, không có khối Quản trị viên nhóm đầu tiên; thêm ô **Người đại diện** chọn trong các Quản trị viên nhóm `ACTIVE` (hoặc bỏ người đại diện); đổi được đơn vị (kể cả về nhóm độc lập), tên, mô tả, Tầng 1.
 3. **Quản lý danh sách thành viên & Quản trị viên**:
    - Thêm thành viên vào nhóm.
    - Bổ nhiệm Quản trị viên nhóm (`Promote to Admin`).
@@ -547,25 +548,122 @@ Không có `404` (không có tham số đường dẫn; đơn vị không tồn 
 
 ### 3.3. `PUT /api/v1/admin/user-groups/:id`
 
-- **Mục đích**: Cập nhật thông tin nhóm người dùng.
-- **Quy tắc**:
-  - Nhóm đã `INACTIVE`: `409 GROUP_INACTIVE`; nhóm ngừng hoạt động chỉ còn đọc, không kích hoạt lại được (`docs/01_database_schema.md` mục 14).
-  - **Không nhận `status`**: body có `status` thì trả `400`. Ngừng hoạt động chỉ qua `DELETE` (mục 3.4).
-  - Cho phép cập nhật `organizationId` (gán sang đơn vị khác hoặc gán về `null` để chuyển thành nhóm độc lập). Đơn vị mới phải `ACTIVE` (`409 ORGANIZATION_INACTIVE`); giữ nguyên `organizationId` đang trỏ tới đơn vị `INACTIVE` thì không bị chặn.
-  - **Không nhận `code`**: mã nhóm bất biến sau khi tạo (`phone_prefix_groups.code = 'PG-' + code`, mã không được dùng lại, `docs/01_database_schema.md` mục 5, 14); body có trường này thì trả `400`.
-  - **Không nhận `phonePrefixGroupId`**: nhóm đầu số gắn cố định từ lúc tạo nhóm; body có trường này thì trả `400`. Muốn chuyển số sang nhóm khác thì thu hồi dải ở nhóm cũ và cấp dải cho nhóm mới (`docs/01_database_schema.md` mục 8).
-  - Cập nhật tên, mô tả, người đại diện. `representativeUserId`: không gửi thì giữ nguyên; `null` thì bỏ người đại diện (`representative_user_id = NULL`); giá trị số thì người đó bắt buộc phải mang vai trò `GROUP_ADMIN` và `ACTIVE` trong nhóm, sai trả `400` (kiểm tra sau khi đã khóa dòng nhóm `SELECT ... FOR UPDATE`, quy tắc khóa tại `docs/01_database_schema.md` mục 14).
-  - **Cập nhật quyền ghi âm nhóm (`allowRecordingAccess`)**: Chỉ Quản trị viên hệ thống (Admin Portal) mới có quyền sửa trường này. Tắt cờ không đổi vai trò của thành viên; quyền nghe/tải của cả nhóm bị chặn ngay ở request kế tiếp. Ghi `audit_logs` `TOGGLE_GROUP_RECORDING`.
+- **Mục đích**: sửa thông tin một nhóm người dùng: tên, mô tả, đơn vị tổ chức tham chiếu (gồm chuyển thành nhóm độc lập), người đại diện và quyền ghi âm cấp nhóm (Tầng 1, BR-UG-05). Gọi từ `#userGroupModal` ở chế độ sửa (nút "Sửa" ở dòng danh sách hoặc trong `#groupDetailModal`, mục 5.1). Chỉ có bản Admin (cổng Member không sửa nhóm; Quản trị viên nhóm không đổi được Tầng 1).
+- **Guard**: như mục 3.2: `AdminAuthGuard` → `PermissionsGuard` `user_group:manage` (seed: `ROOT_ADMIN`, `SYSTEM_ADMIN`). Token `PASSWORD_CHANGE_ONLY` `403 PASSWORD_CHANGE_REQUIRED`; tài khoản người gọi không còn `ACTIVE` hoặc token đầy đủ mà `must_change_password = 1` `401 UNAUTHORIZED`. Không bị chế độ bảo trì chặn.
+- **Thứ tự kiểm tra**: guard xác thực (`401`/`403 PASSWORD_CHANGE_REQUIRED`) → quyền (`403 FORBIDDEN_PERMISSION`) → `:id`, query, body (`400`) → kiểm tra tài khoản người gọi (`401`) → khóa và tìm nhóm (`404`) → nhóm `INACTIVE` (`409 GROUP_INACTIVE`, kể cả khi body không đổi gì) → đơn vị mới (`400`/`409 ORGANIZATION_INACTIVE`, chỉ khi `organizationId` đổi) → người đại diện mới (`400`, chỉ khi `representativeUserId` đổi). Mỗi lần chỉ trả một `errorCode`; lỗi không ghi `audit_logs`.
+- **Request**: `:id` là `user_groups.id` (`^[1-9][0-9]{0,9}$` và ≤ 4294967295, sai thì `400` với `errors.id`). Không có query (gửi thì `400` với `errors.<tên tham số>`). Body JSON, **cập nhật một phần** (quy ước A18, O05), ít nhất một trường; body `{}` trả `400` (`errors.body`: "Cần gửi ít nhất một trường"). Không ép kiểu. Trường khác trả `400 VALIDATION_ERROR` với `errors.<tên trường>`, gồm: **`code`** (mã bất biến, `phone_prefix_groups.code = 'PG-' + code`, `docs/01_database_schema.md` mục 5, R14-11), **`status`** (ngừng hoạt động chỉ qua `DELETE`, mục 3.4; `INACTIVE` là trạng thái cuối, `docs/01_database_schema.md` mục 14), **`phonePrefixGroupId`** (nhóm đầu số gắn cố định; chuyển số sang nhóm khác bằng thu hồi rồi cấp dải, `docs/01_database_schema.md` mục 8), `initialAdmin`, `id`, `createdAt`, `userCount`, `admins`…
+
+| Trường | Kiểu | Quy tắc | Cột |
+|---|---|---|---|
+| `name` | chuỗi | Như mục 3.2: cắt khoảng trắng hai đầu, 3–255 ký tự; `null`/rỗng → `400` (trường bắt buộc khi tạo). Không đổi tên nhóm đầu số (`phone_prefix_groups.name` chỉ tự sinh lúc tạo; Admin sửa ở `PUT /admin/prefix-groups/:id`) | `name` |
+| `description` | chuỗi \| `null` | Như mục 3.2: cắt khoảng trắng, rỗng/`null` → `NULL`, ≤ 65 535 byte UTF-8, giữ xuống dòng | `description` |
+| `organizationId` | số \| `null` | `null` = chuyển thành nhóm độc lập; số nguyên 1…4294967295. Chỉ khi **khác** giá trị hiện tại mới kiểm tra đơn vị mới (bước 4); gửi đúng đơn vị hiện tại (kể cả đơn vị đang `INACTIVE`) không bị chặn | `organization_id` |
+| `representativeUserId` | số \| `null` | Không gửi = giữ; `null` = bỏ người đại diện (`representative_user_id = NULL`, R24-06); số nguyên 1…4294967295. Chỉ khi **khác** giá trị hiện tại mới kiểm tra (bước 5); giữ người đại diện hiện tại (kể cả đang `LOCKED`, R15-07) không bị chặn | `representative_user_id` |
+| `allowRecordingAccess` | boolean | `null` → `400`. Bật/tắt Tầng 1 của nhóm | `allow_recording_access` |
+
+```json
+{ "name": "Khối Kinh doanh - Chi nhánh 1", "organizationId": null, "representativeUserId": 25, "allowRecordingAccess": false }
+```
+
+- **Xử lý** (một transaction; theo thứ tự, dừng ở lỗi đầu tiên, lỗi thì `ROLLBACK`; deadlock `1213` thì chạy lại cả transaction tối đa 2 lần):
+  1. Kiểm tra `:id`, query, body như bảng trên (`400`, gom mọi lỗi trường), rồi kiểm tra tài khoản người gọi theo khóa chính `admins` (`401`).
+  2. `BEGIN`; câu đầu tiên khóa dòng nhóm (thứ tự khóa nhóm trước, `docs/01_database_schema.md` mục 14), chạy tuần tự với `DELETE` nhóm (mục 3.4), đổi vai trò/trạng thái/ngừng hoạt động thành viên và cấp/sửa/thu hồi dải số của nhóm:
+
+```sql
+SELECT id, status, name, description, organization_id, representative_user_id, allow_recording_access
+FROM user_groups WHERE id = :id FOR UPDATE;
+```
+
+     Không có dòng → `404 NOT_FOUND`; `status = 'INACTIVE'` → `409 GROUP_INACTIVE` (nhóm ngừng hoạt động chỉ còn đọc).
+  3. So từng trường đã gửi (sau chuẩn hóa) với giá trị hiện tại bằng so sánh **chính xác** (phân biệt hoa thường; `organizationId`, `representativeUserId`, `description` so cả `null`; `allowRecordingAccess` so với `allow_recording_access = 1`); `changedFields` = các trường khác giá trị, theo thứ tự `name`, `description`, `organizationId`, `representativeUserId`, `allowRecordingAccess`. Rỗng: không `UPDATE`, không ghi `audit_logs`, sang bước 7 (thông điệp "Không có thay đổi nào").
+  4. `organizationId` thuộc `changedFields` và khác `null`: đọc khóa chia sẻ dòng đơn vị (như mục 3.2 bước 2, quy ước O06: chạy tuần tự với `PUT`/`DELETE /admin/organizations/:id` đang khóa dòng đó `FOR UPDATE`):
+
+```sql
+SELECT id, status FROM organizations WHERE id = :organizationId LOCK IN SHARE MODE;
+```
+
+     Không có dòng (kể cả đơn vị vừa bị xóa cứng, mục 3.4 của `docs/modules/01_organization.md`) → `400` (`errors.organizationId`: "Đơn vị tổ chức không tồn tại"); `status = 'INACTIVE'` → `409 ORGANIZATION_INACTIVE` (`errors.organizationId`).
+  5. `representativeUserId` thuộc `changedFields` và khác `null`: người đó phải là Quản trị viên nhóm `ACTIVE` của chính nhóm này (BR-UG-02). Đọc thường (không khóa) vì mọi thao tác đổi vai trò/trạng thái người dùng của nhóm đều khóa dòng nhóm trước (bước 2), nên đã chạy tuần tự:
+
+```sql
+SELECT u.id FROM users u
+JOIN user_roles ur ON ur.user_id = u.id
+JOIN roles r ON r.id = ur.role_id AND r.code = 'GROUP_ADMIN'
+WHERE u.id = :representativeUserId AND u.user_group_id = :id AND u.status = 'ACTIVE';
+```
+
+     Không có dòng (không tồn tại, nhóm khác, không phải `GROUP_ADMIN`, `LOCKED`/`INACTIVE`) → `400` (`errors.representativeUserId`: "Người đại diện phải là Quản trị viên nhóm đang hoạt động của nhóm"; cùng một thông điệp, không phân biệt lý do).
+  6. `UPDATE user_groups SET <cột trong changedFields> WHERE id = :id` (`updated_at` do CSDL gán). Ghi `audit_logs` cùng transaction (chủ dự án chốt ở G06), các dòng cùng `actor_type = 'ADMIN'`, `actor_id = sub`, `actor_name` = `admins.full_name` của người gọi, `resource_name = 'USER_GROUP'`, `resource_id` = `:id`, `ip_address`, `user_agent`:
+     - `changedFields` có trường khác `allowRecordingAccess`: một dòng `UPDATE`, `action_details = { "changedFields": [...] }` **không** gồm `allowRecordingAccess` (như A18/O05: không ghi giá trị cũ/mới).
+     - `allowRecordingAccess` đổi: một dòng `TOGGLE_GROUP_RECORDING`, `action_details = { "allowRecordingAccess": true|false }` (giá trị mới).
+     Một request đổi cả hai loại ghi hai dòng.
+  7. Đọc lại nhóm như mục 3.1.2 bước 2–5 rồi `COMMIT`.
+
+  **Hiệu ứng** (không có bước riêng): tắt Tầng 1 không đổi vai trò thành viên (`USER_RECORDING` giữ nguyên); từ request kế tiếp, API nghe/tải ghi âm của nhóm trả `403 GROUP_RECORDING_DISABLED` vì `PermissionsGuard` đọc cờ nhóm từ CSDL ở mỗi request (`docs/modules/10_permissions_and_roles.md` mục 2.3); bật lại thì `GROUP_ADMIN`, `USER_RECORDING` dùng được ngay. Cổng Member cập nhật `authUser.user.userGroup.allowRecordingAccess` ở lần nạp `/auth/me` sau (vào lại cổng hoặc tải lại trang). Không thu hồi phiên, không gửi thông báo, không tăng `cache_version` (làm giàu CDR gán theo `user_groups.id`, không theo đơn vị hay cờ ghi âm). Đổi đơn vị chỉ đổi cách hiển thị và bộ lọc theo cây (mục 3.1), không đổi dữ liệu CDR/thống kê của nhóm.
+- **Response** `200`: `data` đúng 15 trường như `GET /api/v1/admin/user-groups/:id` (mục 3.1.2), kể cả khi không có thay đổi (thông điệp "Không có thay đổi nào"). Bỏ người đại diện thì `representative = null`, `admins` vẫn đủ Quản trị viên nhóm `ACTIVE`.
 
 ```json
 {
-  "name": "Khối Kinh doanh - Chi nhánh 1",
-  "description": "Cập nhật tên nhóm",
-  "organizationId": null,
-  "representativeUserId": 15,
-  "allowRecordingAccess": true
+  "success": true,
+  "statusCode": 200,
+  "message": "Cập nhật nhóm người dùng thành công",
+  "data": {
+    "id": 3,
+    "code": "UMO-KD-01",
+    "name": "Khối Kinh doanh - Chi nhánh 1",
+    "description": "Tiếp nhận cuộc gọi phản ánh điện lực, quản lý chất lượng chăm sóc khách hàng",
+    "status": "ACTIVE",
+    "allowRecordingAccess": false,
+    "organizationId": null,
+    "organizationName": null,
+    "hierarchyPath": [],
+    "phonePrefixGroup": {
+      "id": 12,
+      "code": "PG-UMO-KD-01",
+      "name": "Nhóm đầu số Call Center CSKH",
+      "prefixes": ["48", "49"],
+      "totalNumbers": 2000,
+      "ranges": [
+        { "id": 41, "prefix": "48", "rangeFrom": "48000", "rangeTo": "48999", "totalNumbers": 1000, "note": "Tổng đài viên CSKH" },
+        { "id": 42, "prefix": "49", "rangeFrom": "49000", "rangeTo": "49999", "totalNumbers": 1000, "note": "Dịch vụ điện & hợp đồng" }
+      ]
+    },
+    "userCount": 68,
+    "representative": { "id": 25, "fullName": "Đỗ Minh Khang", "email": "khang.dm@71portal.vn", "avatarUrl": null },
+    "admins": [
+      { "id": 25, "fullName": "Đỗ Minh Khang", "email": "khang.dm@71portal.vn", "phoneNumber": null, "avatarUrl": null },
+      { "id": 22, "fullName": "Phạm Thu Hương", "email": "huong.pt@71portal.vn", "phoneNumber": "0983 111 222", "avatarUrl": null }
+    ],
+    "createdAt": "2026-04-18T09:15:00+07:00",
+    "updatedAt": "2026-11-06T14:00:00+07:00"
+  },
+  "timestamp": "2026-11-06T14:00:00+07:00"
 }
 ```
+
+- **Lỗi**:
+
+| HTTP | `errorCode` | Khi nào |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | `:id` sai định dạng (`errors.id`); có query; body `{}` (`errors.body`), sai kiểu/định dạng/độ dài, `name`/`allowRecordingAccess` `null`, trường không nhận (`code`, `status`, `phonePrefixGroupId`…); đơn vị mới không tồn tại (`errors.organizationId`); người đại diện mới không phải Quản trị viên nhóm `ACTIVE` của nhóm (`errors.representativeUserId`) |
+| `401` | `UNAUTHORIZED` | Như mục 3.1 (bản Admin) |
+| `403` | `PASSWORD_CHANGE_REQUIRED` | Gọi bằng token `PASSWORD_CHANGE_ONLY` |
+| `403` | `FORBIDDEN_PERMISSION` | Vai trò thiếu `user_group:manage` |
+| `404` | `NOT_FOUND` | Không có nhóm `:id` |
+| `409` | `GROUP_INACTIVE` | Nhóm đã `INACTIVE` (mọi body hợp lệ, kể cả không đổi gì); `errors = null` |
+| `409` | `ORGANIZATION_INACTIVE` | Chuyển sang đơn vị mới đang `INACTIVE`; `errors = { "organizationId": ["..."] }` |
+
+Không có `CODE_DUPLICATE` (không nhận `code`), không có `LAST_GROUP_ADMIN` (không đổi vai trò; bỏ người đại diện không bỏ quyền Quản trị viên nhóm).
+
+- **Frontend** (`#userGroupModal` ở chế độ sửa; mẫu `templates/admin/user_group.js`: `mockUpdateUserGroup`, `validateGroupUpdateBody`, `openEditGroupModal`, `loadGroupEdit`, `fillGroupRepOptions`, `buildGroupUpdateBody`, `submitUpdateGroup`, `fillGroupOrgOptions(current)`), theo quy ước form sửa O05:
+  - Mở hộp với tiêu đề "Chỉnh sửa – <mã nhóm từ dòng đã bấm>", form khóa và hiện "Đang tải...", gọi `GET /api/v1/admin/user-groups/:id` (mục 3.1.2) **mỗi lần mở** (không dùng dữ liệu dòng danh sách hay hộp chi tiết; chỉ nhận response của lần mở sau cùng). Lỗi tải: thông điệp + "Thử lại" trong hộp, nút Lưu khóa. `404`: đóng hộp, toast cảnh báo "Nhóm người dùng không còn tồn tại", tải lại danh sách. Response có `status = INACTIVE` (vừa bị ngừng hoạt động): đóng hộp, toast cảnh báo "Nhóm đã ngừng hoạt động, không sửa được", tải lại danh sách.
+  - Ô: Mã nhóm (**chỉ đọc**, không gửi), Tên, Đơn vị tổ chức, **Người đại diện** (chỉ ở chế độ sửa, `[data-edit-only]`), Mô tả, ô chọn "Cho phép nhóm nghe và tải ghi âm" (Tầng 1, gợi ý khi đang bật: "Tắt sẽ chặn ngay việc nghe/tải ghi âm của cả nhóm; vai trò thành viên giữ nguyên"). Khối "Quản trị viên nhóm đầu tiên" và ghi chú nhóm đầu số ẩn (`[data-create-only]`). Không có ô trạng thái, nhóm đầu số.
+  - Ô Đơn vị tổ chức: như mục 3.2 (nhóm độc lập + đơn vị `ACTIVE` của cây), **luôn** có đơn vị hiện tại kể cả `INACTIVE` (nhãn thêm "(ngừng hoạt động)") để giữ đúng giá trị. Cây lỗi: chỉ còn "nhóm độc lập" và đơn vị hiện tại (tên lấy từ `organizationName`).
+  - Ô Người đại diện: dựng từ `admins` của response (Quản trị viên nhóm `ACTIVE`, "họ tên – email"), thêm lựa chọn "Không có người đại diện" (`null`); người đại diện hiện tại không có trong `admins` (đang `LOCKED`) vẫn có trong ô với nhãn "(không hoạt động)" để giữ đúng giá trị. Bổ nhiệm Quản trị viên nhóm mới làm ở hộp "Quản trị viên nhóm" (`PUT /users/:id/role`, mục 3.5), không ở form này.
+  - Kiểm tra trước khi gửi bằng cùng quy tắc với backend; chỉ gửi trường **khác** dữ liệu đã tải (chuẩn hóa: cắt khoảng trắng, ô trống của trường tùy chọn → `null`, `allowRecordingAccess` boolean); không đổi gì thì không gọi API, đóng hộp + toast "Không có thay đổi nào" (quy ước A18).
+  - Khi gửi: khóa form và nút ("Đang lưu..."), nút đóng/Hủy, bấm nền và `Esc` không đóng hộp. `400`: lỗi dưới ô (`errors.representativeUserId` thì tải lại `GET .../:id` để dựng lại ô Người đại diện, giữ các ô khác đang nhập). `409 ORGANIZATION_INACTIVE`: lỗi dưới ô đơn vị, tải lại cây và dựng lại ô chọn. `409 GROUP_INACTIVE` / `404`: đóng hộp, toast cảnh báo, tải lại danh sách. `403`: toast cảnh báo. Lỗi khác: toast lỗi, giữ giá trị.
+  - `200`: đóng hộp, toast "Đã lưu nhóm <name>", tải lại danh sách (giữ bộ lọc và trang; không sửa dòng tại chỗ).
+- **Index phục vụ**: khóa chính `admins` (kiểm tra tài khoản), khóa chính `user_groups` (bước 2, 6), khóa chính `organizations` (bước 4), khóa chính `users`, `user_roles`, `uniq_roles_code` (bước 5); đọc lại như mục 3.1.2. Không thêm index.
 
 ---
 
@@ -803,7 +901,7 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
   - Cột "Thành viên": `userCount` (thành viên chưa `INACTIVE`). Cột "Ngày thiết lập": `createdAt`.
 - **Modal Thiết lập mới / Chỉnh sửa (`#userGroupModal`)**:
   - Chế độ tạo (`POST /api/v1/admin/user-groups`): ô, kiểm tra trước khi gửi, khóa khi gửi, lỗi dưới ô và hộp mật khẩu tạm `#groupTempPasswordModal` theo mục 3.2 "Frontend". Ô đơn vị: "Không gắn đơn vị (nhóm độc lập)" hoặc đơn vị `ACTIVE` của cây tổ chức. Khối "Quản trị viên nhóm đầu tiên" (tên đăng nhập, email, họ tên, số điện thoại, chức danh) chỉ có ở chế độ tạo. Không có ô trạng thái hay ô chọn nhóm đầu số ở cả hai chế độ.
-  - Chế độ sửa (`PUT /api/v1/admin/user-groups/:id`): mục 3.3.
+  - Chế độ sửa (`PUT /api/v1/admin/user-groups/:id`): tải `GET .../:id` mỗi lần mở, mã nhóm chỉ đọc, thêm ô Người đại diện (Quản trị viên nhóm `ACTIVE` hoặc "Không có người đại diện"), chỉ gửi trường đã đổi; theo mục 3.3 "Frontend".
 
 ### 5.2. Khu vực Admin – Pinia Store (`useUserGroupStore`)
 
@@ -811,7 +909,7 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
 - Actions:
   - `fetchUserGroups()`: gọi `GET /admin/user-groups` với `query` hiện tại (chỉ gửi tham số có giá trị; `organizationId` và `standalone` loại trừ nhau), chỉ nhận response của request sau cùng (mục 3.1).
   - `createUserGroup(payload)`: gọi `POST /admin/user-groups` (mục 3.2) rồi `fetchUserGroups()`; trả `data` cho view để mở hộp mật khẩu tạm, **không** giữ `initialAdmin.temporaryPassword` trong state.
-  - `updateUserGroup(id, payload)`: Cập nhật thông tin nhóm.
+  - `updateUserGroup(id, payload)`: gọi `PUT /admin/user-groups/:id` (mục 3.3) với chỉ các trường đã đổi, rồi `fetchUserGroups()`; dữ liệu form sửa tải bằng `GET /admin/user-groups/:id` mỗi lần mở (không giữ trong state).
   - `changeMemberRole(userId, roleCode)`: Gọi `PUT /users/:id/role`; bắt lỗi `409` khi vi phạm tối thiểu 1 admin hoặc nhóm chưa mở Tầng 1.
   - `deleteUserGroup(id)`: Ngừng hoạt động nhóm (xóa mềm) kèm toàn bộ thành viên chưa `INACTIVE`; gọi sau khi người dùng xác nhận số thành viên bị ảnh hưởng.
 
@@ -866,7 +964,13 @@ Module có màn hình ở cả 2 khu vực frontend (`docs/00_overview_and_archi
    - Lặp lại với nhóm khác, gọi `DELETE ...?revokeRanges=true` -> mọi số trong dải của nhóm có `range_id = NULL` (số `ALLOCATED` về `FREE`, số `LOCKED` giữ nguyên), nhóm đầu số còn liên kết nhưng rỗng.
    - Gọi lại API DELETE trên nhóm đã `INACTIVE` -> `409 GROUP_INACTIVE`.
    - Trước khi ngừng hoạt động nhóm, gọi `DELETE /api/v1/users/:id` với Quản trị viên nhóm duy nhất -> `409` (quy tắc tối thiểu 1 Quản trị viên nhóm vẫn áp dụng khi nhóm còn `ACTIVE`).
-9. **TC-UG-07 (Danh bạ nhóm cho thành viên thường)**:
+9. **TC-UG-08 (Sửa nhóm, mục 3.3)**: nhóm A `ACTIVE` gắn đơn vị 2, Quản trị viên nhóm P (đại diện, `ACTIVE`), Q (`ACTIVE`), R (`LOCKED`), thành viên thường S; nhóm B khác có Quản trị viên T; nhóm D `INACTIVE`.
+   - `{}`, `?x=1`, `{ "code": "X" }`, `{ "status": "INACTIVE" }`, `{ "phonePrefixGroupId": 1 }`, `{ "name": null }`, `{ "name": "ab" }`, `{ "allowRecordingAccess": null }`, `{ "organizationId": "3" }`, `/admin/user-groups/abc` → `400`; `/admin/user-groups/999` → `404 NOT_FOUND`; D với body hợp lệ (kể cả không đổi gì) → `409 GROUP_INACTIVE`.
+   - `representativeUserId` = id của Q → `200`, `representative` là Q, Q đứng đầu `admins`; R, S, T, id không tồn tại → `400` (`errors.representativeUserId`); `null` → `200`, `representative = null`, `admins` không đổi. Khi R đang là người đại diện: gửi lại đúng id của R → `200` không chặn.
+   - `{ "organizationId": null }` → `hierarchyPath = []`; đơn vị `INACTIVE` mới → `409 ORGANIZATION_INACTIVE`; đơn vị hiện tại đã chuyển `INACTIVE`, gửi lại đúng id đó → `200`; đơn vị đang bị `DELETE /admin/organizations/:id` (giữ khóa) → chờ, đơn vị bị xóa xong → `400` (`errors.organizationId`).
+   - Gửi đúng giá trị hiện tại → `200` "Không có thay đổi nào", `updated_at` không đổi, không có dòng audit. `{ "name": "...", "allowRecordingAccess": false }` khi đang bật → hai dòng audit: `UPDATE` `{ changedFields: ["name"] }` và `TOGGLE_GROUP_RECORDING` `{ allowRecordingAccess: false }`; ngay sau đó người dùng `USER_RECORDING` của nhóm gọi API nghe ghi âm → `403 GROUP_RECORDING_DISABLED`, vai trò vẫn `USER_RECORDING`; bật lại → nghe được.
+   - Hai request đồng thời: `PUT` đổi người đại diện sang Q và `PUT /users/:id/role` hạ quyền Q → chạy tuần tự theo khóa dòng nhóm; nếu hạ quyền chạy trước thì `PUT` nhóm trả `400`.
+10. **TC-UG-07 (Danh bạ nhóm cho thành viên thường)**:
    - Đăng nhập khu vực Member bằng `REGULAR_USER` -> mở `/group-members` thành công; `GET /api/v1/user-groups/me/members` trả `200`, chỉ thành viên `ACTIVE` cùng nhóm (có cả người gọi; thành viên `LOCKED`/`INACTIVE` và nhóm khác không có), phần tử đúng 7 trường (không có `username`, `status`, `roleCode`, `lastLoginAt`); thành viên `USER_RECORDING` và `REGULAR_USER` cùng `isGroupAdmin = false`.
    - Thứ tự: người đại diện đầu tiên, rồi Quản trị viên nhóm khác, rồi thành viên còn lại, trong mỗi khối `fullName`, `id`; `?isGroupAdmin=true` chỉ Quản trị viên nhóm, `?isGroupAdmin=false` chỉ thành viên khác; `?search=` khớp chứa trên họ tên/email/chức danh/số điện thoại, thoát `%`/`_`; `page` vượt `totalPages` → `200` rỗng.
    - `?isGroupAdmin=1`, `?roleCode=GROUP_ADMIN`, `?groupId=2`, `?userGroupId=2`, `?status=LOCKED`, `?sort=fullName`, `?limit=101`, `?page=0`, `search` 101 ký tự → `400 VALIDATION_ERROR`; bật bảo trì → `503`; token `PASSWORD_CHANGE_ONLY` → `403 PASSWORD_CHANGE_REQUIRED`; tài khoản bị khóa giữa phiên → `401`. `GET /api/v1/user-groups/me` → `400` (`errors.id`); `GET /api/v1/admin/user-groups/me/members` → `404`.

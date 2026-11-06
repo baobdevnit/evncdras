@@ -347,6 +347,12 @@
                 <button type="button" class="close-btn" data-ug-close aria-label="Đóng">&times;</button>
             </div>
             <div class="modal-body">
+                <!-- Chế độ sửa (G06, M02 mục 3.3): tải GET /admin/user-groups/:id mỗi lần mở; đang tải / lỗi + "Thử lại" ở đây,
+                     form ẩn cho tới khi có dữ liệu -->
+                <div id="groupFormState" class="ug-detail-state" hidden>
+                    <span id="groupFormMessage"></span>
+                    <button type="button" class="btn btn-outline btn-sm" id="btnRetryGroupForm" hidden>Thử lại</button>
+                </div>
                 <form id="groupForm" novalidate onsubmit="event.preventDefault(); saveUserGroup();">
                     <input type="hidden" id="groupIdInput">
 
@@ -378,6 +384,15 @@
                                 <small class="form-hint">Một đơn vị có thể có nhiều nhóm; để trống nếu là nhóm độc lập toàn hệ thống.</small>
                                 <small class="field-error" data-error-for="organizationId" hidden></small>
                             </div>
+                            <!-- Chỉ chế độ sửa: dựng từ admins của GET .../:id (fillGroupRepOptions); "" = null (bỏ người đại diện) -->
+                            <div class="form-group" style="margin-bottom: 12px;" data-edit-only hidden>
+                                <label for="groupRepSelect">Người đại diện</label>
+                                <select id="groupRepSelect" name="representativeUserId" class="form-control">
+                                    <option value="">Không có người đại diện</option>
+                                </select>
+                                <small class="form-hint">Chọn trong các Quản trị viên nhóm đang hoạt động; bổ nhiệm Quản trị viên mới ở mục "Quản trị viên nhóm".</small>
+                                <small class="field-error" data-error-for="representativeUserId" hidden></small>
+                            </div>
                             <div class="badge-1to1-note" data-create-only>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
@@ -405,6 +420,7 @@
                                 <small>Quản trị viên nhóm nghe/tải được ghi âm của nhóm và phân quyền cho thành viên bằng vai trò "Thành viên nghe ghi âm".</small>
                             </span>
                         </label>
+                        <small class="form-hint" id="groupRecordingOffHint" hidden>Tắt sẽ chặn ngay việc nghe/tải ghi âm của cả nhóm; vai trò thành viên giữ nguyên.</small>
                         <small class="field-error" data-error-for="allowRecordingAccess" hidden></small>
                     </div>
 

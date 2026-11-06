@@ -3,8 +3,9 @@
 // Danh sách nhóm dùng GET /api/v1/admin/user-groups (G01, mock mockGetUserGroups bên dưới mảng này).
 // Hộp chi tiết dùng GET /api/v1/admin/user-groups/:id (G03, mock mockGetUserGroupDetail trên MOCK_UG_ROWS).
 // Tạo nhóm dùng POST /api/v1/admin/user-groups (G05, mock mockCreateUserGroup, thêm dòng vào MOCK_UG_ROWS).
-// Mảng userGroupsData là dữ liệu CŨ chỉ còn phục vụ các hộp sửa / quản trị viên / ngừng hoạt động
-// (chưa rà: G06–G07); không phải dạng response của API.
+// Sửa nhóm dùng PUT /api/v1/admin/user-groups/:id (G06, mock mockUpdateUserGroup trên MOCK_UG_ROWS).
+// Mảng userGroupsData là dữ liệu CŨ chỉ còn phục vụ các hộp quản trị viên / ngừng hoạt động / thành viên
+// (chưa rà: G07, N01, N07); không phải dạng response của API.
 // Màn hình chỉ có danh sách phẳng: không có tab/chế độ xem cây nhóm (API GET /user-groups/tree đã bỏ ở G02).
 
 let userGroupsData = [
@@ -198,8 +199,8 @@ let currentManagingGroupId = null;
  * Vue: UserGroupView.vue + useUserGroupStore (fetchUserGroups, query, pagination).
  * Kiểm tay mock: ?listError=1 (lỗi tải một lần, "Thử lại" thành công), ?listEmpty=1 (chưa có nhóm),
  * ?orgTreeError=1 (ô lọc đơn vị chỉ còn "Tất cả"/"Nhóm độc lập"), ?noManage=1 (thiếu user_group:manage).
- * Hộp chi tiết: mục "Chi tiết nhóm" bên dưới (G03). Các hộp sửa/quản trị viên/ngừng hoạt động vẫn dùng
- * mảng cũ userGroupsData cho tới khi rà G06–G07.
+ * Hộp chi tiết: mục "Chi tiết nhóm" bên dưới (G03); hộp sửa: mục "Sửa nhóm" (G06). Các hộp quản trị viên/ngừng
+ * hoạt động vẫn dùng mảng cũ userGroupsData cho tới khi rà G07, N07.
  * ========================================================================== */
 const UG_QS = new URLSearchParams(window.location.search);
 function ugNow() { return new Date().toISOString().replace('Z', '+07:00'); }
@@ -259,12 +260,13 @@ const MOCK_UG_ROWS = [
       description: 'Nhóm thanh tra kỹ thuật và kiểm toán độc lập cấp Tập đoàn',
       organizationId: null, ppg: { id: 13, code: 'PG-UMO-AUDIT-GLOBAL', name: 'Nhóm đầu số Tổ Giám sát Kiểm toán Độc lập' },
       ranges: [{ id: 51, prefix: '20', rangeFrom: '20000', rangeTo: '20999', totalNumbers: 1000, note: 'Ban Kiểm toán nội bộ' }],
-      userCount: 12, representative: { id: 31, fullName: 'Nguyễn Hải Nam', email: 'nam.nh@evn.com.vn', avatarUrl: null },
+      // Người đại diện 33 đang LOCKED (giữ vị trí, R15-07) nên không có trong admins
+      userCount: 12, representative: { id: 33, fullName: 'Trịnh Văn Lộc', email: 'loc.tv@evn.com.vn', avatarUrl: null },
       admins: [{ id: 31, fullName: 'Nguyễn Hải Nam', email: 'nam.nh@evn.com.vn', phoneNumber: '0904 555 666', avatarUrl: null }],
       createdAt: '2026-05-10T14:00:00+07:00', updatedAt: '2026-05-10T14:00:00+07:00' },
     { id: 5, code: 'UMO-EXPERT-SEC', name: 'Tổ Chuyên gia SOC An toàn Thông tin', status: 'ACTIVE', allowRecordingAccess: false,
       description: null,
-      organizationId: null, ppg: { id: 14, code: 'PG-UMO-EXPERT-SEC', name: 'Nhóm đầu số Tổ Chuyên gia SOC An toàn Thông tin' },
+      organizationId: 5, ppg: { id: 14, code: 'PG-UMO-EXPERT-SEC', name: 'Nhóm đầu số Tổ Chuyên gia SOC An toàn Thông tin' },
       ranges: [],
       userCount: 1, representative: null,
       admins: [{ id: 40, fullName: 'Vũ Quốc Bảo', email: 'bao.vq@71portal.vn', phoneNumber: null, avatarUrl: null }],
@@ -640,7 +642,7 @@ function renderUserGroupsTable(data) {
             : `<span class="text-muted">Chưa có người đại diện</span>`;
         const writeButtons = manage && active ? `
                 <button class="action-btn" onclick="openManageAdminsModal(${group.id})" title="Quản trị viên nhóm">${UG_ICONS.admins}</button>
-                <button class="action-btn edit-btn" onclick="openEditGroupModal(${group.id})" title="Sửa nhóm">${UG_ICONS.edit}</button>
+                <button class="action-btn edit-btn" onclick="openEditGroupModal(${group.id}, '${ugEsc(group.code)}')" title="Sửa nhóm">${UG_ICONS.edit}</button>
                 <button class="action-btn delete-btn" onclick="openDeleteGroupModal(${group.id})" title="Ngừng hoạt động nhóm">${UG_ICONS.remove}</button>` : '';
         return `
             <tr>
@@ -816,9 +818,10 @@ function updateGroupDetailActions(data) {
 
 function groupActionFromDetail(action) {
     const id = ugDetailId;
+    const code = ugDetailData ? ugDetailData.code : '';
     closeGroupDetail();
     if (!id) return;
-    if (action === 'edit') openEditGroupModal(id);
+    if (action === 'edit') openEditGroupModal(id, code);
     else if (action === 'admins') openManageAdminsModal(id);
     else if (action === 'delete') openDeleteGroupModal(id);
 }
@@ -899,6 +902,7 @@ const MOCK_UG_USERS = [
     { id: 10, username: 'tran.b', email: 'tran.b@71portal.vn', status: 'ACTIVE' },
     { id: 11, username: 'le.c', email: 'le.c@71portal.vn', status: 'LOCKED' },
     { id: 18, username: 'tuan.hv', email: 'tuan.hv@71portal.vn', status: 'ACTIVE' },
+    { id: 33, username: 'loc.tv', email: 'loc.tv@evn.com.vn', status: 'LOCKED' },
     { id: 55, username: 'old.user', email: 'old.user@evn.com.vn', status: 'INACTIVE' }
 ];
 const UG_CREATE_KEYS = ['code', 'name', 'description', 'organizationId', 'allowRecordingAccess', 'initialAdmin'];
@@ -1025,31 +1029,43 @@ function mockCreateUserGroup(token, body, query) {
     });
 }
 
-// Ô chọn đơn vị: "" = nhóm độc lập, rồi đơn vị ACTIVE của cây (thụt lề theo level). Đơn vị INACTIVE không có trong ô.
-// Cây lỗi: chỉ còn "nhóm độc lập" + toast cảnh báo (vẫn tạo được nhóm độc lập).
-function fillGroupOrgOptions() {
+// Ô chọn đơn vị: "" = nhóm độc lập, rồi đơn vị ACTIVE của cây (thụt lề theo level). Đơn vị INACTIVE không có trong ô,
+// trừ đơn vị hiện tại của nhóm đang sửa (current = data của GET .../:id): luôn có, nhãn "(ngừng hoạt động)" (M02 mục 3.3).
+// Cây lỗi: chỉ còn "nhóm độc lập" (+ đơn vị hiện tại khi sửa) + toast cảnh báo.
+function fillGroupOrgOptions(current) {
     const select = document.getElementById('groupOrgSelect');
     if (!select) return Promise.resolve();
     const keep = select.value;
     select.innerHTML = '<option value="">Không gắn đơn vị (nhóm độc lập)</option>';
+    const curId = current && current.organizationId !== null ? current.organizationId : null;
+    const addCurrentIfMissing = () => {
+        if (curId === null || [...select.options].some(o => o.value === String(curId))) return;
+        const opt = document.createElement('option');
+        opt.value = String(curId);
+        opt.textContent = current.organizationName + ' (hiện tại)';
+        select.appendChild(opt);
+    };
     return ugCallApi(token => mockGetOrgTreeForFilter(token))
         .then(res => {
             (function walk(nodes) {
                 nodes.forEach(n => {
-                    if (n.status === 'ACTIVE') {
+                    if (n.status === 'ACTIVE' || n.id === curId) {
                         const opt = document.createElement('option');
                         opt.value = String(n.id);
-                        opt.textContent = '  '.repeat(n.level) + n.name + ' (' + n.code + ')';
+                        opt.textContent = '  '.repeat(n.level) + n.name + ' (' + n.code + ')' +
+                            (n.status === 'ACTIVE' ? '' : ' (ngừng hoạt động)');
                         select.appendChild(opt);
                     }
                     walk(n.children || []);
                 });
             })(res.data);
+            addCurrentIfMissing();
             if ([...select.options].some(o => o.value === keep)) select.value = keep;
         })
         .catch(err => {
+            addCurrentIfMissing();
             if (err && err.statusCode === 401) return;
-            showToast('Không tải được cây tổ chức; chỉ chọn được nhóm độc lập', 'warning');
+            showToast('Không tải được cây tổ chức; chỉ chọn được nhóm độc lập' + (curId !== null ? ' hoặc đơn vị hiện tại' : ''), 'warning');
         });
 }
 
@@ -1090,11 +1106,15 @@ function setGroupFormBusy(busy) {
 
 function closeGroupForm() {
     if (ugFormBusy) return; // đang gửi: nút đóng/Hủy, nền, Esc không đóng
+    ugEditSeq++; // bỏ response tải form sửa đang chờ
     closeModal('userGroupModal');
 }
 
 function setGroupFormMode(create) {
     document.querySelectorAll('#userGroupModal [data-create-only]').forEach(el => { el.hidden = !create; });
+    document.querySelectorAll('#userGroupModal [data-edit-only]').forEach(el => { el.hidden = create; });
+    const hint = document.getElementById('groupRecordingOffHint');
+    if (hint) hint.hidden = true;
     document.getElementById('groupCodeInput').readOnly = !create;
     document.getElementById('groupSubmitBtn').textContent = create ? 'Tạo nhóm' : 'Lưu thay đổi';
 }
@@ -1103,6 +1123,9 @@ function openCreateGroupModal() {
     document.getElementById('modalTitle').innerText = 'Thiết lập Nhóm người dùng mới';
     ugForm().reset();
     document.getElementById('groupIdInput').value = '';
+    ugEditData = null;
+    ugEditSeq++; // bỏ response tải form sửa đang chờ
+    setGroupFormState(null);
     clearGroupFormErrors();
     setGroupFormMode(true);
     fillGroupOrgOptions();
@@ -1110,28 +1133,9 @@ function openCreateGroupModal() {
     document.getElementById('groupCodeInput').focus();
 }
 
-// Chế độ sửa: vẫn dùng mảng cũ userGroupsData cho tới khi rà G06 (PUT /api/v1/admin/user-groups/:id).
-function openEditGroupModal(groupId) {
-    const group = userGroupsData.find(g => g.id === groupId);
-    if (!group) return;
-    document.getElementById('modalTitle').innerText = 'Chỉnh sửa Nhóm người dùng';
-    ugForm().reset();
-    clearGroupFormErrors();
-    setGroupFormMode(false);
-    document.getElementById('groupIdInput').value = group.id;
-    document.getElementById('groupCodeInput').value = group.code;
-    document.getElementById('groupNameInput').value = group.name;
-    document.getElementById('groupDescInput').value = group.description || '';
-    document.getElementById('groupAllowRecordingInput').checked = !!group.allowRecordingAccess;
-    fillGroupOrgOptions().then(() => {
-        document.getElementById('groupOrgSelect').value = group.organizationId !== null ? String(group.organizationId) : '';
-    });
-    openModal('userGroupModal');
-}
-
 function saveUserGroup() {
     if (ugFormBusy) return;
-    if (ugIsCreateMode()) submitCreateGroup(); else saveEditGroupLegacy();
+    if (ugIsCreateMode()) submitCreateGroup(); else submitUpdateGroup();
 }
 
 // Đọc form thành body đúng các trường API: ô trống tùy chọn → null, allowRecordingAccess luôn boolean.
@@ -1230,23 +1234,290 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
-// Lưu ở chế độ sửa: mã cũ trên userGroupsData (chưa rà, G06 thay bằng PUT /api/v1/admin/user-groups/:id).
-function saveEditGroupLegacy() {
-    const groupId = parseInt(document.getElementById('groupIdInput').value, 10);
-    const idx = userGroupsData.findIndex(g => g.id === groupId);
-    const name = document.getElementById('groupNameInput').value.trim();
-    if (!name) { showGroupFormErrors({ name: ['Bắt buộc'] }); return; }
-    if (idx !== -1) {
-        const orgVal = document.getElementById('groupOrgSelect').value;
-        userGroupsData[idx].name = name;
-        userGroupsData[idx].description = document.getElementById('groupDescInput').value.trim();
-        userGroupsData[idx].organizationId = orgVal === '' ? null : Number(orgVal);
-        userGroupsData[idx].allowRecordingAccess = document.getElementById('groupAllowRecordingInput').checked;
-        showToast('Cập nhật nhóm người dùng thành công', 'success');
+/* ==========================================================================
+ * Sửa nhóm: PUT /api/v1/admin/user-groups/:id (G06, M02 mục 3.3)
+ * Vue: #userGroupModal chế độ sửa của UserGroupView.vue + useUserGroupStore.updateUserGroup. Dữ liệu form tải bằng
+ * GET /admin/user-groups/:id mỗi lần mở (không dùng dòng danh sách); chỉ gửi trường đã đổi.
+ * Kiểm tay mock: ?editLoadError=1 (lỗi tải một lần), ?updateError=1 (lỗi mạng một lần khi lưu),
+ * ?updateInactive=<id> (nhóm vừa bị ngừng hoạt động → 409 GROUP_INACTIVE), ?repDemoted=<userId> (Quản trị viên vừa bị
+ * hạ quyền → 400 errors.representativeUserId), ?orgInactive=<id> (đơn vị vừa ngừng hoạt động → 409).
+ * Nhóm UMO-AUDIT-GLOBAL có người đại diện LOCKED; nhóm UMO-EXPERT-SEC gắn đơn vị INACTIVE (giữ được, không chuyển sang được).
+ * ========================================================================== */
+const UG_UPDATE_KEYS = ['name', 'description', 'organizationId', 'representativeUserId', 'allowRecordingAccess'];
+let ugUpdateFailOnce = UG_QS.get('updateError') === '1';
+let ugEditLoadFailOnce = UG_QS.get('editLoadError') === '1';
+let ugEditSeq = 0;
+let ugEditData = null; // data của GET .../:id lần mở sau cùng (so trường đã đổi theo đây)
+
+// Kiểm tra body theo bảng M02 mục 3.3 (dùng chung cho mock backend và kiểm tra trước khi gửi).
+// Trả { errors, body } chỉ gồm các khóa đã gửi, đã cắt khoảng trắng / chuẩn hóa rỗng → null.
+function validateGroupUpdateBody(raw) {
+    const errors = {};
+    const add = (k, m) => { (errors[k] = errors[k] || []).push(m); };
+    const b = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const keys = Object.keys(b);
+    if (!keys.length) add('body', 'Cần gửi ít nhất một trường');
+    keys.forEach(k => { if (!UG_UPDATE_KEYS.includes(k)) add(k, 'Trường không được nhận'); });
+    const body = {};
+    const has = k => Object.prototype.hasOwnProperty.call(b, k);
+    const idOk = v => Number.isInteger(v) && v >= 1 && v <= 4294967295;
+    if (has('name')) {
+        const v = b.name;
+        if (typeof v !== 'string' || v.trim() === '') add('name', 'Bắt buộc');
+        else if (v.trim().length < 3 || v.trim().length > 255) add('name', 'Từ 3 đến 255 ký tự');
+        else body.name = v.trim();
     }
-    closeModal('userGroupModal');
-    loadUserGroups();
+    if (has('description')) {
+        if (b.description !== null && typeof b.description !== 'string') add('description', 'Phải là chuỗi');
+        else {
+            const d = (b.description || '').trim();
+            if (new TextEncoder().encode(d).length > 65535) add('description', 'Tối đa 65 535 byte');
+            else body.description = d === '' ? null : d;
+        }
+    }
+    if (has('organizationId')) {
+        if (b.organizationId !== null && !idOk(b.organizationId)) add('organizationId', 'Đơn vị không hợp lệ');
+        else body.organizationId = b.organizationId;
+    }
+    if (has('representativeUserId')) {
+        if (b.representativeUserId !== null && !idOk(b.representativeUserId)) add('representativeUserId', 'Người đại diện không hợp lệ');
+        else body.representativeUserId = b.representativeUserId;
+    }
+    if (has('allowRecordingAccess')) {
+        if (typeof b.allowRecordingAccess !== 'boolean') add('allowRecordingAccess', 'Phải là true hoặc false');
+        else body.allowRecordingAccess = b.allowRecordingAccess;
+    }
+    return { errors, body };
 }
+
+// Giả lập PUT /api/v1/admin/user-groups/:id. Thứ tự: 401 → :id/query/body 400 → 404 → 409 GROUP_INACTIVE →
+// đơn vị mới 400/409 → người đại diện mới 400. Không đổi gì → 200 không ghi. 200: data 15 trường như GET .../:id.
+// Audit (backend): UPDATE { changedFields } (không gồm allowRecordingAccess) và/hoặc TOGGLE_GROUP_RECORDING { allowRecordingAccess }.
+function mockUpdateUserGroup(token, idParam, body, query) {
+    return new Promise(resolve => setTimeout(resolve, 400)).then(() => {
+        if (!token) return Promise.reject(ugUnauthorized());
+        const idStr = String(idParam);
+        const { errors, body: b } = validateGroupUpdateBody(body);
+        if (!/^[1-9][0-9]{0,9}$/.test(idStr) || Number(idStr) > 4294967295) errors.id = ['Mã nhóm không hợp lệ'];
+        Object.keys(query || {}).forEach(k => { errors[k] = ['Tham số không được nhận']; });
+        if (Object.keys(errors).length) return Promise.reject(ugValidationError(errors));
+        if (ugUpdateFailOnce) {
+            ugUpdateFailOnce = false;
+            return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
+        }
+        const g = MOCK_UG_ROWS.find(row => row.id === Number(idStr));
+        if (!g) return Promise.reject({ success: false, statusCode: 404, errorCode: 'NOT_FOUND',
+            message: 'Không tìm thấy nhóm người dùng', errors: null, timestamp: ugNow() });
+        if (UG_QS.get('updateInactive') === idStr) { // giả lập DELETE nhóm chạy xong trước (mục 3.4)
+            g.status = 'INACTIVE'; g.userCount = 0; g.representative = null; g.admins = [];
+        }
+        if (g.status === 'INACTIVE') return Promise.reject({ success: false, statusCode: 409, errorCode: 'GROUP_INACTIVE',
+            message: 'Nhóm người dùng đã ngừng hoạt động', errors: null, timestamp: ugNow() });
+        const repId = g.representative ? g.representative.id : null;
+        const cur = { name: g.name, description: g.description, organizationId: g.organizationId,
+            representativeUserId: repId, allowRecordingAccess: g.allowRecordingAccess };
+        const changed = UG_UPDATE_KEYS.filter(k => k in b && b[k] !== cur[k]);
+        if (changed.includes('organizationId') && b.organizationId !== null) {
+            const org = MOCK_UG_ORGS.find(o => o.id === b.organizationId);
+            if (!org) return Promise.reject(ugValidationError({ organizationId: ['Đơn vị tổ chức không tồn tại'] }));
+            if (org.status === 'INACTIVE' || UG_QS.get('orgInactive') === String(org.id)) {
+                org.status = 'INACTIVE';
+                return Promise.reject({ success: false, statusCode: 409, errorCode: 'ORGANIZATION_INACTIVE',
+                    message: 'Đơn vị tổ chức đã ngừng hoạt động',
+                    errors: { organizationId: ['Đơn vị đã ngừng hoạt động, hãy chọn đơn vị khác'] }, timestamp: ugNow() });
+            }
+        }
+        if (changed.includes('representativeUserId') && b.representativeUserId !== null) {
+            const demoted = UG_QS.get('repDemoted');
+            if (demoted) g.admins = g.admins.filter(a => String(a.id) !== demoted); // vừa bị hạ quyền (PUT /users/:id/role)
+            if (!g.admins.some(a => a.id === b.representativeUserId)) { // admins = Quản trị viên nhóm ACTIVE của nhóm
+                return Promise.reject(ugValidationError({
+                    representativeUserId: ['Người đại diện phải là Quản trị viên nhóm đang hoạt động của nhóm'] }));
+            }
+        }
+        if (!changed.length) {
+            return { success: true, statusCode: 200, message: 'Không có thay đổi nào', data: buildUgDetail(g), timestamp: ugNow() };
+        }
+        changed.forEach(k => {
+            if (k === 'representativeUserId') {
+                const a = g.admins.find(x => x.id === b.representativeUserId);
+                g.representative = a ? { id: a.id, fullName: a.fullName, email: a.email, avatarUrl: a.avatarUrl } : null;
+                if (a) g.admins = [a].concat(g.admins.filter(x => x.id !== a.id)); // người đại diện đứng đầu (mục 3.1.2 bước 5)
+            } else g[k] = b[k];
+        });
+        g.updatedAt = ugNow();
+        return { success: true, statusCode: 200, message: 'Cập nhật nhóm người dùng thành công', data: buildUgDetail(g), timestamp: ugNow() };
+    });
+}
+
+function setGroupFormState(message, isError) {
+    const box = document.getElementById('groupFormState');
+    document.getElementById('groupFormMessage').textContent = message || '';
+    box.hidden = !message;
+    box.classList.toggle('is-error', !!isError);
+    const retry = document.getElementById('btnRetryGroupForm');
+    retry.hidden = !isError;
+    ugForm().hidden = !!message;
+    document.getElementById('groupSubmitBtn').disabled = !!message;
+}
+
+// Nút "Sửa" ở dòng danh sách / trong hộp chi tiết: tiêu đề lấy mã từ chỗ đã bấm, form tải từ API.
+function openEditGroupModal(groupId, code) {
+    document.getElementById('modalTitle').innerText = 'Chỉnh sửa – ' + (code || '');
+    ugForm().reset();
+    clearGroupFormErrors();
+    setGroupFormMode(false);
+    document.getElementById('groupIdInput').value = String(groupId);
+    ugEditData = null;
+    openModal('userGroupModal');
+    loadGroupEdit(groupId);
+}
+
+function loadGroupEdit(id, { repOnly = false } = {}) {
+    const seq = ++ugEditSeq;
+    if (!repOnly) setGroupFormState('Đang tải thông tin nhóm...', false);
+    return ugCallApi(token => {
+        if (ugEditLoadFailOnce) {
+            ugEditLoadFailOnce = false;
+            return Promise.reject({ statusCode: 0, message: 'Không kết nối được máy chủ. Vui lòng thử lại.' });
+        }
+        return mockGetUserGroupDetail(token, String(id), {});
+    })
+        .then(res => {
+            if (seq !== ugEditSeq || document.getElementById('groupIdInput').value !== String(id)) return;
+            const data = res.data;
+            if (data.status !== 'ACTIVE') {
+                closeModal('userGroupModal');
+                showToast('Nhóm đã ngừng hoạt động, không sửa được', 'warning');
+                loadUserGroups();
+                return;
+            }
+            ugEditData = data;
+            document.getElementById('modalTitle').innerText = 'Chỉnh sửa – ' + data.code;
+            fillGroupRepOptions(data);
+            if (repOnly) return;
+            const f = ugForm().elements;
+            f.code.value = data.code;
+            f.name.value = data.name;
+            f.description.value = data.description || '';
+            f.allowRecordingAccess.checked = data.allowRecordingAccess;
+            updateRecordingHint();
+            setGroupFormState(null);
+            return fillGroupOrgOptions(data).then(() => {
+                f.organizationId.value = data.organizationId === null ? '' : String(data.organizationId);
+                f.name.focus();
+            });
+        })
+        .catch(err => {
+            if (seq !== ugEditSeq) return;
+            if (err && err.statusCode === 401) return;
+            if (err && err.statusCode === 404) {
+                closeModal('userGroupModal');
+                showToast('Nhóm người dùng không còn tồn tại', 'warning');
+                loadUserGroups();
+                return;
+            }
+            if (repOnly) { showToast(ugEsc((err && err.message) || 'Không tải lại được danh sách Quản trị viên'), 'error'); return; }
+            setGroupFormState((err && err.message) || 'Không tải được thông tin nhóm. Vui lòng thử lại.', true);
+        });
+}
+
+// Ô Người đại diện: "" = bỏ người đại diện; Quản trị viên nhóm ACTIVE (admins); người đại diện hiện tại không còn trong
+// admins (LOCKED) vẫn có trong ô, nhãn "(không hoạt động)", để giữ đúng giá trị.
+function fillGroupRepOptions(data) {
+    const select = document.getElementById('groupRepSelect');
+    select.innerHTML = '<option value="">Không có người đại diện</option>';
+    const add = (id, label) => {
+        const opt = document.createElement('option');
+        opt.value = String(id);
+        opt.textContent = label;
+        select.appendChild(opt);
+    };
+    data.admins.forEach(a => add(a.id, a.fullName + ' – ' + a.email));
+    const rep = data.representative;
+    if (rep && !data.admins.some(a => a.id === rep.id)) add(rep.id, rep.fullName + ' – ' + rep.email + ' (không hoạt động)');
+    select.value = rep ? String(rep.id) : '';
+}
+
+function updateRecordingHint() {
+    const hint = document.getElementById('groupRecordingOffHint');
+    if (hint) hint.hidden = !(ugEditData && ugEditData.allowRecordingAccess && !ugIsCreateMode());
+}
+
+// Body chỉ gồm trường khác dữ liệu đã tải (chuẩn hóa như backend: cắt khoảng trắng, ô trống tùy chọn → null).
+function buildGroupUpdateBody() {
+    const f = ugForm().elements;
+    const d = ugEditData;
+    const body = {};
+    const name = f.name.value.trim();
+    if (name !== d.name) body.name = name;
+    const desc = f.description.value.trim() === '' ? null : f.description.value.trim();
+    if (desc !== d.description) body.description = desc;
+    const org = f.organizationId.value === '' ? null : Number(f.organizationId.value);
+    if (org !== d.organizationId) body.organizationId = org;
+    const rep = f.representativeUserId.value === '' ? null : Number(f.representativeUserId.value);
+    if (rep !== (d.representative ? d.representative.id : null)) body.representativeUserId = rep;
+    if (f.allowRecordingAccess.checked !== d.allowRecordingAccess) body.allowRecordingAccess = f.allowRecordingAccess.checked;
+    return body;
+}
+
+function submitUpdateGroup() {
+    if (!ugEditData) return;
+    clearGroupFormErrors();
+    const id = ugEditData.id;
+    const raw = buildGroupUpdateBody();
+    if (!Object.keys(raw).length) { // không đổi gì: không gọi API (quy ước A18)
+        closeModal('userGroupModal');
+        showToast('Không có thay đổi nào', 'info');
+        return;
+    }
+    const { errors, body } = validateGroupUpdateBody(raw);
+    if (Object.keys(errors).length) { showGroupFormErrors(errors); return; }
+    setGroupFormBusy(true);
+    ugCallApi(token => mockUpdateUserGroup(token, String(id), body))
+        .then(res => {
+            setGroupFormBusy(false);
+            closeModal('userGroupModal');
+            showToast('Đã lưu nhóm ' + ugEsc(res.data.name), 'success');
+            loadUserGroups(); // giữ bộ lọc và trang; không sửa dòng tại chỗ
+        })
+        .catch(err => {
+            setGroupFormBusy(false);
+            const status = err && err.statusCode;
+            if (status === 401) return;
+            if (status === 404 || (status === 409 && err.errorCode === 'GROUP_INACTIVE')) {
+                closeModal('userGroupModal');
+                showToast(ugEsc(status === 404 ? 'Nhóm người dùng không còn tồn tại' : 'Nhóm đã ngừng hoạt động, không sửa được'), 'warning');
+                loadUserGroups();
+                return;
+            }
+            if (status === 409 && err.errorCode === 'ORGANIZATION_INACTIVE') {
+                showGroupFormErrors(err.errors);
+                const keep = ugForm().elements.organizationId.value;
+                fillGroupOrgOptions(ugEditData).then(() => {
+                    const sel = ugForm().elements.organizationId;
+                    if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+                });
+                loadOrgFilterOptions();
+                return;
+            }
+            if (status === 400 && err.errors) {
+                showGroupFormErrors(err.errors);
+                if (err.errors.representativeUserId) loadGroupEdit(id, { repOnly: true }); // dựng lại ô, giữ ô khác
+                return;
+            }
+            if (status === 403) { showToast(ugEsc(err.message || 'Bạn không có quyền thực hiện thao tác này'), 'warning'); return; }
+            showToast(ugEsc((err && err.message) || 'Không lưu được nhóm. Vui lòng thử lại.'), 'error');
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const retry = document.getElementById('btnRetryGroupForm');
+    if (retry) retry.addEventListener('click', () => {
+        const id = document.getElementById('groupIdInput').value;
+        if (id) loadGroupEdit(Number(id));
+    });
+});
 
 // Manage Group Admins Modal
 function openManageAdminsModal(groupId) {

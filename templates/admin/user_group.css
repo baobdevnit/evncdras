@@ -814,7 +814,9 @@ a.group-name:hover {
 }
 
 #userGroupModal .field-error[hidden],
-#userGroupModal [data-create-only][hidden] {
+#userGroupModal [data-create-only][hidden],
+#userGroupModal [data-edit-only][hidden],
+#userGroupModal #groupForm[hidden] {
     display: none;
 }
 
